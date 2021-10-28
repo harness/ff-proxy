@@ -1,0 +1,28 @@
+[
+     {
+        "environment": "featureflagsqa",
+        "excluded": [
+
+        ],
+        "identifier": "flagsTeam",
+        "included": [
+
+        ],
+        "name": "flagsTeam",
+        "rules": [
+          {
+            "attribute": "ip",
+            "id": "31c18ee7-8051-44cc-8507-b44580467ee5",
+            "negate": false,
+            "op": "equal",
+            "values": [
+              "2a00:23c5:b672:2401:158:f2a6:67a0:6a79"
+            ]
+          }
+        ],
+        "version": 1,
+        "createdAt": 123,
+        "modifiedAt": 456
+      }
+]
+

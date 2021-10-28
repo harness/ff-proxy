@@ -1,0 +1,16 @@
+db_data/
+.idea/
+vendor/
+api/openapi/v1.pb
+/coverage.out
+/e2e_cov.out
+/internal/infrastructure/persistence/mock_dao_interfaces.go
+/internal/repository/mock_repo_interfaces.go
+/internal/repository/mock_transaction.go
+/pkg/concurent/mock_broker.go
+
+__debug_bin
+cf.session.sql
+
+ff-proxy
+.*

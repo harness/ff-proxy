@@ -1,0 +1,30 @@
+[
+      {
+        "account": "foo",
+        "attributes": {
+          "age": 55,
+          "ages": [
+            1,
+            2,
+            3
+          ],
+          "happy": true,
+          "host": "foo.com",
+          "userGroups": [
+            "Foo",
+            "Volvo",
+            "BMW"
+          ]
+        },
+        "anonymous": false,
+        "createdAt": 1634222520273,
+        "environment": "featureflagsqa",
+        "identifier": "james",
+        "name": "james",
+        "org": "bar",
+        "project": "FeatureFlagsQADemo",
+        "segments": [
+
+        ]
+      }
+]
