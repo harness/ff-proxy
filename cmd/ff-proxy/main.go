@@ -1,12 +1,15 @@
 package main
 
 import (
+	"context"
 	"flag"
 	"fmt"
 	"log"
 
 	ffproxy "github.com/harness/ff-proxy"
-	"github.com/harness/ff-proxy/gen"
+	"github.com/harness/ff-proxy/cache"
+	"github.com/harness/ff-proxy/domain"
+	"github.com/harness/ff-proxy/repository"
 )
 
 var (
@@ -20,8 +23,8 @@ func init() {
 
 func main() {
 	var (
-		featureConfig map[ffproxy.FeatureConfigKey][]*ffproxy.FeatureConfig
-		targetConfig  map[ffproxy.TargetKey][]*gen.Target
+		featureConfig map[domain.FeatureConfigKey][]domain.FeatureConfig
+		targetConfig  map[domain.TargetKey][]domain.Target
 	)
 
 	if offline {
@@ -33,8 +36,32 @@ func main() {
 		targetConfig = config.Targets()
 	}
 
-	// Just print these for now, once we've implemented our cache we can pass
-	// these to it
-	fmt.Println(featureConfig)
-	fmt.Println(targetConfig)
+	memCache := cache.NewMemCache()
+	tr, err := repository.NewTargetRepo(memCache, targetConfig)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	fcr, err := repository.NewFeatureConfigRepo(memCache, featureConfig)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	// We'll pass the above repos to the service once its been created but for
+	// now just get a target and feature config and print them out
+
+	ctx := context.Background()
+
+	dave, err := tr.GetByIdentifier(ctx, domain.NewTargetKey("94ef7361-1f2d-40af-9b2c-c1145d537e5a"), "dave")
+	if err != nil {
+		log.Fatal(err)
+	}
+	fmt.Println("target: ", dave)
+
+	darkMode, err := fcr.GetByIdentifier(ctx, domain.NewFeatureConfigKey("94ef7361-1f2d-40af-9b2c-c1145d537e5a"), "harnessappdemodarkmode")
+	if err != nil {
+		log.Fatal(err)
+	}
+	fmt.Println("featureConfig: ", darkMode)
+
 }
