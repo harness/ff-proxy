@@ -1,0 +1,617 @@
+openapi: 3.0.0
+info:
+  title: Harness feature flag service client apis
+  version: 1.0.0
+  contact:
+    name: Feature Flag - developers
+    url: 'https://www.harness.io'
+    email: cf@harness.io
+servers:
+  - url: /api/1.0
+    description: no host specified
+  - url: 'http://localhost:3000/api/1.0'
+    description: CfClient description
+paths:
+  '/client/env/{environmentUUID}/feature-configs':
+    get:
+      summary: Get all feature flags activations
+      description: All feature flags with activations in project environment
+      operationId: GetFeatureConfig
+      parameters:
+        - name: environmentUUID
+          in: path
+          required: true
+          description: Unique identifier for the environment object in the API.
+          schema:
+            type: string
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/FeatureConfig'
+  '/client/env/{environmentUUID}/feature-configs/{identifier}':
+    get:
+      summary: Get feature config
+      operationId: GetFeatureConfigByIdentifier
+      parameters:
+        - name: identifier
+          in: path
+          required: true
+          description: Unique identifier for the flag object in the API.
+          schema:
+            type: string
+        - name: environmentUUID
+          in: path
+          required: true
+          description: Unique identifier for the environment object in the API.
+          schema:
+            type: string
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FeatureConfig'
+  '/client/env/{environmentUUID}/target-segments':
+    get:
+      summary: Retrieve all segments.
+      description: Used to retrieve all segments for certain account id.
+      operationId: GetAllSegments
+      parameters:
+        - name: environmentUUID
+          in: path
+          required: true
+          description: Unique identifier for the environment object in the API.
+          schema:
+            type: string
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Segment'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  '/client/env/{environmentUUID}/target-segments/{identifier}':
+    get:
+      summary: Retrieve a segment by identifier
+      description: Used to retrieve a segment for a certain account id by identifier
+      operationId: GetSegmentByIdentifier
+      parameters:
+        - name: identifier
+          in: path
+          required: true
+          description: Unique identifier for the segment object in the API
+          schema:
+            type: string
+        - name: environmentUUID
+          in: path
+          required: true
+          description: Unique identifier for the environment object in the API
+          schema:
+            type: string
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Segment'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /client/auth:
+    post:
+      summary: Authenticate with the admin server.
+      description: Used to retrieve all target segments for certain account id.
+      operationId: Authenticate
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AuthenticationRequest'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthenticationResponse'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  '/client/env/{environmentUUID}/target/{target}/evaluations':
+    get:
+      summary: Get feature evaluations for target
+      operationId: GetEvaluations
+      parameters:
+        - name: environmentUUID
+          in: path
+          required: true
+          description: Unique identifier for the environment object in the API.
+          schema:
+            type: string
+        - name: target
+          in: path
+          required: true
+          description: Unique identifier for the target object in the API.
+          schema:
+            type: string
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Pagination'
+                  - $ref: '#/components/schemas/Evaluations'
+  '/client/env/{environmentUUID}/target/{target}/evaluations/{feature}':
+    get:
+      summary: Get feature evaluations for target
+      operationId: GetEvaluationByIdentifier
+      parameters:
+        - name: environmentUUID
+          in: path
+          required: true
+          description: Unique identifier for the environment object in the API.
+          schema:
+            type: string
+        - name: feature
+          in: path
+          required: true
+          description: Unique identifier for the flag object in the API.
+          schema:
+            type: string
+        - name: target
+          in: path
+          required: true
+          description: Unique identifier for the target object in the API.
+          schema:
+            type: string
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Evaluation'
+  /stream:
+    get:
+      summary: Stream endpoint.
+      operationId: Stream
+      parameters:
+        - in: header
+          name: API-Key
+          schema:
+            type: string
+          required: true
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: OK
+          headers:
+            Content-Type:
+              schema:
+                type: string
+                default: text/event-stream
+            Cache-Control:
+              schema:
+                type: string
+                default: no-cache
+            Connection:
+              schema:
+                type: string
+                default: keep-alive
+            Access-Control-Allow-Origin:
+              schema:
+                type: string
+                default: '*'
+        '503':
+          description: Service Unavailable
+components:
+  schemas:
+    FeatureState:
+      type: string
+      enum:
+        - 'on'
+        - 'off'
+    Variation:
+      type: object
+      properties:
+        identifier:
+          type: string
+        value:
+          type: string
+        name:
+          type: string
+        description:
+          type: string
+      required:
+        - identifier
+        - value
+    Clause:
+      type: object
+      properties:
+        id:
+          type: string
+        attribute:
+          type: string
+        op:
+          type: string
+        values:
+          type: array
+          items:
+            type: string
+        negate:
+          type: boolean
+      required:
+        - id
+        - attribute
+        - op
+        - negate
+        - values
+    WeightedVariation:
+      type: object
+      properties:
+        variation:
+          type: string
+        weight:
+          type: integer
+      required:
+        - variation
+        - weight
+    Distribution:
+      type: object
+      properties:
+        bucketBy:
+          type: string
+        variations:
+          type: array
+          items:
+            $ref: '#/components/schemas/WeightedVariation'
+      required:
+        - bucketBy
+        - variations
+    Serve:
+      type: object
+      properties:
+        distribution:
+          $ref: '#/components/schemas/Distribution'
+        variation:
+          type: string
+    ServingRule:
+      type: object
+      properties:
+        ruleId:
+          type: string
+        priority:
+          type: integer
+        clauses:
+          type: array
+          items:
+            $ref: '#/components/schemas/Clause'
+        serve:
+          $ref: '#/components/schemas/Serve'
+      required:
+        - priority
+        - clauses
+        - serve
+        - ruleId
+    Prerequisite:
+      type: object
+      properties:
+        feature:
+          type: string
+        variations:
+          type: array
+          items:
+            type: string
+      required:
+        - feature
+        - variations
+    TargetMap:
+      type: object
+      properties:
+        identifier:
+          type: string
+        name:
+          type: string
+      required:
+        - idenfifier
+        - name
+    VariationMap:
+      type: object
+      properties:
+        variation:
+          type: string
+        targets:
+          type: array
+          items:
+            $ref: '#/components/schemas/TargetMap'
+        targetSegments:
+          type: array
+          items:
+            type: string
+      required:
+        - variation
+    FeatureConfig:
+      type: object
+      properties:
+        project:
+          type: string
+        environment:
+          type: string
+        feature:
+          type: string
+        state:
+          $ref: '#/components/schemas/FeatureState'
+        kind:
+          type: string
+          enum:
+            - boolean
+            - int
+            - string
+            - json
+        variations:
+          type: array
+          items:
+            $ref: '#/components/schemas/Variation'
+          minItems: 2
+        rules:
+          type: array
+          items:
+            $ref: '#/components/schemas/ServingRule'
+        defaultServe:
+          $ref: '#/components/schemas/Serve'
+        offVariation:
+          type: string
+        prerequisites:
+          type: array
+          items:
+            $ref: '#/components/schemas/Prerequisite'
+        variationToTargetMap:
+          type: array
+          items:
+            $ref: '#/components/schemas/VariationMap'
+        version:
+          type: integer
+          format: int64
+      required:
+        - project
+        - environment
+        - feature
+        - state
+        - kind
+        - variations
+        - defaultTarget
+        - offVariation
+        - defaultServe
+    Tag:
+      type: object
+      description: A name and value pair.
+      properties:
+        name:
+          type: string
+        value:
+          type: string
+      required:
+        - name
+    Segment:
+      type: object
+      properties:
+        identifier:
+          type: string
+          description: Unique identifier for the segment.
+        name:
+          type: string
+          description: Name of the segment.
+          example: Beta Testers
+        environment:
+          type: string
+        tags:
+          type: array
+          items:
+            $ref: '#/components/schemas/Tag'
+        included:
+          type: array
+          items:
+            $ref: '#/components/schemas/Target'
+        excluded:
+          type: array
+          items:
+            $ref: '#/components/schemas/Target'
+        rules:
+          type: array
+          items:
+            $ref: '#/components/schemas/Clause'
+          description: >-
+            An array of rules that can cause a user to be included in this
+            segment.
+        createdAt:
+          type: integer
+          format: int64
+        modifiedAt:
+          type: integer
+          format: int64
+        version:
+          type: integer
+          format: int64
+      required:
+        - identifier
+        - name
+    Target:
+      type: object
+      properties:
+        identifier:
+          type: string
+        account:
+          type: string
+        org:
+          type: string
+        environment:
+          type: string
+        project:
+          type: string
+        name:
+          type: string
+        anonymous:
+          type: boolean
+        attributes:
+          type: object
+        createdAt:
+          type: integer
+          format: int64
+        segments:
+          type: array
+          items:
+            $ref: '#/components/schemas/Segment'
+      required:
+        - identifier
+        - name
+        - environment
+        - project
+        - account
+        - org
+    Error:
+      type: object
+      properties:
+        code:
+          type: string
+        message:
+          type: string
+      required:
+        - code
+        - message
+    AuthenticationRequest:
+      type: object
+      properties:
+        apiKey:
+          type: string
+          example: 896045f3-42ee-4e73-9154-086644768b96
+        target:
+          type: object
+          properties:
+            identifier:
+              type: string
+            name:
+              type: string
+            anonymous:
+              type: boolean
+            attributes:
+              type: object
+          required:
+            - identifier
+      required:
+        - apiKey
+    AuthenticationResponse:
+      type: object
+      properties:
+        authToken:
+          type: string
+      required:
+        - authToken
+    Pagination:
+      type: object
+      properties:
+        version:
+          type: integer
+        pageCount:
+          type: integer
+        itemCount:
+          type: integer
+          example: 1
+        pageSize:
+          type: integer
+          example: 1
+        pageIndex:
+          type: integer
+          example: 0
+      required:
+        - pageCount
+        - itemCount
+        - pageSize
+        - pageIndex
+        - pageIndex
+    Evaluation:
+      type: object
+      properties:
+        flag:
+          type: string
+        value:
+          type: string
+        kind:
+          type: string
+        identifier:
+          type: string
+      required:
+        - flag
+        - value
+        - kind
+    Evaluations:
+      type: array
+      items:
+        $ref: '#/components/schemas/Evaluation'
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  responses:
+    Unauthenticated:
+      description: Unauthenticated
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    Unauthorized:
+      description: Unauthorized
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    NotFound:
+      description: The specified resource was not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    InternalServerError:
+      description: Internal server error
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'

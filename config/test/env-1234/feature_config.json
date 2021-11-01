@@ -1,0 +1,63 @@
+[
+    {
+        "defaultServe": {
+          "variation": "true"
+        },
+        "environment": "featureflagsqa",
+        "feature": "harnessappdemodarkmode",
+        "kind": "boolean",
+        "offVariation": "false",
+        "prerequisites": [
+
+        ],
+        "project": "FeatureFlagsQADemo",
+        "rules": [
+          {
+            "clauses": [
+              {
+                "attribute": "name",
+                "id": "79f5bca0-17ca-42c2-8934-5cee840fe2e0",
+                "negate": false,
+                "op": "equal",
+                "values": [
+                  "John"
+                ]
+              }
+            ],
+            "priority": 1,
+            "ruleId": "8756c207-abf8-4202-83fd-dedf5d27e2c2",
+            "serve": {
+              "variation": "false"
+            }
+          }
+        ],
+        "state": "on",
+        "variationToTargetMap": [
+          {
+            "targetSegments": [
+              "flagsTeam"
+            ],
+            "targets": [
+              {
+                "identifier": "davej",
+                "name": "Dave Johnston"
+              }
+            ],
+            "variation": "false"
+          }
+        ],
+        "variations": [
+          {
+            "identifier": "true",
+            "name": "True",
+            "value": "true"
+          },
+          {
+            "identifier": "false",
+            "name": "False",
+            "value": "false"
+          }
+        ],
+        "version": 568
+      }
+]
