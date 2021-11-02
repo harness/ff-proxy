@@ -213,4 +213,3 @@ type StreamParams struct {
 
 // AuthenticateJSONRequestBody defines body for Authenticate for application/json ContentType.
 type AuthenticateJSONRequestBody AuthenticateJSONBody
-
