@@ -6,6 +6,7 @@ import (
 	"io/fs"
 	"strings"
 
+	"github.com/harness/ff-proxy/domain"
 	"github.com/harness/ff-proxy/gen"
 )
 
@@ -23,10 +24,10 @@ const (
 )
 
 type config struct {
-	Environment   string           `json:"environment"`
-	FeatureConfig []*FeatureConfig `json:"featureConfig"`
-	Targets       []*gen.Target    `json:"targets"`
-	Segments      []*gen.Segment   `json:"segments"`
+	Environment   string                 `json:"environment"`
+	FeatureConfig []domain.FeatureConfig `json:"featureConfig"`
+	Targets       []domain.Target        `json:"targets"`
+	Segments      []gen.Segment          `json:"segments"`
 }
 
 // FeatureFlagConfig is a type that can traverse a tree of files and decode
@@ -88,9 +89,9 @@ func decodeConfigFiles(c map[string]config) fs.WalkDirFunc {
 
 			c[i.Name()] = config{
 				Environment:   strings.TrimPrefix(i.Name(), "env-"),
-				FeatureConfig: []*FeatureConfig{},
-				Targets:       []*gen.Target{},
-				Segments:      []*gen.Segment{},
+				FeatureConfig: []domain.FeatureConfig{},
+				Targets:       []domain.Target{},
+				Segments:      []gen.Segment{},
 			}
 			return nil
 		}
@@ -136,16 +137,18 @@ func decodeConfigFiles(c map[string]config) fs.WalkDirFunc {
 // in the form of a map of featureConfigKeys to []FeatureConfig. As a part of
 // its logic it adds the Segment information from the FeatureFlagConfig to the
 // FeatureConfig type
-func (f FeatureFlagConfig) FeatureConfig() map[FeatureConfigKey][]*FeatureConfig {
-	result := map[FeatureConfigKey][]*FeatureConfig{}
+func (f FeatureFlagConfig) FeatureConfig() map[domain.FeatureConfigKey][]domain.FeatureConfig {
+	result := map[domain.FeatureConfigKey][]domain.FeatureConfig{}
 
 	for _, cfg := range f.config {
-		key := NewFeatureConfigKey(cfg.Environment)
+		key := domain.NewFeatureConfigKey(cfg.Environment)
 
-		for _, fc := range cfg.FeatureConfig {
+		for i := 0; i < len(cfg.FeatureConfig); i++ {
+			fc := &cfg.FeatureConfig[i]
+
 			for _, seg := range cfg.Segments {
 				if fc.Segments == nil {
-					fc.Segments = make(map[string]*gen.Segment)
+					fc.Segments = make(map[string]gen.Segment)
 				}
 
 				if _, ok := fc.Segments[seg.Identifier]; !ok {
@@ -160,11 +163,11 @@ func (f FeatureFlagConfig) FeatureConfig() map[FeatureConfigKey][]*FeatureConfig
 
 // Targets returns the target information from the FeatureFlagConfig in the form
 // of a map of targetIdentifer to Target
-func (f FeatureFlagConfig) Targets() map[TargetKey][]*gen.Target {
-	results := map[TargetKey][]*gen.Target{}
+func (f FeatureFlagConfig) Targets() map[domain.TargetKey][]domain.Target {
+	results := map[domain.TargetKey][]domain.Target{}
 
 	for _, cfg := range f.config {
-		key := NewTargetKey(cfg.Environment)
+		key := domain.NewTargetKey(cfg.Environment)
 		results[key] = cfg.Targets
 	}
 	return results

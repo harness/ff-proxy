@@ -4,6 +4,7 @@ import (
 	"embed"
 	"testing"
 
+	"github.com/harness/ff-proxy/domain"
 	"github.com/harness/ff-proxy/gen"
 	"github.com/stretchr/testify/assert"
 )
@@ -22,10 +23,10 @@ const (
 )
 
 func TestFeatureFlagConfig(t *testing.T) {
-	expectedFeatureConfig := map[FeatureConfigKey][]*FeatureConfig{
-		NewFeatureConfigKey("1234"): {
+	expectedFeatureConfig := map[domain.FeatureConfigKey][]domain.FeatureConfig{
+		domain.NewFeatureConfigKey("1234"): {
 			{
-				gen.FeatureConfig{
+				FeatureConfig: gen.FeatureConfig{
 					DefaultServe: gen.Serve{
 						Variation: strPtr("true"),
 					},
@@ -86,7 +87,7 @@ func TestFeatureFlagConfig(t *testing.T) {
 					},
 					Version: int64Ptr(568),
 				},
-				map[string]*gen.Segment{
+				Segments: map[string]gen.Segment{
 					"flagsTeam": {
 						Environment: strPtr("featureflagsqa"),
 						Identifier:  "flagsTeam",
@@ -114,8 +115,8 @@ func TestFeatureFlagConfig(t *testing.T) {
 		},
 	}
 
-	expectedTargetConfig := map[TargetKey][]*gen.Target{
-		NewTargetKey("1234"): {
+	expectedTargetConfig := map[domain.TargetKey][]domain.Target{
+		domain.NewTargetKey("1234"): {
 			{
 				Account:     "foo",
 				Anonymous:   boolPtr(false),
