@@ -243,7 +243,7 @@ func TestFeatureConfigRepo_Add(t *testing.T) {
 			key:        key123,
 			shouldErr:  true,
 			expected:   []domain.FeatureConfig{},
-			expecteErr: domain.CacheInternalErr{},
+			expecteErr: domain.ErrCacheInternal,
 		},
 	}
 	for desc, tc := range testCases {
@@ -293,7 +293,7 @@ func TestFeatureConfigRepo_GetByIdentifer(t *testing.T) {
 			identifier:  "foo",
 			shouldErr:   true,
 			expected:    domain.FeatureConfig{},
-			expectedErr: domain.CacheNotFoundErr{},
+			expectedErr: domain.ErrCacheNotFound,
 		},
 		"Given I have a populated cache and I get an identifier that's in the cache": {
 			cache:       cache.NewMemCache(),
@@ -311,7 +311,7 @@ func TestFeatureConfigRepo_GetByIdentifer(t *testing.T) {
 			identifier:  "bar",
 			shouldErr:   true,
 			expected:    domain.FeatureConfig{},
-			expectedErr: domain.CacheNotFoundErr{},
+			expectedErr: domain.ErrCacheNotFound,
 		},
 	}
 

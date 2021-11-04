@@ -186,7 +186,7 @@ func TestTargetRepo_GetByIdentifer(t *testing.T) {
 			identifier:  "foo",
 			shouldErr:   true,
 			expected:    domain.Target{},
-			expectedErr: domain.CacheNotFoundErr{},
+			expectedErr: domain.ErrCacheNotFound,
 		},
 		"Given I have a populated cache and I get an identifier that's in the cache": {
 			cache:       cache.NewMemCache(),
@@ -204,7 +204,7 @@ func TestTargetRepo_GetByIdentifer(t *testing.T) {
 			identifier:  "bar",
 			shouldErr:   true,
 			expected:    domain.Target{},
-			expectedErr: domain.CacheNotFoundErr{},
+			expectedErr: domain.ErrCacheNotFound,
 		},
 	}
 

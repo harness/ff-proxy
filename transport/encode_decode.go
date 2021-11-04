@@ -52,6 +52,8 @@ func codeFrom(err error) int {
 	switch err {
 	case proxyservice.ErrNotImplemented:
 		return http.StatusNotImplemented
+	case proxyservice.ErrNotFound:
+		return http.StatusNotFound
 	default:
 		if errors.Is(err, errBadRequest) {
 			return http.StatusBadRequest
