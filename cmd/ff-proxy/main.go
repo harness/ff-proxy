@@ -64,7 +64,8 @@ func main() {
 		os.Exit(1)
 	}
 
-	service := transport.NewLoggingService(logger, proxyservice.NewProxyService(fcr, tr, logger))
+	featureEvaluator := proxyservice.NewFeatureEvaluator()
+	service := transport.NewLoggingService(logger, proxyservice.NewProxyService(fcr, tr, featureEvaluator, logger))
 	endpoints := transport.NewEndpoints(service)
 	server := transport.NewHTTPServer(host, port, endpoints, logger)
 

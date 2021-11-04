@@ -43,7 +43,7 @@ func TestServerEndpoints(t *testing.T) {
 	logger := log.NewNoOpLogger()
 
 	// Setup service and http servers
-	proxyService := proxyservice.NewProxyService(featureRepo, targetRepo, logger)
+	proxyService := proxyservice.NewProxyService(featureRepo, targetRepo, proxyservice.NewFeatureEvaluator(), logger)
 	endpoints := NewEndpoints(proxyService)
 	server := NewHTTPServer("localhost", 7000, endpoints, logger)
 	testServer := httptest.NewServer(server)
@@ -62,7 +62,7 @@ func TestServerEndpoints(t *testing.T) {
 			payload: domain.AuthRequest{
 				APIKey: "123",
 			},
-			expectedStatusCode: http.StatusNotImplemented,
+			expectedStatusCode: http.StatusOK,
 		},
 		"Given I make a valid request to /client/env/{environmentUUID}/feature-configs": {
 			method:             http.MethodGet,
@@ -87,12 +87,12 @@ func TestServerEndpoints(t *testing.T) {
 		"Given I make a valid request to /client/env/{environmentUUID}/target/{target}/evaluations": {
 			method:             http.MethodGet,
 			url:                fmt.Sprintf("%s/client/env/1234/target/james/evaluations", testServer.URL),
-			expectedStatusCode: http.StatusNotImplemented,
+			expectedStatusCode: http.StatusNotFound,
 		},
 		"Given I make a valid request to /client/env/{environmentUUID}/target/{target}/evaluations/{feature}": {
 			method:             http.MethodGet,
 			url:                fmt.Sprintf("%s/client/env/1234/target/james/evaluations/harnessappdemodarkmode", testServer.URL),
-			expectedStatusCode: http.StatusNotImplemented,
+			expectedStatusCode: http.StatusNotFound,
 		},
 		"Given I make a valid request to /stream": {
 			method: http.MethodGet,

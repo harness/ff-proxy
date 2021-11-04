@@ -3,7 +3,6 @@ package repository
 import (
 	"context"
 	"fmt"
-	"log"
 	"time"
 
 	"github.com/harness/ff-proxy/domain"
@@ -52,7 +51,7 @@ func (f FeatureConfigRepo) Add(ctx context.Context, key domain.FeatureConfigKey,
 func (f FeatureConfigRepo) Get(ctx context.Context, key domain.FeatureConfigKey) ([]domain.FeatureConfig, error) {
 	results, err := f.cache.GetAll(ctx, string(key))
 	if err != nil {
-		log.Fatal(err)
+		return []domain.FeatureConfig{}, err
 	}
 
 	featureConfigs := []domain.FeatureConfig{}

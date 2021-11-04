@@ -23,7 +23,8 @@ func NewTargetKey(envID string) TargetKey {
 	return TargetKey(fmt.Sprintf("env-%s-target-config", envID))
 }
 
-// FeatureConfig is the type containing FeatureConfig information
+// FeatureConfig is the type containing FeatureConfig information and is what
+// we return from /GET client/env/<env>/feature-configs
 type FeatureConfig struct {
 	gen.FeatureConfig
 	Segments map[string]gen.Segment

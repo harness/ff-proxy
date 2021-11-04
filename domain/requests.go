@@ -7,7 +7,7 @@ type AuthRequest struct {
 
 // AuthResponse contains the fields returned in an authentication response
 type AuthResponse struct {
-	AuthToken string `json:"auth_token"`
+	AuthToken string `json:"authToken"`
 }
 
 // FeatureConfigRequest contains the fields sent in a GET /client/env/{environmentUUID}/feature-configs

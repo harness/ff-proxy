@@ -3,7 +3,7 @@ package cache
 import (
 	"context"
 	"encoding"
-	"errors"
+	"fmt"
 	"sync"
 
 	"github.com/harness/ff-proxy/domain"
@@ -29,7 +29,7 @@ func (m MemCache) Set(ctx context.Context, key string, field string, value encod
 	if v, ok := m.data[key]; ok {
 		b, err := value.MarshalBinary()
 		if err != nil {
-			return domain.NewCacheInternalErr(domain.CacheOpSet, key, field, err)
+			return fmt.Errorf("%w: failed to set value for key: %q, field: %q", domain.ErrCacheInternal, key, field)
 		}
 		v[field] = b
 		return nil
@@ -52,7 +52,7 @@ func (m MemCache) GetAll(ctx context.Context, key string) (map[string][]byte, er
 
 	fields, ok := m.data[key]
 	if !ok {
-		return nil, domain.NewCacheNotFoundErr(domain.CacheOpGetAll, key, "all", errors.New("key doesn't exist in memCache"))
+		return nil, fmt.Errorf("%w: key: %s doesn't exist in memcache", domain.ErrCacheNotFound, key)
 	}
 
 	return fields, nil
@@ -65,16 +65,16 @@ func (m MemCache) Get(ctx context.Context, key string, field string, v encoding.
 
 	fields, ok := m.data[key]
 	if !ok {
-		return domain.NewCacheNotFoundErr(domain.CacheOpGet, key, field, errors.New("key doesn't exist in memCache"))
+		return fmt.Errorf("%w: key %q doesn't exist in memcache", domain.ErrCacheNotFound, key)
 	}
 
 	value, ok := fields[field]
 	if !ok {
-		return domain.NewCacheNotFoundErr(domain.CacheOpGet, key, field, errors.New("field doesnt exist in memCahe"))
+		return fmt.Errorf("%w: field %q doesn't exist in memcache for key: %q", domain.ErrCacheNotFound, field, key)
 	}
 
 	if err := v.UnmarshalBinary(value); err != nil {
-		return domain.NewCacheInternalErr(domain.CacheOpGet, key, field, err)
+		return fmt.Errorf("%w: failed to unmarshal value to %T for key: %q, field: %q", v, key, field, domain.ErrCacheInternal)
 	}
 	return nil
 }
