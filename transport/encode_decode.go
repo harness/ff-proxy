@@ -58,6 +58,10 @@ func codeFrom(err error) int {
 		if errors.Is(err, errBadRequest) {
 			return http.StatusBadRequest
 		}
+
+		if errors.Is(err, proxyservice.ErrNotFound) {
+			return http.StatusNotFound
+		}
 		return http.StatusInternalServerError
 	}
 }

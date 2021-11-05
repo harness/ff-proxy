@@ -35,16 +35,18 @@ type ProxyService struct {
 	logger      log.Logger
 	featureRepo repository.FeatureConfigRepo
 	targetRepo  repository.TargetRepo
+	segmentRepo repository.SegmentRepo
 	evaluator   evaluator
 }
 
 // NewProxyService creates and returns a ProxyService
-func NewProxyService(fr repository.FeatureConfigRepo, tr repository.TargetRepo, e evaluator, l log.Logger) ProxyService {
+func NewProxyService(fr repository.FeatureConfigRepo, tr repository.TargetRepo, sr repository.SegmentRepo, e evaluator, l log.Logger) ProxyService {
 	l = log.With(l, "component", "ProxyService")
 	return ProxyService{
 		logger:      l,
 		featureRepo: fr,
 		targetRepo:  tr,
+		segmentRepo: sr,
 		evaluator:   e,
 	}
 }
@@ -57,22 +59,63 @@ func (p ProxyService) Authenticate(ctx context.Context, req domain.AuthRequest) 
 
 // FeatureConfig gets all FeatureConfig for an environment
 func (p ProxyService) FeatureConfig(ctx context.Context, req domain.FeatureConfigRequest) ([]domain.FeatureConfig, error) {
-	return []domain.FeatureConfig{}, ErrNotImplemented
+	key := domain.NewFeatureConfigKey(req.EnvironmentID)
+
+	configs, err := p.featureRepo.Get(ctx, key)
+	if err != nil {
+		if errors.Is(err, domain.ErrCacheNotFound) {
+			return []domain.FeatureConfig{}, fmt.Errorf("%w: %s", ErrNotFound, err)
+		}
+		return []domain.FeatureConfig{}, fmt.Errorf("%w: %s", ErrInternal, err)
+	}
+
+	return configs, nil
 }
 
 // FeatureConfigByIdentifier gets the feature config for a feature
 func (p ProxyService) FeatureConfigByIdentifier(ctx context.Context, req domain.FeatureConfigByIdentifierRequest) (domain.FeatureConfig, error) {
-	return domain.FeatureConfig{}, ErrNotImplemented
+	key := domain.NewFeatureConfigKey(req.EnvironmentID)
+
+	config, err := p.featureRepo.GetByIdentifier(ctx, key, req.Identifier)
+	if err != nil {
+		if errors.Is(err, domain.ErrCacheNotFound) {
+			return domain.FeatureConfig{}, fmt.Errorf("%w: %s", ErrNotFound, err)
+		}
+		return domain.FeatureConfig{}, fmt.Errorf("%w: %s", ErrInternal, err)
+	}
+
+	return config, nil
 }
 
 // TargetSegments gets all of the TargetSegments in an environment
-func (p ProxyService) TargetSegments(ctx context.Context, req domain.TargetSegmentsRequest) ([]gen.Segment, error) {
-	return []gen.Segment{}, ErrNotImplemented
+func (p ProxyService) TargetSegments(ctx context.Context, req domain.TargetSegmentsRequest) ([]domain.Segment, error) {
+	key := domain.NewSegmentKey(req.EnvironmentID)
+
+	segments, err := p.segmentRepo.Get(ctx, key)
+	if err != nil {
+		if errors.Is(err, domain.ErrCacheNotFound) {
+			return []domain.Segment{}, fmt.Errorf("%w: %s", ErrNotFound, err)
+		}
+		return []domain.Segment{}, fmt.Errorf("%w: %s", ErrInternal, err)
+
+	}
+
+	return segments, nil
 }
 
 // TargetSegmentsByIdentifier get a TargetSegments from an environment by its identifier
-func (p ProxyService) TargetSegmentsByIdentifier(ctx context.Context, req domain.TargetSegmentsByIdentifierRequest) (gen.Segment, error) {
-	return gen.Segment{}, ErrNotImplemented
+func (p ProxyService) TargetSegmentsByIdentifier(ctx context.Context, req domain.TargetSegmentsByIdentifierRequest) (domain.Segment, error) {
+	key := domain.NewSegmentKey(req.EnvironmentID)
+
+	segment, err := p.segmentRepo.GetByIdentifier(ctx, key, req.Identifier)
+	if err != nil {
+		if errors.Is(err, domain.ErrCacheNotFound) {
+			return domain.Segment{}, fmt.Errorf("%w: %s", ErrNotFound, err)
+		}
+		return domain.Segment{}, fmt.Errorf("%w: %s", ErrInternal, err)
+	}
+
+	return segment, nil
 }
 
 // Evaluations gets all of the evaluations in an environment for a target

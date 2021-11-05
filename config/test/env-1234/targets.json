@@ -2,7 +2,7 @@
       {
         "account": "foo",
         "attributes": {
-          "age": 55,
+          "age": 56,
           "ages": [
             1,
             2,
@@ -19,9 +19,37 @@
         "anonymous": false,
         "createdAt": 1634222520273,
         "environment": "featureflagsqa",
+        "identifier": "foo",
+        "name": "foo",
+        "org": "bar",
+        "project": "FeatureFlagsQADemo",
+        "segments": [
+
+        ]
+      },
+      {
+        "account": "",
+        "attributes": {
+          "age": 55,
+          "ages": [
+            1,
+            2,
+            3
+          ],
+          "happy": true,
+          "host": "file:///Users/jcox/github.com/drone/ff-javascript-client-sample/index.html?identifier=james",
+          "lastUpdated": "Thu Oct 21 2021 11:58:20 GMT+0100 (British Summer Time)",
+          "userGroups": [
+            "Foo",
+            "Volvo",
+            "BMW"
+          ]
+        },
+        "createdAt": 1634222520273,
+        "environment": "featureflagsqa",
         "identifier": "james",
         "name": "james",
-        "org": "bar",
+        "org": "",
         "project": "FeatureFlagsQADemo",
         "segments": [
 

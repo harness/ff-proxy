@@ -4,7 +4,6 @@ import (
 	"github.com/drone/ff-golang-server-sdk/evaluation"
 	"github.com/harness/ff-proxy/domain"
 	"github.com/harness/ff-proxy/gen"
-	"github.com/wings-software/ff-server/pkg/flag"
 )
 
 // FeatureEvaluator is a type that can evaluate a feature config for a given target
@@ -82,7 +81,7 @@ func toEvaluationRules(r *[]gen.ServingRule) []evaluation.ServingRule {
 				ID:        clause.Id,
 				Negate:    clause.Negate,
 				Op:        string(clause.Op),
-				Value:     flag.StringSliceFromInterface(clause.Values),
+				Value:     clause.Values,
 			}
 		}
 		rules[i] = evaluation.ServingRule{
@@ -155,14 +154,14 @@ func toEvaluationVariation(v []gen.Variation) []evaluation.Variation {
 			Description: val.Description,
 			Identifier:  val.Identifier,
 			Name:        val.Name,
-			Value:       flag.InterfaceToStr(val.Value),
+			Value:       val.Value,
 		}
 	}
 	return variations
 }
 
 // toEvaluationSegments converts []gen.Segment to []evaluation.Segments
-func toEvaluationSegments(s map[string]gen.Segment) evaluation.Segments {
+func toEvaluationSegments(s map[string]domain.Segment) evaluation.Segments {
 	if s == nil {
 		return make(map[string]*evaluation.Segment)
 	}
@@ -188,7 +187,7 @@ func toEvaluationSegments(s map[string]gen.Segment) evaluation.Segments {
 					ID:        c.Id,
 					Negate:    c.Negate,
 					Op:        string(c.Op),
-					Value:     flag.StringSliceFromInterface(c.Values),
+					Value:     c.Values,
 				})
 			}
 		}

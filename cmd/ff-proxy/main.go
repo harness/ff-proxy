@@ -38,6 +38,7 @@ func main() {
 	var (
 		featureConfig map[domain.FeatureConfigKey][]domain.FeatureConfig
 		targetConfig  map[domain.TargetKey][]domain.Target
+		segmentConfig map[domain.SegmentKey][]domain.Segment
 	)
 
 	if offline {
@@ -48,6 +49,7 @@ func main() {
 		}
 		featureConfig = config.FeatureConfig()
 		targetConfig = config.Targets()
+		segmentConfig = config.Segments()
 	}
 
 	// Create cache and repos
@@ -64,8 +66,14 @@ func main() {
 		os.Exit(1)
 	}
 
+	sr, err := repository.NewSegmentRepo(memCache, segmentConfig)
+	if err != nil {
+		logger.Error("msg", "failed to create segment repo", "err", err)
+		os.Exit(1)
+	}
+
 	featureEvaluator := proxyservice.NewFeatureEvaluator()
-	service := transport.NewLoggingService(logger, proxyservice.NewProxyService(fcr, tr, featureEvaluator, logger))
+	service := transport.NewLoggingService(logger, proxyservice.NewProxyService(fcr, tr, sr, featureEvaluator, logger))
 	endpoints := transport.NewEndpoints(service)
 	server := transport.NewHTTPServer(host, port, endpoints, logger)
 

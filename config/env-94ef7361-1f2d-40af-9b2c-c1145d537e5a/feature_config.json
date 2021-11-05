@@ -257,12 +257,12 @@
           {
             "clauses": [
               {
-                "attribute": "name",
+                "attribute": "age",
                 "id": "79f5bca0-17ca-42c2-8934-5cee840fe2e0",
                 "negate": false,
                 "op": "equal",
                 "values": [
-                  "John"
+                  "55"
                 ]
               }
             ],
