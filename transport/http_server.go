@@ -133,6 +133,13 @@ func (h *HTTPServer) registerEndpoints(e *Endpoints) {
 		encodeStreamResponse,
 		streamOptions...,
 	))
+
+	h.router.Methods(http.MethodPost).Path("/metrics/{environmentUUID}").Handler(httptransport.NewServer(
+		e.PostMetrics,
+		decodeMetricsRequest,
+		encodeResponse,
+		options...,
+	))
 }
 
 func cors(next http.Handler) http.Handler {

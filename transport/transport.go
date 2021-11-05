@@ -32,4 +32,7 @@ type ProxyService interface {
 
 	// Stream streams flag updates out to the client
 	Stream(ctx context.Context, req domain.StreamRequest, stream domain.Stream) error
+
+	// Metrics forwards metrics to the analytics service
+	Metrics(ctx context.Context, req domain.MetricsRequest) error
 }

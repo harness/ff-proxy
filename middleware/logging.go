@@ -230,3 +230,19 @@ func (l LoggingMiddleware) Stream(ctx context.Context, req domain.StreamRequest,
 	err = l.next.Stream(ctx, req, stream)
 	return
 }
+
+// Metrics performs logging on Metrics requests and logs out the method, request
+// parameters, error and duration.
+func (l LoggingMiddleware) Metrics(ctx context.Context, req domain.MetricsRequest) (err error) {
+	defer func(begin time.Time) {
+		l.logger.Info(
+			"method", "EvaluationsByFeature",
+			"input", fmt.Sprintf("%v", req),
+			"err", err,
+			"took", time.Since(begin),
+		)
+	}(time.Now())
+
+	err = l.next.Metrics(ctx, req)
+	return
+}
