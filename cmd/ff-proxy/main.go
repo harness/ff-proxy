@@ -11,6 +11,7 @@ import (
 	"github.com/harness/ff-proxy/cache"
 	"github.com/harness/ff-proxy/domain"
 	"github.com/harness/ff-proxy/log"
+	"github.com/harness/ff-proxy/middleware"
 	proxyservice "github.com/harness/ff-proxy/proxy-service"
 	"github.com/harness/ff-proxy/repository"
 	"github.com/harness/ff-proxy/transport"
@@ -73,7 +74,11 @@ func main() {
 	}
 
 	featureEvaluator := proxyservice.NewFeatureEvaluator()
-	service := transport.NewLoggingService(logger, proxyservice.NewProxyService(fcr, tr, sr, featureEvaluator, logger))
+
+	var service transport.ProxyService
+	service = proxyservice.NewProxyService(fcr, tr, sr, featureEvaluator, logger)
+	service = middleware.NewLoggingMiddleware(logger, debug, service)
+
 	endpoints := transport.NewEndpoints(service)
 	server := transport.NewHTTPServer(host, port, endpoints, logger)
 
