@@ -7,7 +7,6 @@ import (
 	"strings"
 
 	"github.com/harness/ff-proxy/domain"
-	"github.com/harness/ff-proxy/gen"
 )
 
 var (
@@ -27,7 +26,7 @@ type config struct {
 	Environment   string                 `json:"environment"`
 	FeatureConfig []domain.FeatureConfig `json:"featureConfig"`
 	Targets       []domain.Target        `json:"targets"`
-	Segments      []gen.Segment          `json:"segments"`
+	Segments      []domain.Segment       `json:"segments"`
 }
 
 // FeatureFlagConfig is a type that can traverse a tree of files and decode
@@ -91,7 +90,7 @@ func decodeConfigFiles(c map[string]config) fs.WalkDirFunc {
 				Environment:   strings.TrimPrefix(i.Name(), "env-"),
 				FeatureConfig: []domain.FeatureConfig{},
 				Targets:       []domain.Target{},
-				Segments:      []gen.Segment{},
+				Segments:      []domain.Segment{},
 			}
 			return nil
 		}
@@ -134,9 +133,9 @@ func decodeConfigFiles(c map[string]config) fs.WalkDirFunc {
 }
 
 // FeatureConfig returns the FeatureConfig information from the FeatureFlagConfig
-// in the form of a map of featureConfigKeys to []FeatureConfig. As a part of
-// its logic it adds the Segment information from the FeatureFlagConfig to the
-// FeatureConfig type
+// in the form of a map of domain.FeatureConfigKeys to slice of domain.FeatureConfig.
+// As a part of its logic it adds the Segment information from the FeatureFlagConfig
+// to the FeatureConfig type
 func (f FeatureFlagConfig) FeatureConfig() map[domain.FeatureConfigKey][]domain.FeatureConfig {
 	result := map[domain.FeatureConfigKey][]domain.FeatureConfig{}
 
@@ -148,7 +147,7 @@ func (f FeatureFlagConfig) FeatureConfig() map[domain.FeatureConfigKey][]domain.
 
 			for _, seg := range cfg.Segments {
 				if fc.Segments == nil {
-					fc.Segments = make(map[string]gen.Segment)
+					fc.Segments = make(map[string]domain.Segment)
 				}
 
 				if _, ok := fc.Segments[seg.Identifier]; !ok {
@@ -162,7 +161,7 @@ func (f FeatureFlagConfig) FeatureConfig() map[domain.FeatureConfigKey][]domain.
 }
 
 // Targets returns the target information from the FeatureFlagConfig in the form
-// of a map of targetIdentifer to Target
+// of a map of domain.TargetKey to slice of domain.Target
 func (f FeatureFlagConfig) Targets() map[domain.TargetKey][]domain.Target {
 	results := map[domain.TargetKey][]domain.Target{}
 
@@ -171,4 +170,36 @@ func (f FeatureFlagConfig) Targets() map[domain.TargetKey][]domain.Target {
 		results[key] = cfg.Targets
 	}
 	return results
+}
+
+// Segments returns the segment informatino from the FeatureFlagConfig in the form
+// of a map of domain.SegmentKey to slice of domain.Segments
+func (f FeatureFlagConfig) Segments() map[domain.SegmentKey][]domain.Segment {
+	results := map[domain.SegmentKey][]domain.Segment{}
+
+	for _, cfg := range f.config {
+		key := domain.NewSegmentKey(cfg.Environment)
+		results[key] = cfg.Segments
+	}
+	return results
+}
+
+//go:embed config/test/env-*
+// testConfig embeds the config used for testing
+var testConfig embed.FS
+
+const (
+	// testDir is the directory that the test config lives in
+	testDir = "config/test"
+)
+
+// MustMakeNEwTestFeatureFlagConfig creates a FeatureFlagConfig that loads test
+// data. It's only purpose should be to use the test config in tests that live
+// in other packages. See transport/http_server_test.go for an example.
+func MustMakeNewTestFeatureFlagConfig() FeatureFlagConfig {
+	f, err := NewFeatureFlagConfig(testConfig, testDir)
+	if err != nil {
+		panic(err)
+	}
+	return f
 }

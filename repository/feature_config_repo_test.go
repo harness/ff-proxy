@@ -74,7 +74,7 @@ var (
 			},
 			Version: int64Ptr(568),
 		},
-		Segments: map[string]gen.Segment{
+		Segments: map[string]domain.Segment{
 			"flagsTeam": {
 				Environment: strPtr("featureflagsqa"),
 				Identifier:  "flagsTeam",
@@ -162,7 +162,7 @@ var (
 			},
 			Version: int64Ptr(568),
 		},
-		Segments: map[string]gen.Segment{
+		Segments: map[string]domain.Segment{
 			"flagsTeam": {
 				Environment: strPtr("featureflagsqa"),
 				Identifier:  "flagsTeam",

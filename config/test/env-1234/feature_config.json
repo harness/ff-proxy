@@ -1,5 +1,5 @@
 [
-    {
+      {
         "defaultServe": {
           "variation": "true"
         },
@@ -15,12 +15,12 @@
           {
             "clauses": [
               {
-                "attribute": "name",
+                "attribute": "age",
                 "id": "79f5bca0-17ca-42c2-8934-5cee840fe2e0",
                 "negate": false,
                 "op": "equal",
                 "values": [
-                  "John"
+                  "55"
                 ]
               }
             ],
@@ -59,5 +59,35 @@
           }
         ],
         "version": 568
+      },
+      {
+        "defaultServe": {
+          "variation": "1"
+        },
+        "environment": "featureflagsqa",
+        "feature": "yet_another_flag",
+        "kind": "string",
+        "offVariation": "2",
+        "prerequisites": [
+
+        ],
+        "project": "FeatureFlagsQADemo",
+        "rules": [
+
+        ],
+        "state": "on",
+        "variations": [
+          {
+            "identifier": "1",
+            "name": "1",
+            "value": "1"
+          },
+          {
+            "identifier": "2",
+            "name": "2",
+            "value": "2"
+          }
+        ],
+        "version": 6
       }
 ]

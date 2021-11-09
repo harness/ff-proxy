@@ -19,10 +19,10 @@ type ProxyService interface {
 	FeatureConfigByIdentifier(ctx context.Context, req domain.FeatureConfigByIdentifierRequest) (domain.FeatureConfig, error)
 
 	// TargetSegments gets all of the TargetSegments in an environment
-	TargetSegments(ctx context.Context, req domain.TargetSegmentsRequest) ([]gen.Segment, error)
+	TargetSegments(ctx context.Context, req domain.TargetSegmentsRequest) ([]domain.Segment, error)
 
 	// TargetSegmentsByIdentifier get a TargetSegments from an environment by its identifier
-	TargetSegmentsByIdentifier(ctx context.Context, req domain.TargetSegmentsByIdentifierRequest) (gen.Segment, error)
+	TargetSegmentsByIdentifier(ctx context.Context, req domain.TargetSegmentsByIdentifierRequest) (domain.Segment, error)
 
 	// Evaluations gets all of the evaluations in an environment for a target
 	Evaluations(ctx context.Context, req domain.EvaluationsRequest) ([]gen.Evaluation, error)
