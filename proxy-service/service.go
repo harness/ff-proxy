@@ -186,3 +186,9 @@ func (p ProxyService) EvaluationsByFeature(ctx context.Context, req domain.Evalu
 func (p ProxyService) Stream(ctx context.Context, req domain.StreamRequest, stream domain.Stream) error {
 	return ErrNotImplemented
 }
+
+// Metrics forwards metrics to the analytics service
+func (p ProxyService) Metrics(ctx context.Context, req domain.MetricsRequest) error {
+	p.logger.Debug("msg", "got metrics request", "metrics", fmt.Sprintf("%+v", req))
+	return ErrNotImplemented
+}

@@ -542,3 +542,69 @@ func TestHTTPServer_GetEvaluationsByFeature(t *testing.T) {
 		})
 	}
 }
+
+func TestHTTPServer_PostMetrics(t *testing.T) {
+	server := setupHTTPServer(t)
+	testServer := httptest.NewServer(server)
+	defer testServer.Close()
+
+	testCases := map[string]struct {
+		method               string
+		url                  string
+		body                 []byte
+		expectedStatusCode   int
+		expectedResponseBody []byte
+	}{
+		"Given I make a request that isn't a POST request": {
+			method:             http.MethodGet,
+			url:                fmt.Sprintf("%s/metrics/1234", testServer.URL),
+			expectedStatusCode: http.StatusMethodNotAllowed,
+		},
+		"Given I make a POST request to /metrics/{environmentUUID}": {
+			method:             http.MethodPost,
+			url:                fmt.Sprintf("%s/metrics/1234", testServer.URL),
+			body:               []byte(`{}`),
+			expectedStatusCode: http.StatusNotImplemented,
+		},
+	}
+
+	for desc, tc := range testCases {
+		tc := tc
+		t.Run(desc, func(t *testing.T) {
+			var req *http.Request
+			var err error
+
+			switch tc.method {
+			case http.MethodPost:
+				req, err = http.NewRequest(http.MethodPost, tc.url, bytes.NewBuffer(tc.body))
+				if err != nil {
+					t.Fatal(err)
+				}
+			case http.MethodGet:
+				req, err = http.NewRequest(http.MethodGet, tc.url, nil)
+				if err != nil {
+					t.Fatal(err)
+				}
+			}
+
+			resp, err := testServer.Client().Do(req)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer resp.Body.Close()
+
+			assert.Equal(t, tc.expectedStatusCode, resp.StatusCode)
+
+			if tc.expectedResponseBody != nil {
+				actual, err := io.ReadAll(resp.Body)
+				if err != nil {
+					t.Fatalf("(%s): failed to read response body: %s", desc, err)
+				}
+
+				if !assert.Equal(t, tc.expectedResponseBody, actual) {
+					t.Errorf("(%s) expected: %s \n got: %s ", desc, tc.expectedResponseBody, actual)
+				}
+			}
+		})
+	}
+}

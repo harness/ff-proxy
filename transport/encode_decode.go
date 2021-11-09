@@ -222,3 +222,27 @@ func decodeGetStreamRequest(ctx context.Context, r *http.Request) (interface{}, 
 	}
 	return req, nil
 }
+
+// decodeMetricsRequest decodes POST /metrics/{environment} requests into domain.Metrics
+func decodeMetricsRequest(ctx context.Context, r *http.Request) (interface{}, error) {
+	defer r.Body.Close()
+
+	vars := mux.Vars(r)
+	envID, ok := vars["environmentUUID"]
+	if !ok {
+		return nil, errBadRouting
+	}
+
+	b, err := io.ReadAll(r.Body)
+	if err != nil {
+		return nil, err
+	}
+
+	req := domain.MetricsRequest{}
+	if err := json.Unmarshal(b, &req); err != nil {
+		return nil, err
+	}
+
+	req.EnvironmentID = envID
+	return req, nil
+}

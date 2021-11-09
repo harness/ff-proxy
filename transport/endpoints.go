@@ -21,6 +21,7 @@ type Endpoints struct {
 	GetEvaluations                endpoint.Endpoint
 	GetEvaluationsByFeature       endpoint.Endpoint
 	GetStream                     streamEndpoint
+	PostMetrics                   endpoint.Endpoint
 }
 
 // NewEndpoints returns an initalised Endpoints where each endpoint invokes the
@@ -35,6 +36,7 @@ func NewEndpoints(p ProxyService) *Endpoints {
 		GetEvaluations:                makeGetEvaluationsEndpoint(p),
 		GetEvaluationsByFeature:       makeGetEvaluationsByFeatureEndpoint(p),
 		GetStream:                     makeGetStreamEndpoint(p),
+		PostMetrics:                   makePostMetricsEndpoint(p),
 	}
 }
 
@@ -141,5 +143,17 @@ func makeGetStreamEndpoint(s ProxyService) streamEndpoint {
 			return err
 		}
 		return nil
+	}
+}
+
+// makePostMetricsEndpoint is a function to convert a services Metrics method
+// to an endpoint
+func makePostMetricsEndpoint(s ProxyService) endpoint.Endpoint {
+	return func(ctx context.Context, request interface{}) (response interface{}, err error) {
+		req := request.(domain.MetricsRequest)
+		if err := s.Metrics(ctx, req); err != nil {
+			return nil, err
+		}
+		return nil, nil
 	}
 }

@@ -49,3 +49,23 @@ type EvaluationsByFeatureRequest struct {
 type StreamRequest struct {
 	APIKey string `json:"api_key"`
 }
+
+//  MetricsRequest contains the fields sent in a POST /metrics request
+type MetricsRequest struct {
+	EnvironmentID string        `json:"environment_id"`
+	TargetData    []targetData  `json:"targetData"`
+	MetricsData   []metricsData `json:"metricsData"`
+}
+
+type targetData struct {
+	Identifier string                   `json:"identifier"`
+	Name       string                   `json:"name"`
+	Attributes []map[string]interface{} `json:"attributes"`
+}
+
+type metricsData struct {
+	Timestamp   int64                    `json:"timestamp"`
+	Count       int                      `json:"count"`
+	MetricsType string                   `json:"metricsType"`
+	Attributes  []map[string]interface{} `json:"attributes"`
+}
