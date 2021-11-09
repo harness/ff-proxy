@@ -7,25 +7,25 @@ import (
 
 	"github.com/harness/ff-proxy/cache"
 	"github.com/harness/ff-proxy/domain"
-	"github.com/harness/ff-proxy/gen"
+	clientgen "github.com/harness/ff-proxy/gen/client"
 	"github.com/stretchr/testify/assert"
 )
 
 var (
 	featureConfigFoo = domain.FeatureConfig{
-		FeatureConfig: gen.FeatureConfig{
-			DefaultServe: gen.Serve{
+		FeatureConfig: clientgen.FeatureConfig{
+			DefaultServe: clientgen.Serve{
 				Variation: strPtr("true"),
 			},
 			Environment:   "foo",
 			Feature:       "foo",
-			Kind:          gen.FeatureConfigKindBoolean,
+			Kind:          "boolean",
 			OffVariation:  "false",
-			Prerequisites: &[]gen.Prerequisite{},
+			Prerequisites: &[]clientgen.Prerequisite{},
 			Project:       "foo",
-			Rules: &[]gen.ServingRule{
+			Rules: &[]clientgen.ServingRule{
 				{
-					Clauses: []gen.Clause{
+					Clauses: []clientgen.Clause{
 						{
 							Attribute: "name",
 							Id:        "79f5bca0-17ca-42c2-8934-5cee840fe2e0",
@@ -38,18 +38,18 @@ var (
 					},
 					Priority: 1,
 					RuleId:   "8756c207-abf8-4202-83fd-dedf5d27e2c2",
-					Serve: gen.Serve{
+					Serve: clientgen.Serve{
 						Variation: strPtr("false"),
 					},
 				},
 			},
-			State: gen.FeatureStateOn,
-			VariationToTargetMap: &[]gen.VariationMap{
+			State: clientgen.FeatureState_on,
+			VariationToTargetMap: &[]clientgen.VariationMap{
 				{
 					TargetSegments: &[]string{
 						"flagsTeam",
 					},
-					Targets: &[]gen.TargetMap{
+					Targets: &[]clientgen.TargetMap{
 						{
 							Identifier: strPtr("davej"),
 							Name:       "Dave Johnston",
@@ -58,7 +58,7 @@ var (
 					Variation: "false",
 				},
 			},
-			Variations: []gen.Variation{
+			Variations: []clientgen.Variation{
 				{
 					Description: nil,
 					Identifier:  "true",
@@ -79,13 +79,13 @@ var (
 				Environment: strPtr("featureflagsqa"),
 				Identifier:  "flagsTeam",
 				Name:        "flagsTeam",
-				Excluded:    &[]gen.Target{},
-				Included:    &[]gen.Target{},
+				Excluded:    &[]clientgen.Target{},
+				Included:    &[]clientgen.Target{},
 				Version:     int64Ptr(1),
 				CreatedAt:   int64Ptr(123),
 				ModifiedAt:  int64Ptr(456),
 				Tags:        nil,
-				Rules: &[]gen.Clause{
+				Rules: &[]clientgen.Clause{
 					{
 						Attribute: "ip",
 						Id:        "31c18ee7-8051-44cc-8507-b44580467ee5",
@@ -101,19 +101,19 @@ var (
 	}
 
 	featureConfigBar = domain.FeatureConfig{
-		FeatureConfig: gen.FeatureConfig{
-			DefaultServe: gen.Serve{
+		FeatureConfig: clientgen.FeatureConfig{
+			DefaultServe: clientgen.Serve{
 				Variation: strPtr("true"),
 			},
 			Environment:   "bar",
 			Feature:       "bar",
-			Kind:          gen.FeatureConfigKindBoolean,
+			Kind:          "boolean",
 			OffVariation:  "false",
-			Prerequisites: &[]gen.Prerequisite{},
+			Prerequisites: &[]clientgen.Prerequisite{},
 			Project:       "bar",
-			Rules: &[]gen.ServingRule{
+			Rules: &[]clientgen.ServingRule{
 				{
-					Clauses: []gen.Clause{
+					Clauses: []clientgen.Clause{
 						{
 							Attribute: "name",
 							Id:        "79f5bca0-17ca-42c2-8934-5cee840fe2e0",
@@ -126,18 +126,18 @@ var (
 					},
 					Priority: 1,
 					RuleId:   "8756c207-abf8-4202-83fd-dedf5d27e2c2",
-					Serve: gen.Serve{
+					Serve: clientgen.Serve{
 						Variation: strPtr("false"),
 					},
 				},
 			},
-			State: gen.FeatureStateOn,
-			VariationToTargetMap: &[]gen.VariationMap{
+			State: clientgen.FeatureState_on,
+			VariationToTargetMap: &[]clientgen.VariationMap{
 				{
 					TargetSegments: &[]string{
 						"flagsTeam",
 					},
-					Targets: &[]gen.TargetMap{
+					Targets: &[]clientgen.TargetMap{
 						{
 							Identifier: strPtr("davej"),
 							Name:       "Dave Johnston",
@@ -146,7 +146,7 @@ var (
 					Variation: "false",
 				},
 			},
-			Variations: []gen.Variation{
+			Variations: []clientgen.Variation{
 				{
 					Description: nil,
 					Identifier:  "true",
@@ -167,13 +167,13 @@ var (
 				Environment: strPtr("featureflagsqa"),
 				Identifier:  "flagsTeam",
 				Name:        "flagsTeam",
-				Excluded:    &[]gen.Target{},
-				Included:    &[]gen.Target{},
+				Excluded:    &[]clientgen.Target{},
+				Included:    &[]clientgen.Target{},
 				Version:     int64Ptr(1),
 				CreatedAt:   int64Ptr(123),
 				ModifiedAt:  int64Ptr(456),
 				Tags:        nil,
-				Rules: &[]gen.Clause{
+				Rules: &[]clientgen.Clause{
 					{
 						Attribute: "ip",
 						Id:        "31c18ee7-8051-44cc-8507-b44580467ee5",
@@ -264,7 +264,7 @@ func TestFeatureConfigRepo_Add(t *testing.T) {
 			if err != nil {
 				t.Errorf("(%s): error = %v, shouldErr = %v", desc, err, tc.shouldErr)
 			}
-			assert.Equal(t, tc.expected, actual)
+			assert.ElementsMatch(t, tc.expected, actual)
 		})
 	}
 }

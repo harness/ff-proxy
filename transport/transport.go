@@ -4,7 +4,7 @@ import (
 	"context"
 
 	"github.com/harness/ff-proxy/domain"
-	"github.com/harness/ff-proxy/gen"
+	clientgen "github.com/harness/ff-proxy/gen/client"
 )
 
 // ProxyService is the interface for the Proxy
@@ -25,10 +25,10 @@ type ProxyService interface {
 	TargetSegmentsByIdentifier(ctx context.Context, req domain.TargetSegmentsByIdentifierRequest) (domain.Segment, error)
 
 	// Evaluations gets all of the evaluations in an environment for a target
-	Evaluations(ctx context.Context, req domain.EvaluationsRequest) ([]gen.Evaluation, error)
+	Evaluations(ctx context.Context, req domain.EvaluationsRequest) ([]clientgen.Evaluation, error)
 
 	// Evaluations gets all of the evaluations in an environment for a target for a particular feature
-	EvaluationsByFeature(ctx context.Context, req domain.EvaluationsByFeatureRequest) (gen.Evaluation, error)
+	EvaluationsByFeature(ctx context.Context, req domain.EvaluationsByFeatureRequest) (clientgen.Evaluation, error)
 
 	// Stream streams flag updates out to the client
 	Stream(ctx context.Context, req domain.StreamRequest, stream domain.Stream) error

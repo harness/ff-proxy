@@ -8,7 +8,7 @@ import (
 
 	"github.com/harness/ff-proxy/cache"
 	"github.com/harness/ff-proxy/domain"
-	"github.com/harness/ff-proxy/gen"
+	clientgen "github.com/harness/ff-proxy/gen/client"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -49,7 +49,7 @@ var (
 		Name:        "foo",
 		Org:         "foo",
 		Project:     "FeatureFlagsQADemo",
-		Segments:    &[]gen.Segment{},
+		Segments:    &[]clientgen.Segment{},
 		Attributes: &map[string]interface{}{
 			"age": float64(55),
 			"ages": []interface{}{
@@ -72,7 +72,7 @@ var (
 		Name:        "bar",
 		Org:         "bar",
 		Project:     "FeatureFlagsQADemo",
-		Segments:    &[]gen.Segment{},
+		Segments:    &[]clientgen.Segment{},
 		Attributes: &map[string]interface{}{
 			"age": float64(55),
 			"ages": []interface{}{
@@ -157,7 +157,7 @@ func TestTargetRepo_Add(t *testing.T) {
 			if err != nil {
 				t.Errorf("(%s): error = %v, shouldErr = %v", desc, err, tc.shouldErr)
 			}
-			assert.Equal(t, tc.expected, actual)
+			assert.ElementsMatch(t, tc.expected, actual)
 		})
 	}
 }

@@ -24,8 +24,12 @@ $(GOBIN)/oapi-codegen:
 
 .PHONY: generate
 generate: ## Generates the client for the ff-servers client service
-	oapi-codegen -generate client,spec -package=gen ./client.yaml > gen/services.gen.go
-	oapi-codegen -generate types -package=gen ./client.yaml > gen/types.gen.go
+	-rm -r ./gen/client/...
+	-rm -r ./gen/admin/...
+	oapi-codegen -generate client -package=client ./ff-api/docs/release/client-v1.yaml > gen/client/services.gen.go
+	oapi-codegen -generate types -package=client ./ff-api/docs/release/client-v1.yaml > gen/client/types.gen.go
+	oapi-codegen -generate client -package=admin  ./ff-api/docs/release/admin-v1.yaml > gen/admin/services.gen.go
+	oapi-codegen -generate types -package=admin ./ff-api/docs/release/admin-v1.yaml > gen/admin/types.gen.go
 
 .PHONY: build
 build: generate ## Builds the ff-proxy service binary

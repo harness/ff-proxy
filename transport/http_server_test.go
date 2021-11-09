@@ -4,22 +4,40 @@ import (
 	"bytes"
 	"fmt"
 	"io"
+	"io/fs"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"testing"
 
-	ffproxy "github.com/harness/ff-proxy"
 	"github.com/harness/ff-proxy/cache"
+	"github.com/harness/ff-proxy/config"
 	"github.com/harness/ff-proxy/log"
 	proxyservice "github.com/harness/ff-proxy/proxy-service"
 	"github.com/harness/ff-proxy/repository"
 	"github.com/stretchr/testify/assert"
 )
 
+type fileSystem struct {
+	path string
+}
+
+func (f fileSystem) Open(name string) (fs.File, error) {
+	file, err := os.Open(name)
+	if err != nil {
+		return nil, err
+	}
+	return file, nil
+}
+
 // setupHTTPServer is a helper that loads test config for populating the repos
 // and injects all the required dependencies into the proxy service and http server
 func setupHTTPServer(t *testing.T) *HTTPServer {
-	config := ffproxy.MustMakeNewTestFeatureFlagConfig()
+	fileSystem := fileSystem{path: "../config/test"}
+	config, err := config.NewLocalConfig(fileSystem, "../config/test")
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	cache := cache.NewMemCache()
 	featureRepo, err := repository.NewFeatureConfigRepo(cache, config.FeatureConfig())
@@ -111,7 +129,7 @@ func TestHTTPServer_GetFeatureConfig(t *testing.T) {
 					t.Fatalf("(%s): failed to read response body: %s", desc, err)
 				}
 
-				if !assert.Equal(t, tc.expectedResponseBody, actual) {
+				if !assert.ElementsMatch(t, tc.expectedResponseBody, actual) {
 					t.Errorf("(%s) expected: %s \n got: %s ", desc, tc.expectedResponseBody, actual)
 				}
 			}
@@ -192,7 +210,7 @@ func TestHTTPServer_GetFeatureConfigByIdentifier(t *testing.T) {
 					t.Fatalf("(%s): failed to read response body: %s", desc, err)
 				}
 
-				if !assert.Equal(t, tc.expectedResponseBody, actual) {
+				if !assert.ElementsMatch(t, tc.expectedResponseBody, actual) {
 					t.Errorf("(%s) expected: %s \n got: %s ", desc, tc.expectedResponseBody, actual)
 				}
 			}
@@ -268,7 +286,7 @@ func TestHTTPServer_GetTargetSegments(t *testing.T) {
 					t.Fatalf("(%s): failed to read response body: %s", desc, err)
 				}
 
-				if !assert.Equal(t, tc.expectedResponseBody, actual) {
+				if !assert.ElementsMatch(t, tc.expectedResponseBody, actual) {
 					t.Errorf("(%s) expected: %s \n got: %s ", desc, tc.expectedResponseBody, actual)
 				}
 			}
@@ -349,7 +367,7 @@ func TestHTTPServer_GetTargetSegmentsByIdentifier(t *testing.T) {
 					t.Fatalf("(%s): failed to read response body: %s", desc, err)
 				}
 
-				if !assert.Equal(t, tc.expectedResponseBody, actual) {
+				if !assert.ElementsMatch(t, tc.expectedResponseBody, actual) {
 					t.Errorf("(%s) expected: %s \n got: %s ", desc, tc.expectedResponseBody, actual)
 				}
 			}
@@ -442,7 +460,7 @@ func TestHTTPServer_GetEvaluations(t *testing.T) {
 					t.Fatalf("(%s): failed to read response body: %s", desc, err)
 				}
 
-				if !assert.Equal(t, tc.expectedResponseBody, actual) {
+				if !assert.ElementsMatch(t, tc.expectedResponseBody, actual) {
 					t.Errorf("(%s) expected: %s \n got: %s ", desc, tc.expectedResponseBody, actual)
 				}
 			}
@@ -535,7 +553,7 @@ func TestHTTPServer_GetEvaluationsByFeature(t *testing.T) {
 					t.Fatalf("(%s): failed to read response body: %s", desc, err)
 				}
 
-				if !assert.Equal(t, tc.expectedResponseBody, actual) {
+				if !assert.ElementsMatch(t, tc.expectedResponseBody, actual) {
 					t.Errorf("(%s) expected: %s \n got: %s ", desc, tc.expectedResponseBody, actual)
 				}
 			}
