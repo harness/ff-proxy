@@ -28,7 +28,7 @@ generate: ## Generates the client for the ff-servers client service
 	oapi-codegen -generate types -package=gen ./client.yaml > gen/types.gen.go
 
 .PHONY: build
-build: ## Builds the ff-proxy service binary
+build: generate ## Builds the ff-proxy service binary
 	go build -o ff-proxy ./cmd/ff-proxy/main.go
 
 .PHONY: test
