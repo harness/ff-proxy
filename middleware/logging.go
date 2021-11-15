@@ -8,7 +8,11 @@ import (
 	"github.com/harness/ff-proxy/domain"
 	clientgen "github.com/harness/ff-proxy/gen/client"
 	"github.com/harness/ff-proxy/log"
-	"github.com/harness/ff-proxy/transport"
+	proxyservice "github.com/harness/ff-proxy/proxy-service"
+)
+
+const (
+	redactedToken = "xxxx-xxxx-xxxx-xxxx"
 )
 
 // LoggingMiddleware is an application middleware that wraps a ProxyService and
@@ -17,11 +21,11 @@ import (
 type LoggingMiddleware struct {
 	logger log.Logger
 	debug  bool
-	next   transport.ProxyService
+	next   proxyservice.ProxyService
 }
 
 // NewLoggingMiddleware creates a new LoggingMiddleware
-func NewLoggingMiddleware(l log.Logger, debug bool, next transport.ProxyService) transport.ProxyService {
+func NewLoggingMiddleware(l log.Logger, debug bool, next proxyservice.ProxyService) proxyservice.ProxyService {
 	l = log.With(l, "component", "LoggingMiddleware")
 	return LoggingMiddleware{
 		logger: l,
@@ -37,15 +41,15 @@ func (l LoggingMiddleware) Authenticate(ctx context.Context, req domain.AuthRequ
 		if l.debug {
 			l.logger.Debug(
 				"method", "Authenticate",
-				"input", fmt.Sprintf("%v", req),
-				"output", fmt.Sprintf("%v", resp),
+				"input", fmt.Sprintf("%+v", req),
+				"output", fmt.Sprintf("%+v", resp),
 				"err", err,
 				"took", time.Since(begin),
 			)
 		} else {
 			l.logger.Info(
 				"method", "Authenticate",
-				"input", fmt.Sprintf("%v", req),
+				"input", fmt.Sprintf("%+v", req),
 				"err", err,
 				"took", time.Since(begin),
 			)
@@ -60,18 +64,19 @@ func (l LoggingMiddleware) Authenticate(ctx context.Context, req domain.AuthRequ
 // If debug is enabled it will also log out the response
 func (l LoggingMiddleware) FeatureConfig(ctx context.Context, req domain.FeatureConfigRequest) (resp []domain.FeatureConfig, err error) {
 	defer func(begin time.Time) {
+		req.Token = redactedToken
 		if l.debug {
 			l.logger.Debug(
 				"method", "FeatureConfig",
-				"input", fmt.Sprintf("%v", req),
-				"output", fmt.Sprintf("%v", resp),
+				"input", fmt.Sprintf("%+v", req),
+				"output", fmt.Sprintf("%+v", resp),
 				"err", err,
 				"took", time.Since(begin),
 			)
 		} else {
 			l.logger.Info(
 				"method", "FeatureConfig",
-				"input", fmt.Sprintf("%v", req),
+				"input", fmt.Sprintf("%+v", req),
 				"err", err,
 				"took", time.Since(begin),
 			)
@@ -86,18 +91,19 @@ func (l LoggingMiddleware) FeatureConfig(ctx context.Context, req domain.Feature
 // If debug is enabled it will also log out the response
 func (l LoggingMiddleware) FeatureConfigByIdentifier(ctx context.Context, req domain.FeatureConfigByIdentifierRequest) (resp domain.FeatureConfig, err error) {
 	defer func(begin time.Time) {
+		req.Token = redactedToken
 		if l.debug {
 			l.logger.Debug(
 				"method", "FeatureConfigByIdentifier",
-				"input", fmt.Sprintf("%v", req),
-				"output", fmt.Sprintf("%v", resp),
+				"input", fmt.Sprintf("%+v", req),
+				"output", fmt.Sprintf("%+v", resp),
 				"err", err,
 				"took", time.Since(begin),
 			)
 		} else {
 			l.logger.Info(
 				"method", "FeatureConfigByIdentifier",
-				"input", fmt.Sprintf("%v", req),
+				"input", fmt.Sprintf("%+v", req),
 				"err", err,
 				"took", time.Since(begin),
 			)
@@ -112,18 +118,19 @@ func (l LoggingMiddleware) FeatureConfigByIdentifier(ctx context.Context, req do
 // If debug is enabled it will also log out the response
 func (l LoggingMiddleware) TargetSegments(ctx context.Context, req domain.TargetSegmentsRequest) (resp []domain.Segment, err error) {
 	defer func(begin time.Time) {
+		req.Token = redactedToken
 		if l.debug {
 			l.logger.Debug(
 				"method", "TargetSegments",
-				"input", fmt.Sprintf("%v", req),
-				"output", fmt.Sprintf("%v", resp),
+				"input", fmt.Sprintf("%+v", req),
+				"output", fmt.Sprintf("%+v", resp),
 				"err", err,
 				"took", time.Since(begin),
 			)
 		} else {
 			l.logger.Info(
 				"method", "TargetSegments",
-				"input", fmt.Sprintf("%v", req),
+				"input", fmt.Sprintf("%+v", req),
 				"err", err,
 				"took", time.Since(begin),
 			)
@@ -139,18 +146,19 @@ func (l LoggingMiddleware) TargetSegments(ctx context.Context, req domain.Target
 // enabled it will also log out the response
 func (l LoggingMiddleware) TargetSegmentsByIdentifier(ctx context.Context, req domain.TargetSegmentsByIdentifierRequest) (resp domain.Segment, err error) {
 	defer func(begin time.Time) {
+		req.Token = redactedToken
 		if l.debug {
 			l.logger.Debug(
 				"method", "TargetSegmentsByIdentifier",
-				"input", fmt.Sprintf("%v", req),
-				"output", fmt.Sprintf("%v", resp),
+				"input", fmt.Sprintf("%+v", req),
+				"output", fmt.Sprintf("%+v", resp),
 				"err", err,
 				"took", time.Since(begin),
 			)
 		} else {
 			l.logger.Info(
 				"method", "TargetSegmentsByIdentifier",
-				"input", fmt.Sprintf("%v", req),
+				"input", fmt.Sprintf("%+v", req),
 				"err", err,
 				"took", time.Since(begin),
 			)
@@ -166,18 +174,19 @@ func (l LoggingMiddleware) TargetSegmentsByIdentifier(ctx context.Context, req d
 // out the response
 func (l LoggingMiddleware) Evaluations(ctx context.Context, req domain.EvaluationsRequest) (resp []clientgen.Evaluation, err error) {
 	defer func(begin time.Time) {
+		req.Token = redactedToken
 		if l.debug {
 			l.logger.Debug(
 				"method", "Evaluations",
-				"input", fmt.Sprintf("%v", req),
-				"output", fmt.Sprintf("%v", resp),
+				"input", fmt.Sprintf("%+v", req),
+				"output", fmt.Sprintf("%+v", resp),
 				"err", err,
 				"took", time.Since(begin),
 			)
 		} else {
 			l.logger.Info(
 				"method", "Evaluations",
-				"input", fmt.Sprintf("%v", req),
+				"input", fmt.Sprintf("%+v", req),
 				"err", err,
 				"took", time.Since(begin),
 			)
@@ -193,18 +202,19 @@ func (l LoggingMiddleware) Evaluations(ctx context.Context, req domain.Evaluatio
 // it will also log out the response
 func (l LoggingMiddleware) EvaluationsByFeature(ctx context.Context, req domain.EvaluationsByFeatureRequest) (resp clientgen.Evaluation, err error) {
 	defer func(begin time.Time) {
+		req.Token = redactedToken
 		if l.debug {
 			l.logger.Debug(
 				"method", "EvaluationsByFeature",
-				"input", fmt.Sprintf("%v", req),
-				"output", fmt.Sprintf("%v", resp),
+				"input", fmt.Sprintf("%+v", req),
+				"output", fmt.Sprintf("%+v", resp),
 				"err", err,
 				"took", time.Since(begin),
 			)
 		} else {
 			l.logger.Info(
 				"method", "EvaluationsByFeature",
-				"input", fmt.Sprintf("%v", req),
+				"input", fmt.Sprintf("%+v", req),
 				"err", err,
 				"took", time.Since(begin),
 			)
@@ -219,9 +229,10 @@ func (l LoggingMiddleware) EvaluationsByFeature(ctx context.Context, req domain.
 // parameters, error and duration.
 func (l LoggingMiddleware) Stream(ctx context.Context, req domain.StreamRequest, stream domain.Stream) (err error) {
 	defer func(begin time.Time) {
+		req.Token = redactedToken
 		l.logger.Info(
-			"method", "EvaluationsByFeature",
-			"input", fmt.Sprintf("%v", req),
+			"method", "Stream",
+			"input", fmt.Sprintf("%+v", req),
 			"err", err,
 			"took", time.Since(begin),
 		)
@@ -235,9 +246,10 @@ func (l LoggingMiddleware) Stream(ctx context.Context, req domain.StreamRequest,
 // parameters, error and duration.
 func (l LoggingMiddleware) Metrics(ctx context.Context, req domain.MetricsRequest) (err error) {
 	defer func(begin time.Time) {
+		req.Token = redactedToken
 		l.logger.Info(
-			"method", "EvaluationsByFeature",
-			"input", fmt.Sprintf("%v", req),
+			"method", "Metrics",
+			//"input", fmt.Sprintf("%+v", req),
 			"err", err,
 			"took", time.Since(begin),
 		)

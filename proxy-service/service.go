@@ -11,6 +11,36 @@ import (
 	"github.com/harness/ff-proxy/repository"
 )
 
+//ProxyService is the interface for the ProxyService
+type ProxyService interface {
+	// Authenticate performs authentication
+	Authenticate(ctx context.Context, req domain.AuthRequest) (domain.AuthResponse, error)
+
+	// FeatureConfig gets all FeatureConfig for an environment
+	FeatureConfig(ctx context.Context, req domain.FeatureConfigRequest) ([]domain.FeatureConfig, error)
+
+	// FeatureConfigByIdentifier gets the feature config for a feature
+	FeatureConfigByIdentifier(ctx context.Context, req domain.FeatureConfigByIdentifierRequest) (domain.FeatureConfig, error)
+
+	// TargetSegments gets all of the TargetSegments in an environment
+	TargetSegments(ctx context.Context, req domain.TargetSegmentsRequest) ([]domain.Segment, error)
+
+	// TargetSegmentsByIdentifier get a TargetSegments from an environment by its identifier
+	TargetSegmentsByIdentifier(ctx context.Context, req domain.TargetSegmentsByIdentifierRequest) (domain.Segment, error)
+
+	// Evaluations gets all of the evaluations in an environment for a target
+	Evaluations(ctx context.Context, req domain.EvaluationsRequest) ([]clientgen.Evaluation, error)
+
+	// Evaluations gets all of the evaluations in an environment for a target for a particular feature
+	EvaluationsByFeature(ctx context.Context, req domain.EvaluationsByFeatureRequest) (clientgen.Evaluation, error)
+
+	// Stream streams flag updates out to the client
+	Stream(ctx context.Context, req domain.StreamRequest, stream domain.Stream) error
+
+	// Metrics forwards metrics to the analytics service
+	Metrics(ctx context.Context, req domain.MetricsRequest) error
+}
+
 var (
 	// ErrNotImplemented is the error returned when a method hasn't been implemented
 	ErrNotImplemented = errors.New("endpoint not implemented")
@@ -22,6 +52,9 @@ var (
 	// ErrInternal is the error that the proxy service returns when it encounters
 	// an unexpected error
 	ErrInternal = errors.New("internal error")
+
+	// ErrUnauthorised is the error that the proxy service returns when the
+	ErrUnauthorised = errors.New("unauthorised")
 )
 
 // evaluator is a type that can perform evaluations
@@ -30,38 +63,48 @@ type evaluator interface {
 	Evaluate(target domain.Target, featureConfigs ...domain.FeatureConfig) ([]clientgen.Evaluation, error)
 }
 
-// ProxyService is the proxy service implementation
-type ProxyService struct {
+// authTokenFn is a function that can generate an auth token
+type authTokenFn func(key string) (string, error)
+
+// Service is the proxy service implementation
+type Service struct {
 	logger      log.Logger
 	featureRepo repository.FeatureConfigRepo
 	targetRepo  repository.TargetRepo
 	segmentRepo repository.SegmentRepo
+	authFn      authTokenFn
 	evaluator   evaluator
 }
 
-// NewProxyService creates and returns a ProxyService
-func NewProxyService(fr repository.FeatureConfigRepo, tr repository.TargetRepo, sr repository.SegmentRepo, e evaluator, l log.Logger) ProxyService {
+// NewService creates and returns a ProxyService
+func NewService(fr repository.FeatureConfigRepo, tr repository.TargetRepo, sr repository.SegmentRepo, authFn authTokenFn, e evaluator, l log.Logger) Service {
 	l = log.With(l, "component", "ProxyService")
-	return ProxyService{
+	return Service{
 		logger:      l,
 		featureRepo: fr,
 		targetRepo:  tr,
 		segmentRepo: sr,
+		authFn:      authFn,
 		evaluator:   e,
 	}
 }
 
 // Authenticate performs authentication
-func (p ProxyService) Authenticate(ctx context.Context, req domain.AuthRequest) (domain.AuthResponse, error) {
-	// For now just return a hardcoded token
-	return domain.AuthResponse{AuthToken: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJlbnZpcm9ubWVudCI6Ijk0ZWY3MzYxLTFmMmQtNDBhZi05YjJjLWMxMTQ1ZDUzN2U1YSIsImVudmlyb25tZW50SWRlbnRpZmllciI6ImZlYXR1cmVmbGFnc3FhIiwicHJvamVjdCI6IjAyZjM3ZDQ4LTgzOWUtNGM1Yi04YzJhLTU4NjljMzFlNDAwNSIsInByb2plY3RJZGVudGlmaWVyIjoiRmVhdHVyZUZsYWdzUUFEZW1vIiwiYWNjb3VudElEIjoiekVhYWstRkxTNDI1SUVPN09Mek1VZyIsIm9yZ2FuaXphdGlvbiI6ImZiNGUzZDc2LTRlZDEtNDAxOS1hNjc4LWU0YWJkN2EyNGViOSIsIm9yZ2FuaXphdGlvbklkZW50aWZpZXIiOiJmZWF0dXJlZmxhZ29yZyIsImNsdXN0ZXJJZGVudGlmaWVyIjoiMSIsImtleV90eXBlIjoiU2VydmVyIn0.snL7AesKMCM99fjaZIRu3JzLzTBDddU-UuYOzyq_8Qo"}, nil
+func (s Service) Authenticate(ctx context.Context, req domain.AuthRequest) (domain.AuthResponse, error) {
+	token, err := s.authFn(req.APIKey)
+	if err != nil {
+		s.logger.Error("msg", "failed to generate auth token", "err", err)
+		return domain.AuthResponse{}, ErrUnauthorised
+	}
+
+	return domain.AuthResponse{AuthToken: token}, nil
 }
 
 // FeatureConfig gets all FeatureConfig for an environment
-func (p ProxyService) FeatureConfig(ctx context.Context, req domain.FeatureConfigRequest) ([]domain.FeatureConfig, error) {
+func (s Service) FeatureConfig(ctx context.Context, req domain.FeatureConfigRequest) ([]domain.FeatureConfig, error) {
 	key := domain.NewFeatureConfigKey(req.EnvironmentID)
 
-	configs, err := p.featureRepo.Get(ctx, key)
+	configs, err := s.featureRepo.Get(ctx, key)
 	if err != nil {
 		if errors.Is(err, domain.ErrCacheNotFound) {
 			return []domain.FeatureConfig{}, fmt.Errorf("%w: %s", ErrNotFound, err)
@@ -73,10 +116,10 @@ func (p ProxyService) FeatureConfig(ctx context.Context, req domain.FeatureConfi
 }
 
 // FeatureConfigByIdentifier gets the feature config for a feature
-func (p ProxyService) FeatureConfigByIdentifier(ctx context.Context, req domain.FeatureConfigByIdentifierRequest) (domain.FeatureConfig, error) {
+func (s Service) FeatureConfigByIdentifier(ctx context.Context, req domain.FeatureConfigByIdentifierRequest) (domain.FeatureConfig, error) {
 	key := domain.NewFeatureConfigKey(req.EnvironmentID)
 
-	config, err := p.featureRepo.GetByIdentifier(ctx, key, req.Identifier)
+	config, err := s.featureRepo.GetByIdentifier(ctx, key, req.Identifier)
 	if err != nil {
 		if errors.Is(err, domain.ErrCacheNotFound) {
 			return domain.FeatureConfig{}, fmt.Errorf("%w: %s", ErrNotFound, err)
@@ -88,10 +131,10 @@ func (p ProxyService) FeatureConfigByIdentifier(ctx context.Context, req domain.
 }
 
 // TargetSegments gets all of the TargetSegments in an environment
-func (p ProxyService) TargetSegments(ctx context.Context, req domain.TargetSegmentsRequest) ([]domain.Segment, error) {
+func (s Service) TargetSegments(ctx context.Context, req domain.TargetSegmentsRequest) ([]domain.Segment, error) {
 	key := domain.NewSegmentKey(req.EnvironmentID)
 
-	segments, err := p.segmentRepo.Get(ctx, key)
+	segments, err := s.segmentRepo.Get(ctx, key)
 	if err != nil {
 		if errors.Is(err, domain.ErrCacheNotFound) {
 			return []domain.Segment{}, fmt.Errorf("%w: %s", ErrNotFound, err)
@@ -104,10 +147,10 @@ func (p ProxyService) TargetSegments(ctx context.Context, req domain.TargetSegme
 }
 
 // TargetSegmentsByIdentifier get a TargetSegments from an environment by its identifier
-func (p ProxyService) TargetSegmentsByIdentifier(ctx context.Context, req domain.TargetSegmentsByIdentifierRequest) (domain.Segment, error) {
+func (s Service) TargetSegmentsByIdentifier(ctx context.Context, req domain.TargetSegmentsByIdentifierRequest) (domain.Segment, error) {
 	key := domain.NewSegmentKey(req.EnvironmentID)
 
-	segment, err := p.segmentRepo.GetByIdentifier(ctx, key, req.Identifier)
+	segment, err := s.segmentRepo.GetByIdentifier(ctx, key, req.Identifier)
 	if err != nil {
 		if errors.Is(err, domain.ErrCacheNotFound) {
 			return domain.Segment{}, fmt.Errorf("%w: %s", ErrNotFound, err)
@@ -119,11 +162,11 @@ func (p ProxyService) TargetSegmentsByIdentifier(ctx context.Context, req domain
 }
 
 // Evaluations gets all of the evaluations in an environment for a target
-func (p ProxyService) Evaluations(ctx context.Context, req domain.EvaluationsRequest) ([]clientgen.Evaluation, error) {
+func (s Service) Evaluations(ctx context.Context, req domain.EvaluationsRequest) ([]clientgen.Evaluation, error) {
 	featureConfigKey := domain.NewFeatureConfigKey(req.EnvironmentID)
 	targetKey := domain.NewTargetKey(req.EnvironmentID)
 
-	configs, err := p.featureRepo.Get(ctx, featureConfigKey)
+	configs, err := s.featureRepo.Get(ctx, featureConfigKey)
 	if err != nil {
 		if errors.Is(err, domain.ErrCacheNotFound) {
 			return nil, ErrNotFound
@@ -131,7 +174,7 @@ func (p ProxyService) Evaluations(ctx context.Context, req domain.EvaluationsReq
 		return nil, fmt.Errorf("%w: %s", ErrInternal, err)
 	}
 
-	target, err := p.targetRepo.GetByIdentifier(ctx, targetKey, req.TargetIdentifier)
+	target, err := s.targetRepo.GetByIdentifier(ctx, targetKey, req.TargetIdentifier)
 	if err != nil {
 		if errors.Is(err, domain.ErrCacheNotFound) {
 			return nil, ErrNotFound
@@ -139,7 +182,7 @@ func (p ProxyService) Evaluations(ctx context.Context, req domain.EvaluationsReq
 		return nil, fmt.Errorf("%w: %s", ErrInternal, err)
 	}
 
-	evaluations, err := p.evaluator.Evaluate(target, configs...)
+	evaluations, err := s.evaluator.Evaluate(target, configs...)
 	if err != nil {
 		return nil, fmt.Errorf("%w: %s", ErrInternal, err)
 	}
@@ -148,11 +191,11 @@ func (p ProxyService) Evaluations(ctx context.Context, req domain.EvaluationsReq
 }
 
 // EvaluationsByFeature gets all of the evaluations in an environment for a target for a particular feature
-func (p ProxyService) EvaluationsByFeature(ctx context.Context, req domain.EvaluationsByFeatureRequest) (clientgen.Evaluation, error) {
+func (s Service) EvaluationsByFeature(ctx context.Context, req domain.EvaluationsByFeatureRequest) (clientgen.Evaluation, error) {
 	featureKey := domain.NewFeatureConfigKey(req.EnvironmentID)
 	targetKey := domain.NewTargetKey(req.EnvironmentID)
 
-	config, err := p.featureRepo.GetByIdentifier(ctx, featureKey, req.FeatureIdentifier)
+	config, err := s.featureRepo.GetByIdentifier(ctx, featureKey, req.FeatureIdentifier)
 	if err != nil {
 		if errors.Is(err, domain.ErrCacheNotFound) {
 			return clientgen.Evaluation{}, ErrNotFound
@@ -160,7 +203,7 @@ func (p ProxyService) EvaluationsByFeature(ctx context.Context, req domain.Evalu
 		return clientgen.Evaluation{}, ErrInternal
 	}
 
-	target, err := p.targetRepo.GetByIdentifier(ctx, targetKey, req.TargetIdentifier)
+	target, err := s.targetRepo.GetByIdentifier(ctx, targetKey, req.TargetIdentifier)
 	if err != nil {
 		if errors.Is(err, domain.ErrCacheNotFound) {
 			return clientgen.Evaluation{}, ErrNotFound
@@ -168,14 +211,14 @@ func (p ProxyService) EvaluationsByFeature(ctx context.Context, req domain.Evalu
 		return clientgen.Evaluation{}, ErrInternal
 	}
 
-	evaluations, err := p.evaluator.Evaluate(target, config)
+	evaluations, err := s.evaluator.Evaluate(target, config)
 	if err != nil {
 		return clientgen.Evaluation{}, ErrInternal
 	}
 
 	// This shouldn't happen
 	if len(evaluations) != 1 {
-		p.logger.Error("msg", "evaluations should only have a length of one")
+		s.logger.Error("msg", "evaluations should only have a length of one")
 		return clientgen.Evaluation{}, ErrInternal
 	}
 
@@ -183,12 +226,12 @@ func (p ProxyService) EvaluationsByFeature(ctx context.Context, req domain.Evalu
 }
 
 // Stream streams flag updates out to the client
-func (p ProxyService) Stream(ctx context.Context, req domain.StreamRequest, stream domain.Stream) error {
+func (s Service) Stream(ctx context.Context, req domain.StreamRequest, stream domain.Stream) error {
 	return ErrNotImplemented
 }
 
 // Metrics forwards metrics to the analytics service
-func (p ProxyService) Metrics(ctx context.Context, req domain.MetricsRequest) error {
-	p.logger.Debug("msg", "got metrics request", "metrics", fmt.Sprintf("%+v", req))
+func (s Service) Metrics(ctx context.Context, req domain.MetricsRequest) error {
+	s.logger.Debug("msg", "got metrics request", "metrics", fmt.Sprintf("%+v", req))
 	return ErrNotImplemented
 }

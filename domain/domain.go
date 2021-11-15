@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 
+	"github.com/dgrijalva/jwt-go"
 	clientgen "github.com/harness/ff-proxy/gen/client"
 )
 
@@ -80,3 +81,9 @@ func (s *Segment) UnmarshalBinary(b []byte) error {
 
 // AuthAPIKey is the APIKey type used for authentication lookups
 type AuthAPIKey string
+
+// Claims are custom jwt claims used by the proxy for generating a jwt token
+type Claims struct {
+	Environment string `json:"environment"`
+	jwt.StandardClaims
+}

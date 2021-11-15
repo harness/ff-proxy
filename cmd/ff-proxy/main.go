@@ -18,10 +18,12 @@ import (
 	proxyservice "github.com/harness/ff-proxy/proxy-service"
 	"github.com/harness/ff-proxy/repository"
 	"github.com/harness/ff-proxy/transport"
+	"github.com/wings-software/ff-server/pkg/hash"
 )
 
 var (
 	debug            bool
+	bypassAuth       bool
 	offline          bool
 	host             string
 	port             int
@@ -29,24 +31,27 @@ var (
 	orgIdentifier    string
 	adminService     string
 	serviceToken     string
+	authSecret       string
 )
 
 func init() {
+	flag.BoolVar(&bypassAuth, "bypass-auth", false, "bypasses authentication")
 	flag.BoolVar(&debug, "debug", false, "enables debug logging")
 	flag.BoolVar(&offline, "offline", false, "enables side loading of data from config dir")
 	flag.StringVar(&host, "host", "localhost", "host of the proxy service")
 	flag.IntVar(&port, "port", 7000, "port that the proxy service is exposed on")
-	flag.StringVar(&accountIdentifer, "account-identifier", "px7xd_BFRCi-pfWPYXVjvw", "account identifier to load remote config for")
-	flag.StringVar(&orgIdentifier, "org-identifier", "default", "org identifier to load remote config for")
+	flag.StringVar(&accountIdentifer, "account-identifier", "zEaak-FLS425IEO7OLzMUg", "account identifier to load remote config for")
+	flag.StringVar(&orgIdentifier, "org-identifier", "featureflagorg", "org identifier to load remote config for")
 	flag.StringVar(&adminService, "admin-service", "https://qa.harness.io/gateway/cf", "the url of the admin service")
 	flag.StringVar(&serviceToken, "service-token", "", "token to use with the ff service")
+	flag.StringVar(&authSecret, "auth-secret", "secret", "the secret used for signing auth tokens")
 	flag.Parse()
 }
 
 func main() {
 	// Setup logger
 	logger := log.NewLogger(os.Stderr, debug)
-	logger.Info("msg", "service config", "debug", debug, "offline", offline, "host", host, "port", port, "admin-service", adminService, "account-identifier", accountIdentifer, "org-identifier", orgIdentifier)
+	logger.Info("msg", "service config", "debug", debug, "bypass-auth", bypassAuth, "offline", offline, "host", host, "port", port, "admin-service", adminService, "account-identifier", accountIdentifer, "org-identifier", orgIdentifier)
 
 	// Setup cancelation
 	sigc := make(chan os.Signal, 1)
@@ -103,10 +108,7 @@ func main() {
 			logger.Error("msg", "failed to load auth config", "err", err)
 			os.Exit(1)
 		}
-
 		logger.Info("msg", "successfully retrieved config from ff-server")
-		// Just print for now, we'll pass this to the service later
-		fmt.Println("online authConfig", authConfig)
 	}
 
 	// Create cache and repos
@@ -129,11 +131,15 @@ func main() {
 		os.Exit(1)
 	}
 
+	authRepo := repository.NewAuthRepo(authConfig)
+	tokenSource := ffproxy.NewTokenSource(logger, authRepo, hash.NewSha256(), []byte(authSecret))
+
 	featureEvaluator := proxyservice.NewFeatureEvaluator()
 
 	// Setup service and middleware
-	var service transport.ProxyService
-	service = proxyservice.NewProxyService(fcr, tr, sr, featureEvaluator, logger)
+	var service proxyservice.ProxyService
+	service = proxyservice.NewService(fcr, tr, sr, tokenSource.GenerateToken, featureEvaluator, logger)
+	service = middleware.NewAuthMiddleware(tokenSource.ValidateToken, bypassAuth, service)
 	service = middleware.NewLoggingMiddleware(logger, debug, service)
 
 	// Configure endpoints and server
