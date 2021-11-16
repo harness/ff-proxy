@@ -33,14 +33,18 @@ generate: ## Generates the client for the ff-servers client service
 build: generate ## Builds the ff-proxy service binary
 	CGO_ENABLED=0 go build -o ff-proxy ./cmd/ff-proxy/main.go
 
+.PHONY: build-race
+build-race: generate ## Builds the ff-proxy service binary with the race detector enabled
+	CGO_ENABLED=1 go build -race -o ff-proxy ./cmd/ff-proxy/main.go
+
 image: ## Builds a docker image for the proxy called ff-proxy:latest 
 	@echo "Building Feature Flag Proxy Image"
 	@docker build --build-arg GITHUB_ACCESS_TOKEN=${GITHUB_ACCESS_TOKEN} -t ff-proxy:latest -f ./Dockerfile .
 
 .PHONY: test
-test: ## Run the go tests
+test: ## Run the go tests (runs with race detector enabled)
 	@echo "Running tests"
-	go test -v -coverprofile=coverage.out ./...
+	go test -race -v -coverprofile=coverage.out ./...
 	go tool cover -html=coverage.out
 
 #########################################

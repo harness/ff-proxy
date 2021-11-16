@@ -126,7 +126,7 @@ func ConvertDomainFeatureConfig(fc FeatureConfig) *evaluation.FeatureConfig {
 		}
 	}
 
-	var segments  map[string]*evaluation.Segment
+	var segments map[string]*evaluation.Segment
 	if fc.Segments != nil {
 		segments = make(map[string]*evaluation.Segment, len(fc.Segments))
 		for i, val := range fc.Segments {
@@ -147,7 +147,7 @@ func ConvertDomainFeatureConfig(fc FeatureConfig) *evaluation.FeatureConfig {
 		State:                evaluation.FeatureState(fc.State),
 		VariationToTargetMap: vtm,
 		Variations:           vars,
-		Segments:			  segments,
+		Segments:             segments,
 	}
 }
 

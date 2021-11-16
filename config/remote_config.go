@@ -7,8 +7,8 @@ import (
 	"sync"
 
 	"github.com/harness/ff-proxy/domain"
-	admingen "github.com/harness/ff-proxy/gen/admin"
 	"github.com/harness/ff-proxy/log"
+	"github.com/harness/ff-proxy/services"
 )
 
 // RemoteOption is type for passing optional parameters to a RemoteConfig
@@ -30,26 +30,32 @@ func WithLogger(l log.Logger) RemoteOption {
 	}
 }
 
-// RemoteConfig is a type that can retrieve config from the adminService for a
-// given account and org
-type RemoteConfig struct {
-	accountIdentifer string
-	orgIdentifier    string
-	client           admingen.ClientWithResponsesInterface
-	log              log.Logger
-	concurrency      int
+type adminClient interface {
+	PageProjects(ctx context.Context, input services.PageProjectsInput) (services.PageProjectsResult, error)
+	PageTargets(ctx context.Context, input services.PageTargetsInput) (services.PageTargetsResult, error)
+	PageEnvironments(ctx context.Context, input services.PageEnvironmentsInput) (services.PageEnvironmentsResult, error)
 }
 
-// NewRemoteConfig creates a RemoteConfig that can be used to retrieve config from the adminService for the passed account and org
-func NewRemoteConfig(accountIdentifer string, orgIdentifier string, client admingen.ClientWithResponsesInterface, opts ...RemoteOption) RemoteConfig {
-	rc := RemoteConfig{
-		accountIdentifer: accountIdentifer,
-		orgIdentifier:    orgIdentifier,
-		client:           client,
+// RemoteConfig is a type that retrieves config from the Feature Flags Service
+type RemoteConfig struct {
+	client       adminClient
+	log          log.Logger
+	concurrency  int
+	authConfig   map[domain.AuthAPIKey]string
+	targetConfig map[domain.TargetKey][]domain.Target
+}
+
+// NewRemoteConfig creates a RemoteConfig and retrieves the configuration for
+// the given Account and Org from the Feature Flags Service
+func NewRemoteConfig(ctx context.Context, accountIdentifer string, orgIdentifier string, client adminClient, opts ...RemoteOption) RemoteConfig {
+	rc := &RemoteConfig{
+		client:       client,
+		authConfig:   make(map[domain.AuthAPIKey]string),
+		targetConfig: make(map[domain.TargetKey][]domain.Target),
 	}
 
 	for _, opt := range opts {
-		opt(&rc)
+		opt(rc)
 	}
 
 	if rc.log == nil {
@@ -60,197 +66,251 @@ func NewRemoteConfig(accountIdentifer string, orgIdentifier string, client admin
 		rc.concurrency = 10
 	}
 	rc.log = log.With(rc.log, "component", "RemoteConfig", "account_identifier", accountIdentifer, "org_identifier", orgIdentifier)
-	return rc
+	rc.load(ctx, accountIdentifer, orgIdentifier)
+	return *rc
 }
 
-// AuthConfig retrieves a map of APIKeys to EnvironmentIDs from the ff-admin service.
-// To do this it first has to get all of the projects for the account and org and then
-// it can get all of the environments for each projects which brings back the enivronmentID
-// and all of the APIKeys in that environment.
-func (r RemoteConfig) AuthConfig(ctx context.Context) (map[domain.AuthAPIKey]string, error) {
-	identifiers, err := r.getProjectIdentifiers(ctx)
-	if err != nil {
-		r.log.Error("msg", "AuthConfig failed to get projects", "err", err)
-		return map[domain.AuthAPIKey]string{}, err
+// TargetConfig returns the Target information that was retrieved from the Feature Flags Service
+func (r RemoteConfig) TargetConfig() map[domain.TargetKey][]domain.Target {
+	return r.targetConfig
+}
+
+// AuthConfig returns the AuthConfig that was retrived from the Feature Flags Service
+func (r RemoteConfig) AuthConfig() map[domain.AuthAPIKey]string {
+	return r.authConfig
+}
+
+// load setups a pipeline to retrieve the Project, Environment and Target informatino
+// from the AdminService and then uses the config that was built up by the pipeline
+// to build the auth and target config.
+//
+// The first stage of the pipeline retrieves the project information and then after
+// that we fan out to get the Environment and Target config to reduce the time it
+// takes to retrieve the config.
+func (r *RemoteConfig) load(ctx context.Context, accountIdentifer string, orgIdentifier string) error {
+	pipelineInput := configPipeline{
+		AccountIdentifier: accountIdentifer,
+		OrgIdentifier:     orgIdentifier,
+	}
+	stage1 := r.addProjectConfig(ctx, pipelineInput)
+
+	// Fan-out so we've multiple addEnvironmentProcesses reading from
+	// the output from stage1 of our pipeline
+	stage2 := make([]<-chan configPipeline, r.concurrency)
+	for i := 0; i < r.concurrency; i++ {
+		stage2[i] = r.addEnvironmentConfig(ctx, stage1)
 	}
 
-	type authInfo struct {
-		Key domain.AuthAPIKey
-		ID  string
+	// Fan-in the channels in the second stage of the pipeline so that the next
+	// stage has a channel to read from
+	stage2Result := fanIn(ctx, stage2...)
+
+	// Fan-out again so we've multiple addTargetConfig processes reading
+	// the output from stage2 of our pipline
+	pipelineResults := make([]<-chan configPipeline, r.concurrency)
+	for i := 0; i < r.concurrency; i++ {
+		pipelineResults[i] = r.addTargetConfig(ctx, stage2Result)
 	}
 
+	authConfig := map[domain.AuthAPIKey]string{}
+	targetConfig := map[domain.TargetKey][]domain.Target{}
+
+	// Read all the config from the pipeline and build up the authConfig and
+	// targetConfig maps
+	for result := range fanIn(ctx, pipelineResults...) {
+		for _, key := range result.APIKeys {
+			authConfig[domain.AuthAPIKey(key)] = result.EnvironmentID
+		}
+
+		targetKey := domain.NewTargetKey(result.EnvironmentID)
+		targetConfig[targetKey] = result.Targets
+	}
+
+	r.authConfig = authConfig
+	r.targetConfig = targetConfig
+	return nil
+}
+
+// configPipeline is the input and output for each stage of the pipeline that
+// retreives config from the FeatureFlags service.
+type configPipeline struct {
+	AccountIdentifier     string
+	OrgIdentifier         string
+	ProjectIdentifier     string
+	EnvironmentID         string
+	EnvironmnetIdentifier string
+	APIKeys               []string
+	Targets               []domain.Target
+}
+
+// fanIn joins multiple ConfigPipeline channels into a single channel
+func fanIn(ctx context.Context, channels ...<-chan configPipeline) <-chan configPipeline {
 	wg := sync.WaitGroup{}
-	sem := make(chan struct{}, r.concurrency)
-	c := make(chan authInfo, r.concurrency)
+	stream := make(chan configPipeline)
 
-	for _, identifier := range identifiers {
-		wg.Add(1)
-		sem <- struct{}{}
+	multiplex := func(c <-chan configPipeline) {
+		defer wg.Done()
+		for i := range c {
+			select {
+			case <-ctx.Done():
+				return
+			case stream <- i:
+			}
+		}
+	}
 
-		go func(ident string) {
-			defer func() {
-				wg.Done()
-				<-sem
-			}()
+	// Select from all the channels
+	wg.Add(len(channels))
+	for _, c := range channels {
+		go multiplex(c)
+	}
 
-			environment, err := r.getEnvironment(ctx, ident)
+	// Wait for all the reads to complete
+	go func() {
+		wg.Wait()
+		close(stream)
+	}()
+
+	return stream
+}
+
+// addProjectConfig is the stage of the pipeline that adds the ProjectIdentifier
+// to the ConfigPipeline
+func (r RemoteConfig) addProjectConfig(ctx context.Context, input configPipeline) <-chan configPipeline {
+	out := make(chan configPipeline)
+	go func() {
+		defer close(out)
+
+		projectInput := services.PageProjectsInput{
+			AccountIdentifier: input.AccountIdentifier,
+			OrgIdentifier:     input.OrgIdentifier,
+			PageNumber:        0,
+			PageSize:          100,
+		}
+
+		done := false
+		for !done {
+			result, err := r.client.PageProjects(ctx, projectInput)
+			done = result.Finished
 			if err != nil {
-				r.log.Error("msg", "AuthConfig failed to get environments", "err", err)
+				r.log.Error("msg", "error paging projects", "err", err)
 				return
 			}
 
-			for _, e := range environment {
-				for _, apiKey := range e.APIKeys {
-					c <- authInfo{Key: domain.AuthAPIKey(apiKey), ID: e.ID}
+			for _, project := range result.Projects {
+				input.ProjectIdentifier = project.Identifier
+
+				select {
+				case <-ctx.Done():
+					return
+				case out <- input:
 				}
 			}
-		}(identifier)
-	}
+			projectInput.PageNumber++
+		}
+	}()
+	return out
+}
 
-	// Make sure all goroutines retreiving environment information have finished
-	// before closing so we can't accidentally write to a closed channel
+// addEnvironmentConfig is the stage of the pipeline that adds the EnvironmentID,
+// Identifier and APIKeys to the ConfigPipeline
+func (r RemoteConfig) addEnvironmentConfig(ctx context.Context, inputs <-chan configPipeline) <-chan configPipeline {
+	out := make(chan configPipeline)
+
 	go func() {
-		wg.Wait()
-		close(sem)
-		close(c)
+		defer close(out)
+
+		for input := range inputs {
+
+			environmentInput := services.PageEnvironmentsInput{
+				AccountIdentifier: input.AccountIdentifier,
+				OrgIdentifier:     input.OrgIdentifier,
+				ProjectIdentifier: input.ProjectIdentifier,
+				PageNumber:        0,
+				PageSize:          100,
+			}
+
+			done := false
+			for !done {
+				result, err := r.client.PageEnvironments(ctx, environmentInput)
+				done = result.Finished
+				if err != nil {
+					r.log.Error("msg", "error paging environments", "err", err)
+					continue
+				}
+
+				for _, env := range result.Environments {
+					// No point continuing if there's no ID, identifier or ApiKeys
+					// since we we need these further down the pipeline
+					if env.Id == nil || env.Identifier == "" || env.ApiKeys.ApiKeys == nil {
+						continue
+					}
+					input.EnvironmentID = *env.Id
+					input.EnvironmnetIdentifier = env.Identifier
+
+					for _, key := range *env.ApiKeys.ApiKeys {
+						if key.Key != nil {
+							input.APIKeys = append(input.APIKeys, *key.Key)
+						}
+					}
+
+					select {
+					case <-ctx.Done():
+						return
+					case out <- input:
+					}
+				}
+
+				environmentInput.PageNumber++
+			}
+		}
 	}()
 
-	authConfig := make(map[domain.AuthAPIKey]string)
-	for f := range c {
-		authConfig[f.Key] = f.ID
-	}
-	return authConfig, nil
+	return out
 }
 
-// getProjectIdentifiers pages over all of the projects for the given account and
-// org and returns a slicce containing their identifiers
-func (r RemoteConfig) getProjectIdentifiers(ctx context.Context) ([]string, error) {
-	pageNumber := 0
-	pageSize := 100
-	identifiers := []string{}
+// addTargetConfig is the stage of the pipeline that adds Targets to the ConfigPipeline
+func (r RemoteConfig) addTargetConfig(ctx context.Context, inputs <-chan configPipeline) <-chan configPipeline {
+	out := make(chan configPipeline)
 
-	done := false
-	for !done {
-		result, err := r.pageProjects(ctx, pageNumber, pageSize)
-		done = result.finished
-		if err != nil {
-			r.log.Error("msg", "error paging projects", "err", err)
-			return identifiers, err
-		}
+	go func() {
+		defer close(out)
 
-		for _, project := range result.projects {
-			identifiers = append(identifiers, project.Identifier)
-		}
-		pageNumber++
-	}
-	return identifiers, nil
-}
-
-// environment is a type containing an environmentID and the APIkeys that it has
-type environment struct {
-	ID      string
-	APIKeys []string
-}
-
-// getEnvironments pages over all of the environments for a project to get all
-// the API keys it has.
-func (r RemoteConfig) getEnvironment(ctx context.Context, projectIdentifer string) ([]environment, error) {
-	pageNumber := 0
-	pageSize := 100
-	environments := []environment{}
-
-	done := false
-	for !done {
-		result, err := r.pageEnvironments(ctx, projectIdentifer, pageSize, pageNumber)
-		done = result.finished
-		if err != nil {
-			r.log.Error("msg", "error paging environments", "err", err)
-			return environments, err
-		}
-
-		for _, env := range result.environments {
-			e := environment{ID: *env.Id}
-			for _, key := range *env.ApiKeys.ApiKeys {
-				e.APIKeys = append(e.APIKeys, *key.Key)
+		for input := range inputs {
+			targetInput := services.PageTargetsInput{
+				AccountIdentifier:     input.AccountIdentifier,
+				OrgIdentifier:         input.OrgIdentifier,
+				ProjectIdentifier:     input.ProjectIdentifier,
+				EnvironmentIdentifier: input.EnvironmnetIdentifier,
+				PageNumber:            0,
+				PageSize:              100,
 			}
-			environments = append(environments, e)
+
+			done := false
+			for !done {
+				result, err := r.client.PageTargets(ctx, targetInput)
+				done = result.Finished
+				if err != nil {
+					r.log.Error("msg", "error paging targets", "err", err, "input", fmt.Sprintf("%+v", targetInput))
+					continue
+				}
+
+				targets := []domain.Target{}
+				for _, t := range result.Targets {
+					targets = append(targets, domain.Target{Target: t})
+				}
+				input.Targets = targets
+
+				select {
+				case <-ctx.Done():
+					return
+				case out <- input:
+				}
+
+				targetInput.PageNumber++
+			}
 		}
-		pageNumber++
-	}
+	}()
 
-	return environments, nil
-
-}
-
-type envPageResult struct {
-	environments []admingen.Environment
-	finished     bool
-}
-
-// pageEnvironments can be used to page over the environments for a project
-func (r RemoteConfig) pageEnvironments(ctx context.Context, projectIdentifier string, pageSize int, pageNumber int) (envPageResult, error) {
-	pn := admingen.PageNumber(pageNumber)
-	ps := admingen.PageSize(pageSize)
-
-	r.log.Debug("msg", "GetAllEnvironmentsWithResponse", "projectIdentifier", projectIdentifier, "pageSize", pageSize, "pageNumber", pageNumber)
-	resp, err := r.client.GetAllEnvironmentsWithResponse(ctx, &admingen.GetAllEnvironmentsParams{
-		AccountIdentifier: admingen.AccountQueryParam(r.accountIdentifer),
-		Org:               admingen.OrgQueryParam(r.orgIdentifier),
-		Project:           admingen.ProjectQueryParam(projectIdentifier),
-		PageNumber:        &pn,
-		PageSize:          &ps,
-	})
-	if err != nil {
-		return envPageResult{finished: true}, err
-	}
-
-	// TODO: Could make this better and add some retry logic in but for
-	// now just error out
-	if resp.JSON200 == nil {
-		return envPageResult{finished: true}, fmt.Errorf("got non 200 response, status: %s, body: %s", resp.Status(), string(resp.Body))
-	}
-
-	// If there are no environments in the response then there are either none
-	// to retrieve or we've paged over them all so we're done
-	if *resp.JSON200.Data.Environments != nil && len(*resp.JSON200.Data.Environments) == 0 {
-		return envPageResult{finished: true}, nil
-	}
-
-	return envPageResult{environments: *resp.JSON200.Data.Environments, finished: false}, nil
-}
-
-type projPageResult struct {
-	projects []admingen.Project
-	finished bool
-}
-
-// pageProjects pages over all the projects for a account
-func (r RemoteConfig) pageProjects(ctx context.Context, pageNumber int, pageSize int) (projPageResult, error) {
-	pn := admingen.PageNumber(pageNumber)
-	ps := admingen.PageSize(pageSize)
-
-	r.log.Debug("msg", "GetAllProjectsWithResponse", "pageSize", pageSize, "pageNumber", pageNumber)
-	resp, err := r.client.GetAllProjectsWithResponse(ctx, &admingen.GetAllProjectsParams{
-		AccountIdentifier: admingen.AccountQueryParam(r.accountIdentifer),
-		Org:               admingen.OrgQueryParam(r.orgIdentifier),
-		PageNumber:        &pn,
-		PageSize:          &ps,
-	})
-	if err != nil {
-		return projPageResult{finished: true}, err
-	}
-
-	// TODO: Could make this better and add some retry logic in but for
-	// now just error out
-	if resp.JSON200 == nil {
-		return projPageResult{finished: true}, fmt.Errorf("got non 200 response, status: %s, body: %s", resp.Status(), string(resp.Body))
-	}
-
-	// If there are no projects in the response then there are either none
-	// to retrieve or we've paged over them all so we're done
-	if *resp.JSON200.Data.Projects != nil && len(*resp.JSON200.Data.Projects) == 0 {
-		return projPageResult{finished: true}, nil
-	}
-
-	return projPageResult{projects: *resp.JSON200.Data.Projects, finished: false}, nil
+	return out
 }

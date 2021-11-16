@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/dgrijalva/jwt-go"
+	admingen "github.com/harness/ff-proxy/gen/admin"
 	clientgen "github.com/harness/ff-proxy/gen/client"
 )
 
@@ -43,8 +44,10 @@ func NewTargetKey(envID string) TargetKey {
 	return TargetKey(fmt.Sprintf("env-%s-target-config", envID))
 }
 
-// Target is a clientgen.Target that we can declare methods on
-type Target clientgen.Target
+// Target is a admingen.Target that we can declare methods on
+type Target struct {
+	admingen.Target
+}
 
 // MarshalBinary marshals a Target to bytes. Currently it uses json marshaling
 // but if we want to optimise storage space we could use something more efficient

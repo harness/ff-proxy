@@ -136,12 +136,10 @@ func (s Service) TargetSegments(ctx context.Context, req domain.TargetSegmentsRe
 
 	segments, err := s.segmentRepo.Get(ctx, key)
 	if err != nil {
-		if !errors.Is(err, domain.ErrCacheNotFound) {
-			return []domain.Segment{}, fmt.Errorf("%w: %s", ErrInternal, err)
+		if errors.Is(err, domain.ErrCacheNotFound) {
+			return []domain.Segment{}, fmt.Errorf("%w: %s", ErrNotFound, err)
 		}
-		s.logger.Debug("msg", "Segments not found: Continue with empty segments")
-		return []domain.Segment{}, nil
-
+		return []domain.Segment{}, fmt.Errorf("%w: %s", ErrInternal, err)
 	}
 
 	return segments, nil
@@ -177,10 +175,10 @@ func (s Service) Evaluations(ctx context.Context, req domain.EvaluationsRequest)
 
 	target, err := s.targetRepo.GetByIdentifier(ctx, targetKey, req.TargetIdentifier)
 	if err != nil {
-		if !errors.Is(err, domain.ErrCacheNotFound) {
-			return nil, fmt.Errorf("%w: %s", ErrInternal, err)
+		if errors.Is(err, domain.ErrCacheNotFound) {
+			return nil, fmt.Errorf("%w: %s", ErrNotFound, err)
 		}
-		s.logger.Debug("msg", "Target not found: Continue with empty target")
+		return []clientgen.Evaluation{}, fmt.Errorf("%w: %s", ErrInternal, err)
 	}
 
 	evaluations, err := s.evaluator.Evaluate(target, configs...)
@@ -207,14 +205,14 @@ func (s Service) EvaluationsByFeature(ctx context.Context, req domain.Evaluation
 	target, err := s.targetRepo.GetByIdentifier(ctx, targetKey, req.TargetIdentifier)
 	if err != nil {
 		if errors.Is(err, domain.ErrCacheNotFound) {
-			return clientgen.Evaluation{}, ErrNotFound
+			return clientgen.Evaluation{}, fmt.Errorf("%w: %s", ErrNotFound, err)
 		}
-		return clientgen.Evaluation{}, ErrInternal
+		return clientgen.Evaluation{}, fmt.Errorf("%w: %s", ErrInternal, err)
 	}
 
 	evaluations, err := s.evaluator.Evaluate(target, config)
 	if err != nil {
-		return clientgen.Evaluation{}, ErrInternal
+		return clientgen.Evaluation{}, fmt.Errorf("%w: %s", ErrInternal, err)
 	}
 
 	// This shouldn't happen

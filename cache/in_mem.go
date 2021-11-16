@@ -4,8 +4,9 @@ import (
 	"context"
 	"encoding"
 	"fmt"
-	log "github.com/sirupsen/logrus"
 	"sync"
+
+	log "github.com/sirupsen/logrus"
 
 	"github.com/harness/ff-proxy/domain"
 )
