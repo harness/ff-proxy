@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/harness/ff-proxy/gen"
+	clientgen "github.com/harness/ff-proxy/gen/client"
 )
 
 // FeatureConfigKey is the key that maps to a FeatureConfig
@@ -18,7 +18,7 @@ func NewFeatureConfigKey(envID string) FeatureConfigKey {
 // FeatureConfig is the type containing FeatureConfig information and is what
 // we return from /GET client/env/<env>/feature-configs
 type FeatureConfig struct {
-	gen.FeatureConfig
+	clientgen.FeatureConfig
 	Segments map[string]Segment `json:"segments"`
 }
 
@@ -42,8 +42,8 @@ func NewTargetKey(envID string) TargetKey {
 	return TargetKey(fmt.Sprintf("env-%s-target-config", envID))
 }
 
-// Target is a gen.Target that we can declare methods on
-type Target gen.Target
+// Target is a clientgen.Target that we can declare methods on
+type Target clientgen.Target
 
 // MarshalBinary marshals a Target to bytes. Currently it uses json marshaling
 // but if we want to optimise storage space we could use something more efficient
@@ -64,8 +64,8 @@ func NewSegmentKey(envID string) SegmentKey {
 	return SegmentKey(fmt.Sprintf("env-%s-segment", envID))
 }
 
-// Segment is a gen.Segment that we can declare methods on
-type Segment gen.Segment
+// Segment is a clientgen.Segment that we can declare methods on
+type Segment clientgen.Segment
 
 // MarshalBinary marshals a Target to bytes. Currently it uses json marshaling
 // but if we want to optimise storage space we could use something more efficient
@@ -77,3 +77,6 @@ func (s *Segment) MarshalBinary() ([]byte, error) {
 func (s *Segment) UnmarshalBinary(b []byte) error {
 	return json.Unmarshal(b, s)
 }
+
+// AuthAPIKey is the APIKey type used for authentication lookups
+type AuthAPIKey string

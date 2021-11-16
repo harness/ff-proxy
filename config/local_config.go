@@ -1,25 +1,12 @@
-package ffproxy
+package config
 
 import (
-	"embed"
 	"errors"
 	"io/fs"
 	"strings"
 
+	ffproxy "github.com/harness/ff-proxy"
 	"github.com/harness/ff-proxy/domain"
-)
-
-var (
-	// DefaultConfig embeds the default config directory and the env directories
-	// that we care about reading configuration from
-	//go:embed config/env-*
-	DefaultConfig embed.FS
-)
-
-const (
-	// DefaultConfigDir is the name of the default directory where the files for
-	// side loading FeatureFlagConfig live
-	DefaultConfigDir = "config"
 )
 
 type config struct {
@@ -27,30 +14,31 @@ type config struct {
 	FeatureConfig []domain.FeatureConfig `json:"featureConfig"`
 	Targets       []domain.Target        `json:"targets"`
 	Segments      []domain.Segment       `json:"segments"`
+	Auth          []domain.AuthAPIKey    `json:"auth"`
 }
 
-// FeatureFlagConfig is a type that can traverse a tree of files and decode
+// LocalConfig is a type that can traverse a tree of files and decode
 // FeatureConfig, Target and Segment information from them.
-type FeatureFlagConfig struct {
+type LocalConfig struct {
 	config map[string]config
 }
 
-// NewFeatureFlagConfig creates a new FeatureFlagConfig that loads config from
+// NewLocalConfig creates a new FeatureFlagConfig that loads config from
 // the passed FileSystem and directory.
-func NewFeatureFlagConfig(fs embed.FS, dir string) (FeatureFlagConfig, error) {
-	o := FeatureFlagConfig{
+func NewLocalConfig(fs fs.FS, dir string) (LocalConfig, error) {
+	o := LocalConfig{
 		config: make(map[string]config),
 	}
 
 	if err := o.loadConfig(fs, dir); err != nil {
-		return FeatureFlagConfig{}, err
+		return LocalConfig{}, err
 	}
 	return o, nil
 }
 
 // loadConfig reads the directory of the filesystem and walks the file tree
 // decoding any config files that it finds
-func (f FeatureFlagConfig) loadConfig(fileSystem embed.FS, dir string) error {
+func (f LocalConfig) loadConfig(fileSystem fs.FS, dir string) error {
 	if err := fs.WalkDir(fileSystem, dir, decodeConfigFiles(f.config)); err != nil {
 		return err
 	}
@@ -91,6 +79,7 @@ func decodeConfigFiles(c map[string]config) fs.WalkDirFunc {
 				FeatureConfig: []domain.FeatureConfig{},
 				Targets:       []domain.Target{},
 				Segments:      []domain.Segment{},
+				Auth:          []domain.AuthAPIKey{},
 			}
 			return nil
 		}
@@ -104,7 +93,7 @@ func decodeConfigFiles(c map[string]config) fs.WalkDirFunc {
 
 		if i.Name() == "feature_config.json" {
 			config := c[env]
-			if err := DecodeFile(path, &config.FeatureConfig); err != nil {
+			if err := ffproxy.DecodeFile(path, &config.FeatureConfig); err != nil {
 				return err
 			}
 			c[env] = config
@@ -113,7 +102,7 @@ func decodeConfigFiles(c map[string]config) fs.WalkDirFunc {
 
 		if i.Name() == "targets.json" {
 			config := c[env]
-			if err := DecodeFile(path, &config.Targets); err != nil {
+			if err := ffproxy.DecodeFile(path, &config.Targets); err != nil {
 				return err
 			}
 			c[env] = config
@@ -122,11 +111,19 @@ func decodeConfigFiles(c map[string]config) fs.WalkDirFunc {
 
 		if i.Name() == "segments.json" {
 			config := c[env]
-			if err := DecodeFile(path, &config.Segments); err != nil {
+			if err := ffproxy.DecodeFile(path, &config.Segments); err != nil {
 				return err
 			}
 			c[env] = config
 			return nil
+		}
+
+		if i.Name() == "auth_config.json" {
+			config := c[env]
+			if err := ffproxy.DecodeFile(path, &config.Auth); err != nil {
+				return err
+			}
+			c[env] = config
 		}
 		return nil
 	}
@@ -136,7 +133,7 @@ func decodeConfigFiles(c map[string]config) fs.WalkDirFunc {
 // in the form of a map of domain.FeatureConfigKeys to slice of domain.FeatureConfig.
 // As a part of its logic it adds the Segment information from the FeatureFlagConfig
 // to the FeatureConfig type
-func (f FeatureFlagConfig) FeatureConfig() map[domain.FeatureConfigKey][]domain.FeatureConfig {
+func (f LocalConfig) FeatureConfig() map[domain.FeatureConfigKey][]domain.FeatureConfig {
 	result := map[domain.FeatureConfigKey][]domain.FeatureConfig{}
 
 	for _, cfg := range f.config {
@@ -162,7 +159,7 @@ func (f FeatureFlagConfig) FeatureConfig() map[domain.FeatureConfigKey][]domain.
 
 // Targets returns the target information from the FeatureFlagConfig in the form
 // of a map of domain.TargetKey to slice of domain.Target
-func (f FeatureFlagConfig) Targets() map[domain.TargetKey][]domain.Target {
+func (f LocalConfig) Targets() map[domain.TargetKey][]domain.Target {
 	results := map[domain.TargetKey][]domain.Target{}
 
 	for _, cfg := range f.config {
@@ -174,7 +171,7 @@ func (f FeatureFlagConfig) Targets() map[domain.TargetKey][]domain.Target {
 
 // Segments returns the segment informatino from the FeatureFlagConfig in the form
 // of a map of domain.SegmentKey to slice of domain.Segments
-func (f FeatureFlagConfig) Segments() map[domain.SegmentKey][]domain.Segment {
+func (f LocalConfig) Segments() map[domain.SegmentKey][]domain.Segment {
 	results := map[domain.SegmentKey][]domain.Segment{}
 
 	for _, cfg := range f.config {
@@ -184,22 +181,13 @@ func (f FeatureFlagConfig) Segments() map[domain.SegmentKey][]domain.Segment {
 	return results
 }
 
-//go:embed config/test/env-*
-// testConfig embeds the config used for testing
-var testConfig embed.FS
-
-const (
-	// testDir is the directory that the test config lives in
-	testDir = "config/test"
-)
-
-// MustMakeNEwTestFeatureFlagConfig creates a FeatureFlagConfig that loads test
-// data. It's only purpose should be to use the test config in tests that live
-// in other packages. See transport/http_server_test.go for an example.
-func MustMakeNewTestFeatureFlagConfig() FeatureFlagConfig {
-	f, err := NewFeatureFlagConfig(testConfig, testDir)
-	if err != nil {
-		panic(err)
+// AuthConfig returns the authentication config information
+func (f LocalConfig) AuthConfig() map[domain.AuthAPIKey]string {
+	results := map[domain.AuthAPIKey]string{}
+	for _, cfg := range f.config {
+		for _, key := range cfg.Auth {
+			results[key] = cfg.Environment
+		}
 	}
-	return f
+	return results
 }

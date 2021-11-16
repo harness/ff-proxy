@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"github.com/harness/ff-proxy/domain"
-	"github.com/harness/ff-proxy/gen"
+	clientgen "github.com/harness/ff-proxy/gen/client"
 	"github.com/harness/ff-proxy/log"
 	"github.com/harness/ff-proxy/transport"
 )
@@ -164,7 +164,7 @@ func (l LoggingMiddleware) TargetSegmentsByIdentifier(ctx context.Context, req d
 // Evaluations performs logging on Evaluations requests and logs out the method,
 // request parameters, error and duration. If debug is enabled it will also log
 // out the response
-func (l LoggingMiddleware) Evaluations(ctx context.Context, req domain.EvaluationsRequest) (resp []gen.Evaluation, err error) {
+func (l LoggingMiddleware) Evaluations(ctx context.Context, req domain.EvaluationsRequest) (resp []clientgen.Evaluation, err error) {
 	defer func(begin time.Time) {
 		if l.debug {
 			l.logger.Debug(
@@ -191,7 +191,7 @@ func (l LoggingMiddleware) Evaluations(ctx context.Context, req domain.Evaluatio
 // EvaluationsByFeature performs logging on EvaluationsByFeature requests and
 // logs out the method, request parameters, error and duration. If debug is enabled
 // it will also log out the response
-func (l LoggingMiddleware) EvaluationsByFeature(ctx context.Context, req domain.EvaluationsByFeatureRequest) (resp gen.Evaluation, err error) {
+func (l LoggingMiddleware) EvaluationsByFeature(ctx context.Context, req domain.EvaluationsByFeatureRequest) (resp clientgen.Evaluation, err error) {
 	defer func(begin time.Time) {
 		if l.debug {
 			l.logger.Debug(

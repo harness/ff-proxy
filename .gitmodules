@@ -1,0 +1,3 @@
+[submodule "ff-api"]
+	path = ff-api
+	url = https://github.com/wings-software/ff-api

@@ -6,7 +6,7 @@ import (
 	"fmt"
 
 	"github.com/harness/ff-proxy/domain"
-	"github.com/harness/ff-proxy/gen"
+	clientgen "github.com/harness/ff-proxy/gen/client"
 	"github.com/harness/ff-proxy/log"
 	"github.com/harness/ff-proxy/repository"
 )
@@ -27,7 +27,7 @@ var (
 // evaluator is a type that can perform evaluations
 type evaluator interface {
 	// Evaluate evaluates featureConfig(s) against a target and returns an evaluation
-	Evaluate(target domain.Target, featureConfigs ...domain.FeatureConfig) ([]gen.Evaluation, error)
+	Evaluate(target domain.Target, featureConfigs ...domain.FeatureConfig) ([]clientgen.Evaluation, error)
 }
 
 // ProxyService is the proxy service implementation
@@ -119,7 +119,7 @@ func (p ProxyService) TargetSegmentsByIdentifier(ctx context.Context, req domain
 }
 
 // Evaluations gets all of the evaluations in an environment for a target
-func (p ProxyService) Evaluations(ctx context.Context, req domain.EvaluationsRequest) ([]gen.Evaluation, error) {
+func (p ProxyService) Evaluations(ctx context.Context, req domain.EvaluationsRequest) ([]clientgen.Evaluation, error) {
 	featureConfigKey := domain.NewFeatureConfigKey(req.EnvironmentID)
 	targetKey := domain.NewTargetKey(req.EnvironmentID)
 
@@ -148,35 +148,35 @@ func (p ProxyService) Evaluations(ctx context.Context, req domain.EvaluationsReq
 }
 
 // EvaluationsByFeature gets all of the evaluations in an environment for a target for a particular feature
-func (p ProxyService) EvaluationsByFeature(ctx context.Context, req domain.EvaluationsByFeatureRequest) (gen.Evaluation, error) {
+func (p ProxyService) EvaluationsByFeature(ctx context.Context, req domain.EvaluationsByFeatureRequest) (clientgen.Evaluation, error) {
 	featureKey := domain.NewFeatureConfigKey(req.EnvironmentID)
 	targetKey := domain.NewTargetKey(req.EnvironmentID)
 
 	config, err := p.featureRepo.GetByIdentifier(ctx, featureKey, req.FeatureIdentifier)
 	if err != nil {
 		if errors.Is(err, domain.ErrCacheNotFound) {
-			return gen.Evaluation{}, ErrNotFound
+			return clientgen.Evaluation{}, ErrNotFound
 		}
-		return gen.Evaluation{}, ErrInternal
+		return clientgen.Evaluation{}, ErrInternal
 	}
 
 	target, err := p.targetRepo.GetByIdentifier(ctx, targetKey, req.TargetIdentifier)
 	if err != nil {
 		if errors.Is(err, domain.ErrCacheNotFound) {
-			return gen.Evaluation{}, ErrNotFound
+			return clientgen.Evaluation{}, ErrNotFound
 		}
-		return gen.Evaluation{}, ErrInternal
+		return clientgen.Evaluation{}, ErrInternal
 	}
 
 	evaluations, err := p.evaluator.Evaluate(target, config)
 	if err != nil {
-		return gen.Evaluation{}, ErrInternal
+		return clientgen.Evaluation{}, ErrInternal
 	}
 
 	// This shouldn't happen
 	if len(evaluations) != 1 {
 		p.logger.Error("msg", "evaluations should only have a length of one")
-		return gen.Evaluation{}, ErrInternal
+		return clientgen.Evaluation{}, ErrInternal
 	}
 
 	return evaluations[0], nil

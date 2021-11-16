@@ -1,11 +1,23 @@
-package ffproxy
+package config
 
 import (
+	"embed"
 	"testing"
 
 	"github.com/harness/ff-proxy/domain"
-	"github.com/harness/ff-proxy/gen"
+	clientgen "github.com/harness/ff-proxy/gen/client"
 	"github.com/stretchr/testify/assert"
+)
+
+var (
+	// testConfig embeds the config used for testing
+	//go:embed test/env-*
+	testConfig embed.FS
+)
+
+const (
+	// testDir is the directory that the test config lives in
+	testDir = "test"
 )
 
 func strPtr(s string) *string { return &s }
@@ -16,19 +28,19 @@ func boolPtr(b bool) *bool { return &b }
 
 var (
 	harnessAppDemoDarkModeConfig = domain.FeatureConfig{
-		FeatureConfig: gen.FeatureConfig{
-			DefaultServe: gen.Serve{
+		FeatureConfig: clientgen.FeatureConfig{
+			DefaultServe: clientgen.Serve{
 				Variation: strPtr("true"),
 			},
 			Environment:   "featureflagsqa",
 			Feature:       "harnessappdemodarkmode",
-			Kind:          gen.FeatureConfigKindBoolean,
+			Kind:          "boolean",
 			OffVariation:  "false",
-			Prerequisites: &[]gen.Prerequisite{},
+			Prerequisites: &[]clientgen.Prerequisite{},
 			Project:       "FeatureFlagsQADemo",
-			Rules: &[]gen.ServingRule{
+			Rules: &[]clientgen.ServingRule{
 				{
-					Clauses: []gen.Clause{
+					Clauses: []clientgen.Clause{
 						{
 							Attribute: "age",
 							Id:        "79f5bca0-17ca-42c2-8934-5cee840fe2e0",
@@ -41,18 +53,18 @@ var (
 					},
 					Priority: 1,
 					RuleId:   "8756c207-abf8-4202-83fd-dedf5d27e2c2",
-					Serve: gen.Serve{
+					Serve: clientgen.Serve{
 						Variation: strPtr("false"),
 					},
 				},
 			},
-			State: gen.FeatureStateOn,
-			VariationToTargetMap: &[]gen.VariationMap{
+			State: clientgen.FeatureState_on,
+			VariationToTargetMap: &[]clientgen.VariationMap{
 				{
 					TargetSegments: &[]string{
 						"flagsTeam",
 					},
-					Targets: &[]gen.TargetMap{
+					Targets: &[]clientgen.TargetMap{
 						{
 							Identifier: strPtr("davej"),
 							Name:       "Dave Johnston",
@@ -61,7 +73,7 @@ var (
 					Variation: "false",
 				},
 			},
-			Variations: []gen.Variation{
+			Variations: []clientgen.Variation{
 				{
 					Description: nil,
 					Identifier:  "true",
@@ -82,13 +94,13 @@ var (
 				Environment: strPtr("featureflagsqa"),
 				Identifier:  "flagsTeam",
 				Name:        "flagsTeam",
-				Excluded:    &[]gen.Target{},
-				Included:    &[]gen.Target{},
+				Excluded:    &[]clientgen.Target{},
+				Included:    &[]clientgen.Target{},
 				Version:     int64Ptr(1),
 				CreatedAt:   int64Ptr(123),
 				ModifiedAt:  int64Ptr(456),
 				Tags:        nil,
-				Rules: &[]gen.Clause{
+				Rules: &[]clientgen.Clause{
 					{
 						Attribute: "ip",
 						Id:        "31c18ee7-8051-44cc-8507-b44580467ee5",
@@ -104,19 +116,19 @@ var (
 	}
 
 	yetAnotherFlagConfig = domain.FeatureConfig{
-		FeatureConfig: gen.FeatureConfig{
-			DefaultServe: gen.Serve{
+		FeatureConfig: clientgen.FeatureConfig{
+			DefaultServe: clientgen.Serve{
 				Variation: strPtr("1"),
 			},
 			Environment:   "featureflagsqa",
 			Feature:       "yet_another_flag",
-			Kind:          gen.FeatureConfigKindString,
+			Kind:          "string",
 			OffVariation:  "2",
-			Prerequisites: &[]gen.Prerequisite{},
+			Prerequisites: &[]clientgen.Prerequisite{},
 			Project:       "FeatureFlagsQADemo",
-			Rules:         &[]gen.ServingRule{},
-			State:         gen.FeatureStateOn,
-			Variations: []gen.Variation{
+			Rules:         &[]clientgen.ServingRule{},
+			State:         clientgen.FeatureState_on,
+			Variations: []clientgen.Variation{
 				{
 					Description: nil,
 					Identifier:  "1",
@@ -137,13 +149,13 @@ var (
 				Environment: strPtr("featureflagsqa"),
 				Identifier:  "flagsTeam",
 				Name:        "flagsTeam",
-				Excluded:    &[]gen.Target{},
-				Included:    &[]gen.Target{},
+				Excluded:    &[]clientgen.Target{},
+				Included:    &[]clientgen.Target{},
 				Version:     int64Ptr(1),
 				CreatedAt:   int64Ptr(123),
 				ModifiedAt:  int64Ptr(456),
 				Tags:        nil,
-				Rules: &[]gen.Clause{
+				Rules: &[]clientgen.Clause{
 					{
 						Attribute: "ip",
 						Id:        "31c18ee7-8051-44cc-8507-b44580467ee5",
@@ -160,11 +172,11 @@ var (
 
 	flagsTeamSegment = domain.Segment{
 		Environment: strPtr("featureflagsqa"),
-		Excluded:    &[]gen.Target{},
+		Excluded:    &[]clientgen.Target{},
 		Identifier:  "flagsTeam",
-		Included:    &[]gen.Target{},
+		Included:    &[]clientgen.Target{},
 		Name:        "flagsTeam",
-		Rules: &[]gen.Clause{
+		Rules: &[]clientgen.Clause{
 			{
 				Attribute: "ip",
 				Id:        "31c18ee7-8051-44cc-8507-b44580467ee5",
@@ -179,7 +191,7 @@ var (
 	}
 )
 
-func TestFeatureFlagConfig(t *testing.T) {
+func TestLocalConfig(t *testing.T) {
 	expectedFeatureConfig := map[domain.FeatureConfigKey][]domain.FeatureConfig{
 		domain.NewFeatureConfigKey("1234"): {
 			harnessAppDemoDarkModeConfig,
@@ -198,7 +210,7 @@ func TestFeatureFlagConfig(t *testing.T) {
 				Name:        "foo",
 				Org:         "bar",
 				Project:     "FeatureFlagsQADemo",
-				Segments:    &[]gen.Segment{},
+				Segments:    &[]clientgen.Segment{},
 				Attributes: &map[string]interface{}{
 					"age": float64(56),
 					"ages": []interface{}{
@@ -219,7 +231,7 @@ func TestFeatureFlagConfig(t *testing.T) {
 				Name:        "james",
 				Org:         "",
 				Project:     "FeatureFlagsQADemo",
-				Segments:    &[]gen.Segment{},
+				Segments:    &[]clientgen.Segment{},
 				Attributes: &map[string]interface{}{
 					"age": float64(55),
 					"ages": []interface{}{
@@ -240,16 +252,32 @@ func TestFeatureFlagConfig(t *testing.T) {
 		domain.NewSegmentKey("1234"): []domain.Segment{flagsTeamSegment},
 	}
 
-	config, err := NewFeatureFlagConfig(testConfig, testDir)
+	lc, err := NewLocalConfig(testConfig, testDir)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	actualFeatureConfig := config.FeatureConfig()
-	actualTargetConfig := config.Targets()
-	actualSegments := config.Segments()
+	actualFeatureConfig := lc.FeatureConfig()
+	actualTargetConfig := lc.Targets()
+	actualSegments := lc.Segments()
 
 	assert.Equal(t, expectedFeatureConfig, actualFeatureConfig)
 	assert.Equal(t, expectedTargetConfig, actualTargetConfig)
 	assert.Equal(t, actualSegments, expectedSegments)
+}
+
+func TestLocalConfig_Auth(t *testing.T) {
+	expected := map[domain.AuthAPIKey]string{
+		domain.AuthAPIKey("apikey1"): "1234",
+		domain.AuthAPIKey("apikey2"): "1234",
+		domain.AuthAPIKey("apikey3"): "1234",
+	}
+
+	lc, err := NewLocalConfig(testConfig, testDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	actual := lc.AuthConfig()
+	assert.Equal(t, expected, actual)
 }

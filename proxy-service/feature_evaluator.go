@@ -3,7 +3,7 @@ package proxyservice
 import (
 	"github.com/drone/ff-golang-server-sdk/evaluation"
 	"github.com/harness/ff-proxy/domain"
-	"github.com/harness/ff-proxy/gen"
+	clientgen "github.com/harness/ff-proxy/gen/client"
 )
 
 // FeatureEvaluator is a type that can evaluate a feature config for a given target
@@ -18,8 +18,8 @@ func NewFeatureEvaluator() FeatureEvaluator {
 }
 
 // Evaluate evaluates featureConfig(s) against a target and returns an evaluation
-func (f FeatureEvaluator) Evaluate(target domain.Target, configs ...domain.FeatureConfig) ([]gen.Evaluation, error) {
-	evaluations := []gen.Evaluation{}
+func (f FeatureEvaluator) Evaluate(target domain.Target, configs ...domain.FeatureConfig) ([]clientgen.Evaluation, error) {
+	evaluations := []clientgen.Evaluation{}
 	for _, c := range configs {
 		evaluationConfig := toEvaluationFeatureConfig(c)
 
@@ -33,13 +33,13 @@ func (f FeatureEvaluator) Evaluate(target domain.Target, configs ...domain.Featu
 			return nil, err
 		}
 
-		genEvaluation := gen.Evaluation{
+		clientgenEvaluation := clientgen.Evaluation{
 			Flag:       evaluation.Flag,
 			Identifier: &evaluation.Variation.Identifier,
 			Kind:       string(c.Kind),
 			Value:      evaluation.Variation.Value,
 		}
-		evaluations = append(evaluations, genEvaluation)
+		evaluations = append(evaluations, clientgenEvaluation)
 	}
 	return evaluations, nil
 }
@@ -65,8 +65,8 @@ func toEvaluationFeatureConfig(f domain.FeatureConfig) evaluation.FeatureConfig 
 	}
 }
 
-// toEvaluationsRules converts *[]gen.ServingRule to []evaluation.ServingRule
-func toEvaluationRules(r *[]gen.ServingRule) []evaluation.ServingRule {
+// toEvaluationsRules converts *[]clientgen.ServingRule to []evaluation.ServingRule
+func toEvaluationRules(r *[]clientgen.ServingRule) []evaluation.ServingRule {
 	if r == nil {
 		return []evaluation.ServingRule{}
 	}
@@ -94,8 +94,8 @@ func toEvaluationRules(r *[]gen.ServingRule) []evaluation.ServingRule {
 	return rules
 }
 
-// toEvaluationsPrerequisite converts *[]gen.Prerequisite to []evaluation.Prerequisite
-func toEvaluationPrerequisite(p *[]gen.Prerequisite) []evaluation.Prerequisite {
+// toEvaluationsPrerequisite converts *[]clientgen.Prerequisite to []evaluation.Prerequisite
+func toEvaluationPrerequisite(p *[]clientgen.Prerequisite) []evaluation.Prerequisite {
 	if p == nil {
 		return []evaluation.Prerequisite{}
 	}
@@ -110,8 +110,8 @@ func toEvaluationPrerequisite(p *[]gen.Prerequisite) []evaluation.Prerequisite {
 	return prerequisites
 }
 
-// toEvaluationVariationMap converts *[]gen.VariationMap to []evaluation.VariationMap
-func toEvaluationVariationMap(vm *[]gen.VariationMap) []evaluation.VariationMap {
+// toEvaluationVariationMap converts *[]clientgen.VariationMap to []evaluation.VariationMap
+func toEvaluationVariationMap(vm *[]clientgen.VariationMap) []evaluation.VariationMap {
 	if vm == nil {
 		return []evaluation.VariationMap{}
 	}
@@ -142,8 +142,8 @@ func toEvaluationVariationMap(vm *[]gen.VariationMap) []evaluation.VariationMap 
 	return variationMap
 }
 
-// toEvaluationVariation converts []gen.VariationMap to []evaluation.Variation
-func toEvaluationVariation(v []gen.Variation) []evaluation.Variation {
+// toEvaluationVariation converts []clientgen.VariationMap to []evaluation.Variation
+func toEvaluationVariation(v []clientgen.Variation) []evaluation.Variation {
 	if v == nil {
 		return []evaluation.Variation{}
 	}
@@ -160,7 +160,7 @@ func toEvaluationVariation(v []gen.Variation) []evaluation.Variation {
 	return variations
 }
 
-// toEvaluationSegments converts []gen.Segment to []evaluation.Segments
+// toEvaluationSegments converts []clientgen.Segment to []evaluation.Segments
 func toEvaluationSegments(s map[string]domain.Segment) evaluation.Segments {
 	if s == nil {
 		return make(map[string]*evaluation.Segment)
@@ -204,8 +204,8 @@ func toEvaluationSegments(s map[string]domain.Segment) evaluation.Segments {
 	return segments
 }
 
-// serve converts *gen.Server to an evaluation.Serve
-func serve(serve *gen.Serve) evaluation.Serve {
+// serve converts *clientgen.Server to an evaluation.Serve
+func serve(serve *clientgen.Serve) evaluation.Serve {
 	if serve == nil {
 		return evaluation.Serve{}
 	}

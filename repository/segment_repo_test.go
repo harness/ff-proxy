@@ -7,7 +7,7 @@ import (
 
 	"github.com/harness/ff-proxy/cache"
 	"github.com/harness/ff-proxy/domain"
-	"github.com/harness/ff-proxy/gen"
+	clientgen "github.com/harness/ff-proxy/gen/client"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -18,10 +18,10 @@ var (
 		Identifier:  "foo",
 		ModifiedAt:  int64Ptr(456),
 		Name:        "fooSegment",
-		Excluded:    &[]gen.Target{},
-		Included:    &[]gen.Target{},
-		Rules:       &[]gen.Clause{},
-		Tags:        &[]gen.Tag{},
+		Excluded:    &[]clientgen.Target{},
+		Included:    &[]clientgen.Target{},
+		Rules:       &[]clientgen.Clause{},
+		Tags:        &[]clientgen.Tag{},
 		Version:     int64Ptr(12),
 	}
 
@@ -31,10 +31,10 @@ var (
 		Identifier:  "bar",
 		ModifiedAt:  int64Ptr(456),
 		Name:        "barSegment",
-		Excluded:    &[]gen.Target{},
-		Included:    &[]gen.Target{},
-		Rules:       &[]gen.Clause{},
-		Tags:        &[]gen.Tag{},
+		Excluded:    &[]clientgen.Target{},
+		Included:    &[]clientgen.Target{},
+		Rules:       &[]clientgen.Clause{},
+		Tags:        &[]clientgen.Tag{},
 		Version:     int64Ptr(12),
 	}
 )
