@@ -2,35 +2,35 @@ package domain
 
 import (
 	"github.com/harness/ff-golang-server-sdk/evaluation"
-	gen "github.com/harness/ff-proxy/gen/client"
+	clientgen "github.com/harness/ff-proxy/gen/client"
 )
 
-// Converts an evaluation.FeatureConfig which the sdk cache sends to a gen.FeatureConfig for our internal use
-// Converts an evaluation.Segment which the sdk cache sends to a gen.Segment for our internal use
+// Converts an evaluation.FeatureConfig which the sdk cache sends to a clientgen.FeatureConfig for our internal use
+// Converts an evaluation.Segment which the sdk cache sends to a clientgen.Segment for our internal use
 
-func convertEvaluationWeightedVariation(wv evaluation.WeightedVariation) *gen.WeightedVariation {
-	return &gen.WeightedVariation{
+func convertEvaluationWeightedVariation(wv evaluation.WeightedVariation) *clientgen.WeightedVariation {
+	return &clientgen.WeightedVariation{
 		Variation: wv.Variation,
 		Weight:    wv.Weight,
 	}
 }
 
-func convertEvaluationDistribution(d *evaluation.Distribution) *gen.Distribution {
+func convertEvaluationDistribution(d *evaluation.Distribution) *clientgen.Distribution {
 	if d == nil {
 		return nil
 	}
-	vars := make([]gen.WeightedVariation, len(d.Variations))
+	vars := make([]clientgen.WeightedVariation, len(d.Variations))
 	for i, val := range d.Variations {
 		vars[i] = *convertEvaluationWeightedVariation(val)
 	}
-	return &gen.Distribution{
+	return &clientgen.Distribution{
 		BucketBy:   d.BucketBy,
 		Variations: vars,
 	}
 }
 
-func convertEvaluationVariation(v evaluation.Variation) *gen.Variation {
-	return &gen.Variation{
+func convertEvaluationVariation(v evaluation.Variation) *clientgen.Variation {
+	return &clientgen.Variation{
 		Description: v.Description,
 		Identifier:  v.Identifier,
 		Name:        v.Name,
@@ -38,15 +38,15 @@ func convertEvaluationVariation(v evaluation.Variation) *gen.Variation {
 	}
 }
 
-func convertEvaluationServe(s evaluation.Serve) *gen.Serve {
-	return &gen.Serve{
+func convertEvaluationServe(s evaluation.Serve) *clientgen.Serve {
+	return &clientgen.Serve{
 		Distribution: convertEvaluationDistribution(s.Distribution),
 		Variation:    s.Variation,
 	}
 }
 
-func convertEvaluationClause(c evaluation.Clause) *gen.Clause {
-	return &gen.Clause{
+func convertEvaluationClause(c evaluation.Clause) *clientgen.Clause {
+	return &clientgen.Clause{
 		Attribute: c.Attribute,
 		Id:        c.ID,
 		Negate:    c.Negate,
@@ -55,12 +55,12 @@ func convertEvaluationClause(c evaluation.Clause) *gen.Clause {
 	}
 }
 
-func convertEvaluationServingRule(r evaluation.ServingRule) *gen.ServingRule {
-	clauses := make([]gen.Clause, len(r.Clauses))
+func convertEvaluationServingRule(r evaluation.ServingRule) *clientgen.ServingRule {
+	clauses := make([]clientgen.Clause, len(r.Clauses))
 	for i, val := range r.Clauses {
 		clauses[i] = *convertEvaluationClause(val)
 	}
-	return &gen.ServingRule{
+	return &clientgen.ServingRule{
 		Clauses:  clauses,
 		Priority: r.Priority,
 		RuleId:   r.RuleID,
@@ -68,26 +68,26 @@ func convertEvaluationServingRule(r evaluation.ServingRule) *gen.ServingRule {
 	}
 }
 
-func convertEvaluationPrerequisite(p evaluation.Prerequisite) *gen.Prerequisite {
-	return &gen.Prerequisite{
+func convertEvaluationPrerequisite(p evaluation.Prerequisite) *clientgen.Prerequisite {
+	return &clientgen.Prerequisite{
 		Feature:    p.Feature,
 		Variations: p.Variations,
 	}
 }
 
 //convert converts variation map to evaluation object
-func convertEvaluationVariationMap(v evaluation.VariationMap) *gen.VariationMap {
-	return &gen.VariationMap{
+func convertEvaluationVariationMap(v evaluation.VariationMap) *clientgen.VariationMap {
+	return &clientgen.VariationMap{
 		TargetSegments: &v.TargetSegments,
 		Targets:        convertEvaluationTargetToTargetMap(v.Targets),
 		Variation:      v.Variation,
 	}
 }
 
-func convertEvaluationTargetToTargetMap(targets []string) *[]gen.TargetMap {
-	result := make([]gen.TargetMap, 0, len(targets))
+func convertEvaluationTargetToTargetMap(targets []string) *[]clientgen.TargetMap {
+	result := make([]clientgen.TargetMap, 0, len(targets))
 	for j := range targets {
-		result = append(result, gen.TargetMap{
+		result = append(result, clientgen.TargetMap{
 			Identifier: &targets[j],
 		})
 	}
@@ -96,36 +96,36 @@ func convertEvaluationTargetToTargetMap(targets []string) *[]gen.TargetMap {
 
 // ConvertEvaluationFeatureConfig - Convert evaluation feature config to domain object
 func ConvertEvaluationFeatureConfig(fc evaluation.FeatureConfig) *FeatureConfig {
-	vars := make([]gen.Variation, len(fc.Variations))
+	vars := make([]clientgen.Variation, len(fc.Variations))
 	for i, val := range fc.Variations {
 		vars[i] = *convertEvaluationVariation(val)
 	}
 
-	var rules []gen.ServingRule
+	var rules []clientgen.ServingRule
 	if fc.Rules != nil {
-		rules = make([]gen.ServingRule, len(fc.Rules))
+		rules = make([]clientgen.ServingRule, len(fc.Rules))
 		for i, val := range fc.Rules {
 			rules[i] = *convertEvaluationServingRule(val)
 		}
 	}
 
-	var pre []gen.Prerequisite
+	var pre []clientgen.Prerequisite
 	if fc.Prerequisites != nil {
-		pre = make([]gen.Prerequisite, len(fc.Prerequisites))
+		pre = make([]clientgen.Prerequisite, len(fc.Prerequisites))
 		for i, val := range fc.Prerequisites {
 			pre[i] = *convertEvaluationPrerequisite(val)
 		}
 	}
-	defaultServe := gen.Serve{}
+	defaultServe := clientgen.Serve{}
 	if fc.DefaultServe.Distribution != nil {
 		defaultServe.Distribution = convertEvaluationDistribution(fc.DefaultServe.Distribution)
 	}
 	if fc.DefaultServe.Variation != nil {
 		defaultServe.Variation = fc.DefaultServe.Variation
 	}
-	var vtm []gen.VariationMap
+	var vtm []clientgen.VariationMap
 	if fc.VariationToTargetMap != nil {
-		vtm = make([]gen.VariationMap, len(fc.VariationToTargetMap))
+		vtm = make([]clientgen.VariationMap, len(fc.VariationToTargetMap))
 		for i, val := range fc.VariationToTargetMap {
 			vtm[i] = *convertEvaluationVariationMap(val)
 		}
@@ -140,7 +140,7 @@ func ConvertEvaluationFeatureConfig(fc evaluation.FeatureConfig) *FeatureConfig 
 	}
 
 	return &FeatureConfig{
-		FeatureConfig: gen.FeatureConfig{
+		FeatureConfig: clientgen.FeatureConfig{
 			DefaultServe:         defaultServe,
 			Environment:          fc.Environment,
 			Feature:              fc.Feature,
@@ -149,7 +149,7 @@ func ConvertEvaluationFeatureConfig(fc evaluation.FeatureConfig) *FeatureConfig 
 			Prerequisites:        &pre,
 			Project:              fc.Project,
 			Rules:                &rules,
-			State:                gen.FeatureState(fc.State),
+			State:                clientgen.FeatureState(fc.State),
 			VariationToTargetMap: &vtm,
 			Variations:           vars,
 		},
@@ -159,29 +159,29 @@ func ConvertEvaluationFeatureConfig(fc evaluation.FeatureConfig) *FeatureConfig 
 
 // ConvertEvaluationSegment - Convert evaluation segment domain segment object
 func ConvertEvaluationSegment(s evaluation.Segment) *Segment {
-	excluded := make([]gen.Target, 0)
+	excluded := make([]clientgen.Target, 0)
 	if s.Excluded != nil {
-		excluded = make([]gen.Target, len(s.Excluded))
+		excluded = make([]clientgen.Target, len(s.Excluded))
 		for i, excl := range s.Excluded {
-			excluded[i] = gen.Target{
+			excluded[i] = clientgen.Target{
 				Identifier:  excl,
 			}
 		}
 	}
 
-	included := make([]gen.Target, 0)
+	included := make([]clientgen.Target, 0)
 	if s.Included != nil {
-		included = make([]gen.Target, len(s.Included))
+		included = make([]clientgen.Target, len(s.Included))
 		for i, incl := range s.Included {
-			included[i] = gen.Target{Identifier: incl}
+			included[i] = clientgen.Target{Identifier: incl}
 		}
 	}
 
-	rules := make([]gen.Clause, 0)
+	rules := make([]clientgen.Clause, 0)
 	if s.Rules != nil {
-		rules = make([]gen.Clause, len(s.Rules))
+		rules = make([]clientgen.Clause, len(s.Rules))
 		for i, rule := range s.Rules {
-			rules[i] = gen.Clause{
+			rules[i] = clientgen.Clause{
 				Attribute: rule.Attribute,
 				Id:        rule.ID,
 				Negate:    rule.Negate,
@@ -191,12 +191,12 @@ func ConvertEvaluationSegment(s evaluation.Segment) *Segment {
 		}
 	}
 
-	tags := make([]gen.Tag, 0)
+	tags := make([]clientgen.Tag, 0)
 	if s.Rules != nil {
 		if s.Tags != nil {
-			tags = make([]gen.Tag, len(s.Tags))
+			tags = make([]clientgen.Tag, len(s.Tags))
 			for i, tag := range s.Tags {
-				tags[i] = gen.Tag{
+				tags[i] = clientgen.Tag{
 					Name:  tag.Name,
 					Value: tag.Value,
 				}
@@ -205,7 +205,7 @@ func ConvertEvaluationSegment(s evaluation.Segment) *Segment {
 	}
 
 	return &Segment{
-		gen.Segment {
+		clientgen.Segment {
 			Identifier:  s.Identifier,
 			Name:        s.Name,
 			CreatedAt:   s.CreatedAt,

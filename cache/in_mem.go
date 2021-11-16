@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding"
 	"fmt"
+	log "github.com/sirupsen/logrus"
 	"sync"
 
 	"github.com/harness/ff-proxy/domain"
@@ -47,8 +48,8 @@ func (m MemCache) Set(ctx context.Context, key string, field string, value encod
 
 // GetAll gets all of the fields and their values for a given key
 func (m MemCache) GetAll(ctx context.Context, key string) (map[string][]byte, error) {
-	m.Lock()
-	defer m.Unlock()
+	m.RLock()
+	defer m.RUnlock()
 
 	fields, ok := m.data[key]
 	if !ok {
@@ -60,8 +61,8 @@ func (m MemCache) GetAll(ctx context.Context, key string) (map[string][]byte, er
 
 // Get gets the value of a field for a given key
 func (m MemCache) Get(ctx context.Context, key string, field string, v encoding.BinaryUnmarshaler) error {
-	m.Lock()
-	defer m.Unlock()
+	m.RLock()
+	defer m.RUnlock()
 
 	fields, ok := m.data[key]
 	if !ok {
@@ -94,7 +95,7 @@ func (m MemCache) Remove(ctx context.Context, key string, field string) {
 	// get map from key
 	fields, ok := m.data[key]
 	if !ok {
-		fmt.Errorf("key %s not found in cache", key)
+		log.Debugf("key %s not found in cache", key)
 	}
 
 	delete(fields, field)

@@ -8,8 +8,9 @@ require (
 	github.com/drone/ff-golang-server-sdk v0.0.22
 	github.com/go-kit/kit v0.12.0
 	github.com/go-kit/log v0.2.0
-	github.com/golang-jwt/jwt v3.2.1+incompatible
 	github.com/gorilla/mux v1.8.0
+	github.com/harness/ff-golang-server-sdk v0.0.23
+	github.com/sirupsen/logrus v1.8.1
 	github.com/stretchr/testify v1.7.0
 	github.com/wings-software/ff-server v0.0.0-20211104155359-ef96ccfe30cc
 	gopkg.in/yaml.v2 v2.4.0
@@ -22,7 +23,7 @@ require (
 	github.com/go-logfmt/logfmt v0.5.1 // indirect
 	github.com/go-openapi/jsonpointer v0.19.5 // indirect
 	github.com/go-openapi/swag v0.19.14 // indirect
-	github.com/harness/ff-golang-server-sdk v0.0.23 // indirect
+	github.com/golang-jwt/jwt v3.2.1+incompatible // indirect
 	github.com/hashicorp/go-cleanhttp v0.5.2 // indirect
 	github.com/hashicorp/go-retryablehttp v0.6.8 // indirect
 	github.com/hashicorp/golang-lru v0.5.4 // indirect
@@ -36,7 +37,6 @@ require (
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/r3labs/sse v0.0.0-20201126193848-34e640891548 // indirect
-	github.com/sirupsen/logrus v1.8.1 // indirect
 	github.com/spaolacci/murmur3 v1.1.0 // indirect
 	go.uber.org/atomic v1.9.0 // indirect
 	go.uber.org/multierr v1.7.0 // indirect

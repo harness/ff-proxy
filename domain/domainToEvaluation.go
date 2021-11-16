@@ -2,17 +2,17 @@ package domain
 
 import (
 	"github.com/harness/ff-golang-server-sdk/evaluation"
-	gen "github.com/harness/ff-proxy/gen/client"
+	clientgen "github.com/harness/ff-proxy/gen/client"
 )
 
-func convertGenWeightedVariation(wv gen.WeightedVariation) *evaluation.WeightedVariation {
+func convertGenWeightedVariation(wv clientgen.WeightedVariation) *evaluation.WeightedVariation {
 	return &evaluation.WeightedVariation{
 		Variation: wv.Variation,
 		Weight:    wv.Weight,
 	}
 }
 
-func convertGenDistribution(d *gen.Distribution) *evaluation.Distribution {
+func convertGenDistribution(d *clientgen.Distribution) *evaluation.Distribution {
 	if d == nil {
 		return nil
 	}
@@ -26,7 +26,7 @@ func convertGenDistribution(d *gen.Distribution) *evaluation.Distribution {
 	}
 }
 
-func convertGenVariation(v gen.Variation) *evaluation.Variation {
+func convertGenVariation(v clientgen.Variation) *evaluation.Variation {
 	return &evaluation.Variation{
 		Description: v.Description,
 		Identifier:  v.Identifier,
@@ -35,14 +35,14 @@ func convertGenVariation(v gen.Variation) *evaluation.Variation {
 	}
 }
 
-func convertGenServe(s gen.Serve) *evaluation.Serve {
+func convertGenServe(s clientgen.Serve) *evaluation.Serve {
 	return &evaluation.Serve{
 		Distribution: convertGenDistribution(s.Distribution),
 		Variation:    s.Variation,
 	}
 }
 
-func convertGenClause(c gen.Clause) *evaluation.Clause {
+func convertGenClause(c clientgen.Clause) *evaluation.Clause {
 	return &evaluation.Clause{
 		Attribute: c.Attribute,
 		ID:        c.Id,
@@ -52,7 +52,7 @@ func convertGenClause(c gen.Clause) *evaluation.Clause {
 	}
 }
 
-func convertGenServingRule(r gen.ServingRule) *evaluation.ServingRule {
+func convertGenServingRule(r clientgen.ServingRule) *evaluation.ServingRule {
 	clauses := make([]evaluation.Clause, len(r.Clauses))
 	for i, val := range r.Clauses {
 		clauses[i] = *convertGenClause(val)
@@ -65,7 +65,7 @@ func convertGenServingRule(r gen.ServingRule) *evaluation.ServingRule {
 	}
 }
 
-func convertGenPrerequisite(p gen.Prerequisite) *evaluation.Prerequisite {
+func convertGenPrerequisite(p clientgen.Prerequisite) *evaluation.Prerequisite {
 	return &evaluation.Prerequisite{
 		Feature:    p.Feature,
 		Variations: p.Variations,
@@ -73,7 +73,7 @@ func convertGenPrerequisite(p gen.Prerequisite) *evaluation.Prerequisite {
 }
 
 //convert converts variation map to evaluation object
-func convertGenVariationMap(v gen.VariationMap) *evaluation.VariationMap {
+func convertGenVariationMap(v clientgen.VariationMap) *evaluation.VariationMap {
 	return &evaluation.VariationMap{
 		TargetSegments: *v.TargetSegments,
 		Targets:        convertTargetToIdentifier(*v.Targets),
@@ -81,7 +81,7 @@ func convertGenVariationMap(v gen.VariationMap) *evaluation.VariationMap {
 	}
 }
 
-func convertTargetToIdentifier(tm []gen.TargetMap) []string {
+func convertTargetToIdentifier(tm []clientgen.TargetMap) []string {
 	result := make([]string, 0, len(tm))
 	for j := range tm {
 		result = append(result, *tm[j].Identifier)

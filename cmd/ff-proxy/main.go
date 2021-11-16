@@ -4,14 +4,15 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	sdkCache "github.com/harness/ff-golang-server-sdk/cache"
+	harness "github.com/harness/ff-golang-server-sdk/client"
+	"github.com/sirupsen/logrus"
+	"github.com/wings-software/ff-server/pkg/hash"
 	"net/http"
 	"os"
 	"os/signal"
-	"github.com/sirupsen/logrus"
+	"strings"
 	"time"
-	"github.com/wings-software/ff-server/pkg/hash"
-	sdkCache "github.com/harness/ff-golang-server-sdk/cache"
-	harness "github.com/harness/ff-golang-server-sdk/client"
 
 	ffproxy "github.com/harness/ff-proxy"
 	"github.com/harness/ff-proxy/cache"
@@ -23,7 +24,6 @@ import (
 	proxyservice "github.com/harness/ff-proxy/proxy-service"
 	"github.com/harness/ff-proxy/repository"
 	"github.com/harness/ff-proxy/transport"
-	
 )
 
 var (
@@ -39,12 +39,20 @@ var (
 	authSecret       string
 	sdkBaseUrl   string
 	sdkEventsUrl string
-	environments []environment
+	apiKeys      keys
 )
 
-type environment struct {
-	sdkKey string
-	environmentID string
+// keys implements the flag.Value interface and allows us to pass in multiple api keys in the program arguments
+// e.g. -apiKey key1 -apiKey key2 -apiKey key3
+type keys []string
+
+func (i *keys) String() string {
+	return strings.Join(*i, ",")
+}
+
+func (i *keys) Set(value string) error {
+	*i = append(*i, strings.TrimSpace(value))
+	return nil
 }
 
 func init() {
@@ -58,21 +66,9 @@ func init() {
 	flag.StringVar(&adminService, "admin-service", "https://qa.harness.io/gateway/cf", "the url of the admin service")
 	flag.StringVar(&serviceToken, "service-token", "", "token to use with the ff service")
 	flag.StringVar(&authSecret, "auth-secret", "secret", "the secret used for signing auth tokens")
-	flag.StringVar(&sdkBaseUrl, "sdkBaseUrl", "https://config.feature-flags.uat.harness.io/api/1.0", "url for the sdk to connect to")
-	flag.StringVar(&sdkEventsUrl, "sdkEventsUrl", "https://event.feature-flags.uat.harness.io/api/1.0", "url for the sdk to send metrics to")
-	// TODO - read from config file
-	// configure environments to connect to via sdks - these will populate the proxy cache
-	environments = []environment{
-		{
-			sdkKey:        "9a2ab61e-adab-4634-ae53-fcc132cc9b25", // https://uat.harness.io/ng/#/account/AQ8xhfNCRtGIUjq5bSM8Fg/cf/orgs/FF_SDK_Tests/projects/FF_SDK_Test_Project/feature-flags?activeEnvironment=test_env
-			environmentID: "4b72e8d2-4e6a-4bc0-abbc-e561c2e49531",
-		},
-		{
-			sdkKey:        "b06c3bf4-9a5b-4cca-9b7b-e2b9063ea2d1", // https://uat.harness.io/ng/#/account/AQ8xhfNCRtGIUjq5bSM8Fg/cf/orgs/FF_SDK_Tests/projects/FF_SDK_Test_Project/feature-flags?activeEnvironment=learning_env
-			environmentID: "d4487d24-a468-4ebd-a625-9235f877a3a0",
-		},
-	}
-
+	flag.StringVar(&sdkBaseUrl, "sdkBaseUrl", "https://config.feature-flags.qa.harness.io/api/1.0", "url for the sdk to connect to")
+	flag.StringVar(&sdkEventsUrl, "sdkEventsUrl", "https://event.feature-flags.qa.harness.io/api/1.0", "url for the sdk to send metrics to")
+	flag.Var(&apiKeys, "apiKey", "API keys to connect with ff-server for each environment")
 
 	flag.Parse()
 }
@@ -178,12 +174,21 @@ func main() {
 
 	// Create cache
 	memCache := cache.NewMemCache()
+	apiKeyHasher := hash.NewSha256()
 
-	// start an sdk instance per environment
-	for _, env := range environments {
-		// TODO - we should try and pass in the logger ^ to the sdk's - currently the interfaces don't line up
-		cacheWrapper := cache.NewWrapper(&memCache, env.environmentID, logrus.New())
-		go initFF(cacheWrapper, sdkBaseUrl, sdkEventsUrl, env.sdkKey)
+	// start an sdk instance for each api key
+	for _, apiKey := range apiKeys {
+		apiKeyHash := apiKeyHasher.Hash(apiKey)
+
+		// find corresponding environmentID for apiKey
+		envID, ok := authConfig[domain.AuthAPIKey(apiKeyHash)]
+		if !ok {
+			logger.Error("API key not found, skipping: %v", apiKey)
+			continue
+		}
+
+		cacheWrapper := cache.NewWrapper(&memCache, envID, logrus.New())
+		go initFF(cacheWrapper, sdkBaseUrl, sdkEventsUrl, apiKey)
 	}
 
 	// Create repos
@@ -206,7 +211,7 @@ func main() {
 	}
 
 	authRepo := repository.NewAuthRepo(authConfig)
-	tokenSource := ffproxy.NewTokenSource(logger, authRepo, hash.NewSha256(), []byte(authSecret))
+	tokenSource := ffproxy.NewTokenSource(logger, authRepo, apiKeyHasher, []byte(authSecret))
 
 	featureEvaluator := proxyservice.NewFeatureEvaluator()
 
