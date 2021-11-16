@@ -33,7 +33,7 @@ generate: ## Generates the client for the ff-servers client service
 build: generate ## Builds the ff-proxy service binary
 	CGO_ENABLED=0 go build -o ff-proxy ./cmd/ff-proxy/main.go
 
-image:
+image: ## Builds a docker image for the proxy called ff-proxy:latest 
 	@echo "Building Feature Flag Proxy Image"
 	@docker build --build-arg GITHUB_ACCESS_TOKEN=${GITHUB_ACCESS_TOKEN} -t ff-proxy:latest -f ./Dockerfile .
 

@@ -118,7 +118,7 @@ The contents of each individual config file comes from the following endpoints
 ### Running the Proxy from docker
 The docker image can be built by running ```make image```.
 To start the proxy you can execute the following command
-```docker run -it -v $(PWD)/config:/config ff-proxy:latest --offline```
+```docker run -it -v $(PWD)/config:/config -p7000:7000 ff-proxy:latest --offline```
 
 This will start the proxy in offline mode, mounting the local configuration.  
 
