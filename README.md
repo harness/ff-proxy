@@ -115,6 +115,14 @@ The contents of each individual config file comes from the following endpoints
 - `segments.json` - GET /client/env/<env>/target-segments
 - `targets.json` - GET /admin/targets
 
+### Running the Proxy from docker
+The docker image can be built by running ```make image```.
+To start the proxy you can execute the following command
+```docker run -it -v $(PWD)/config:/config -p7000:7000 ff-proxy:latest --offline```
+
+This will start the proxy in offline mode, mounting the local configuration.  
+
+
 ### Testing the Proxy
 
 Like with running the proxy, there is also some default config that's loaded in for testing purposes which is located in `./config/test` and you can add/alter this config the same way as you would for the offline config. This test config is primarily used at the minute for running e2e type tests agains the proxy where we populate the cache with the test config, spin up an http server and check that we get the correct status codes and response bodies for each request.
