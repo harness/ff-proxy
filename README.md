@@ -36,26 +36,40 @@ make build
 You can run the proxy by executing the binary like so and configure it by passing various flag values
 
 ```
-./ff-proxy
-```
-
-```
 ./ff-proxy -help
 Usage of ./ff-proxy:
+    -account-identifier string
+        account identifier to load remote config for (default "zEaak-FLS425IEO7OLzMUg")
+    -admin-service string
+        the url of the admin service (default "https://qa.harness.io/gateway/cf")
+    -auth-secret string
+        the secret used for signing auth tokens (default "secret")
+    -bypass-auth
+        bypasses authentication
     -debug
         enables debug logging
     -host string
         host of the proxy service (default "localhost")
     -offline
         enables side loading of data from config dir
+    -org-identifier string
+        org identifier to load remote config for (default "featureflagorg")
     -port int
         port that the proxy service is exposed on (default 7000)
+    -service-token string
+        token to use with the ff service
 ```
 
-Currently the proxy only works in offline mode so if you're running it locally for now you'll want to pass the `-offline` flag
+You can run the proxy in offline mode by passing the `-offline` flag. When the proxy is running in this mode it will only use configuration for environments from the `./config` directory,
 
 ```
 ./ff-proxy -offline
+```
+
+If you're running the proxy in online mode you will need to provide a valid service token that allows the proxy to retrieve config from the ff-server. Currently the only config that it retrives from ff-server is Auth config but there is work planned to make it retreive FeatureConfig, Targets and Segments from ff-server.
+
+```
+./ff-proxy -service-token <token>
 ```
 
 ### Developing the Proxy

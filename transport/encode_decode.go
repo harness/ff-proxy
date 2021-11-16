@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 
 	"github.com/gorilla/mux"
 	"github.com/harness/ff-proxy/domain"
@@ -54,6 +55,8 @@ func codeFrom(err error) int {
 		return http.StatusNotImplemented
 	case proxyservice.ErrNotFound:
 		return http.StatusNotFound
+	case proxyservice.ErrUnauthorised:
+		return http.StatusUnauthorized
 	default:
 		if errors.Is(err, errBadRequest) {
 			return http.StatusBadRequest
@@ -99,7 +102,9 @@ func decodeGetFeatureConfigsRequest(ctx context.Context, r *http.Request) (inter
 		return nil, errBadRouting
 	}
 
+	token := strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer ")
 	req := domain.FeatureConfigRequest{
+		Token:         token,
 		EnvironmentID: envID,
 	}
 	return req, nil
@@ -114,8 +119,10 @@ func decodeGetFeatureConfigsByIdentifierRequest(ctx context.Context, r *http.Req
 		return nil, errBadRouting
 	}
 
+	token := strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer ")
 	identifier := vars["identifier"]
 	req := domain.FeatureConfigByIdentifierRequest{
+		Token:         token,
 		EnvironmentID: envID,
 		Identifier:    identifier,
 	}
@@ -131,7 +138,9 @@ func decodeGetTargetSegmentsRequest(ctx context.Context, r *http.Request) (inter
 		return nil, errBadRouting
 	}
 
+	token := strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer ")
 	req := domain.TargetSegmentsRequest{
+		Token:         token,
 		EnvironmentID: envID,
 	}
 	return req, nil
@@ -151,7 +160,9 @@ func decodeGetTargetSegmentsByIdentifierRequest(ctx context.Context, r *http.Req
 		return nil, errBadRouting
 	}
 
+	token := strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer ")
 	req := domain.TargetSegmentsByIdentifierRequest{
+		Token:         token,
 		EnvironmentID: envID,
 		Identifier:    identifier,
 	}
@@ -173,7 +184,9 @@ func decodeGetEvaluationsRequest(ctx context.Context, r *http.Request) (interfac
 		return nil, errBadRouting
 	}
 
+	token := strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer ")
 	req := domain.EvaluationsRequest{
+		Token:            token,
 		EnvironmentID:    envID,
 		TargetIdentifier: target,
 	}
@@ -200,7 +213,9 @@ func decodeGetEvaluationsByFeatureRequest(ctx context.Context, r *http.Request) 
 		return nil, errBadRouting
 	}
 
+	token := strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer ")
 	req := domain.EvaluationsByFeatureRequest{
+		Token:             token,
 		EnvironmentID:     envID,
 		TargetIdentifier:  target,
 		FeatureIdentifier: feature,
@@ -213,7 +228,9 @@ func decodeGetEvaluationsByFeatureRequest(ctx context.Context, r *http.Request) 
 func decodeGetStreamRequest(ctx context.Context, r *http.Request) (interface{}, error) {
 	apiKey := r.Header.Get("API-Key")
 
+	token := strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer ")
 	req := domain.StreamRequest{
+		Token:  token,
 		APIKey: apiKey,
 	}
 
@@ -244,5 +261,6 @@ func decodeMetricsRequest(ctx context.Context, r *http.Request) (interface{}, er
 	}
 
 	req.EnvironmentID = envID
+	req.Token = r.Header.Get("Authorization")
 	return req, nil
 }
