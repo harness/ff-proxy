@@ -60,7 +60,7 @@ func main() {
 	// Create a new admin client with a HTTP client that injects the adminServiceToken
 	// into the auth header
 	adminClient, err := admingen.NewClientWithResponses(
-		"https://qa.harness.io/gateway/cf",
+		adminService,
 		admingen.WithHTTPClient(doer{c: http.DefaultClient, token: serviceToken}),
 	)
 	if err != nil {
