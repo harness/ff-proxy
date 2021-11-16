@@ -7,6 +7,11 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"github.com/sirupsen/logrus"
+	"time"
+	"github.com/wings-software/ff-server/pkg/hash"
+	sdkCache "github.com/harness/ff-golang-server-sdk/cache"
+	harness "github.com/harness/ff-golang-server-sdk/client"
 
 	ffproxy "github.com/harness/ff-proxy"
 	"github.com/harness/ff-proxy/cache"
@@ -18,7 +23,7 @@ import (
 	proxyservice "github.com/harness/ff-proxy/proxy-service"
 	"github.com/harness/ff-proxy/repository"
 	"github.com/harness/ff-proxy/transport"
-	"github.com/wings-software/ff-server/pkg/hash"
+	
 )
 
 var (
@@ -32,7 +37,15 @@ var (
 	adminService     string
 	serviceToken     string
 	authSecret       string
+	sdkBaseUrl   string
+	sdkEventsUrl string
+	environments []environment
 )
+
+type environment struct {
+	sdkKey string
+	environmentID string
+}
 
 func init() {
 	flag.BoolVar(&bypassAuth, "bypass-auth", false, "bypasses authentication")
@@ -45,7 +58,59 @@ func init() {
 	flag.StringVar(&adminService, "admin-service", "https://qa.harness.io/gateway/cf", "the url of the admin service")
 	flag.StringVar(&serviceToken, "service-token", "", "token to use with the ff service")
 	flag.StringVar(&authSecret, "auth-secret", "secret", "the secret used for signing auth tokens")
+	flag.StringVar(&sdkBaseUrl, "sdkBaseUrl", "https://config.feature-flags.uat.harness.io/api/1.0", "url for the sdk to connect to")
+	flag.StringVar(&sdkEventsUrl, "sdkEventsUrl", "https://event.feature-flags.uat.harness.io/api/1.0", "url for the sdk to send metrics to")
+	// TODO - read from config file
+	// configure environments to connect to via sdks - these will populate the proxy cache
+	environments = []environment{
+		{
+			sdkKey:        "9a2ab61e-adab-4634-ae53-fcc132cc9b25", // https://uat.harness.io/ng/#/account/AQ8xhfNCRtGIUjq5bSM8Fg/cf/orgs/FF_SDK_Tests/projects/FF_SDK_Test_Project/feature-flags?activeEnvironment=test_env
+			environmentID: "4b72e8d2-4e6a-4bc0-abbc-e561c2e49531",
+		},
+		{
+			sdkKey:        "b06c3bf4-9a5b-4cca-9b7b-e2b9063ea2d1", // https://uat.harness.io/ng/#/account/AQ8xhfNCRtGIUjq5bSM8Fg/cf/orgs/FF_SDK_Tests/projects/FF_SDK_Test_Project/feature-flags?activeEnvironment=learning_env
+			environmentID: "d4487d24-a468-4ebd-a625-9235f877a3a0",
+		},
+	}
+
+
 	flag.Parse()
+}
+
+func initFF(cache sdkCache.Cache, baseUrl, eventUrl, sdkKey string) {
+	logger := log.NewLogger(os.Stderr, debug)
+
+	client, err := harness.NewCfClient(sdkKey,
+		harness.WithURL(baseUrl),
+		harness.WithEventsURL(eventUrl),
+		harness.WithStreamEnabled(true),
+		harness.WithCache(cache),
+		harness.WithStoreEnabled(false), // store should be disabled until we implement a wrapper to handle multiple envs
+	)
+	defer func() {
+		if err := client.Close(); err != nil {
+			logger.Error("error while closing client err: %v", err)
+		}
+	}()
+
+	if err != nil {
+		logger.Error("could not connect to CF servers %v", err)
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+
+	go func() {
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			default:
+				time.Sleep(10 * time.Second)
+			}
+		}
+	}()
+	time.Sleep(5 * time.Minute)
+	cancel()
 }
 
 func main() {
@@ -111,8 +176,17 @@ func main() {
 		logger.Info("msg", "successfully retrieved config from ff-server")
 	}
 
-	// Create cache and repos
+	// Create cache
 	memCache := cache.NewMemCache()
+
+	// start an sdk instance per environment
+	for _, env := range environments {
+		// TODO - we should try and pass in the logger ^ to the sdk's - currently the interfaces don't line up
+		cacheWrapper := cache.NewWrapper(&memCache, env.environmentID, logrus.New())
+		go initFF(cacheWrapper, sdkBaseUrl, sdkEventsUrl, env.sdkKey)
+	}
+
+	// Create repos
 	tr, err := repository.NewTargetRepo(memCache, targetConfig)
 	if err != nil {
 		logger.Error("msg", "failed to create target repo", "err", err)

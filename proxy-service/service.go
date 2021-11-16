@@ -136,10 +136,11 @@ func (s Service) TargetSegments(ctx context.Context, req domain.TargetSegmentsRe
 
 	segments, err := s.segmentRepo.Get(ctx, key)
 	if err != nil {
-		if errors.Is(err, domain.ErrCacheNotFound) {
+		if !errors.Is(err, domain.ErrCacheNotFound) {
 			return []domain.Segment{}, fmt.Errorf("%w: %s", ErrNotFound, err)
 		}
-		return []domain.Segment{}, fmt.Errorf("%w: %s", ErrInternal, err)
+		s.logger.Debug("Segments not found: Continue with empty segments")
+		return []domain.Segment{}, nil
 
 	}
 
@@ -176,10 +177,10 @@ func (s Service) Evaluations(ctx context.Context, req domain.EvaluationsRequest)
 
 	target, err := s.targetRepo.GetByIdentifier(ctx, targetKey, req.TargetIdentifier)
 	if err != nil {
-		if errors.Is(err, domain.ErrCacheNotFound) {
-			return nil, ErrNotFound
+		if !errors.Is(err, domain.ErrCacheNotFound) {
+			return nil, fmt.Errorf("%w: %s", ErrInternal, err)
 		}
-		return nil, fmt.Errorf("%w: %s", ErrInternal, err)
+		s.logger.Debug("Target not found: Continue with empty target")
 	}
 
 	evaluations, err := s.evaluator.Evaluate(target, configs...)

@@ -76,23 +76,25 @@ var (
 		},
 		Segments: map[string]domain.Segment{
 			"flagsTeam": {
-				Environment: strPtr("featureflagsqa"),
-				Identifier:  "flagsTeam",
-				Name:        "flagsTeam",
-				Excluded:    &[]clientgen.Target{},
-				Included:    &[]clientgen.Target{},
-				Version:     int64Ptr(1),
-				CreatedAt:   int64Ptr(123),
-				ModifiedAt:  int64Ptr(456),
-				Tags:        nil,
-				Rules: &[]clientgen.Clause{
-					{
-						Attribute: "ip",
-						Id:        "31c18ee7-8051-44cc-8507-b44580467ee5",
-						Negate:    false,
-						Op:        "equal",
-						Values: []string{
-							"2a00:23c5:b672:2401:158:f2a6:67a0:6a79",
+				clientgen.Segment{
+					Environment: strPtr("featureflagsqa"),
+					Identifier:  "flagsTeam",
+					Name:        "flagsTeam",
+					Excluded:    &[]clientgen.Target{},
+					Included:    &[]clientgen.Target{},
+					Version:     int64Ptr(1),
+					CreatedAt:   int64Ptr(123),
+					ModifiedAt:  int64Ptr(456),
+					Tags:        nil,
+					Rules: &[]clientgen.Clause{
+						{
+							Attribute: "ip",
+							Id:        "31c18ee7-8051-44cc-8507-b44580467ee5",
+							Negate:    false,
+							Op:        "equal",
+							Values: []string{
+								"2a00:23c5:b672:2401:158:f2a6:67a0:6a79",
+							},
 						},
 					},
 				},
@@ -164,23 +166,25 @@ var (
 		},
 		Segments: map[string]domain.Segment{
 			"flagsTeam": {
-				Environment: strPtr("featureflagsqa"),
-				Identifier:  "flagsTeam",
-				Name:        "flagsTeam",
-				Excluded:    &[]clientgen.Target{},
-				Included:    &[]clientgen.Target{},
-				Version:     int64Ptr(1),
-				CreatedAt:   int64Ptr(123),
-				ModifiedAt:  int64Ptr(456),
-				Tags:        nil,
-				Rules: &[]clientgen.Clause{
-					{
-						Attribute: "ip",
-						Id:        "31c18ee7-8051-44cc-8507-b44580467ee5",
-						Negate:    false,
-						Op:        "equal",
-						Values: []string{
-							"2a00:23c5:b672:2401:158:f2a6:67a0:6a79",
+				clientgen.Segment{
+					Environment: strPtr("featureflagsqa"),
+					Identifier:  "flagsTeam",
+					Name:        "flagsTeam",
+					Excluded:    &[]clientgen.Target{},
+					Included:    &[]clientgen.Target{},
+					Version:     int64Ptr(1),
+					CreatedAt:   int64Ptr(123),
+					ModifiedAt:  int64Ptr(456),
+					Tags:        nil,
+					Rules: &[]clientgen.Clause{
+						{
+							Attribute: "ip",
+							Id:        "31c18ee7-8051-44cc-8507-b44580467ee5",
+							Negate:    false,
+							Op:        "equal",
+							Values: []string{
+								"2a00:23c5:b672:2401:158:f2a6:67a0:6a79",
+							},
 						},
 					},
 				},

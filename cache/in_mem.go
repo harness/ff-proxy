@@ -16,7 +16,7 @@ type MemCache struct {
 	data map[string]map[string][]byte
 }
 
-// NewMemCache createa an initialised MemCache
+// NewMemCache creates an initialised MemCache
 func NewMemCache() MemCache {
 	return MemCache{&sync.RWMutex{}, map[string]map[string][]byte{}}
 }
@@ -45,7 +45,7 @@ func (m MemCache) Set(ctx context.Context, key string, field string, value encod
 	return nil
 }
 
-// GetAll gets all of the fiels and their values for a given key
+// GetAll gets all of the fields and their values for a given key
 func (m MemCache) GetAll(ctx context.Context, key string) (map[string][]byte, error) {
 	m.Lock()
 	defer m.Unlock()
@@ -77,4 +77,25 @@ func (m MemCache) Get(ctx context.Context, key string, field string, v encoding.
 		return fmt.Errorf("%w: failed to unmarshal value to %T for key: %q, field: %q", v, key, field, domain.ErrCacheInternal)
 	}
 	return nil
+}
+
+// RemoveAll removes all of the fields and their values for a given key
+func (m MemCache) RemoveAll(ctx context.Context, key string) {
+	m.Lock()
+	defer m.Unlock()
+
+	delete(m.data, key)
+}
+
+// Remove removes the field for a given key
+func (m MemCache) Remove(ctx context.Context, key string, field string) {
+	m.Lock()
+	defer m.Unlock()
+	// get map from key
+	fields, ok := m.data[key]
+	if !ok {
+		fmt.Errorf("key %s not found in cache", key)
+	}
+
+	delete(fields, field)
 }
