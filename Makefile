@@ -24,8 +24,6 @@ $(GOBIN)/oapi-codegen:
 
 .PHONY: generate
 generate: ## Generates the client for the ff-servers client service
-	-rm -r ./gen/client/...
-	-rm -r ./gen/admin/...
 	oapi-codegen -generate client -package=client ./ff-api/docs/release/client-v1.yaml > gen/client/services.gen.go
 	oapi-codegen -generate types -package=client ./ff-api/docs/release/client-v1.yaml > gen/client/types.gen.go
 	oapi-codegen -generate client -package=admin  ./ff-api/docs/release/admin-v1.yaml > gen/admin/services.gen.go
@@ -33,7 +31,11 @@ generate: ## Generates the client for the ff-servers client service
 
 .PHONY: build
 build: generate ## Builds the ff-proxy service binary
-	go build -o ff-proxy ./cmd/ff-proxy/main.go
+	CGO_ENABLED=0 go build -o ff-proxy ./cmd/ff-proxy/main.go
+
+image:
+	@echo "Building Feature Flag Proxy Image"
+	@docker build --build-arg GITHUB_ACCESS_TOKEN=${GITHUB_ACCESS_TOKEN} -t ff-proxy:latest -f ./Dockerfile .
 
 .PHONY: test
 test: ## Run the go tests
