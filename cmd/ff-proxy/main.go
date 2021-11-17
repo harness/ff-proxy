@@ -6,14 +6,6 @@ import (
 	"fmt"
 	sdkCache "github.com/harness/ff-golang-server-sdk/cache"
 	harness "github.com/harness/ff-golang-server-sdk/client"
-	"github.com/sirupsen/logrus"
-	"github.com/wings-software/ff-server/pkg/hash"
-	"net/http"
-	"os"
-	"os/signal"
-	"strings"
-	"time"
-
 	ffproxy "github.com/harness/ff-proxy"
 	"github.com/harness/ff-proxy/cache"
 	"github.com/harness/ff-proxy/config"
@@ -24,6 +16,12 @@ import (
 	proxyservice "github.com/harness/ff-proxy/proxy-service"
 	"github.com/harness/ff-proxy/repository"
 	"github.com/harness/ff-proxy/transport"
+	"github.com/sirupsen/logrus"
+	"github.com/wings-software/ff-server/pkg/hash"
+	"net/http"
+	"os"
+	"os/signal"
+	"strings"
 )
 
 var (
@@ -73,7 +71,7 @@ func init() {
 	flag.Parse()
 }
 
-func initFF(cache sdkCache.Cache, baseUrl, eventUrl, sdkKey string) {
+func initFF(ctx context.Context, cache sdkCache.Cache, baseUrl, eventUrl, sdkKey string) {
 	logger := log.NewLogger(os.Stderr, debug)
 
 	client, err := harness.NewCfClient(sdkKey,
@@ -93,20 +91,7 @@ func initFF(cache sdkCache.Cache, baseUrl, eventUrl, sdkKey string) {
 		logger.Error("could not connect to CF servers %v", err)
 	}
 
-	ctx, cancel := context.WithCancel(context.Background())
-
-	go func() {
-		for {
-			select {
-			case <-ctx.Done():
-				return
-			default:
-				time.Sleep(10 * time.Second)
-			}
-		}
-	}()
-	time.Sleep(5 * time.Minute)
-	cancel()
+	<-ctx.Done()
 }
 
 func main() {
@@ -188,7 +173,7 @@ func main() {
 		}
 
 		cacheWrapper := cache.NewWrapper(&memCache, envID, logrus.New())
-		go initFF(cacheWrapper, sdkBaseUrl, sdkEventsUrl, apiKey)
+		go initFF(ctx, cacheWrapper, sdkBaseUrl, sdkEventsUrl, apiKey)
 	}
 
 	// Create repos
