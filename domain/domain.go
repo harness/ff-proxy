@@ -52,12 +52,12 @@ func (t *Target) MarshalBinary() ([]byte, error) {
 	return json.Marshal(t)
 }
 
-// UnmarshalBinary unmarshals bytes to a FeatureConfig
+// UnmarshalBinary unmarshals bytes to a Target
 func (t *Target) UnmarshalBinary(b []byte) error {
 	return json.Unmarshal(b, t)
 }
 
-// SegmentKey is the key that maps to a FeatureConfig
+// SegmentKey is the key that maps to a Segment
 type SegmentKey string
 
 // NewSegmentKey creates a SegmentKey from an environment
@@ -66,15 +66,17 @@ func NewSegmentKey(envID string) SegmentKey {
 }
 
 // Segment is a clientgen.Segment that we can declare methods on
-type Segment clientgen.Segment
+type Segment struct {
+	clientgen.Segment
+}
 
-// MarshalBinary marshals a Target to bytes. Currently it uses json marshaling
+// MarshalBinary marshals a Segment to bytes. Currently it uses json marshaling
 // but if we want to optimise storage space we could use something more efficient
 func (s *Segment) MarshalBinary() ([]byte, error) {
 	return json.Marshal(s)
 }
 
-// UnmarshalBinary unmarshals bytes to a FeatureConfig
+// UnmarshalBinary unmarshals bytes to a Segment
 func (s *Segment) UnmarshalBinary(b []byte) error {
 	return json.Unmarshal(b, s)
 }

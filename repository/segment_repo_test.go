@@ -13,29 +13,33 @@ import (
 
 var (
 	segmentFoo = domain.Segment{
-		CreatedAt:   int64Ptr(123),
-		Environment: strPtr("featureFlagsQA"),
-		Identifier:  "foo",
-		ModifiedAt:  int64Ptr(456),
-		Name:        "fooSegment",
-		Excluded:    &[]clientgen.Target{},
-		Included:    &[]clientgen.Target{},
-		Rules:       &[]clientgen.Clause{},
-		Tags:        &[]clientgen.Tag{},
-		Version:     int64Ptr(12),
+		clientgen.Segment{
+			CreatedAt:   int64Ptr(123),
+			Environment: strPtr("featureFlagsQA"),
+			Identifier:  "foo",
+			ModifiedAt:  int64Ptr(456),
+			Name:        "fooSegment",
+			Excluded:    &[]clientgen.Target{},
+			Included:    &[]clientgen.Target{},
+			Rules:       &[]clientgen.Clause{},
+			Tags:        &[]clientgen.Tag{},
+			Version:     int64Ptr(12),
+		},
 	}
 
 	segmentBar = domain.Segment{
-		CreatedAt:   int64Ptr(123),
-		Environment: strPtr("featureFlagsQA"),
-		Identifier:  "bar",
-		ModifiedAt:  int64Ptr(456),
-		Name:        "barSegment",
-		Excluded:    &[]clientgen.Target{},
-		Included:    &[]clientgen.Target{},
-		Rules:       &[]clientgen.Clause{},
-		Tags:        &[]clientgen.Tag{},
-		Version:     int64Ptr(12),
+		clientgen.Segment{
+			CreatedAt:   int64Ptr(123),
+			Environment: strPtr("featureFlagsQA"),
+			Identifier:  "bar",
+			ModifiedAt:  int64Ptr(456),
+			Name:        "barSegment",
+			Excluded:    &[]clientgen.Target{},
+			Included:    &[]clientgen.Target{},
+			Rules:       &[]clientgen.Clause{},
+			Tags:        &[]clientgen.Tag{},
+			Version:     int64Ptr(12),
+		},
 	}
 )
 
