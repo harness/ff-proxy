@@ -7,6 +7,7 @@ endif
 
 .DEFAULT_GOAL := all
 
+tools = $(addprefix $(GOBIN)/, golangci-lint golint gosec goimports)
 deps = $(addprefix $(GOBIN)/, oapi-codegen)
 
 dep: $(deps) ## Install the deps required to generate code and build feature flags
@@ -20,7 +21,7 @@ all: dep generate build ## Pulls down required deps, runs required code generat
 
 # Install oapi-codegen to generate ff server code from the apis
 $(GOBIN)/oapi-codegen:
-	go get github.com/deepmap/oapi-codegen/cmd/oapi-codegen@v1.6.0
+	go install github.com/deepmap/oapi-codegen/cmd/oapi-codegen@v1.6.0
 
 .PHONY: generate
 generate: ## Generates the client for the ff-servers client service
@@ -54,7 +55,6 @@ check: lint format sec ## Runs linter, goimports and gosec
 lint: tools ## lint the golang code
 	@echo "Linting $(1)"
 	@golint ./...
-	@go vet ./...
 
 .PHONY: tools
 format: tools ## Format go code and error if any changes are made
@@ -67,6 +67,33 @@ sec: tools ## Run the security checks
 	@echo "Checking for security problems ..."
 	@gosec -quiet -confidence high -severity medium ./...
 	@echo "No problems found"
+
+###########################################
+# Install Tools and deps
+#
+# These targets specify the full path to where the tool is installed
+# If the tool already exists it wont be re-installed.
+###########################################
+
+# Install golangci-lint
+$(GOBIN)/golangci-lint: 
+	@echo "🔘 Installing golangci-lint... (`date '+%H:%M:%S'`)"
+	@curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(GOPATH)/bin
+
+# Install golint to lint code
+$(GOBIN)/golint:
+	@echo "🔘 Installing golint ... (`date '+%H:%M:%S'`)"
+	@go install golang.org/x/lint/golint@latest
+
+# Install goimports to format code
+$(GOBIN)/goimports:
+	@echo "🔘 Installing goimports ... (`date '+%H:%M:%S'`)"
+	@go install golang.org/x/tools/cmd/goimports@latest
+
+# Install gosec for security scans
+$(GOBIN)/gosec:
+	@echo "🔘 Installing gosec ... (`date '+%H:%M:%S'`)"
+	@curl -sfL https://raw.githubusercontent.com/securego/gosec/master/install.sh | sh -s -- -b $(GOPATH)/bin
 
 help: ## show help message
 	@awk 'BEGIN {FS = ":.*##"; printf "\nUsage:\n  make \033[36m\033[0m\n"} /^[$$()% 0-9a-zA-Z_-]+:.*?##/ { printf "  \033[36m%-15s\033[0m %s\n", $$1, $$2 } /^##@/ { printf "\n\033[1m%s\033[0m\n", substr($$0, 5) } ' $(MAKEFILE_LIST)
