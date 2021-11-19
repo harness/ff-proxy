@@ -28,7 +28,7 @@ func int64Ptr(i int64) *int64 { return &i }
 func boolPtr(b bool) *bool { return &b }
 
 var (
-	harnessAppDemoDarkModeConfig = domain.FeatureConfig{
+	harnessAppDemoDarkModeConfig = domain.FeatureFlag{
 		FeatureConfig: clientgen.FeatureConfig{
 			DefaultServe: clientgen.Serve{
 				Variation: strPtr("true"),
@@ -90,35 +90,9 @@ var (
 			},
 			Version: int64Ptr(568),
 		},
-		Segments: map[string]domain.Segment{
-			"flagsTeam": {
-				Segment: clientgen.Segment{
-					Environment: strPtr("featureflagsqa"),
-					Identifier:  "flagsTeam",
-					Name:        "flagsTeam",
-					Excluded:    &[]clientgen.Target{},
-					Included:    &[]clientgen.Target{},
-					Version:     int64Ptr(1),
-					CreatedAt:   int64Ptr(123),
-					ModifiedAt:  int64Ptr(456),
-					Tags:        nil,
-					Rules: &[]clientgen.Clause{
-						{
-							Attribute: "ip",
-							Id:        "31c18ee7-8051-44cc-8507-b44580467ee5",
-							Negate:    false,
-							Op:        "equal",
-							Values: []string{
-								"2a00:23c5:b672:2401:158:f2a6:67a0:6a79",
-							},
-						},
-					},
-				},
-			},
-		},
 	}
 
-	yetAnotherFlagConfig = domain.FeatureConfig{
+	yetAnotherFlagConfig = domain.FeatureFlag{
 		FeatureConfig: clientgen.FeatureConfig{
 			DefaultServe: clientgen.Serve{
 				Variation: strPtr("1"),
@@ -147,32 +121,6 @@ var (
 			},
 			Version: int64Ptr(6),
 		},
-		Segments: map[string]domain.Segment{
-			"flagsTeam": {
-				Segment: clientgen.Segment{
-					Environment: strPtr("featureflagsqa"),
-					Identifier:  "flagsTeam",
-					Name:        "flagsTeam",
-					Excluded:    &[]clientgen.Target{},
-					Included:    &[]clientgen.Target{},
-					Version:     int64Ptr(1),
-					CreatedAt:   int64Ptr(123),
-					ModifiedAt:  int64Ptr(456),
-					Tags:        nil,
-					Rules: &[]clientgen.Clause{
-						{
-							Attribute: "ip",
-							Id:        "31c18ee7-8051-44cc-8507-b44580467ee5",
-							Negate:    false,
-							Op:        "equal",
-							Values: []string{
-								"2a00:23c5:b672:2401:158:f2a6:67a0:6a79",
-							},
-						},
-					},
-				},
-			},
-		},
 	}
 
 	flagsTeamSegment = domain.Segment{
@@ -199,7 +147,7 @@ var (
 )
 
 func TestLocalConfig(t *testing.T) {
-	expectedFeatureConfig := map[domain.FeatureConfigKey][]domain.FeatureConfig{
+	expectedFeatureConfig := map[domain.FeatureFlagKey][]domain.FeatureFlag{
 		domain.NewFeatureConfigKey("1234"): {
 			harnessAppDemoDarkModeConfig,
 			yetAnotherFlagConfig,
@@ -268,7 +216,7 @@ func TestLocalConfig(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	actualFeatureConfig := lc.FeatureConfig()
+	actualFeatureConfig := lc.FeatureFlag()
 	actualTargetConfig := lc.Targets()
 	actualSegments := lc.Segments()
 
