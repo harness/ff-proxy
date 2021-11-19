@@ -52,7 +52,7 @@ func TestSegmentRepo_Add(t *testing.T) {
 	}
 
 	testCases := map[string]struct {
-		cache      Cache
+		cache      cache.Cache
 		repoConfig map[domain.SegmentKey][]domain.Segment
 		segments   []domain.Segment
 		key        domain.SegmentKey
@@ -127,7 +127,7 @@ func TestSegmentRepo_GetByIdentifer(t *testing.T) {
 	}
 
 	testCases := map[string]struct {
-		cache       Cache
+		cache       cache.Cache
 		repoConfig  map[domain.SegmentKey][]domain.Segment
 		key         domain.SegmentKey
 		identifier  string

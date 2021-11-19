@@ -12,16 +12,40 @@ import (
 	"github.com/harness/ff-proxy/domain"
 )
 
+// Cache is the interface for any type that stores keys against a map of fields -> values
+// e.g.
+//
+// some-key-1
+//    field-1: foobar
+//    field-2: fizzbuzz
+// some-key-2
+//    field-1: hello-world
+type Cache interface {
+	// Set sets a value in the cache for a given key and field
+	Set(ctx context.Context, key string, field string, value encoding.BinaryMarshaler) error
+	// Get gets the value of a field for a given key
+	Get(ctx context.Context, key string, field string, v encoding.BinaryUnmarshaler) error
+	// GetAll gets all of the fiels and their values for a given key
+	GetAll(ctx context.Context, key string) (map[string][]byte, error)
+	// RemoveAll removes all the fields and their values for a given key
+	RemoveAll(ctx context.Context, key string)
+	// Remove removes a field for a given key
+	Remove(ctx context.Context, key string, field string)
+}
+
 // Wrapper wraps a given cache with logic to store features and segments passed from the golang sdk
 // it translates them from the sdk representation to our rest representation and buckets them per environment
 // this means the proxy can store all the data from all sdk instances in one large cache but to each sdk it appears
 // to have it's own unique cache
 type Wrapper struct {
 	// for now we only support our Memcache
-	*MemCache
+	cache Cache
 	environment string
 	logger      logger.Logger
 	lastUpdate  time.Time
+	// we clear out old data for the given environment when we run the first Set instruction
+	// this is to verify the sdk has fetched the new data successfully before purging the old data
+	firstSet    bool
 }
 
 type cacheKey struct {
@@ -31,54 +55,60 @@ type cacheKey struct {
 }
 
 // NewWrapper creates a new Wrapper instance
-func NewWrapper(memCache *MemCache, environment string, logger logger.Logger) *Wrapper {
+func NewWrapper(cache Cache, environment string, logger logger.Logger) *Wrapper {
 	return &Wrapper{
-		MemCache:    memCache,
+		cache:  cache,
 		environment: environment,
 		logger:      logger,
+		firstSet: true,
 	}
 }
 
-func (cache *Wrapper) getTime() time.Time {
+func (wrapper *Wrapper) getTime() time.Time {
 	return time.Now()
 }
 
 // Set sets a new value for a key
-func (cache *Wrapper) Set(key interface{}, value interface{}) (evicted bool) {
-	cacheKey, err := cache.decodeDTOKey(key)
+func (wrapper *Wrapper) Set(key interface{}, value interface{}) (evicted bool) {
+	// on first set delete old data
+	if wrapper.firstSet {
+		wrapper.Purge()
+	}
+	cacheKey, err := wrapper.decodeDTOKey(key)
 	if err != nil {
-		cache.logger.Errorf("Set failed: %s", err)
+		wrapper.logger.Errorf("Set failed: %s", err)
 		return
 	}
 
-	domainValue, err := cache.convertEvaluationToDomain(cacheKey.kind, value)
+	domainValue, err := wrapper.convertEvaluationToDomain(cacheKey.kind, value)
 	if err != nil {
-		cache.logger.Errorf("Set failed: %s", err)
+		wrapper.logger.Errorf("Set failed: %s", err)
 		return
 	}
 
-	err = cache.MemCache.Set(context.Background(), cacheKey.name, cacheKey.field, domainValue)
+	err = wrapper.cache.Set(context.Background(), cacheKey.name, cacheKey.field, domainValue)
 	if err != nil {
-		cache.logger.Warnf("Error setting key %s to cache with value %s: %s", key, value, err)
+		wrapper.logger.Warnf("Error setting key %s to wrapper with value %s: %s", key, value, err)
 		return
 	}
 
-	cache.lastUpdate = cache.getTime()
+	wrapper.lastUpdate = wrapper.getTime()
+	wrapper.firstSet = false
 
 	return
 }
 
 // Get looks up a key's value from the cache.
-func (cache *Wrapper) Get(key interface{}) (value interface{}, ok bool) {
-	cacheKey, err := cache.decodeDTOKey(key)
+func (wrapper *Wrapper) Get(key interface{}) (value interface{}, ok bool) {
+	cacheKey, err := wrapper.decodeDTOKey(key)
 	if err != nil {
-		cache.logger.Errorf("Get failed: %s", err)
+		wrapper.logger.Errorf("Get failed: %s", err)
 		return nil, false
 	}
 
-	value, err = cache.get(cacheKey)
+	value, err = wrapper.get(cacheKey)
 	if err != nil {
-		cache.logger.Errorf("Couldn't get field %s of type %s because %s", cacheKey.field, cacheKey.kind, err)
+		wrapper.logger.Errorf("Couldn't get field %s of type %s because %s", cacheKey.field, cacheKey.kind, err)
 		return nil, false
 	}
 
@@ -86,15 +116,15 @@ func (cache *Wrapper) Get(key interface{}) (value interface{}, ok bool) {
 }
 
 // Keys returns a slice of the keys in the cache
-func (cache *Wrapper) Keys() []interface{} {
+func (wrapper *Wrapper) Keys() []interface{} {
 	var keys []interface{}
 
 	// get flag and segment keys
-	segmentKeys := cache.getKeysByType(dto.KeySegment)
+	segmentKeys := wrapper.getKeysByType(dto.KeySegment)
 	if segmentKeys != nil {
 		keys = append(keys, segmentKeys...)
 	}
-	featureKeys := cache.getKeysByType(dto.KeyFeature)
+	featureKeys := wrapper.getKeysByType(dto.KeyFeature)
 	if featureKeys != nil {
 		keys = append(keys, featureKeys...)
 	}
@@ -103,52 +133,52 @@ func (cache *Wrapper) Keys() []interface{} {
 }
 
 // Remove removes the provided key from the cache.
-func (cache *Wrapper) Remove(key interface{}) (present bool) {
-	cacheKey, err := cache.decodeDTOKey(key)
+func (wrapper *Wrapper) Remove(key interface{}) (present bool) {
+	cacheKey, err := wrapper.decodeDTOKey(key)
 	if err != nil {
-		cache.logger.Errorf("Remove failed: %s", err)
+		wrapper.logger.Errorf("Remove failed: %s", err)
 		return false
 	}
 
-	present = cache.Contains(key)
-	cache.MemCache.Remove(context.Background(), cacheKey.name, cacheKey.field)
-	cache.lastUpdate = cache.getTime()
+	present = wrapper.Contains(key)
+	wrapper.cache.Remove(context.Background(), cacheKey.name, cacheKey.field)
+	wrapper.lastUpdate = wrapper.getTime()
 	return present
 }
 
 // Updated lastUpdate information
-func (cache *Wrapper) Updated() time.Time {
-	return cache.lastUpdate
+func (wrapper *Wrapper) Updated() time.Time {
+	return wrapper.lastUpdate
 }
 
 // SetLogger set logger
-func (cache *Wrapper) SetLogger(logger logger.Logger) {
-	cache.logger = logger
+func (wrapper *Wrapper) SetLogger(logger logger.Logger) {
+	wrapper.logger = logger
 }
 
 // Contains checks if a key is in the cache
-func (cache *Wrapper) Contains(key interface{}) bool {
-	_, ok := cache.Get(key)
+func (wrapper *Wrapper) Contains(key interface{}) bool {
+	_, ok := wrapper.Get(key)
 	return ok
 }
 
 // Len returns the number of items in the cache.
-func (cache *Wrapper) Len() int {
-	return len(cache.Keys())
+func (wrapper *Wrapper) Len() int {
+	return len(wrapper.Keys())
 }
 
 // Purge is used to completely clear the cache.
-func (cache *Wrapper) Purge() {
+func (wrapper *Wrapper) Purge() {
 	// delete all flags and segments
-	cache.deleteByType(dto.KeySegment)
-	cache.deleteByType(dto.KeyFeature)
+	wrapper.deleteByType(dto.KeySegment)
+	wrapper.deleteByType(dto.KeyFeature)
 
-	cache.lastUpdate = cache.getTime()
+	wrapper.lastUpdate = wrapper.getTime()
 }
 
 // Resize changes the cache size.
-func (cache *Wrapper) Resize(size int) (evicted int) {
-	cache.logger.Warn("Resize method not supported")
+func (wrapper *Wrapper) Resize(size int) (evicted int) {
+	wrapper.logger.Warn("Resize method not supported")
 	return 0
 }
 
@@ -156,14 +186,14 @@ func (cache *Wrapper) Resize(size int) (evicted int) {
  *  Util functions
  */
 
-func (cache *Wrapper) decodeDTOKey(key interface{}) (cacheKey, error) {
+func (wrapper *Wrapper) decodeDTOKey(key interface{}) (cacheKey, error) {
 	// decode key
 	dtoKey, ok := key.(dto.Key)
 	if !ok {
 		return cacheKey{}, fmt.Errorf("couldn't convert key to dto.Key: %s", key)
 	}
 
-	keyName, err := cache.generateKeyName(dtoKey.Type)
+	keyName, err := wrapper.generateKeyName(dtoKey.Type)
 	if err != nil {
 		return cacheKey{}, err
 	}
@@ -176,19 +206,19 @@ func (cache *Wrapper) decodeDTOKey(key interface{}) (cacheKey, error) {
 }
 
 // generateKeyName generates the key name from the type and cache environment
-func (cache *Wrapper) generateKeyName(keyType string) (string, error) {
+func (wrapper *Wrapper) generateKeyName(keyType string) (string, error) {
 	switch keyType {
 	case dto.KeyFeature:
-		return string(domain.NewFeatureConfigKey(cache.environment)), nil
+		return string(domain.NewFeatureConfigKey(wrapper.environment)), nil
 	case dto.KeySegment:
-		return string(domain.NewSegmentKey(cache.environment)), nil
+		return string(domain.NewSegmentKey(wrapper.environment)), nil
 	default:
 		return "", fmt.Errorf("key type not recognised: %s", keyType)
 	}
 }
 
 // convertEvaluationToDomain converts the data being cached by the sdk to it's appropriate internal type i.e. domain.FeatureFlag
-func (cache *Wrapper) convertEvaluationToDomain(keyType string, value interface{}) (encoding.BinaryMarshaler, error) {
+func (wrapper *Wrapper) convertEvaluationToDomain(keyType string, value interface{}) (encoding.BinaryMarshaler, error) {
 	switch keyType {
 	case dto.KeyFeature:
 		featureConfig, ok := value.(evaluation.FeatureConfig)
@@ -208,18 +238,18 @@ func (cache *Wrapper) convertEvaluationToDomain(keyType string, value interface{
 	}
 }
 
-func (cache *Wrapper) getKeysByType(keyType string) []interface{} {
+func (wrapper *Wrapper) getKeysByType(keyType string) []interface{} {
 	var keys []interface{}
 
-	keyName, err := cache.generateKeyName(keyType)
+	keyName, err := wrapper.generateKeyName(keyType)
 	if err != nil {
-		cache.logger.Warnf(err.Error())
+		wrapper.logger.Warnf(err.Error())
 		return nil
 	}
 
-	results, err := cache.MemCache.GetAll(context.Background(), keyName)
+	results, err := wrapper.cache.GetAll(context.Background(), keyName)
 	if err != nil {
-		cache.logger.Warnf("Couldn't fetch results for %s: %s", keyName, err)
+		wrapper.logger.Warnf("Couldn't fetch results for %s: %s", keyName, err)
 		return nil
 	}
 
@@ -234,31 +264,31 @@ func (cache *Wrapper) getKeysByType(keyType string) []interface{} {
 	return keys
 }
 
-func (cache *Wrapper) deleteByType(keyType string) {
-	keyName, err := cache.generateKeyName(keyType)
+func (wrapper *Wrapper) deleteByType(keyType string) {
+	keyName, err := wrapper.generateKeyName(keyType)
 	if err != nil {
-		cache.logger.Warnf("skipping purge of key type %s: %s", keyType, err)
+		wrapper.logger.Warnf("skipping purge of key type %s: %s", keyType, err)
 		return
 	}
 
-	cache.MemCache.RemoveAll(context.Background(), keyName)
+	wrapper.cache.RemoveAll(context.Background(), keyName)
 }
 
-func (cache *Wrapper) get(key cacheKey) (interface{}, error) {
+func (wrapper *Wrapper) get(key cacheKey) (interface{}, error) {
 	switch key.kind {
 	case dto.KeyFeature:
-		return cache.getFeatureConfig(key)
+		return wrapper.getFeatureConfig(key)
 	case dto.KeySegment:
-		return cache.getSegment(key)
+		return wrapper.getSegment(key)
 	}
 
 	return nil, fmt.Errorf("invalid type %s", key.kind)
 }
 
-func (cache *Wrapper) getFeatureConfig(key cacheKey) (interface{}, error) {
+func (wrapper *Wrapper) getFeatureConfig(key cacheKey) (interface{}, error) {
 	var val encoding.BinaryUnmarshaler = &domain.FeatureConfig{}
 	// get FeatureFlag in domain.FeatureFlag format
-	err := cache.MemCache.Get(context.Background(), key.name, key.field, val)
+	err := wrapper.cache.Get(context.Background(), key.name, key.field, val)
 	if err != nil {
 		return nil, err
 	}
@@ -271,10 +301,10 @@ func (cache *Wrapper) getFeatureConfig(key cacheKey) (interface{}, error) {
 	return *domain.ConvertDomainFeatureConfig(*featureConfig), nil
 }
 
-func (cache *Wrapper) getSegment(key cacheKey) (interface{}, error) {
+func (wrapper *Wrapper) getSegment(key cacheKey) (interface{}, error) {
 	var val encoding.BinaryUnmarshaler = &domain.Segment{}
 	// get Segment in domain.Segment format
-	err := cache.MemCache.Get(context.Background(), key.name, key.field, val)
+	err := wrapper.cache.Get(context.Background(), key.name, key.field, val)
 	if err != nil {
 		return nil, err
 	}

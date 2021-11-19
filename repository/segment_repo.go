@@ -3,6 +3,7 @@ package repository
 import (
 	"context"
 	"fmt"
+	"github.com/harness/ff-proxy/cache"
 	"time"
 
 	"github.com/harness/ff-proxy/domain"
@@ -10,12 +11,12 @@ import (
 
 // SegmentRepo is a repository that stores Segments
 type SegmentRepo struct {
-	cache Cache
+	cache cache.Cache
 }
 
 // NewSegmentRepo creates a SegmentRepo. It can optionally preload the repo with data
 // from the passed config
-func NewSegmentRepo(c Cache, config map[domain.SegmentKey][]domain.Segment) (SegmentRepo, error) {
+func NewSegmentRepo(c cache.Cache, config map[domain.SegmentKey][]domain.Segment) (SegmentRepo, error) {
 	tr := SegmentRepo{cache: c}
 	if config == nil {
 		return tr, nil

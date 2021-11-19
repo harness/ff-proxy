@@ -16,6 +16,8 @@ type mockCache struct {
 	set    func() error
 	get    func() error
 	getAll func() (map[string][]byte, error)
+	removeAll func()
+	remove func()
 }
 
 // Set sets a value in the cache for a given key and field
@@ -31,6 +33,16 @@ func (m *mockCache) Get(ctx context.Context, key string, field string, v encodin
 // GetAll gets all of the fiels and their values for a given key
 func (m *mockCache) GetAll(ctx context.Context, key string) (map[string][]byte, error) {
 	return m.getAll()
+}
+
+// RemoveAll removes all the fields and their values for a given key
+func (m *mockCache) RemoveAll(ctx context.Context, key string) {
+	m.removeAll()
+}
+
+// Remove removes a field for a given key
+func (m *mockCache) Remove(ctx context.Context, key string, field string) {
+	m.remove()
 }
 
 func strPtr(s string) *string { return &s }
@@ -100,7 +112,7 @@ func TestTargetRepo_Add(t *testing.T) {
 	}
 
 	testCases := map[string]struct {
-		cache      Cache
+		cache      cache.Cache
 		repoConfig map[domain.TargetKey][]domain.Target
 		targets    []domain.Target
 		key        domain.TargetKey
@@ -175,7 +187,7 @@ func TestTargetRepo_GetByIdentifer(t *testing.T) {
 	}
 
 	testCases := map[string]struct {
-		cache       Cache
+		cache       cache.Cache
 		repoConfig  map[domain.TargetKey][]domain.Target
 		key         domain.TargetKey
 		identifier  string

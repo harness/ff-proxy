@@ -7,7 +7,7 @@ require (
 	github.com/dgrijalva/jwt-go v3.2.0+incompatible
 	github.com/go-kit/kit v0.12.0
 	github.com/go-kit/log v0.2.0
-	github.com/golang-jwt/jwt v3.2.1+incompatible
+	github.com/go-redis/redis/v8 v8.11.4
 	github.com/gorilla/mux v1.8.0
 	github.com/harness/ff-golang-server-sdk v0.0.23
 	github.com/sirupsen/logrus v1.8.1
@@ -17,12 +17,15 @@ require (
 )
 
 require (
+	github.com/cespare/xxhash/v2 v2.1.2 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
+	github.com/dgryski/go-rendezvous v0.0.0-20200823014737-9f7001d12a5f // indirect
 	github.com/getkin/kin-openapi v0.53.0 // indirect
 	github.com/ghodss/yaml v1.0.0 // indirect
 	github.com/go-logfmt/logfmt v0.5.1 // indirect
 	github.com/go-openapi/jsonpointer v0.19.5 // indirect
 	github.com/go-openapi/swag v0.19.14 // indirect
+	github.com/golang-jwt/jwt v3.2.1+incompatible // indirect
 	github.com/hashicorp/go-cleanhttp v0.5.2 // indirect
 	github.com/hashicorp/go-retryablehttp v0.6.8 // indirect
 	github.com/hashicorp/golang-lru v0.5.4 // indirect

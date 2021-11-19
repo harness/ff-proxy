@@ -3,6 +3,7 @@ package repository
 import (
 	"context"
 	"fmt"
+	"github.com/harness/ff-proxy/cache"
 	"time"
 
 	"github.com/harness/ff-proxy/domain"
@@ -10,12 +11,12 @@ import (
 
 // FeatureFlagRepo is a repository that stores FeatureFlags
 type FeatureFlagRepo struct {
-	cache Cache
+	cache cache.Cache
 }
 
 // NewFeatureFlagRepo creates a FeatureFlagRepo. It can optionally preload the repo with data
 // from the passed config
-func NewFeatureFlagRepo(c Cache, config map[domain.FeatureFlagKey][]domain.FeatureFlag) (FeatureFlagRepo, error) {
+func NewFeatureFlagRepo(c cache.Cache, config map[domain.FeatureFlagKey][]domain.FeatureFlag) (FeatureFlagRepo, error) {
 	fcr := FeatureFlagRepo{cache: c}
 	if config == nil {
 		return fcr, nil
