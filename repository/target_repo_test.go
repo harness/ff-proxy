@@ -8,7 +8,7 @@ import (
 
 	"github.com/harness/ff-proxy/cache"
 	"github.com/harness/ff-proxy/domain"
-	clientgen "github.com/harness/ff-proxy/gen/client"
+	admingen "github.com/harness/ff-proxy/gen/admin"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -41,48 +41,52 @@ func boolPtr(b bool) *bool { return &b }
 
 var (
 	targetFoo = domain.Target{
-		Account:     "foo",
-		Anonymous:   boolPtr(false),
-		CreatedAt:   int64Ptr(1634222520273),
-		Environment: "featureflagsqa",
-		Identifier:  "foo",
-		Name:        "foo",
-		Org:         "foo",
-		Project:     "FeatureFlagsQADemo",
-		Segments:    &[]clientgen.Segment{},
-		Attributes: &map[string]interface{}{
-			"age": float64(55),
-			"ages": []interface{}{
-				float64(1),
-				float64(2),
-				float64(3),
+		Target: admingen.Target{
+			Account:     "foo",
+			Anonymous:   boolPtr(false),
+			CreatedAt:   int64Ptr(1634222520273),
+			Environment: "featureflagsqa",
+			Identifier:  "foo",
+			Name:        "foo",
+			Org:         "foo",
+			Project:     "FeatureFlagsQADemo",
+			Segments:    &[]admingen.Segment{},
+			Attributes: &map[string]interface{}{
+				"age": float64(55),
+				"ages": []interface{}{
+					float64(1),
+					float64(2),
+					float64(3),
+				},
+				"happy":      true,
+				"host":       "foo.com",
+				"userGroups": []interface{}{"Foo", "Volvo", "BMW"},
 			},
-			"happy":      true,
-			"host":       "foo.com",
-			"userGroups": []interface{}{"Foo", "Volvo", "BMW"},
 		},
 	}
 
 	targetBar = domain.Target{
-		Account:     "bar",
-		Anonymous:   boolPtr(false),
-		CreatedAt:   int64Ptr(1634222520273),
-		Environment: "featureflagsqa",
-		Identifier:  "bar",
-		Name:        "bar",
-		Org:         "bar",
-		Project:     "FeatureFlagsQADemo",
-		Segments:    &[]clientgen.Segment{},
-		Attributes: &map[string]interface{}{
-			"age": float64(55),
-			"ages": []interface{}{
-				float64(1),
-				float64(2),
-				float64(3),
+		Target: admingen.Target{
+			Account:     "bar",
+			Anonymous:   boolPtr(false),
+			CreatedAt:   int64Ptr(1634222520273),
+			Environment: "featureflagsqa",
+			Identifier:  "bar",
+			Name:        "bar",
+			Org:         "bar",
+			Project:     "FeatureFlagsQADemo",
+			Segments:    &[]admingen.Segment{},
+			Attributes: &map[string]interface{}{
+				"age": float64(55),
+				"ages": []interface{}{
+					float64(1),
+					float64(2),
+					float64(3),
+				},
+				"happy":      true,
+				"host":       "foo.com",
+				"userGroups": []interface{}{"Foo", "Volvo", "BMW"},
 			},
-			"happy":      true,
-			"host":       "foo.com",
-			"userGroups": []interface{}{"Foo", "Volvo", "BMW"},
 		},
 	}
 )

@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/harness/ff-proxy/domain"
+	admingen "github.com/harness/ff-proxy/gen/admin"
 	clientgen "github.com/harness/ff-proxy/gen/client"
 	"github.com/stretchr/testify/assert"
 )
@@ -208,47 +209,51 @@ func TestLocalConfig(t *testing.T) {
 	expectedTargetConfig := map[domain.TargetKey][]domain.Target{
 		domain.NewTargetKey("1234"): {
 			{
-				Account:     "foo",
-				Anonymous:   boolPtr(false),
-				CreatedAt:   int64Ptr(1634222520273),
-				Environment: "featureflagsqa",
-				Identifier:  "foo",
-				Name:        "foo",
-				Org:         "bar",
-				Project:     "FeatureFlagsQADemo",
-				Segments:    &[]clientgen.Segment{},
-				Attributes: &map[string]interface{}{
-					"age": float64(56),
-					"ages": []interface{}{
-						float64(1),
-						float64(2),
-						float64(3),
+				Target: admingen.Target{
+					Account:     "foo",
+					Anonymous:   boolPtr(false),
+					CreatedAt:   int64Ptr(1634222520273),
+					Environment: "featureflagsqa",
+					Identifier:  "foo",
+					Name:        "foo",
+					Org:         "bar",
+					Project:     "FeatureFlagsQADemo",
+					Segments:    &[]admingen.Segment{},
+					Attributes: &map[string]interface{}{
+						"age": float64(56),
+						"ages": []interface{}{
+							float64(1),
+							float64(2),
+							float64(3),
+						},
+						"happy":      true,
+						"host":       "foo.com",
+						"userGroups": []interface{}{"Foo", "Volvo", "BMW"},
 					},
-					"happy":      true,
-					"host":       "foo.com",
-					"userGroups": []interface{}{"Foo", "Volvo", "BMW"},
 				},
 			},
 			{
-				Account:     "",
-				CreatedAt:   int64Ptr(1634222520273),
-				Environment: "featureflagsqa",
-				Identifier:  "james",
-				Name:        "james",
-				Org:         "",
-				Project:     "FeatureFlagsQADemo",
-				Segments:    &[]clientgen.Segment{},
-				Attributes: &map[string]interface{}{
-					"age": float64(55),
-					"ages": []interface{}{
-						float64(1),
-						float64(2),
-						float64(3),
+				Target: admingen.Target{
+					Account:     "",
+					CreatedAt:   int64Ptr(1634222520273),
+					Environment: "featureflagsqa",
+					Identifier:  "james",
+					Name:        "james",
+					Org:         "",
+					Project:     "FeatureFlagsQADemo",
+					Segments:    &[]admingen.Segment{},
+					Attributes: &map[string]interface{}{
+						"age": float64(55),
+						"ages": []interface{}{
+							float64(1),
+							float64(2),
+							float64(3),
+						},
+						"happy":       true,
+						"host":        "file:///Users/jcox/github.com/drone/ff-javascript-client-sample/index.html?identifier=james",
+						"lastUpdated": "Thu Oct 21 2021 11:58:20 GMT+0100 (British Summer Time)",
+						"userGroups":  []interface{}{"Foo", "Volvo", "BMW"},
 					},
-					"happy":       true,
-					"host":        "file:///Users/jcox/github.com/drone/ff-javascript-client-sample/index.html?identifier=james",
-					"lastUpdated": "Thu Oct 21 2021 11:58:20 GMT+0100 (British Summer Time)",
-					"userGroups":  []interface{}{"Foo", "Volvo", "BMW"},
 				},
 			},
 		},

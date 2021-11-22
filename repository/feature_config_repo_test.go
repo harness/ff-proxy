@@ -76,7 +76,7 @@ var (
 		},
 		Segments: map[string]domain.Segment{
 			"flagsTeam": {
-				clientgen.Segment{
+				Segment: clientgen.Segment{
 					Environment: strPtr("featureflagsqa"),
 					Identifier:  "flagsTeam",
 					Name:        "flagsTeam",
@@ -166,7 +166,7 @@ var (
 		},
 		Segments: map[string]domain.Segment{
 			"flagsTeam": {
-				clientgen.Segment{
+				Segment: clientgen.Segment{
 					Environment: strPtr("featureflagsqa"),
 					Identifier:  "flagsTeam",
 					Name:        "flagsTeam",

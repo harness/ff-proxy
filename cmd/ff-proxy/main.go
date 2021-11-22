@@ -3,25 +3,24 @@ package main
 import (
 	"context"
 	"flag"
-	"fmt"
+	"os"
+	"os/signal"
+	"strings"
+
 	sdkCache "github.com/harness/ff-golang-server-sdk/cache"
 	harness "github.com/harness/ff-golang-server-sdk/client"
 	ffproxy "github.com/harness/ff-proxy"
 	"github.com/harness/ff-proxy/cache"
 	"github.com/harness/ff-proxy/config"
 	"github.com/harness/ff-proxy/domain"
-	admingen "github.com/harness/ff-proxy/gen/admin"
 	"github.com/harness/ff-proxy/log"
 	"github.com/harness/ff-proxy/middleware"
 	proxyservice "github.com/harness/ff-proxy/proxy-service"
 	"github.com/harness/ff-proxy/repository"
+	"github.com/harness/ff-proxy/services"
 	"github.com/harness/ff-proxy/transport"
 	"github.com/sirupsen/logrus"
 	"github.com/wings-software/ff-server/pkg/hash"
-	"net/http"
-	"os"
-	"os/signal"
-	"strings"
 )
 
 var (
@@ -35,9 +34,9 @@ var (
 	adminService     string
 	serviceToken     string
 	authSecret       string
-	sdkBaseUrl   string
-	sdkEventsUrl string
-	apiKeys      keys
+	sdkBaseURL       string
+	sdkEventsURL     string
+	apiKeys          keys
 )
 
 // keys implements the flag.Value interface and allows us to pass in multiple api keys in the program arguments
@@ -64,19 +63,19 @@ func init() {
 	flag.StringVar(&adminService, "admin-service", "https://qa.harness.io/gateway/cf", "the url of the admin service")
 	flag.StringVar(&serviceToken, "service-token", "", "token to use with the ff service")
 	flag.StringVar(&authSecret, "auth-secret", "secret", "the secret used for signing auth tokens")
-	flag.StringVar(&sdkBaseUrl, "sdkBaseUrl", "https://config.feature-flags.qa.harness.io/api/1.0", "url for the sdk to connect to")
-	flag.StringVar(&sdkEventsUrl, "sdkEventsUrl", "https://event.feature-flags.qa.harness.io/api/1.0", "url for the sdk to send metrics to")
+	flag.StringVar(&sdkBaseURL, "sdkBaseUrl", "https://config.feature-flags.qa.harness.io/api/1.0", "url for the sdk to connect to")
+	flag.StringVar(&sdkEventsURL, "sdkEventsUrl", "https://event.feature-flags.qa.harness.io/api/1.0", "url for the sdk to send metrics to")
 	flag.Var(&apiKeys, "apiKey", "API keys to connect with ff-server for each environment")
 
 	flag.Parse()
 }
 
-func initFF(ctx context.Context, cache sdkCache.Cache, baseUrl, eventUrl, sdkKey string) {
+func initFF(ctx context.Context, cache sdkCache.Cache, baseURL, eventURL, sdkKey string) {
 	logger := log.NewLogger(os.Stderr, debug)
 
 	client, err := harness.NewCfClient(sdkKey,
-		harness.WithURL(baseUrl),
-		harness.WithEventsURL(eventUrl),
+		harness.WithURL(baseURL),
+		harness.WithEventsURL(eventURL),
 		harness.WithStreamEnabled(true),
 		harness.WithCache(cache),
 		harness.WithStoreEnabled(false), // store should be disabled until we implement a wrapper to handle multiple envs
@@ -108,12 +107,7 @@ func main() {
 		cancel()
 	}()
 
-	// Create a new admin client with a HTTP client that injects the adminServiceToken
-	// into the auth header
-	adminClient, err := admingen.NewClientWithResponses(
-		adminService,
-		admingen.WithHTTPClient(doer{c: http.DefaultClient, token: serviceToken}),
-	)
+	adminClient, err := services.NewAdminClient(logger, adminService, serviceToken)
 	if err != nil {
 		logger.Error("msg", "failed to create admin client", "err", err)
 		os.Exit(1)
@@ -142,18 +136,18 @@ func main() {
 	} else {
 		logger.Info("msg", "retrieving config from ff-server...")
 		config := config.NewRemoteConfig(
+			ctx,
 			accountIdentifer,
 			orgIdentifier,
+			apiKeys,
+			hash.NewSha256(),
 			adminClient,
 			config.WithLogger(logger),
 			config.WithConcurrency(20),
 		)
 
-		authConfig, err = config.AuthConfig(ctx)
-		if err != nil {
-			logger.Error("msg", "failed to load auth config", "err", err)
-			os.Exit(1)
-		}
+		authConfig = config.AuthConfig()
+		targetConfig = config.TargetConfig()
 		logger.Info("msg", "successfully retrieved config from ff-server")
 	}
 
@@ -173,7 +167,7 @@ func main() {
 		}
 
 		cacheWrapper := cache.NewWrapper(&memCache, envID, logrus.New())
-		go initFF(ctx, cacheWrapper, sdkBaseUrl, sdkEventsUrl, apiKey)
+		go initFF(ctx, cacheWrapper, sdkBaseURL, sdkEventsURL, apiKey)
 	}
 
 	// Create repos
@@ -223,16 +217,4 @@ func main() {
 	if err := server.Serve(); err != nil {
 		logger.Error("msg", "server stopped", "err", err)
 	}
-}
-
-// doer is a simple http client that gets passed to the generated admin client
-// and injects the service token into the header before any requests are made
-type doer struct {
-	c     *http.Client
-	token string
-}
-
-func (d doer) Do(r *http.Request) (*http.Response, error) {
-	r.Header.Add("api-key", fmt.Sprintf("Bearer %s", d.token))
-	return d.c.Do(r)
 }

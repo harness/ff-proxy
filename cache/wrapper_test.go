@@ -2,13 +2,14 @@ package cache
 
 import (
 	"fmt"
+	"testing"
+	"time"
+
 	"github.com/harness/ff-golang-server-sdk/dto"
 	"github.com/harness/ff-golang-server-sdk/evaluation"
 	"github.com/sirupsen/logrus"
 	"github.com/sirupsen/logrus/hooks/test"
 	"github.com/stretchr/testify/assert"
-	"testing"
-	"time"
 )
 
 func strPtr(s string) *string { return &s }
@@ -37,12 +38,12 @@ var (
 	}
 
 	evaluationFeatureBar = evaluation.FeatureConfig{
-		DefaultServe:  evaluation.Serve{
+		DefaultServe: evaluation.Serve{
 			Distribution: &evaluation.Distribution{
 				BucketBy:   "bucketfield",
 				Variations: []evaluation.WeightedVariation{{Variation: "var1", Weight: 30}, {Variation: "var2", Weight: 70}},
 			},
-			Variation:    strPtr("var2"),
+			Variation: strPtr("var2"),
 		},
 		Environment:   "env",
 		Feature:       "bar",
@@ -61,12 +62,12 @@ var (
 				},
 			},
 		},
-		State:                "on",
+		State: "on",
 		VariationToTargetMap: []evaluation.VariationMap{
 			{
 				TargetSegments: []string{"segment1", "segment2", "segment3"},
-				Targets: []string{"target1", "target2", "target3"},
-				Variation: "var",
+				Targets:        []string{"target1", "target2", "target3"},
+				Variation:      "var",
 			},
 		},
 		Variations: []evaluation.Variation{{Description: strPtr("desc"), Identifier: "id", Name: strPtr("name"), Value: "val"}},

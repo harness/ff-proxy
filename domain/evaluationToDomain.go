@@ -51,7 +51,7 @@ func convertEvaluationClause(c evaluation.Clause) *clientgen.Clause {
 		Id:        c.ID,
 		Negate:    c.Negate,
 		Op:        c.Op,
-		Values:     c.Value,
+		Values:    c.Value,
 	}
 }
 
@@ -153,7 +153,7 @@ func ConvertEvaluationFeatureConfig(fc evaluation.FeatureConfig) *FeatureConfig 
 			VariationToTargetMap: &vtm,
 			Variations:           vars,
 		},
-		Segments:  segments,
+		Segments: segments,
 	}
 }
 
@@ -164,7 +164,7 @@ func ConvertEvaluationSegment(s evaluation.Segment) *Segment {
 		excluded = make([]clientgen.Target, len(s.Excluded))
 		for i, excl := range s.Excluded {
 			excluded[i] = clientgen.Target{
-				Identifier:  excl,
+				Identifier: excl,
 			}
 		}
 	}
@@ -205,7 +205,7 @@ func ConvertEvaluationSegment(s evaluation.Segment) *Segment {
 	}
 
 	return &Segment{
-		clientgen.Segment {
+		clientgen.Segment{
 			Identifier:  s.Identifier,
 			Name:        s.Name,
 			CreatedAt:   s.CreatedAt,

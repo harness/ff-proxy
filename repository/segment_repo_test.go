@@ -13,7 +13,7 @@ import (
 
 var (
 	segmentFoo = domain.Segment{
-		clientgen.Segment{
+		Segment: clientgen.Segment{
 			CreatedAt:   int64Ptr(123),
 			Environment: strPtr("featureFlagsQA"),
 			Identifier:  "foo",
@@ -28,7 +28,7 @@ var (
 	}
 
 	segmentBar = domain.Segment{
-		clientgen.Segment{
+		Segment: clientgen.Segment{
 			CreatedAt:   int64Ptr(123),
 			Environment: strPtr("featureFlagsQA"),
 			Identifier:  "bar",

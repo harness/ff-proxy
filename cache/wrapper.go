@@ -4,11 +4,12 @@ import (
 	"context"
 	"encoding"
 	"fmt"
+	"time"
+
 	"github.com/harness/ff-golang-server-sdk/dto"
 	"github.com/harness/ff-golang-server-sdk/evaluation"
 	"github.com/harness/ff-golang-server-sdk/logger"
 	"github.com/harness/ff-proxy/domain"
-	"time"
 )
 
 // Wrapper wraps a given cache with logic to store features and segments passed from the golang sdk
@@ -19,22 +20,22 @@ type Wrapper struct {
 	// for now we only support our Memcache
 	*MemCache
 	environment string
-	logger     logger.Logger
-	lastUpdate time.Time
+	logger      logger.Logger
+	lastUpdate  time.Time
 }
 
 type cacheKey struct {
-	kind string
-	name string
+	kind  string
+	name  string
 	field string
 }
 
 // NewWrapper creates a new Wrapper instance
 func NewWrapper(memCache *MemCache, environment string, logger logger.Logger) *Wrapper {
 	return &Wrapper{
-		MemCache:  memCache,
+		MemCache:    memCache,
 		environment: environment,
-		logger: logger,
+		logger:      logger,
 	}
 }
 
@@ -174,7 +175,6 @@ func (cache *Wrapper) decodeDTOKey(key interface{}) (cacheKey, error) {
 	}, nil
 }
 
-
 // generateKeyName generates the key name from the type and cache environment
 func (cache *Wrapper) generateKeyName(keyType string) (string, error) {
 	switch keyType {
@@ -224,7 +224,7 @@ func (cache *Wrapper) getKeysByType(keyType string) []interface{} {
 	}
 
 	// convert result objects to their dto.Key
-	for key, _ := range results {
+	for key := range results {
 		keys = append(keys, dto.Key{
 			Type: keyType,
 			Name: key,
@@ -244,7 +244,7 @@ func (cache *Wrapper) deleteByType(keyType string) {
 	cache.MemCache.RemoveAll(context.Background(), keyName)
 }
 
-func (cache *Wrapper) get(key cacheKey) (interface{}, error)  {
+func (cache *Wrapper) get(key cacheKey) (interface{}, error) {
 	switch key.kind {
 	case dto.KeyFeature:
 		return cache.getFeatureConfig(key)
@@ -255,7 +255,7 @@ func (cache *Wrapper) get(key cacheKey) (interface{}, error)  {
 	return nil, fmt.Errorf("invalid type %s", key.kind)
 }
 
-func (cache *Wrapper) getFeatureConfig(key cacheKey) (interface{}, error)  {
+func (cache *Wrapper) getFeatureConfig(key cacheKey) (interface{}, error) {
 	var val encoding.BinaryUnmarshaler = &domain.FeatureConfig{}
 	// get FeatureConfig in domain.FeatureConfig format
 	err := cache.MemCache.Get(context.Background(), key.name, key.field, val)
@@ -271,7 +271,7 @@ func (cache *Wrapper) getFeatureConfig(key cacheKey) (interface{}, error)  {
 	return *domain.ConvertDomainFeatureConfig(*featureConfig), nil
 }
 
-func (cache *Wrapper) getSegment(key cacheKey) (interface{}, error)  {
+func (cache *Wrapper) getSegment(key cacheKey) (interface{}, error) {
 	var val encoding.BinaryUnmarshaler = &domain.Segment{}
 	// get Segment in domain.Segment format
 	err := cache.MemCache.Get(context.Background(), key.name, key.field, val)
@@ -286,4 +286,3 @@ func (cache *Wrapper) getSegment(key cacheKey) (interface{}, error)  {
 	// return to sdk in evaluation.Segment format
 	return domain.ConvertDomainSegment(*segment), nil
 }
-
