@@ -13,6 +13,13 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+type mockHasher struct {
+}
+
+func (m mockHasher) Hash(s string) string {
+	return s
+}
+
 // projects is a map of account-org identifiers to projects
 var projects = map[string][]admingen.Project{
 	"account1-org1": []admingen.Project{
@@ -71,7 +78,14 @@ var targets = map[string][]admingen.Target{
 			Identifier: "QA-Target-2",
 		},
 	},
-	"FeatureFlagsDev-Dev": []admingen.Target{},
+	"FeatureFlagsDev-Dev": []admingen.Target{
+		{
+			Identifier: "Dev-Target-1",
+		},
+		{
+			Identifier: "Dev-Target-2",
+		},
+	},
 }
 
 type mockAdminClient struct {
@@ -122,15 +136,24 @@ func TestRemoteConfig(t *testing.T) {
 		orgIdentifier    = "org1"
 	)
 
-	expectedAuthConfig := map[domain.AuthAPIKey]string{
+	allowAllAPIKeys := []string{"1", "2", "3", "4"}
+	allowSomeAPIKeys := []string{"1", "2", "3"}
+
+	expectedAuthConfigAllAPIKeys := map[domain.AuthAPIKey]string{
 		domain.AuthAPIKey("1"): "123",
 		domain.AuthAPIKey("2"): "123",
 		domain.AuthAPIKey("3"): "123",
 		domain.AuthAPIKey("4"): "456",
 	}
 
-	expectedTargetConfig := map[domain.TargetKey][]domain.Target{
-		domain.TargetKey("123"): []domain.Target{
+	expectedAuthConfigSomeAPIKeys := map[domain.AuthAPIKey]string{
+		domain.AuthAPIKey("1"): "123",
+		domain.AuthAPIKey("2"): "123",
+		domain.AuthAPIKey("3"): "123",
+	}
+
+	expectedTargetConfigAllAPIKeys := map[domain.TargetKey][]domain.Target{
+		domain.NewTargetKey("123"): []domain.Target{
 			{
 				Target: admingen.Target{Identifier: "QA-Target-1"},
 			},
@@ -138,21 +161,48 @@ func TestRemoteConfig(t *testing.T) {
 				Target: admingen.Target{Identifier: "QA-Target-2"},
 			},
 		},
-		domain.TargetKey("456"): []domain.Target{},
+		domain.NewTargetKey("456"): []domain.Target{
+			{
+				Target: admingen.Target{Identifier: "Dev-Target-1"},
+			},
+			{
+				Target: admingen.Target{Identifier: "Dev-Target-2"},
+			},
+		},
+	}
+
+	expectedTargetConfigSomeAPIKeys := map[domain.TargetKey][]domain.Target{
+		domain.NewTargetKey("123"): []domain.Target{
+			{
+				Target: admingen.Target{Identifier: "QA-Target-1"},
+			},
+			{
+				Target: admingen.Target{Identifier: "QA-Target-2"},
+			},
+		},
 	}
 
 	testCases := map[string]struct {
 		accountIdentifier    string
 		orgIdentifier        string
+		allowedAPIKeys       []string
 		cancel               bool
 		expectedAuthConfig   map[domain.AuthAPIKey]string
 		expectedTargetConfig map[domain.TargetKey][]domain.Target
 	}{
-		"Given I try to load config for an account and org that exist": {
+		"Given I try to load config for an account and org that exist and I allow all the possible APIKeys": {
 			accountIdentifier:    accountIdentifer,
 			orgIdentifier:        orgIdentifier,
-			expectedAuthConfig:   expectedAuthConfig,
-			expectedTargetConfig: expectedTargetConfig,
+			allowedAPIKeys:       allowAllAPIKeys,
+			expectedAuthConfig:   expectedAuthConfigAllAPIKeys,
+			expectedTargetConfig: expectedTargetConfigAllAPIKeys,
+		},
+		"Given I try to load config for an account and org that exist and I only allow APIKeys 1, 2 and 3": {
+			accountIdentifier:    accountIdentifer,
+			orgIdentifier:        orgIdentifier,
+			allowedAPIKeys:       allowSomeAPIKeys,
+			expectedAuthConfig:   expectedAuthConfigSomeAPIKeys,
+			expectedTargetConfig: expectedTargetConfigSomeAPIKeys,
 		},
 		"Given I try to load config for an account and org that don't exist": {
 			accountIdentifier:    "foo",
@@ -184,10 +234,12 @@ func TestRemoteConfig(t *testing.T) {
 				targets:      targets,
 			}
 
-			rc := NewRemoteConfig(ctx, tc.accountIdentifier, tc.orgIdentifier, adminClient, WithConcurrency(1), WithLogger(log.NoOpLogger{}))
+			rc := NewRemoteConfig(ctx, tc.accountIdentifier, tc.orgIdentifier, tc.allowedAPIKeys, mockHasher{}, adminClient, WithConcurrency(1), WithLogger(log.NoOpLogger{}))
 			actualAuthConfig := rc.AuthConfig()
+			actualTargetConfig := rc.TargetConfig()
 
 			assert.Equal(t, tc.expectedAuthConfig, actualAuthConfig)
+			assert.Equal(t, tc.expectedTargetConfig, actualTargetConfig)
 		})
 	}
 }

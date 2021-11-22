@@ -9,6 +9,7 @@ import (
 	"github.com/harness/ff-proxy/domain"
 	"github.com/harness/ff-proxy/log"
 	"github.com/harness/ff-proxy/services"
+	"github.com/wings-software/ff-server/pkg/hash"
 )
 
 // RemoteOption is type for passing optional parameters to a RemoteConfig
@@ -47,11 +48,16 @@ type RemoteConfig struct {
 
 // NewRemoteConfig creates a RemoteConfig and retrieves the configuration for
 // the given Account and Org from the Feature Flags Service
-func NewRemoteConfig(ctx context.Context, accountIdentifer string, orgIdentifier string, client adminClient, opts ...RemoteOption) RemoteConfig {
+func NewRemoteConfig(ctx context.Context, accountIdentifer string, orgIdentifier string, allowedAPIKeys []string, hasher hash.Hasher, client adminClient, opts ...RemoteOption) RemoteConfig {
 	rc := &RemoteConfig{
 		client:       client,
 		authConfig:   make(map[domain.AuthAPIKey]string),
 		targetConfig: make(map[domain.TargetKey][]domain.Target),
+	}
+
+	allowedAPIKeysMap := map[string]struct{}{}
+	for _, key := range allowedAPIKeys {
+		allowedAPIKeysMap[hasher.Hash(key)] = struct{}{}
 	}
 
 	for _, opt := range opts {
@@ -66,7 +72,7 @@ func NewRemoteConfig(ctx context.Context, accountIdentifer string, orgIdentifier
 		rc.concurrency = 10
 	}
 	rc.log = log.With(rc.log, "component", "RemoteConfig", "account_identifier", accountIdentifer, "org_identifier", orgIdentifier)
-	rc.load(ctx, accountIdentifer, orgIdentifier)
+	rc.load(ctx, accountIdentifer, orgIdentifier, allowedAPIKeysMap)
 	return *rc
 }
 
@@ -87,10 +93,11 @@ func (r RemoteConfig) AuthConfig() map[domain.AuthAPIKey]string {
 // The first stage of the pipeline retrieves the project information and then after
 // that we fan out to get the Environment and Target config to reduce the time it
 // takes to retrieve the config.
-func (r *RemoteConfig) load(ctx context.Context, accountIdentifer string, orgIdentifier string) error {
+func (r *RemoteConfig) load(ctx context.Context, accountIdentifer string, orgIdentifier string, allowedAPIKeys map[string]struct{}) error {
 	pipelineInput := configPipeline{
 		AccountIdentifier: accountIdentifer,
 		OrgIdentifier:     orgIdentifier,
+		AllowedKeys:       allowedAPIKeys,
 	}
 	stage1 := r.addProjectConfig(ctx, pipelineInput)
 
@@ -103,7 +110,7 @@ func (r *RemoteConfig) load(ctx context.Context, accountIdentifer string, orgIde
 
 	// Fan-in the channels in the second stage of the pipeline so that the next
 	// stage has a channel to read from
-	stage2Result := fanIn(ctx, stage2...)
+	stage2Result := r.filterOnAllowedAPIKeys(ctx, fanIn(ctx, stage2...))
 
 	// Fan-out again so we've multiple addTargetConfig processes reading
 	// the output from stage2 of our pipline
@@ -136,6 +143,7 @@ func (r *RemoteConfig) load(ctx context.Context, accountIdentifer string, orgIde
 type configPipeline struct {
 	AccountIdentifier     string
 	OrgIdentifier         string
+	AllowedKeys           map[string]struct{}
 	ProjectIdentifier     string
 	EnvironmentID         string
 	EnvironmnetIdentifier string
@@ -312,5 +320,36 @@ func (r RemoteConfig) addTargetConfig(ctx context.Context, inputs <-chan configP
 		}
 	}()
 
+	return out
+}
+
+// filterOnAllowedAPIKeys filters the pipeline by the AllowedKeys. If an input in
+// the pipeline only contains APIKeys that don't exist in the AllowedKeys then
+// it will not be passed further down the pipeline. If an input has two keys and
+// one of them exists in the AllowedKeys then the one that doesn't exist will be
+// removed and the input will be passed down the pipeline with just the one APIKey.
+func (r RemoteConfig) filterOnAllowedAPIKeys(ctx context.Context, inputs <-chan configPipeline) <-chan configPipeline {
+	out := make(chan configPipeline)
+
+	go func() {
+		defer close(out)
+
+		for input := range inputs {
+			keys := []string{}
+
+			for _, key := range input.APIKeys {
+				if _, ok := input.AllowedKeys[key]; ok {
+					keys = append(keys, key)
+				}
+			}
+
+			if len(keys) == 0 {
+				continue
+			}
+
+			input.APIKeys = keys
+			out <- input
+		}
+	}()
 	return out
 }

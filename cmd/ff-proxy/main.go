@@ -139,6 +139,8 @@ func main() {
 			ctx,
 			accountIdentifer,
 			orgIdentifier,
+			apiKeys,
+			hash.NewSha256(),
 			adminClient,
 			config.WithLogger(logger),
 			config.WithConcurrency(20),
