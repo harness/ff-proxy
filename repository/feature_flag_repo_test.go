@@ -12,7 +12,7 @@ import (
 )
 
 var (
-	featureConfigFoo = domain.FeatureConfig{
+	featureFlagFoo = domain.FeatureFlag{
 		FeatureConfig: clientgen.FeatureConfig{
 			DefaultServe: clientgen.Serve{
 				Variation: strPtr("true"),
@@ -74,35 +74,9 @@ var (
 			},
 			Version: int64Ptr(568),
 		},
-		Segments: map[string]domain.Segment{
-			"flagsTeam": {
-				Segment: clientgen.Segment{
-					Environment: strPtr("featureflagsqa"),
-					Identifier:  "flagsTeam",
-					Name:        "flagsTeam",
-					Excluded:    &[]clientgen.Target{},
-					Included:    &[]clientgen.Target{},
-					Version:     int64Ptr(1),
-					CreatedAt:   int64Ptr(123),
-					ModifiedAt:  int64Ptr(456),
-					Tags:        nil,
-					Rules: &[]clientgen.Clause{
-						{
-							Attribute: "ip",
-							Id:        "31c18ee7-8051-44cc-8507-b44580467ee5",
-							Negate:    false,
-							Op:        "equal",
-							Values: []string{
-								"2a00:23c5:b672:2401:158:f2a6:67a0:6a79",
-							},
-						},
-					},
-				},
-			},
-		},
 	}
 
-	featureConfigBar = domain.FeatureConfig{
+	featureFlagBar = domain.FeatureFlag{
 		FeatureConfig: clientgen.FeatureConfig{
 			DefaultServe: clientgen.Serve{
 				Variation: strPtr("true"),
@@ -164,89 +138,63 @@ var (
 			},
 			Version: int64Ptr(568),
 		},
-		Segments: map[string]domain.Segment{
-			"flagsTeam": {
-				Segment: clientgen.Segment{
-					Environment: strPtr("featureflagsqa"),
-					Identifier:  "flagsTeam",
-					Name:        "flagsTeam",
-					Excluded:    &[]clientgen.Target{},
-					Included:    &[]clientgen.Target{},
-					Version:     int64Ptr(1),
-					CreatedAt:   int64Ptr(123),
-					ModifiedAt:  int64Ptr(456),
-					Tags:        nil,
-					Rules: &[]clientgen.Clause{
-						{
-							Attribute: "ip",
-							Id:        "31c18ee7-8051-44cc-8507-b44580467ee5",
-							Negate:    false,
-							Op:        "equal",
-							Values: []string{
-								"2a00:23c5:b672:2401:158:f2a6:67a0:6a79",
-							},
-						},
-					},
-				},
-			},
-		},
 	}
 )
 
-func TestFeatureConfigRepo_Add(t *testing.T) {
+func TestFeatureFlagRepo_Add(t *testing.T) {
 	key123 := domain.NewFeatureConfigKey("123")
 
-	emptyConfig := map[domain.FeatureConfigKey][]domain.FeatureConfig{}
-	populatedConfig := map[domain.FeatureConfigKey][]domain.FeatureConfig{
-		key123: {featureConfigFoo},
+	emptyConfig := map[domain.FeatureFlagKey][]domain.FeatureFlag{}
+	populatedConfig := map[domain.FeatureFlagKey][]domain.FeatureFlag{
+		key123: {featureFlagFoo},
 	}
 
 	testCases := map[string]struct {
 		cache      Cache
-		repoConfig map[domain.FeatureConfigKey][]domain.FeatureConfig
-		targets    []domain.FeatureConfig
-		key        domain.FeatureConfigKey
+		repoConfig map[domain.FeatureFlagKey][]domain.FeatureFlag
+		flags    []domain.FeatureFlag
+		key        domain.FeatureFlagKey
 		shouldErr  bool
-		expected   []domain.FeatureConfig
+		expected   []domain.FeatureFlag
 		expecteErr error
 	}{
-		"Given I have an empty repo and I add a FeatureConfig to it": {
+		"Given I have an empty repo and I add a FeatureFlag to it": {
 			cache:      cache.NewMemCache(),
 			repoConfig: emptyConfig,
-			targets:    []domain.FeatureConfig{featureConfigFoo},
+			flags:    []domain.FeatureFlag{featureFlagFoo},
 			key:        key123,
 			shouldErr:  false,
-			expected:   []domain.FeatureConfig{featureConfigFoo},
+			expected:   []domain.FeatureFlag{featureFlagFoo},
 			expecteErr: nil,
 		},
-		"Given I have a repo with a target in it and I add the same target again under the same key": {
+		"Given I have a repo with a FeatureFlag in it and I add the same FeatureFlag again under the same key": {
 			cache:      cache.NewMemCache(),
 			repoConfig: populatedConfig,
-			targets:    []domain.FeatureConfig{featureConfigFoo},
+			flags:      []domain.FeatureFlag{featureFlagFoo},
 			key:        key123,
 			shouldErr:  false,
-			expected:   []domain.FeatureConfig{featureConfigFoo},
+			expected:   []domain.FeatureFlag{featureFlagFoo},
 			expecteErr: nil,
 		},
-		"Given I have a repo with a target in it and I add a new target under the same key": {
+		"Given I have a repo with a FeatureFlag in it and I add a new FeatureFlag under the same key": {
 			cache:      cache.NewMemCache(),
 			repoConfig: populatedConfig,
-			targets:    []domain.FeatureConfig{featureConfigBar},
+			flags:    []domain.FeatureFlag{featureFlagBar},
 			key:        key123,
 			shouldErr:  false,
-			expected:   []domain.FeatureConfig{featureConfigFoo, featureConfigBar},
+			expected:   []domain.FeatureFlag{featureFlagFoo, featureFlagBar},
 			expecteErr: nil,
 		},
-		"Given I add an target to the repo but the cache errors": {
+		"Given I add an FeatureFlag to the repo but the cache errors": {
 			cache: &mockCache{
 				set:    func() error { return errors.New("an error") },
 				getAll: func() (map[string][]byte, error) { return map[string][]byte{}, nil },
 			},
 			repoConfig: nil,
-			targets:    []domain.FeatureConfig{featureConfigBar},
+			flags:    []domain.FeatureFlag{featureFlagBar},
 			key:        key123,
 			shouldErr:  true,
-			expected:   []domain.FeatureConfig{},
+			expected:   []domain.FeatureFlag{},
 			expecteErr: domain.ErrCacheInternal,
 		},
 	}
@@ -254,12 +202,12 @@ func TestFeatureConfigRepo_Add(t *testing.T) {
 		tc := tc
 		t.Run(desc, func(t *testing.T) {
 
-			repo, err := NewFeatureConfigRepo(tc.cache, tc.repoConfig)
+			repo, err := NewFeatureFlagRepo(tc.cache, tc.repoConfig)
 			if err != nil {
 				t.Fatalf("(%s): error = %v, shouldErr = %v", desc, err, tc.shouldErr)
 			}
 
-			err = repo.Add(context.Background(), tc.key, tc.targets...)
+			err = repo.Add(context.Background(), tc.key, tc.flags...)
 			if (err != nil) != tc.shouldErr {
 				t.Errorf("(%s): error = %v, shouldErr = %v", desc, err, tc.shouldErr)
 			}
@@ -273,21 +221,21 @@ func TestFeatureConfigRepo_Add(t *testing.T) {
 	}
 }
 
-func TestFeatureConfigRepo_GetByIdentifer(t *testing.T) {
+func TestFeatureFlagRepo_GetByIdentifer(t *testing.T) {
 	key123 := domain.NewFeatureConfigKey("123")
 
-	emptyConfig := map[domain.FeatureConfigKey][]domain.FeatureConfig{}
-	populatedConfig := map[domain.FeatureConfigKey][]domain.FeatureConfig{
-		key123: {featureConfigFoo},
+	emptyConfig := map[domain.FeatureFlagKey][]domain.FeatureFlag{}
+	populatedConfig := map[domain.FeatureFlagKey][]domain.FeatureFlag{
+		key123: {featureFlagFoo},
 	}
 
 	testCases := map[string]struct {
 		cache       Cache
-		repoConfig  map[domain.FeatureConfigKey][]domain.FeatureConfig
-		key         domain.FeatureConfigKey
+		repoConfig  map[domain.FeatureFlagKey][]domain.FeatureFlag
+		key         domain.FeatureFlagKey
 		identifier  string
 		shouldErr   bool
-		expected    domain.FeatureConfig
+		expected    domain.FeatureFlag
 		expectedErr error
 	}{
 		"Given I have an empty cache": {
@@ -296,7 +244,7 @@ func TestFeatureConfigRepo_GetByIdentifer(t *testing.T) {
 			key:         key123,
 			identifier:  "foo",
 			shouldErr:   true,
-			expected:    domain.FeatureConfig{},
+			expected:    domain.FeatureFlag{},
 			expectedErr: domain.ErrCacheNotFound,
 		},
 		"Given I have a populated cache and I get an identifier that's in the cache": {
@@ -305,7 +253,7 @@ func TestFeatureConfigRepo_GetByIdentifer(t *testing.T) {
 			key:         key123,
 			identifier:  "foo",
 			shouldErr:   false,
-			expected:    featureConfigFoo,
+			expected:    featureFlagFoo,
 			expectedErr: nil,
 		},
 		"Given I have a populated cache and I try to get an identifier that isn't in the cache": {
@@ -314,7 +262,7 @@ func TestFeatureConfigRepo_GetByIdentifer(t *testing.T) {
 			key:         key123,
 			identifier:  "bar",
 			shouldErr:   true,
-			expected:    domain.FeatureConfig{},
+			expected:    domain.FeatureFlag{},
 			expectedErr: domain.ErrCacheNotFound,
 		},
 	}
@@ -322,7 +270,7 @@ func TestFeatureConfigRepo_GetByIdentifer(t *testing.T) {
 	for desc, tc := range testCases {
 		tc := tc
 		t.Run(desc, func(t *testing.T) {
-			repo, err := NewFeatureConfigRepo(tc.cache, tc.repoConfig)
+			repo, err := NewFeatureFlagRepo(tc.cache, tc.repoConfig)
 			if err != nil {
 				t.Fatalf("(%s): error = %v, shouldErr = %v", desc, err, tc.shouldErr)
 			}

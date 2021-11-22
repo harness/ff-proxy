@@ -187,13 +187,13 @@ func (cache *Wrapper) generateKeyName(keyType string) (string, error) {
 	}
 }
 
-// generateValue converts the data being cached by the sdk to it's appropriate internal type i.e. domain.FeatureConfig
+// convertEvaluationToDomain converts the data being cached by the sdk to it's appropriate internal type i.e. domain.FeatureFlag
 func (cache *Wrapper) convertEvaluationToDomain(keyType string, value interface{}) (encoding.BinaryMarshaler, error) {
 	switch keyType {
 	case dto.KeyFeature:
 		featureConfig, ok := value.(evaluation.FeatureConfig)
 		if !ok {
-			return &domain.FeatureConfig{}, fmt.Errorf("couldn't convert to evaluation.FeatureConfig")
+			return &domain.FeatureFlag{}, fmt.Errorf("couldn't convert to evaluation.FeatureFlag")
 		}
 
 		return domain.ConvertEvaluationFeatureConfig(featureConfig), nil
@@ -257,17 +257,17 @@ func (cache *Wrapper) get(key cacheKey) (interface{}, error) {
 
 func (cache *Wrapper) getFeatureConfig(key cacheKey) (interface{}, error) {
 	var val encoding.BinaryUnmarshaler = &domain.FeatureConfig{}
-	// get FeatureConfig in domain.FeatureConfig format
+	// get FeatureFlag in domain.FeatureFlag format
 	err := cache.MemCache.Get(context.Background(), key.name, key.field, val)
 	if err != nil {
 		return nil, err
 	}
 	featureConfig, ok := val.(*domain.FeatureConfig)
 	if !ok {
-		return nil, fmt.Errorf("couldn't cast cached value to domain.FeatureConfig: %s", val)
+		return nil, fmt.Errorf("couldn't cast cached value to domain.FeatureFlag: %s", val)
 	}
 
-	// return to sdk in evaluation.FeatureConfig format
+	// return to sdk in evaluation.FeatureFlag format
 	return *domain.ConvertDomainFeatureConfig(*featureConfig), nil
 }
 

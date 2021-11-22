@@ -114,7 +114,7 @@ func main() {
 	}
 
 	var (
-		featureConfig map[domain.FeatureConfigKey][]domain.FeatureConfig
+		featureConfig map[domain.FeatureFlagKey][]domain.FeatureFlag
 		targetConfig  map[domain.TargetKey][]domain.Target
 		segmentConfig map[domain.SegmentKey][]domain.Segment
 		authConfig    map[domain.AuthAPIKey]string
@@ -127,7 +127,7 @@ func main() {
 			logger.Error("msg", "failed to load config", "err", err)
 			os.Exit(1)
 		}
-		featureConfig = config.FeatureConfig()
+		featureConfig = config.FeatureFlag()
 		targetConfig = config.Targets()
 		segmentConfig = config.Segments()
 		authConfig = config.AuthConfig()
@@ -177,7 +177,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	fcr, err := repository.NewFeatureConfigRepo(memCache, featureConfig)
+	fcr, err := repository.NewFeatureFlagRepo(memCache, featureConfig)
 	if err != nil {
 		logger.Error("msg", "failed to create feature config repo", "err", err)
 		os.Exit(1)

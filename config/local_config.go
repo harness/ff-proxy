@@ -10,15 +10,15 @@ import (
 )
 
 type config struct {
-	Environment   string                 `json:"environment"`
-	FeatureConfig []domain.FeatureConfig `json:"featureConfig"`
-	Targets       []domain.Target        `json:"targets"`
-	Segments      []domain.Segment       `json:"segments"`
-	Auth          []domain.AuthAPIKey    `json:"auth"`
+	Environment  string               `json:"environment"`
+	FeatureFlags []domain.FeatureFlag `json:"featureConfig"`
+	Targets      []domain.Target      `json:"targets"`
+	Segments     []domain.Segment     `json:"segments"`
+	Auth         []domain.AuthAPIKey  `json:"auth"`
 }
 
 // LocalConfig is a type that can traverse a tree of files and decode
-// FeatureConfig, Target and Segment information from them.
+// FeatureFlag, Target and Segment information from them.
 type LocalConfig struct {
 	config map[string]config
 }
@@ -75,11 +75,11 @@ func decodeConfigFiles(c map[string]config) fs.WalkDirFunc {
 			}
 
 			c[i.Name()] = config{
-				Environment:   strings.TrimPrefix(i.Name(), "env-"),
-				FeatureConfig: []domain.FeatureConfig{},
-				Targets:       []domain.Target{},
-				Segments:      []domain.Segment{},
-				Auth:          []domain.AuthAPIKey{},
+				Environment:  strings.TrimPrefix(i.Name(), "env-"),
+				FeatureFlags: []domain.FeatureFlag{},
+				Targets:      []domain.Target{},
+				Segments:     []domain.Segment{},
+				Auth:         []domain.AuthAPIKey{},
 			}
 			return nil
 		}
@@ -93,7 +93,7 @@ func decodeConfigFiles(c map[string]config) fs.WalkDirFunc {
 
 		if i.Name() == "feature_config.json" {
 			config := c[env]
-			if err := ffproxy.DecodeFile(path, &config.FeatureConfig); err != nil {
+			if err := ffproxy.DecodeFile(path, &config.FeatureFlags); err != nil {
 				return err
 			}
 			c[env] = config
@@ -129,30 +129,14 @@ func decodeConfigFiles(c map[string]config) fs.WalkDirFunc {
 	}
 }
 
-// FeatureConfig returns the FeatureConfig information from the FeatureFlagConfig
-// in the form of a map of domain.FeatureConfigKeys to slice of domain.FeatureConfig.
-// As a part of its logic it adds the Segment information from the FeatureFlagConfig
-// to the FeatureConfig type
-func (f LocalConfig) FeatureConfig() map[domain.FeatureConfigKey][]domain.FeatureConfig {
-	result := map[domain.FeatureConfigKey][]domain.FeatureConfig{}
+// FeatureFlag returns the FeatureFlag information from the FeatureFlag
+// in the form of a map of domain.FeatureConfigKeys to slice of domain.FeatureFlag.
+func (f LocalConfig) FeatureFlag() map[domain.FeatureFlagKey][]domain.FeatureFlag {
+	result := map[domain.FeatureFlagKey][]domain.FeatureFlag{}
 
 	for _, cfg := range f.config {
 		key := domain.NewFeatureConfigKey(cfg.Environment)
-
-		for i := 0; i < len(cfg.FeatureConfig); i++ {
-			fc := &cfg.FeatureConfig[i]
-
-			for _, seg := range cfg.Segments {
-				if fc.Segments == nil {
-					fc.Segments = make(map[string]domain.Segment)
-				}
-
-				if _, ok := fc.Segments[seg.Identifier]; !ok {
-					fc.Segments[seg.Identifier] = seg
-				}
-			}
-		}
-		result[key] = cfg.FeatureConfig
+		result[key] = cfg.FeatureFlags
 	}
 	return result
 }

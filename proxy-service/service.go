@@ -69,7 +69,7 @@ type authTokenFn func(key string) (string, error)
 // Service is the proxy service implementation
 type Service struct {
 	logger      log.Logger
-	featureRepo repository.FeatureConfigRepo
+	featureRepo repository.FeatureFlagRepo
 	targetRepo  repository.TargetRepo
 	segmentRepo repository.SegmentRepo
 	authFn      authTokenFn
@@ -77,7 +77,7 @@ type Service struct {
 }
 
 // NewService creates and returns a ProxyService
-func NewService(fr repository.FeatureConfigRepo, tr repository.TargetRepo, sr repository.SegmentRepo, authFn authTokenFn, e evaluator, l log.Logger) Service {
+func NewService(fr repository.FeatureFlagRepo, tr repository.TargetRepo, sr repository.SegmentRepo, authFn authTokenFn, e evaluator, l log.Logger) Service {
 	l = log.With(l, "component", "ProxyService")
 	return Service{
 		logger:      l,
@@ -102,9 +102,12 @@ func (s Service) Authenticate(ctx context.Context, req domain.AuthRequest) (doma
 
 // FeatureConfig gets all FeatureConfig for an environment
 func (s Service) FeatureConfig(ctx context.Context, req domain.FeatureConfigRequest) ([]domain.FeatureConfig, error) {
-	key := domain.NewFeatureConfigKey(req.EnvironmentID)
+	configs := []domain.FeatureConfig{}
+	flagKey := domain.NewFeatureConfigKey(req.EnvironmentID)
+	segmentKey := domain.NewSegmentKey(req.EnvironmentID)
 
-	configs, err := s.featureRepo.Get(ctx, key)
+	// fetch flags
+	flags, err := s.featureRepo.Get(ctx, flagKey)
 	if err != nil {
 		if errors.Is(err, domain.ErrCacheNotFound) {
 			return []domain.FeatureConfig{}, fmt.Errorf("%w: %s", ErrNotFound, err)
@@ -112,14 +115,34 @@ func (s Service) FeatureConfig(ctx context.Context, req domain.FeatureConfigRequ
 		return []domain.FeatureConfig{}, fmt.Errorf("%w: %s", ErrInternal, err)
 	}
 
+	// fetch segments
+	segments, err := s.segmentRepo.Get(ctx, segmentKey)
+	if err != nil {
+		if errors.Is(err, domain.ErrCacheNotFound) {
+			return []domain.FeatureConfig{}, fmt.Errorf("%w: %s", ErrNotFound, err)
+		}
+		return []domain.FeatureConfig{}, fmt.Errorf("%w: %s", ErrInternal, err)
+	}
+
+	// build FeatureConfig
+	for _, flag := range flags {
+		configs = append(configs, domain.FeatureConfig{
+			FeatureFlag: flag,
+			Segments:    segmentArrayToMap(segments),
+		})
+	}
+
+
 	return configs, nil
 }
 
 // FeatureConfigByIdentifier gets the feature config for a feature
 func (s Service) FeatureConfigByIdentifier(ctx context.Context, req domain.FeatureConfigByIdentifierRequest) (domain.FeatureConfig, error) {
-	key := domain.NewFeatureConfigKey(req.EnvironmentID)
+	flagKey := domain.NewFeatureConfigKey(req.EnvironmentID)
+	segmentKey := domain.NewSegmentKey(req.EnvironmentID)
 
-	config, err := s.featureRepo.GetByIdentifier(ctx, key, req.Identifier)
+	// fetch flag
+	flag, err := s.featureRepo.GetByIdentifier(ctx, flagKey, req.Identifier)
 	if err != nil {
 		if errors.Is(err, domain.ErrCacheNotFound) {
 			return domain.FeatureConfig{}, fmt.Errorf("%w: %s", ErrNotFound, err)
@@ -127,7 +150,20 @@ func (s Service) FeatureConfigByIdentifier(ctx context.Context, req domain.Featu
 		return domain.FeatureConfig{}, fmt.Errorf("%w: %s", ErrInternal, err)
 	}
 
-	return config, nil
+	// fetch segments
+	segments, err := s.segmentRepo.Get(ctx, segmentKey)
+	if err != nil {
+		if errors.Is(err, domain.ErrCacheNotFound) {
+			return domain.FeatureConfig{}, fmt.Errorf("%w: %s", ErrNotFound, err)
+		}
+		return domain.FeatureConfig{}, fmt.Errorf("%w: %s", ErrInternal, err)
+	}
+
+	// build FeatureConfig
+	return domain.FeatureConfig{
+		FeatureFlag: flag,
+		Segments:    segmentArrayToMap(segments),
+	}, nil
 }
 
 // TargetSegments gets all of the TargetSegments in an environment
@@ -162,10 +198,13 @@ func (s Service) TargetSegmentsByIdentifier(ctx context.Context, req domain.Targ
 
 // Evaluations gets all of the evaluations in an environment for a target
 func (s Service) Evaluations(ctx context.Context, req domain.EvaluationsRequest) ([]clientgen.Evaluation, error) {
-	featureConfigKey := domain.NewFeatureConfigKey(req.EnvironmentID)
+	configs := []domain.FeatureConfig{}
+	flagKey := domain.NewFeatureConfigKey(req.EnvironmentID)
 	targetKey := domain.NewTargetKey(req.EnvironmentID)
+	segmentKey := domain.NewSegmentKey(req.EnvironmentID)
 
-	configs, err := s.featureRepo.Get(ctx, featureConfigKey)
+	// fetch flags
+	flags, err := s.featureRepo.Get(ctx, flagKey)
 	if err != nil {
 		if errors.Is(err, domain.ErrCacheNotFound) {
 			return nil, ErrNotFound
@@ -173,6 +212,24 @@ func (s Service) Evaluations(ctx context.Context, req domain.EvaluationsRequest)
 		return nil, fmt.Errorf("%w: %s", ErrInternal, err)
 	}
 
+	// fetch segments
+	segments, err := s.segmentRepo.Get(ctx, segmentKey)
+	if err != nil {
+		if errors.Is(err, domain.ErrCacheNotFound) {
+			return nil, fmt.Errorf("%w: %s", ErrNotFound, err)
+		}
+		return nil, fmt.Errorf("%w: %s", ErrInternal, err)
+	}
+
+	// build FeatureConfig
+	for _, flag := range flags {
+		configs = append(configs, domain.FeatureConfig{
+			FeatureFlag: flag,
+			Segments:    segmentArrayToMap(segments),
+		})
+	}
+
+	// fetch targets
 	target, err := s.targetRepo.GetByIdentifier(ctx, targetKey, req.TargetIdentifier)
 	if err != nil {
 		if errors.Is(err, domain.ErrCacheNotFound) {
@@ -192,9 +249,11 @@ func (s Service) Evaluations(ctx context.Context, req domain.EvaluationsRequest)
 // EvaluationsByFeature gets all of the evaluations in an environment for a target for a particular feature
 func (s Service) EvaluationsByFeature(ctx context.Context, req domain.EvaluationsByFeatureRequest) (clientgen.Evaluation, error) {
 	featureKey := domain.NewFeatureConfigKey(req.EnvironmentID)
+	segmentKey := domain.NewSegmentKey(req.EnvironmentID)
 	targetKey := domain.NewTargetKey(req.EnvironmentID)
 
-	config, err := s.featureRepo.GetByIdentifier(ctx, featureKey, req.FeatureIdentifier)
+	// fetch feature
+	flag, err := s.featureRepo.GetByIdentifier(ctx, featureKey, req.FeatureIdentifier)
 	if err != nil {
 		if errors.Is(err, domain.ErrCacheNotFound) {
 			return clientgen.Evaluation{}, ErrNotFound
@@ -202,12 +261,28 @@ func (s Service) EvaluationsByFeature(ctx context.Context, req domain.Evaluation
 		return clientgen.Evaluation{}, ErrInternal
 	}
 
+	// fetch segment
+	segments, err := s.segmentRepo.Get(ctx, segmentKey)
+	if err != nil {
+		if errors.Is(err, domain.ErrCacheNotFound) {
+			return clientgen.Evaluation{}, fmt.Errorf("%w: %s", ErrNotFound, err)
+		}
+		return clientgen.Evaluation{}, fmt.Errorf("%w: %s", ErrInternal, err)
+	}
+
+	// fetch target
 	target, err := s.targetRepo.GetByIdentifier(ctx, targetKey, req.TargetIdentifier)
 	if err != nil {
 		if errors.Is(err, domain.ErrCacheNotFound) {
 			return clientgen.Evaluation{}, fmt.Errorf("%w: %s", ErrNotFound, err)
 		}
 		return clientgen.Evaluation{}, fmt.Errorf("%w: %s", ErrInternal, err)
+	}
+
+	// build FeatureConfig
+	config := domain.FeatureConfig{
+		FeatureFlag: flag,
+		Segments:    segmentArrayToMap(segments),
 	}
 
 	evaluations, err := s.evaluator.Evaluate(target, config)
@@ -234,3 +309,12 @@ func (s Service) Metrics(ctx context.Context, req domain.MetricsRequest) error {
 	s.logger.Debug("msg", "got metrics request", "metrics", fmt.Sprintf("%+v", req))
 	return ErrNotImplemented
 }
+
+func segmentArrayToMap(segments []domain.Segment) map[string]domain.Segment {
+	segmentMap := map[string]domain.Segment{}
+	for _, segment := range segments {
+		segmentMap[segment.Identifier] = segment
+	}
+	return segmentMap
+}
+

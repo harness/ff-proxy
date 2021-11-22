@@ -52,7 +52,7 @@ func setupHTTPServer(t *testing.T, bypassAuth bool) *HTTPServer {
 	}
 
 	cache := cache.NewMemCache()
-	featureRepo, err := repository.NewFeatureConfigRepo(cache, config.FeatureConfig())
+	featureRepo, err := repository.NewFeatureFlagRepo(cache, config.FeatureFlag())
 	if err != nil {
 		t.Fatal(err)
 	}

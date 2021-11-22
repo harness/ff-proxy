@@ -113,7 +113,7 @@ func TestSegmentRepo_Add(t *testing.T) {
 			if err != nil {
 				t.Errorf("(%s): error = %v, shouldErr = %v", desc, err, tc.shouldErr)
 			}
-			assert.Equal(t, tc.expected, actual)
+			assert.ElementsMatch(t, tc.expected, actual)
 		})
 	}
 }

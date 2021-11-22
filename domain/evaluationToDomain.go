@@ -5,7 +5,7 @@ import (
 	clientgen "github.com/harness/ff-proxy/gen/client"
 )
 
-// Converts an evaluation.FeatureConfig which the sdk cache sends to a clientgen.FeatureConfig for our internal use
+// Converts an evaluation.FeatureFlag which the sdk cache sends to a clientgen.FeatureFlag for our internal use
 // Converts an evaluation.Segment which the sdk cache sends to a clientgen.Segment for our internal use
 
 func convertEvaluationWeightedVariation(wv evaluation.WeightedVariation) *clientgen.WeightedVariation {
@@ -95,7 +95,7 @@ func convertEvaluationTargetToTargetMap(targets []string) *[]clientgen.TargetMap
 }
 
 // ConvertEvaluationFeatureConfig - Convert evaluation feature config to domain object
-func ConvertEvaluationFeatureConfig(fc evaluation.FeatureConfig) *FeatureConfig {
+func ConvertEvaluationFeatureConfig(fc evaluation.FeatureConfig) *FeatureFlag {
 	vars := make([]clientgen.Variation, len(fc.Variations))
 	for i, val := range fc.Variations {
 		vars[i] = *convertEvaluationVariation(val)
@@ -131,15 +131,7 @@ func ConvertEvaluationFeatureConfig(fc evaluation.FeatureConfig) *FeatureConfig 
 		}
 	}
 
-	var segments map[string]Segment
-	if fc.Segments != nil {
-		segments = make(map[string]Segment, len(fc.Segments))
-		for i, val := range fc.Segments {
-			segments[i] = *ConvertEvaluationSegment(*val)
-		}
-	}
-
-	return &FeatureConfig{
+	return &FeatureFlag{
 		FeatureConfig: clientgen.FeatureConfig{
 			DefaultServe:         defaultServe,
 			Environment:          fc.Environment,
@@ -153,7 +145,6 @@ func ConvertEvaluationFeatureConfig(fc evaluation.FeatureConfig) *FeatureConfig 
 			VariationToTargetMap: &vtm,
 			Variations:           vars,
 		},
-		Segments: segments,
 	}
 }
 

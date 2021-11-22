@@ -71,7 +71,7 @@ var (
 			},
 		},
 		Variations: []evaluation.Variation{{Description: strPtr("desc"), Identifier: "id", Name: strPtr("name"), Value: "val"}},
-		Segments:   map[string]*evaluation.Segment{"test": &evaluationSegmentFoo},
+		Segments:   map[string]*evaluation.Segment(nil),
 	}
 
 	featureBarKey = dto.Key{
@@ -261,7 +261,7 @@ func TestInvalidInputs(t *testing.T) {
 
 	t.Run("Set feature invalid input", func(t *testing.T) {
 		wrapper.Set(featureBarKey, "invalidFeature")
-		assert.Equal(t, "Set failed: couldn't convert to evaluation.FeatureConfig", hook.LastEntry().Message)
+		assert.Equal(t, "Set failed: couldn't convert to evaluation.FeatureFlag", hook.LastEntry().Message)
 		assert.Equal(t, 0, wrapper.Len())
 	})
 

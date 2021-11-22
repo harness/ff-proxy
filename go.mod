@@ -5,7 +5,6 @@ go 1.17
 require (
 	github.com/deepmap/oapi-codegen v1.6.0
 	github.com/dgrijalva/jwt-go v3.2.0+incompatible
-	github.com/drone/ff-golang-server-sdk v0.0.22
 	github.com/go-kit/kit v0.12.0
 	github.com/go-kit/log v0.2.0
 	github.com/golang-jwt/jwt v3.2.1+incompatible

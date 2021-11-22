@@ -9,30 +9,35 @@ import (
 	clientgen "github.com/harness/ff-proxy/gen/client"
 )
 
-// FeatureConfigKey is the key that maps to a FeatureConfig
-type FeatureConfigKey string
+// FeatureFlagKey is the key that maps to a FeatureConfig
+type FeatureFlagKey string
 
-// NewFeatureConfigKey creates a FeatureConfigKey from an environment
-func NewFeatureConfigKey(envID string) FeatureConfigKey {
-	return FeatureConfigKey(fmt.Sprintf("env-%s-feature-config", envID))
+// NewFeatureConfigKey creates a FeatureFlagKey from an environment
+func NewFeatureConfigKey(envID string) FeatureFlagKey {
+	return FeatureFlagKey(fmt.Sprintf("env-%s-feature-config", envID))
+}
+
+// FeatureFlag stores feature flag data
+type FeatureFlag struct {
+	clientgen.FeatureConfig
 }
 
 // FeatureConfig is the type containing FeatureConfig information and is what
 // we return from /GET client/env/<env>/feature-configs
 type FeatureConfig struct {
-	clientgen.FeatureConfig
+	FeatureFlag
 	Segments map[string]Segment `json:"segments"`
 }
 
-// MarshalBinary marshals a FeatureConfig to bytes. Currently it just uses json
+// MarshalBinary marshals a FeatureFlag to bytes. Currently it just uses json
 // marshaling but if we want to optimise storage space we could use something
 // more efficient
-func (f *FeatureConfig) MarshalBinary() ([]byte, error) {
+func (f *FeatureFlag) MarshalBinary() ([]byte, error) {
 	return json.Marshal(f)
 }
 
-// UnmarshalBinary unmarshals bytes to a FeatureConfig
-func (f *FeatureConfig) UnmarshalBinary(b []byte) error {
+// UnmarshalBinary unmarshals bytes to a FeatureFlag
+func (f *FeatureFlag) UnmarshalBinary(b []byte) error {
 	return json.Unmarshal(b, f)
 }
 
