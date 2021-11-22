@@ -47,17 +47,17 @@ type RemoteConfig struct {
 }
 
 // NewRemoteConfig creates a RemoteConfig and retrieves the configuration for
-// the given Account and Org from the Feature Flags Service
-func NewRemoteConfig(ctx context.Context, accountIdentifer string, orgIdentifier string, allowedAPIKeys []string, hasher hash.Hasher, client adminClient, opts ...RemoteOption) RemoteConfig {
+// the given Account, Org and APIKeys from the Feature Flags Service
+func NewRemoteConfig(ctx context.Context, accountIdentifer string, orgIdentifier string, apiKeys []string, hasher hash.Hasher, client adminClient, opts ...RemoteOption) RemoteConfig {
 	rc := &RemoteConfig{
 		client:       client,
 		authConfig:   make(map[domain.AuthAPIKey]string),
 		targetConfig: make(map[domain.TargetKey][]domain.Target),
 	}
 
-	allowedAPIKeysMap := map[string]struct{}{}
-	for _, key := range allowedAPIKeys {
-		allowedAPIKeysMap[hasher.Hash(key)] = struct{}{}
+	allowedAPIKeys := map[string]struct{}{}
+	for _, key := range apiKeys {
+		allowedAPIKeys[hasher.Hash(key)] = struct{}{}
 	}
 
 	for _, opt := range opts {
@@ -72,7 +72,7 @@ func NewRemoteConfig(ctx context.Context, accountIdentifer string, orgIdentifier
 		rc.concurrency = 10
 	}
 	rc.log = log.With(rc.log, "component", "RemoteConfig", "account_identifier", accountIdentifer, "org_identifier", orgIdentifier)
-	rc.load(ctx, accountIdentifer, orgIdentifier, allowedAPIKeysMap)
+	rc.load(ctx, accountIdentifer, orgIdentifier, allowedAPIKeys)
 	return *rc
 }
 
@@ -335,6 +335,11 @@ func (r RemoteConfig) filterOnAllowedAPIKeys(ctx context.Context, inputs <-chan 
 		defer close(out)
 
 		for input := range inputs {
+			if len(input.AllowedKeys) == 0 || input.AllowedKeys == nil {
+				out <- input
+				continue
+			}
+
 			keys := []string{}
 
 			for _, key := range input.APIKeys {
