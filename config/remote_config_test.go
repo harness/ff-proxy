@@ -243,3 +243,72 @@ func TestRemoteConfig(t *testing.T) {
 		})
 	}
 }
+
+func TestMakeConfig(t *testing.T) {
+
+	target1 := domain.Target{
+		admingen.Target{
+			Name:        "Target-1",
+			Environment: "123",
+			Org:         "foo",
+			Project:     "Bar",
+		},
+	}
+
+	target2 := domain.Target{
+		admingen.Target{
+			Name:        "Target-2",
+			Environment: "123",
+			Org:         "foo",
+			Project:     "Bar",
+		},
+	}
+
+	target3 := domain.Target{
+		admingen.Target{
+			Name:        "Target-3",
+			Environment: "123",
+			Org:         "foo",
+			Project:     "Bar",
+		},
+	}
+
+	input := []configPipeline{
+		{
+			EnvironmentID: "123",
+			APIKeys:       []string{"1", "2", "3", "4", "5", "6"},
+			Targets:       []domain.Target{target1, target2},
+		},
+		{
+			EnvironmentID: "123",
+			APIKeys:       []string{},
+			Targets:       []domain.Target{target3},
+		},
+	}
+
+	results := make(chan configPipeline, len(input))
+	for _, i := range input {
+		results <- i
+	}
+	close(results)
+
+	expectedAuth := map[domain.AuthAPIKey]string{
+		domain.AuthAPIKey("1"): "123",
+		domain.AuthAPIKey("2"): "123",
+		domain.AuthAPIKey("3"): "123",
+		domain.AuthAPIKey("4"): "123",
+		domain.AuthAPIKey("5"): "123",
+		domain.AuthAPIKey("6"): "123",
+	}
+
+	expectedTargets := map[domain.TargetKey][]domain.Target{
+		domain.NewTargetKey("123"): []domain.Target{
+			target1, target2, target3,
+		},
+	}
+
+	actualAuth, actualTarget := makeConfigs(results)
+
+	assert.Equal(t, expectedAuth, actualAuth)
+	assert.Equal(t, expectedTargets, actualTarget)
+}
