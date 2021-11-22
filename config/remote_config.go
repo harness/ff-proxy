@@ -119,23 +119,25 @@ func (r *RemoteConfig) load(ctx context.Context, accountIdentifer string, orgIde
 		pipelineResults[i] = r.addTargetConfig(ctx, stage2Result)
 	}
 
+	// Read all the config from the pipeline and build up the authConfig and
+	// targetConfig maps
+	r.authConfig, r.targetConfig = makeConfigs(fanIn(ctx, pipelineResults...))
+	return nil
+}
+
+func makeConfigs(results <-chan configPipeline) (map[domain.AuthAPIKey]string, map[domain.TargetKey][]domain.Target) {
 	authConfig := map[domain.AuthAPIKey]string{}
 	targetConfig := map[domain.TargetKey][]domain.Target{}
 
-	// Read all the config from the pipeline and build up the authConfig and
-	// targetConfig maps
-	for result := range fanIn(ctx, pipelineResults...) {
+	for result := range results {
 		for _, key := range result.APIKeys {
 			authConfig[domain.AuthAPIKey(key)] = result.EnvironmentID
 		}
 
 		targetKey := domain.NewTargetKey(result.EnvironmentID)
-		targetConfig[targetKey] = result.Targets
+		targetConfig[targetKey] = append(targetConfig[targetKey], result.Targets...)
 	}
-
-	r.authConfig = authConfig
-	r.targetConfig = targetConfig
-	return nil
+	return authConfig, targetConfig
 }
 
 // configPipeline is the input and output for each stage of the pipeline that
