@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"flag"
+	"github.com/go-redis/redis/v8"
 	"os"
 	"os/signal"
 	"strings"
@@ -29,13 +30,16 @@ var (
 	offline          bool
 	host             string
 	port             int
-	accountIdentifer string
+	accountIdentifier string
 	orgIdentifier    string
 	adminService     string
 	serviceToken     string
 	authSecret       string
 	sdkBaseURL       string
 	sdkEventsURL     string
+	redisAddress     string
+	redisPassword    string
+	redisDB          int
 	apiKeys          keys
 )
 
@@ -58,13 +62,17 @@ func init() {
 	flag.BoolVar(&offline, "offline", false, "enables side loading of data from config dir")
 	flag.StringVar(&host, "host", "localhost", "host of the proxy service")
 	flag.IntVar(&port, "port", 7000, "port that the proxy service is exposed on")
-	flag.StringVar(&accountIdentifer, "account-identifier", "zEaak-FLS425IEO7OLzMUg", "account identifier to load remote config for")
+	flag.StringVar(&accountIdentifier, "account-identifier", "zEaak-FLS425IEO7OLzMUg", "account identifier to load remote config for")
 	flag.StringVar(&orgIdentifier, "org-identifier", "featureflagorg", "org identifier to load remote config for")
 	flag.StringVar(&adminService, "admin-service", "https://qa.harness.io/gateway/cf", "the url of the admin service")
 	flag.StringVar(&serviceToken, "service-token", "", "token to use with the ff service")
 	flag.StringVar(&authSecret, "auth-secret", "secret", "the secret used for signing auth tokens")
 	flag.StringVar(&sdkBaseURL, "sdkBaseUrl", "https://config.feature-flags.qa.harness.io/api/1.0", "url for the sdk to connect to")
 	flag.StringVar(&sdkEventsURL, "sdkEventsUrl", "https://event.feature-flags.qa.harness.io/api/1.0", "url for the sdk to send metrics to")
+	flag.StringVar(&redisAddress, "redis-address", "", "Redis host:port address")
+	flag.StringVar(&redisPassword, "redis-password", "", "Optional. Redis password")
+	flag.IntVar(&redisDB, "redis-db", 0, "Database to be selected after connecting to the server.")
+
 	flag.Var(&apiKeys, "apiKey", "API keys to connect with ff-server for each environment")
 
 	flag.Parse()
@@ -96,7 +104,7 @@ func initFF(ctx context.Context, cache sdkCache.Cache, baseURL, eventURL, sdkKey
 func main() {
 	// Setup logger
 	logger := log.NewLogger(os.Stderr, debug)
-	logger.Info("msg", "service config", "debug", debug, "bypass-auth", bypassAuth, "offline", offline, "host", host, "port", port, "admin-service", adminService, "account-identifier", accountIdentifer, "org-identifier", orgIdentifier)
+	logger.Info("msg", "service config", "debug", debug, "bypass-auth", bypassAuth, "offline", offline, "host", host, "port", port, "admin-service", adminService, "account-identifier", accountIdentifier, "org-identifier", orgIdentifier)
 
 	// Setup cancelation
 	sigc := make(chan os.Signal, 1)
@@ -137,7 +145,7 @@ func main() {
 		logger.Info("msg", "retrieving config from ff-server...")
 		config := config.NewRemoteConfig(
 			ctx,
-			accountIdentifer,
+			accountIdentifier,
 			orgIdentifier,
 			apiKeys,
 			hash.NewSha256(),
@@ -152,7 +160,22 @@ func main() {
 	}
 
 	// Create cache
-	memCache := cache.NewMemCache()
+	var sdkCache cache.Cache
+
+	// set cache
+	if redisAddress != "" {
+		client := redis.NewClient(&redis.Options{
+			Addr:     redisAddress,
+			Password: redisPassword,
+			DB:       redisDB,
+		})
+		logger.Info("msg", "connecting to redis", "address", redisAddress)
+		sdkCache = cache.NewRedisCache(client)
+	} else {
+		logger.Info("msg", "initialising default memcache")
+		sdkCache = cache.NewMemCache()
+	}
+
 	apiKeyHasher := hash.NewSha256()
 
 	// start an sdk instance for each api key
@@ -166,24 +189,24 @@ func main() {
 			continue
 		}
 
-		cacheWrapper := cache.NewWrapper(&memCache, envID, logrus.New())
+		cacheWrapper := cache.NewWrapper(sdkCache, envID, logrus.New())
 		go initFF(ctx, cacheWrapper, sdkBaseURL, sdkEventsURL, apiKey)
 	}
 
 	// Create repos
-	tr, err := repository.NewTargetRepo(memCache, targetConfig)
+	tr, err := repository.NewTargetRepo(sdkCache, targetConfig)
 	if err != nil {
 		logger.Error("msg", "failed to create target repo", "err", err)
 		os.Exit(1)
 	}
 
-	fcr, err := repository.NewFeatureFlagRepo(memCache, featureConfig)
+	fcr, err := repository.NewFeatureFlagRepo(sdkCache, featureConfig)
 	if err != nil {
 		logger.Error("msg", "failed to create feature config repo", "err", err)
 		os.Exit(1)
 	}
 
-	sr, err := repository.NewSegmentRepo(memCache, segmentConfig)
+	sr, err := repository.NewSegmentRepo(sdkCache, segmentConfig)
 	if err != nil {
 		logger.Error("msg", "failed to create segment repo", "err", err)
 		os.Exit(1)

@@ -257,7 +257,7 @@ func (r RemoteConfig) addEnvironmentConfig(ctx context.Context, inputs <-chan co
 					}
 					input.EnvironmentID = *env.Id
 					input.EnvironmnetIdentifier = env.Identifier
-
+					input.APIKeys = []string{}
 					for _, key := range *env.ApiKeys.ApiKeys {
 						if key.Key != nil {
 							input.APIKeys = append(input.APIKeys, *key.Key)
@@ -337,13 +337,14 @@ func (r RemoteConfig) filterOnAllowedAPIKeys(ctx context.Context, inputs <-chan 
 		defer close(out)
 
 		for input := range inputs {
+			// if no allowed keys skip
 			if len(input.AllowedKeys) == 0 || input.AllowedKeys == nil {
-				out <- input
 				continue
 			}
 
 			keys := []string{}
 
+			// filter found api keys - only keep ones specified in AllowedKeys
 			for _, key := range input.APIKeys {
 				if _, ok := input.AllowedKeys[key]; ok {
 					keys = append(keys, key)

@@ -150,7 +150,7 @@ func TestFeatureFlagRepo_Add(t *testing.T) {
 	}
 
 	testCases := map[string]struct {
-		cache      Cache
+		cache      cache.Cache
 		repoConfig map[domain.FeatureFlagKey][]domain.FeatureFlag
 		flags    []domain.FeatureFlag
 		key        domain.FeatureFlagKey
@@ -230,7 +230,7 @@ func TestFeatureFlagRepo_GetByIdentifer(t *testing.T) {
 	}
 
 	testCases := map[string]struct {
-		cache       Cache
+		cache       cache.Cache
 		repoConfig  map[domain.FeatureFlagKey][]domain.FeatureFlag
 		key         domain.FeatureFlagKey
 		identifier  string

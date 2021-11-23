@@ -3,6 +3,7 @@ package repository
 import (
 	"context"
 	"fmt"
+	"github.com/harness/ff-proxy/cache"
 	"time"
 
 	"github.com/harness/ff-proxy/domain"
@@ -10,12 +11,12 @@ import (
 
 // FeatureFlagRepo is a repository that stores FeatureFlags
 type FeatureFlagRepo struct {
-	cache Cache
+	cache cache.Cache
 }
 
 // NewFeatureFlagRepo creates a FeatureFlagRepo. It can optionally preload the repo with data
 // from the passed config
-func NewFeatureFlagRepo(c Cache, config map[domain.FeatureFlagKey][]domain.FeatureFlag) (FeatureFlagRepo, error) {
+func NewFeatureFlagRepo(c cache.Cache, config map[domain.FeatureFlagKey][]domain.FeatureFlag) (FeatureFlagRepo, error) {
 	fcr := FeatureFlagRepo{cache: c}
 	if config == nil {
 		return fcr, nil
@@ -23,6 +24,8 @@ func NewFeatureFlagRepo(c Cache, config map[domain.FeatureFlagKey][]domain.Featu
 
 	for key, cfg := range config {
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		// cleanup all current keys before we add new ones to make sure keys that have been deleted remotely are removed
+		fcr.cache.RemoveAll(ctx, string(key))
 		if err := fcr.Add(ctx, key, cfg...); err != nil {
 			cancel()
 			return FeatureFlagRepo{}, fmt.Errorf("failed to add flag: %s", err)
