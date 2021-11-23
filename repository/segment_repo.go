@@ -17,20 +17,22 @@ type SegmentRepo struct {
 // NewSegmentRepo creates a SegmentRepo. It can optionally preload the repo with data
 // from the passed config
 func NewSegmentRepo(c cache.Cache, config map[domain.SegmentKey][]domain.Segment) (SegmentRepo, error) {
-	tr := SegmentRepo{cache: c}
+	sr := SegmentRepo{cache: c}
 	if config == nil {
-		return tr, nil
+		return sr, nil
 	}
 
 	for key, cfg := range config {
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		if err := tr.Add(ctx, key, cfg...); err != nil {
+		// cleanup all current keys before we add new ones to make sure keys that have been deleted remotely are removed
+		sr.cache.RemoveAll(ctx, string(key))
+		if err := sr.Add(ctx, key, cfg...); err != nil {
 			cancel()
 			return SegmentRepo{}, fmt.Errorf("failed to add config: %s", err)
 		}
 		cancel()
 	}
-	return tr, nil
+	return sr, nil
 }
 
 // Add adds a target or multiple targets to the given key

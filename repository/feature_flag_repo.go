@@ -24,6 +24,8 @@ func NewFeatureFlagRepo(c cache.Cache, config map[domain.FeatureFlagKey][]domain
 
 	for key, cfg := range config {
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		// cleanup all current keys before we add new ones to make sure keys that have been deleted remotely are removed
+		fcr.cache.RemoveAll(ctx, string(key))
 		if err := fcr.Add(ctx, key, cfg...); err != nil {
 			cancel()
 			return FeatureFlagRepo{}, fmt.Errorf("failed to add flag: %s", err)
