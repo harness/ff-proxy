@@ -13,3 +13,6 @@ __debug_bin
 cf.session.sql
 
 ff-proxy
+.*
+
+**/bench-test/env*
