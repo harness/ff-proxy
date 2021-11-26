@@ -22,18 +22,18 @@ all: dep generate build ## Pulls down required deps, runs required code generat
 $(GOBIN)/oapi-codegen:
 	go get github.com/deepmap/oapi-codegen/cmd/oapi-codegen@v1.6.0
 
-.PHONY: generate
+PHONY+= generate
 generate: ## Generates the client for the ff-servers client service
 	oapi-codegen -generate client -package=client ./ff-api/docs/release/client-v1.yaml > gen/client/services.gen.go
 	oapi-codegen -generate types -package=client ./ff-api/docs/release/client-v1.yaml > gen/client/types.gen.go
 	oapi-codegen -generate client -package=admin  ./ff-api/docs/release/admin-v1.yaml > gen/admin/services.gen.go
 	oapi-codegen -generate types -package=admin ./ff-api/docs/release/admin-v1.yaml > gen/admin/types.gen.go
 
-.PHONY: build
+PHONY+= build
 build: generate ## Builds the ff-proxy service binary
 	CGO_ENABLED=0 go build -o ff-proxy ./cmd/ff-proxy/main.go
 
-.PHONY: build-race
+PHONY+= build-race
 build-race: generate ## Builds the ff-proxy service binary with the race detector enabled
 	CGO_ENABLED=1 go build -race -o ff-proxy ./cmd/ff-proxy/main.go
 
@@ -41,7 +41,7 @@ image: ## Builds a docker image for the proxy called ff-proxy:latest
 	@echo "Building Feature Flag Proxy Image"
 	@docker build --build-arg GITHUB_ACCESS_TOKEN=${GITHUB_ACCESS_TOKEN} -t ff-proxy:latest -f ./Dockerfile .
 
-.PHONY: test
+PHONY+= test
 test: ## Run the go tests (runs with race detector enabled)
 	@echo "Running tests"
 	go test -race -v -coverprofile=coverage.out ./...
@@ -51,22 +51,22 @@ test: ## Run the go tests (runs with race detector enabled)
 # Checks
 # These lint, format and check the code for potential vulnerabilities
 #########################################
-.PHONY: check
+PHONY+= check
 check: lint format sec ## Runs linter, goimports and gosec
 
-.PHONY: lint
+PHONY+= lint
 lint: tools ## lint the golang code
 	@echo "Linting $(1)"
 	@golint ./...
 	@go vet ./...
 
-.PHONY: tools
+PHONY+= tools
 format: tools ## Format go code and error if any changes are made
 	@echo "Formating ..."
 	@goimports -w .
 	@echo "Formatting complete"
 
-.PHONY: sec
+PHONY+= sec
 sec: tools ## Run the security checks
 	@echo "Checking for security problems ..."
 	@gosec -quiet -confidence high -severity medium ./...
@@ -74,3 +74,5 @@ sec: tools ## Run the security checks
 
 help: ## show help message
 	@awk 'BEGIN {FS = ":.*##"; printf "\nUsage:\n  make \033[36m\033[0m\n"} /^[$$()% 0-9a-zA-Z_-]+:.*?##/ { printf "  \033[36m%-15s\033[0m %s\n", $$1, $$2 } /^##@/ { printf "\n\033[1m%s\033[0m\n", substr($$0, 5) } ' $(MAKEFILE_LIST)
+
+.PHONY: $(PHONY)
