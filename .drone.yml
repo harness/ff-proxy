@@ -1,0 +1,46 @@
+---
+kind: pipeline
+type: docker
+name: default
+
+steps:
+- name: dep
+  image: golang:1.17
+  environment:
+    ACCESS_TOKEN:
+      from_secret: GIT_ACCESS_TOKEN
+  commands:
+  - git config --global url."https://$ACCESS_TOKEN:x-oauth-basic@github.com/wings-software".insteadOf "https://github.com/wings-software"
+  - go env -w GOPRIVATE=github.com/wings-software
+  - export PATH=$PATH:$(go env GOPATH)/bin 
+  - git submodule init
+  - git submodule update
+  - make dep
+  volumes:
+  - name: gopath
+    path: /go
+- name: check
+  image: golang:1.17
+  environment:
+    ACCESS_TOKEN:
+      from_secret: GIT_ACCESS_TOKEN
+  commands:
+  - git config --global url."https://$ACCESS_TOKEN:x-oauth-basic@github.com/wings-software".insteadOf "https://github.com/wings-software"
+  - go env -w GOPRIVATE=github.com/wings-software
+  - export PATH=$PATH:$(go env GOPATH)/bin 
+  - make check
+  volumes:
+  - name: gopath
+    path: /go
+- name: build
+  image: golang:1.17
+  commands:
+  - export PATH=$PATH:$(go env GOPATH)/bin 
+  - make build
+  volumes:
+  - name: gopath
+    path: /go
+
+volumes:
+- name: gopath
+  temp: {}
