@@ -13,40 +13,34 @@ type AuthResponse struct {
 
 // FeatureConfigRequest contains the fields sent in a GET /client/env/{environmentUUID}/feature-configs
 type FeatureConfigRequest struct {
-	Token         string
 	EnvironmentID string
 }
 
 // FeatureConfigByIdentifierRequest contains the fields sent in a GET /client/env/{environmentUUID}/feature-configs/{identifier}
 type FeatureConfigByIdentifierRequest struct {
-	Token         string
 	EnvironmentID string
 	Identifier    string
 }
 
 // TargetSegmentsRequest contains the fields sent in a GET /client/env/{environmentUUID}/target-segments
 type TargetSegmentsRequest struct {
-	Token         string
 	EnvironmentID string
 }
 
 // TargetSegmentsByIdentifierRequest contains the fields sent in a GET /client/env/{environmentUUID}/target-segments/{identifier}
 type TargetSegmentsByIdentifierRequest struct {
-	Token         string
 	EnvironmentID string
 	Identifier    string
 }
 
 // EvaluationsRequest contains the fields sent in a GET /client/env/{environmentUUID}/target/{target}/evaluations
 type EvaluationsRequest struct {
-	Token            string
 	EnvironmentID    string
 	TargetIdentifier string
 }
 
 // EvaluationsByFeatureRequest contains the fields sent in a GET /client/env/{environmentUUID}/target/{target}/evaluations/{feature} request
 type EvaluationsByFeatureRequest struct {
-	Token             string
 	EnvironmentID     string
 	TargetIdentifier  string
 	FeatureIdentifier string
@@ -54,13 +48,11 @@ type EvaluationsByFeatureRequest struct {
 
 // StreamRequest contains the fields sent in a GET /stream request
 type StreamRequest struct {
-	Token  string
 	APIKey string `json:"api_key"`
 }
 
 // MetricsRequest contains the fields sent in a POST /metrics request
 type MetricsRequest struct {
-	Token         string
 	EnvironmentID string        `json:"environment_id"`
 	TargetData    []targetData  `json:"targetData"`
 	MetricsData   []metricsData `json:"metricsData"`

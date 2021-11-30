@@ -4,11 +4,12 @@ import (
 	"context"
 	"flag"
 	"fmt"
-	"github.com/hashicorp/go-retryablehttp"
 	stdlog "log"
 	"os"
 	"os/signal"
 	"strings"
+
+	"github.com/hashicorp/go-retryablehttp"
 
 	"github.com/go-redis/redis/v8"
 
@@ -24,6 +25,7 @@ import (
 	"github.com/harness/ff-proxy/repository"
 	"github.com/harness/ff-proxy/services"
 	"github.com/harness/ff-proxy/transport"
+	echomiddleware "github.com/labstack/echo/v4/middleware"
 	"github.com/sirupsen/logrus"
 	"github.com/wings-software/ff-server/pkg/hash"
 )
@@ -168,12 +170,12 @@ func initFF(ctx context.Context, cache sdkCache.Cache, baseURL, eventURL, envID,
 	)
 	defer func() {
 		if err := client.Close(); err != nil {
-			contextLogger.Error("error while closing client err: %v", err)
+			contextLogger.Errorf("error while closing client err: %v", err)
 		}
 	}()
 
 	if err != nil {
-		contextLogger.Error("could not connect to CF servers %v", err)
+		contextLogger.Errorf("could not connect to CF servers %v", err)
 	}
 
 	<-ctx.Done()
@@ -323,12 +325,15 @@ func main() {
 	// Setup service and middleware
 	var service proxyservice.ProxyService
 	service = proxyservice.NewService(fcr, tr, sr, tokenSource.GenerateToken, featureEvaluator, clientService, logger)
-	service = middleware.NewAuthMiddleware(tokenSource.ValidateToken, bypassAuth, service)
-	service = middleware.NewLoggingMiddleware(logger, debug, service)
 
 	// Configure endpoints and server
 	endpoints := transport.NewEndpoints(service)
 	server := transport.NewHTTPServer(host, port, endpoints, logger)
+	server.Use(
+		echomiddleware.RequestID(),
+		middleware.NewEchoLoggingMiddleware(),
+		middleware.NewEchoAuthMiddleware([]byte(authSecret), bypassAuth),
+	)
 
 	go func() {
 		<-ctx.Done()

@@ -188,10 +188,11 @@ func setupHTTPServer(t *testing.T, bypassAuth bool, opts ...setupOpts) *HTTPServ
 		setupConfig.clientService,
 		logger,
 	)
-	service = middleware.NewAuthMiddleware(tokenSource.ValidateToken, bypassAuth, service)
 	endpoints := NewEndpoints(service)
 
-	return NewHTTPServer("localhost", 7000, endpoints, logger)
+	server := NewHTTPServer("localhost", 7000, endpoints, logger)
+	server.Use(middleware.NewEchoAuthMiddleware([]byte(`secret`), bypassAuth))
+	return server
 }
 
 // featureConfigWithSegments is the expected response body for a FeatureConfigs request - the newline at the end is intentional
