@@ -23,6 +23,7 @@ import (
 	"github.com/harness/ff-proxy/repository"
 	"github.com/harness/ff-proxy/services"
 	"github.com/harness/ff-proxy/transport"
+	echomiddleware "github.com/labstack/echo/v4/middleware"
 	"github.com/sirupsen/logrus"
 	"github.com/wings-software/ff-server/pkg/hash"
 )
@@ -299,12 +300,15 @@ func main() {
 	// Setup service and middleware
 	var service proxyservice.ProxyService
 	service = proxyservice.NewService(fcr, tr, sr, tokenSource.GenerateToken, featureEvaluator, logger)
-	service = middleware.NewAuthMiddleware(tokenSource.ValidateToken, bypassAuth, service)
-	service = middleware.NewLoggingMiddleware(logger, debug, service)
 
 	// Configure endpoints and server
 	endpoints := transport.NewEndpoints(service)
 	server := transport.NewHTTPServer(host, port, endpoints, logger)
+	server.Use(
+		echomiddleware.RequestID(),
+		middleware.NewEchoLoggingMiddleware(),
+		middleware.NewEchoAuthMiddleware([]byte(authSecret), bypassAuth),
+	)
 
 	go func() {
 		<-ctx.Done()

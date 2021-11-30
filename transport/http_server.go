@@ -7,14 +7,12 @@ import (
 	"time"
 
 	"github.com/harness/ff-proxy/log"
-
-	httptransport "github.com/go-kit/kit/transport/http"
-	"github.com/gorilla/mux"
+	"github.com/labstack/echo/v4"
 )
 
 // HTTPServer is an http server that handles http requests
 type HTTPServer struct {
-	router *mux.Router
+	router *echo.Echo
 	server *http.Server
 	log    log.Logger
 }
@@ -24,7 +22,7 @@ type HTTPServer struct {
 func NewHTTPServer(host string, port int, e *Endpoints, l log.Logger) *HTTPServer {
 	l = log.With(l, "component", "HTTPServer")
 
-	router := mux.NewRouter()
+	router := echo.New()
 	server := &http.Server{
 		Addr:              fmt.Sprintf("%s:%d", host, port),
 		Handler:           cors(router),
@@ -43,7 +41,7 @@ func NewHTTPServer(host string, port int, e *Endpoints, l log.Logger) *HTTPServe
 	return h
 }
 
-//ServeHTTP makes HTTPServer implement the http.Handler interface
+// ServeHTTP makes HTTPServer implement the http.Handler interface
 func (h *HTTPServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	h.router.ServeHTTP(w, r)
 }
@@ -56,89 +54,79 @@ func (h *HTTPServer) Serve() error {
 
 // Shutdown gracefully shutsdown the server
 func (h *HTTPServer) Shutdown(ctx context.Context) error {
-	h.log.Info("msg", "shutting down http server...", "addr", h.server.Addr)
+	h.log.Info("msg", "shutting down http server", "addr", h.server.Addr)
 	return h.server.Shutdown(ctx)
 }
 
 // Use applies the passed MiddewareFuncs to all endpoints on the HTTPServer
-func (h *HTTPServer) Use(mw ...mux.MiddlewareFunc) {
-	h.router.Use(mw...)
+func (h *HTTPServer) Use(mw ...echo.MiddlewareFunc) {
+	for _, m := range mw {
+		h.router.Use(m)
+	}
 }
 
 func (h *HTTPServer) registerEndpoints(e *Endpoints) {
-	options := []httptransport.ServerOption{
-		httptransport.ServerErrorHandler(errorHandler{logger: h.log}),
-		httptransport.ServerErrorEncoder(encodeError),
-		httptransport.ServerBefore(httptransport.PopulateRequestContext),
-	}
-
-	streamOptions := []StreamHandlerOption{
-		StreamHandlerErrorHandler(errorHandler{logger: h.log}),
-		StreamHandlerErrorEncoder(encodeError),
-		StreamHandlerBefore(httptransport.PopulateRequestContext),
-	}
-
-	h.router.Methods(http.MethodPost).Path("/client/auth").Handler(httptransport.NewServer(
+	h.router.POST("/client/auth", NewUnaryHandler(
 		e.PostAuthenticate,
 		decodeAuthRequest,
 		encodeResponse,
-		options...,
+		encodeEchoError,
 	))
 
-	h.router.Methods(http.MethodGet).Path("/client/env/{environmentUUID}/feature-configs").Handler(httptransport.NewServer(
+	h.router.GET("/client/env/:environment_uuid/feature-configs", NewUnaryHandler(
 		e.GetFeatureConfigs,
 		decodeGetFeatureConfigsRequest,
 		encodeResponse,
-		options...,
+		encodeEchoError,
 	))
 
-	h.router.Methods(http.MethodGet).Path("/client/env/{environmentUUID}/feature-configs/{identifier}").Handler(httptransport.NewServer(
+	h.router.GET("/client/env/:environment_uuid/feature-configs/:identifier", NewUnaryHandler(
 		e.GetFeatureConfigsByIdentifier,
 		decodeGetFeatureConfigsByIdentifierRequest,
 		encodeResponse,
-		options...,
+		encodeEchoError,
 	))
 
-	h.router.Methods(http.MethodGet).Path("/client/env/{environmentUUID}/target-segments").Handler(httptransport.NewServer(
+	h.router.GET("/client/env/:environment_uuid/target-segments", NewUnaryHandler(
 		e.GetTargetSegments,
 		decodeGetTargetSegmentsRequest,
 		encodeResponse,
-		options...,
+		encodeEchoError,
 	))
 
-	h.router.Methods(http.MethodGet).Path("/client/env/{environmentUUID}/target-segments/{identifier}").Handler(httptransport.NewServer(
+	h.router.GET("/client/env/:environment_uuid/target-segments/:identifier", NewUnaryHandler(
 		e.GetTargetSegmentsByIdentifier,
 		decodeGetTargetSegmentsByIdentifierRequest,
 		encodeResponse,
-		options...,
+		encodeEchoError,
 	))
 
-	h.router.Methods(http.MethodGet).Path("/client/env/{environmentUUID}/target/{target}/evaluations").Handler(httptransport.NewServer(
+	h.router.GET("/client/env/:environment_uuid/target/:target/evaluations", NewUnaryHandler(
 		e.GetEvaluations,
 		decodeGetEvaluationsRequest,
 		encodeResponse,
-		options...,
+		encodeEchoError,
 	))
 
-	h.router.Methods(http.MethodGet).Path("/client/env/{environmentUUID}/target/{target}/evaluations/{feature}").Handler(httptransport.NewServer(
+	h.router.GET("/client/env/:environment_uuid/target/:target/evaluations/:feature", NewUnaryHandler(
 		e.GetEvaluationsByFeature,
 		decodeGetEvaluationsByFeatureRequest,
 		encodeResponse,
-		options...,
+		encodeEchoError,
 	))
 
-	h.router.Methods(http.MethodGet).Path("/stream").Handler(NewStreamHandler(
+	h.router.GET("/stream", NewServerStreamHandler(
 		e.GetStream,
 		decodeGetStreamRequest,
 		encodeStreamResponse,
-		streamOptions...,
+		encodeEchoError,
 	))
 
-	h.router.Methods(http.MethodPost).Path("/metrics/{environmentUUID}").Handler(httptransport.NewServer(
+	h.router.POST("/metrics/:environment_uuid", NewUnaryHandler(
 		e.PostMetrics,
 		decodeMetricsRequest,
 		encodeResponse,
-		options...,
+		encodeEchoError,
 	))
 }
 
@@ -154,16 +142,4 @@ func cors(next http.Handler) http.Handler {
 
 		next.ServeHTTP(w, r)
 	})
-}
-
-// errorHandler handles logging transport errors
-type errorHandler struct {
-	logger log.Logger
-}
-
-// Handle makes errorHandler implement the httptransport.ErrorHandler interface
-func (e errorHandler) Handle(ctx context.Context, err error) {
-	method := ctx.Value(httptransport.ContextKeyRequestMethod)
-	path := ctx.Value(httptransport.ContextKeyRequestPath)
-	e.logger.Error("method", method, "path", path, "err", err)
 }
