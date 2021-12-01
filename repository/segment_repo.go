@@ -35,7 +35,7 @@ func NewSegmentRepo(c cache.Cache, config map[domain.SegmentKey][]domain.Segment
 	return sr, nil
 }
 
-// Add adds a target or multiple targets to the given key
+// Add adds a segment or multiple segments to the given key
 func (t SegmentRepo) Add(ctx context.Context, key domain.SegmentKey, values ...domain.Segment) error {
 	errs := []error{}
 	for _, v := range values {
@@ -45,7 +45,7 @@ func (t SegmentRepo) Add(ctx context.Context, key domain.SegmentKey, values ...d
 	}
 
 	if len(errs) > 0 {
-		return fmt.Errorf("failed to add target(s) to repo: %v", errs)
+		return fmt.Errorf("failed to add segment(s) to repo: %v", errs)
 	}
 	return nil
 }
@@ -57,23 +57,23 @@ func (t SegmentRepo) Get(ctx context.Context, key domain.SegmentKey) ([]domain.S
 		return []domain.Segment{}, err
 	}
 
-	targets := []domain.Segment{}
+	segments := []domain.Segment{}
 	for _, b := range results {
-		target := &domain.Segment{}
-		if err := target.UnmarshalBinary(b); err != nil {
+		segment := &domain.Segment{}
+		if err := segment.UnmarshalBinary(b); err != nil {
 			return []domain.Segment{}, err
 		}
-		targets = append(targets, *target)
+		segments = append(segments, *segment)
 	}
 
-	return targets, nil
+	return segments, nil
 }
 
 // GetByIdentifier gets a Segment for a given key and identifer
 func (t SegmentRepo) GetByIdentifier(ctx context.Context, key domain.SegmentKey, identifier string) (domain.Segment, error) {
-	target := domain.Segment{}
-	if err := t.cache.Get(ctx, string(key), identifier, &target); err != nil {
+	segment := domain.Segment{}
+	if err := t.cache.Get(ctx, string(key), identifier, &segment); err != nil {
 		return domain.Segment{}, err
 	}
-	return target, nil
+	return segment, nil
 }

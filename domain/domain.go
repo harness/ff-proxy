@@ -97,3 +97,23 @@ type Claims struct {
 	Environment string `json:"environment"`
 	jwt.StandardClaims
 }
+
+// EnvironmentID is the environment value we store in the cache
+type EnvironmentID string
+
+// AuthConfig contains a hashed APIKey and the EnvironmentID it belongs to
+type AuthConfig struct {
+	APIKey  AuthAPIKey
+	EnvironmentID EnvironmentID
+}
+
+// MarshalBinary marshals an EnvironmentID to bytes. Currently it uses json marshaling
+// but if we want to optimise storage space we could use something more efficient
+func (a *EnvironmentID) MarshalBinary() ([]byte, error) {
+	return json.Marshal(a)
+}
+
+// UnmarshalBinary unmarshals bytes to an EnvironmentID
+func (a *EnvironmentID) UnmarshalBinary(b []byte) error {
+	return json.Unmarshal(b, a)
+}

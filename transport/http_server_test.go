@@ -67,7 +67,7 @@ func setupHTTPServer(t *testing.T, bypassAuth bool) *HTTPServer {
 		t.Fatal(err)
 	}
 
-	authRepo := repository.NewAuthRepo(map[domain.AuthAPIKey]string{
+	authRepo, _ := repository.NewAuthRepo(cache, map[domain.AuthAPIKey]string{
 		domain.AuthAPIKey(hashedAPIKey123): envID123,
 	})
 	tokenSource := ffproxy.NewTokenSource(log.NoOpLogger{}, authRepo, hash.NewSha256(), []byte(`secret`))

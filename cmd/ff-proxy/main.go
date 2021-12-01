@@ -212,7 +212,12 @@ func main() {
 		os.Exit(1)
 	}
 
-	authRepo := repository.NewAuthRepo(authConfig)
+	authRepo, err := repository.NewAuthRepo(sdkCache, authConfig)
+	if err != nil {
+		logger.Error("msg", "failed to create auth config repo", "err", err)
+		os.Exit(1)
+	}
+
 	tokenSource := ffproxy.NewTokenSource(logger, authRepo, apiKeyHasher, []byte(authSecret))
 
 	featureEvaluator := proxyservice.NewFeatureEvaluator()

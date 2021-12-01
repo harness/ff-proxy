@@ -1,6 +1,7 @@
 package ffproxy
 
 import (
+	"github.com/harness/ff-proxy/cache"
 	"testing"
 	"time"
 
@@ -20,7 +21,7 @@ func TestTokenSource_GenerateToken(t *testing.T) {
 	)
 	secret := []byte(`secret`)
 
-	authRepo := repository.NewAuthRepo(map[domain.AuthAPIKey]string{
+	authRepo, _ := repository.NewAuthRepo(cache.NewMemCache(), map[domain.AuthAPIKey]string{
 		domain.AuthAPIKey(hashedKey): envID,
 	})
 	tokenSource := NewTokenSource(log.NoOpLogger{}, authRepo, hash.NewSha256(), secret)
@@ -105,7 +106,7 @@ func TestTokenSource_ValidateToken(t *testing.T) {
 		secret     = []byte(`secret`)
 		fakeSecret = []byte(`foo`)
 
-		authRepo    = repository.NewAuthRepo(nil)
+		authRepo, _    = repository.NewAuthRepo(cache.NewMemCache(), nil)
 		tokenSource = NewTokenSource(log.NoOpLogger{}, authRepo, hash.NewSha256(), secret)
 	)
 
