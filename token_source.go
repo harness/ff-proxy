@@ -1,6 +1,7 @@
 package ffproxy
 
 import (
+	"context"
 	"fmt"
 	"time"
 
@@ -10,7 +11,7 @@ import (
 )
 
 type authRepo interface {
-	Get(key domain.AuthAPIKey) (string, bool)
+	Get(context context.Context, key domain.AuthAPIKey) (string, bool)
 }
 
 type hasher interface {
@@ -35,7 +36,7 @@ func NewTokenSource(l log.Logger, repo authRepo, hasher hasher, secret []byte) T
 func (a TokenSource) GenerateToken(key string) (string, error) {
 	h := a.hasher.Hash(key)
 
-	env, ok := a.repo.Get(domain.AuthAPIKey(h))
+	env, ok := a.repo.Get(context.Background(), domain.AuthAPIKey(h))
 	if !ok {
 		return "", fmt.Errorf("Key %q not found", key)
 	}

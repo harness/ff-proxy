@@ -23,7 +23,7 @@ func NewTargetRepo(c cache.Cache, config map[domain.TargetKey][]domain.Target) (
 	}
 
 	for key, cfg := range config {
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		// cleanup all current keys before we add new ones to make sure keys that have been deleted remotely are removed
 		tr.cache.RemoveAll(ctx, string(key))
 		if err := tr.Add(ctx, key, cfg...); err != nil {
