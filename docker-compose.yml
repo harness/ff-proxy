@@ -1,0 +1,9 @@
+version: "3.9"
+services:
+  proxy:
+    image: "harness/ff-proxy:latest"
+    volumes:
+      - ./config:/config
+    command: --offline
+    ports:
+      - "7000:7000"
