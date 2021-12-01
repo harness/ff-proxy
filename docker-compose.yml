@@ -2,8 +2,14 @@ version: "3.9"
 services:
   proxy:
     image: "harness/ff-proxy:latest"
+    env_file: ".offline.docker.env"
     volumes:
       - ./config:/config
-    command: --offline
+    command: ./app/ff-proxy
     ports:
       - "7000:7000"
+
+  redis:
+    image: "redis:latest"
+    ports:
+      - "6379:6379"

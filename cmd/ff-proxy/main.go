@@ -3,10 +3,13 @@ package main
 import (
 	"context"
 	"flag"
-	"github.com/go-redis/redis/v8"
+	"fmt"
+	stdlog "log"
 	"os"
 	"os/signal"
 	"strings"
+
+	"github.com/go-redis/redis/v8"
 
 	sdkCache "github.com/harness/ff-golang-server-sdk/cache"
 	harness "github.com/harness/ff-golang-server-sdk/client"
@@ -24,27 +27,8 @@ import (
 	"github.com/wings-software/ff-server/pkg/hash"
 )
 
-var (
-	debug            bool
-	bypassAuth       bool
-	offline          bool
-	host             string
-	port             int
-	accountIdentifier string
-	orgIdentifier    string
-	adminService     string
-	serviceToken     string
-	authSecret       string
-	sdkBaseURL       string
-	sdkEventsURL     string
-	redisAddress     string
-	redisPassword    string
-	redisDB          int
-	apiKeys          keys
-)
-
-// keys implements the flag.Value interface and allows us to pass in multiple api keys in the program arguments
-// e.g. -apiKey key1 -apiKey key2 -apiKey key3
+// keys implements the flag.Value interface and allows us to pass a comma seperated
+// list of api keys e.g. -api-keys 123,456,789
 type keys []string
 
 func (i *keys) String() string {
@@ -52,28 +36,104 @@ func (i *keys) String() string {
 }
 
 func (i *keys) Set(value string) error {
-	*i = append(*i, strings.TrimSpace(value))
+	ss := strings.Split(value, ",")
+	for _, s := range ss {
+		*i = append(*i, s)
+	}
 	return nil
 }
 
-func init() {
-	flag.BoolVar(&bypassAuth, "bypass-auth", false, "bypasses authentication")
-	flag.BoolVar(&debug, "debug", false, "enables debug logging")
-	flag.BoolVar(&offline, "offline", false, "enables side loading of data from config dir")
-	flag.StringVar(&host, "host", "localhost", "host of the proxy service")
-	flag.IntVar(&port, "port", 7000, "port that the proxy service is exposed on")
-	flag.StringVar(&accountIdentifier, "account-identifier", "zEaak-FLS425IEO7OLzMUg", "account identifier to load remote config for")
-	flag.StringVar(&orgIdentifier, "org-identifier", "featureflagorg", "org identifier to load remote config for")
-	flag.StringVar(&adminService, "admin-service", "https://qa.harness.io/gateway/cf", "the url of the admin service")
-	flag.StringVar(&serviceToken, "service-token", "", "token to use with the ff service")
-	flag.StringVar(&authSecret, "auth-secret", "secret", "the secret used for signing auth tokens")
-	flag.StringVar(&sdkBaseURL, "sdkBaseUrl", "https://config.feature-flags.qa.harness.io/api/1.0", "url for the sdk to connect to")
-	flag.StringVar(&sdkEventsURL, "sdkEventsUrl", "https://event.feature-flags.qa.harness.io/api/1.0", "url for the sdk to send metrics to")
-	flag.StringVar(&redisAddress, "redis-address", "", "Redis host:port address")
-	flag.StringVar(&redisPassword, "redis-password", "", "Optional. Redis password")
-	flag.IntVar(&redisDB, "redis-db", 0, "Database to be selected after connecting to the server.")
+var (
+	debug             bool
+	bypassAuth        bool
+	offline           bool
+	host              string
+	port              int
+	accountIdentifier string
+	orgIdentifier     string
+	adminService      string
+	adminServiceToken string
+	authSecret        string
+	sdkBaseURL        string
+	sdkEventsURL      string
+	redisAddress      string
+	redisPassword     string
+	redisDB           int
+	apiKeys           keys
+)
 
-	flag.Var(&apiKeys, "apiKey", "API keys to connect with ff-server for each environment")
+const (
+	bypassAuthEnv        = "BYPASS_AUTH"
+	debugEnv             = "DEBUG"
+	offlineEnv           = "OFFLINE"
+	hostEnv              = "HOST"
+	portEnv              = "PORT"
+	accountIdentifierEnv = "ACCOUNT_IDENTIFIER"
+	orgIdentifierEnv     = "ORG_IDENTIFIER"
+	adminServiceEnv      = "ADMIN_SERVICE"
+	adminServiceTokenEnv = "ADMIN_SERVICE_TOKEN"
+	authSecretEnv        = "AUTH_SECRET"
+	sdkBaseURLEnv        = "SDK_BASE_URL"
+	sdkEventsURLEnv      = "SDK_EVENTS_URL"
+	redisAddrEnv         = "REDIS_ADDRESS"
+	redisPasswordEnv     = "REDIS_PASSWORD"
+	redisDBEnv           = "REDIS_DB"
+	apiKeysEnv           = "API_KEYS"
+
+	bypassAuthFlag        = "bypass-auth"
+	debugFlag             = "debug"
+	offlineFlag           = "offline"
+	hostFlag              = "host"
+	portFlag              = "port"
+	accountIdentifierFlag = "account-identifier"
+	orgIdentifierFlag     = "org-identifier"
+	adminServiceFlag      = "admin-service"
+	adminServiceTokenFlag = "admin-service-token"
+	authSecretFlag        = "auth-secret"
+	sdkBaseURLFlag        = "sdk-base-url"
+	sdkEventsURLFlag      = "sdk-events-url"
+	redisAddressFlag      = "redis-address"
+	redisPasswordFlag     = "redis-password"
+	redisDBFlag           = "redis-db"
+	apiKeysFlag           = "api-keys"
+)
+
+func init() {
+	flag.BoolVar(&bypassAuth, bypassAuthFlag, false, "bypasses authentication")
+	flag.BoolVar(&debug, debugFlag, false, "enables debug logging")
+	flag.BoolVar(&offline, offlineFlag, false, "enables side loading of data from config dir")
+	flag.StringVar(&host, hostFlag, "localhost", "host of the proxy service")
+	flag.IntVar(&port, portFlag, 7000, "port that the proxy service is exposed on")
+	flag.StringVar(&accountIdentifier, accountIdentifierFlag, "", "account identifier to load remote config for")
+	flag.StringVar(&orgIdentifier, orgIdentifierFlag, "", "org identifier to load remote config for")
+	flag.StringVar(&adminService, adminServiceFlag, "https://harness.io/gateway/cf", "the url of the admin service")
+	flag.StringVar(&adminServiceToken, adminServiceTokenFlag, "", "token to use with the ff service")
+	flag.StringVar(&authSecret, authSecretFlag, "", "the secret used for signing auth tokens")
+	flag.StringVar(&sdkBaseURL, sdkBaseURLFlag, "https://config.ff.harness.io/", "url for the sdk to connect to")
+	flag.StringVar(&sdkEventsURL, sdkEventsURLFlag, "https://events.ff.harness.io/", "url for the sdk to send metrics to")
+	flag.StringVar(&redisAddress, redisAddressFlag, "", "Redis host:port address")
+	flag.StringVar(&redisPassword, redisPasswordFlag, "", "Optional. Redis password")
+	flag.IntVar(&redisDB, redisDBFlag, 0, "Database to be selected after connecting to the server.")
+	flag.Var(&apiKeys, apiKeysFlag, "API keys to connect with ff-server for each environment")
+
+	loadFlagsFromEnv(map[string]string{
+		bypassAuthEnv:        bypassAuthFlag,
+		debugEnv:             debugFlag,
+		offlineEnv:           offlineFlag,
+		hostEnv:              hostFlag,
+		portEnv:              portFlag,
+		accountIdentifierEnv: accountIdentifierFlag,
+		orgIdentifierEnv:     orgIdentifierFlag,
+		adminServiceEnv:      adminServiceFlag,
+		adminServiceTokenEnv: adminServiceTokenFlag,
+		authSecretEnv:        authSecretFlag,
+		sdkBaseURLEnv:        sdkBaseURLFlag,
+		sdkEventsURLEnv:      sdkEventsURLFlag,
+		redisAddrEnv:         redisAddressFlag,
+		redisPasswordEnv:     redisPasswordFlag,
+		redisDBEnv:           redisDBFlag,
+		apiKeysEnv:           apiKeysFlag,
+	})
 
 	flag.Parse()
 }
@@ -102,9 +162,25 @@ func initFF(ctx context.Context, cache sdkCache.Cache, baseURL, eventURL, sdkKey
 }
 
 func main() {
+	requiredFlags := map[string]interface{}{}
+	if offline {
+		requiredFlags = map[string]interface{}{
+			authSecretEnv: authSecret,
+		}
+	} else {
+		requiredFlags = map[string]interface{}{
+			accountIdentifierEnv: accountIdentifier,
+			orgIdentifierEnv:     orgIdentifier,
+			adminServiceTokenEnv: adminServiceToken,
+			authSecretEnv:        authSecret,
+			apiKeysEnv:           apiKeysFlag,
+		}
+	}
+	validateFlags(requiredFlags)
+
 	// Setup logger
 	logger := log.NewLogger(os.Stderr, debug)
-	logger.Info("msg", "service config", "debug", debug, "bypass-auth", bypassAuth, "offline", offline, "host", host, "port", port, "admin-service", adminService, "account-identifier", accountIdentifier, "org-identifier", orgIdentifier)
+	logger.Info("msg", "service config", "debug", debug, "bypass-auth", bypassAuth, "offline", offline, "host", host, "port", port, "admin-service", adminService, "account-identifier", accountIdentifier, "org-identifier", orgIdentifier, "sdk-base-url", sdkBaseURL, "sdk-events-url", sdkEventsURL, "redis-addr", redisAddress, "redis-db", redisDB, "api-keys", fmt.Sprintf("%v", apiKeys))
 
 	// Setup cancelation
 	sigc := make(chan os.Signal, 1)
@@ -115,7 +191,7 @@ func main() {
 		cancel()
 	}()
 
-	adminClient, err := services.NewAdminClient(logger, adminService, serviceToken)
+	adminClient, err := services.NewAdminClient(logger, adminService, adminServiceToken)
 	if err != nil {
 		logger.Error("msg", "failed to create admin client", "err", err)
 		os.Exit(1)
@@ -127,6 +203,23 @@ func main() {
 		segmentConfig map[domain.SegmentKey][]domain.Segment
 		authConfig    map[domain.AuthAPIKey]string
 	)
+
+	// Create cache
+	var sdkCache cache.Cache
+	if redisAddress != "" {
+		client := redis.NewClient(&redis.Options{
+			Addr:     redisAddress,
+			Password: redisPassword,
+			DB:       redisDB,
+		})
+		logger.Info("msg", "connecting to redis", "address", redisAddress)
+		sdkCache = cache.NewRedisCache(client)
+	} else {
+		logger.Info("msg", "initialising default memcache")
+		sdkCache = cache.NewMemCache()
+	}
+
+	apiKeyHasher := hash.NewSha256()
 
 	// Load either local config from files or remote config from ff-server
 	if offline {
@@ -157,40 +250,21 @@ func main() {
 		authConfig = config.AuthConfig()
 		targetConfig = config.TargetConfig()
 		logger.Info("msg", "successfully retrieved config from ff-server")
-	}
 
-	// Create cache
-	var sdkCache cache.Cache
+		// start an sdk instance for each api key
+		for _, apiKey := range apiKeys {
+			apiKeyHash := apiKeyHasher.Hash(apiKey)
 
-	// set cache
-	if redisAddress != "" {
-		client := redis.NewClient(&redis.Options{
-			Addr:     redisAddress,
-			Password: redisPassword,
-			DB:       redisDB,
-		})
-		logger.Info("msg", "connecting to redis", "address", redisAddress)
-		sdkCache = cache.NewRedisCache(client)
-	} else {
-		logger.Info("msg", "initialising default memcache")
-		sdkCache = cache.NewMemCache()
-	}
+			// find corresponding environmentID for apiKey
+			envID, ok := authConfig[domain.AuthAPIKey(apiKeyHash)]
+			if !ok {
+				logger.Error("API key not found, skipping", apiKey)
+				continue
+			}
 
-	apiKeyHasher := hash.NewSha256()
-
-	// start an sdk instance for each api key
-	for _, apiKey := range apiKeys {
-		apiKeyHash := apiKeyHasher.Hash(apiKey)
-
-		// find corresponding environmentID for apiKey
-		envID, ok := authConfig[domain.AuthAPIKey(apiKeyHash)]
-		if !ok {
-			logger.Error("API key not found, skipping: %v", apiKey)
-			continue
+			cacheWrapper := cache.NewWrapper(sdkCache, envID, logrus.New())
+			go initFF(ctx, cacheWrapper, sdkBaseURL, sdkEventsURL, apiKey)
 		}
-
-		cacheWrapper := cache.NewWrapper(sdkCache, envID, logrus.New())
-		go initFF(ctx, cacheWrapper, sdkBaseURL, sdkEventsURL, apiKey)
 	}
 
 	// Create repos
@@ -239,5 +313,39 @@ func main() {
 
 	if err := server.Serve(); err != nil {
 		logger.Error("msg", "server stopped", "err", err)
+	}
+}
+
+func loadFlagsFromEnv(envToFlag map[string]string) {
+	for k, v := range envToFlag {
+		val := os.Getenv(k)
+		if val == "" {
+			continue
+		}
+		os.Args = append(os.Args, fmt.Sprintf("--%s=%s", v, val))
+	}
+}
+
+func validateFlags(flags map[string]interface{}) {
+	unset := []string{}
+	for k, v := range flags {
+		switch v.(type) {
+		case string:
+			if v == "" {
+				unset = append(unset, k)
+			}
+		case int:
+			if v == 0 {
+				unset = append(unset, k)
+			}
+		case []string:
+			if len(v.([]string)) == 0 {
+				unset = append(unset, k)
+			}
+		}
+	}
+
+	if len(unset) > 0 {
+		stdlog.Fatalf("The following configuaration values are required: %v ", unset)
 	}
 }

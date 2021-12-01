@@ -4,6 +4,9 @@ endif
 ifndef GOBIN
         GOBIN := $(shell go env GOPATH)/bin
 endif
+ifndef DOCKER_BUILD_OPTS
+	DOCKER_BUILD_OPTS := --build
+endif
 
 .DEFAULT_GOAL := all
 
@@ -47,6 +50,27 @@ test: ## Run the go tests (runs with race detector enabled)
 	@echo "Running tests"
 	go test -race -v -coverprofile=coverage.out ./...
 	go tool cover -html=coverage.out
+
+PHONY+= dev
+dev: ## Brings up services that the proxy uses
+	docker-compose -f ./docker-compose.yml run -d --service-ports redis
+
+PHONY+= run
+run: ## Runs the proxy and redis
+	docker-compose -f ./docker-compose.yml up ${DOCKER_BUILD_OPTS} --remove-orphans redis proxy
+
+PHONY+= stop
+stop: ## Stops all services brought up by make run
+	docker-compose -f ./docker-compose.yml down --remove-orphans
+
+PHONY+= clean-redis
+clean-redis: ## Removes all data from redis
+	redis-cli -h localhost -p 6379 flushdb
+
+PHONY+= build-example-sdk
+build-example-sdk: ## builds an example sdk that can be used for hitting the proxy
+	CGO_ENABLED=0 go build -o ff-example-sdk ./cmd/example-sdk/main.go
+
 
 #########################################
 # Checks

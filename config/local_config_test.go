@@ -226,10 +226,15 @@ func TestLocalConfig(t *testing.T) {
 }
 
 func TestLocalConfig_Auth(t *testing.T) {
+	const (
+		apikey1Hash = "15fac8fa1c99022568b008b9df07b04b45354ac5ca4740041d904cd3cf2b39e3"
+		apikey2Hash = "35ab1e0411c4cc6ecaaa676a4c7fef259798799ed40ad09fb07adae902bd0c7a"
+		apikey3Hash = "d4f79b313f8106f5af108ad96ff516222dbfd5a0ab52f4308e4b1ad1d740de60"
+	)
 	expected := map[domain.AuthAPIKey]string{
-		domain.AuthAPIKey("apikey1"): "1234",
-		domain.AuthAPIKey("apikey2"): "1234",
-		domain.AuthAPIKey("apikey3"): "1234",
+		domain.AuthAPIKey(apikey1Hash): "1234",
+		domain.AuthAPIKey(apikey2Hash): "1234",
+		domain.AuthAPIKey(apikey3Hash): "1234",
 	}
 
 	lc, err := NewLocalConfig(testConfig, testDir)
