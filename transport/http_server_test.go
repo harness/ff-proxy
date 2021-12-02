@@ -2,7 +2,9 @@ package transport
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"io/fs"
@@ -15,6 +17,7 @@ import (
 	"github.com/harness/ff-proxy/cache"
 	"github.com/harness/ff-proxy/config"
 	"github.com/harness/ff-proxy/domain"
+	admingen "github.com/harness/ff-proxy/gen/admin"
 	"github.com/harness/ff-proxy/log"
 	"github.com/harness/ff-proxy/middleware"
 	proxyservice "github.com/harness/ff-proxy/proxy-service"
@@ -22,6 +25,36 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/wings-software/ff-server/pkg/hash"
 )
+
+func boolPtr(b bool) *bool {
+	return &b
+}
+
+type mockClientService struct {
+	authenticate func(target domain.Target) (domain.Target, error)
+	targetsc     chan domain.Target
+}
+
+func (m *mockClientService) Authenticate(ctx context.Context, apiKey string, target domain.Target) (string, error) {
+	defer close(m.targetsc)
+
+	t, err := m.authenticate(target)
+	if err != nil {
+		return "", err
+	}
+
+	m.targetsc <- t
+
+	return "token-we-don't-care-about", nil
+}
+
+func (m *mockClientService) Targets() []domain.Target {
+	targets := []domain.Target{}
+	for t := range m.targetsc {
+		targets = append(targets, t)
+	}
+	return targets
+}
 
 type fileSystem struct {
 	path string
@@ -42,9 +75,49 @@ const (
 	apiKey123Token  = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJlbnZpcm9ubWVudCI6ImVudi0xMjMiLCJpYXQiOjE2MzcwNTUyMjUsIm5iZiI6MTYzNzA1NTIyNX0.scUWHotiphYV_xYr3UvEkaUw9CuHQnFThcq3CpPkmu8"
 )
 
+type setupConfig struct {
+	featureRepo   *repository.FeatureFlagRepo
+	targetRepo    *repository.TargetRepo
+	segmentRepo   *repository.SegmentRepo
+	authRepo      *repository.AuthRepo
+	clientService *mockClientService
+}
+
+type setupOpts func(s *setupConfig)
+
+func setupWithFeatureRepo(r repository.FeatureFlagRepo) setupOpts {
+	return func(s *setupConfig) {
+		s.featureRepo = &r
+	}
+}
+
+func setupWithTargetRepo(r repository.TargetRepo) setupOpts {
+	return func(s *setupConfig) {
+		s.targetRepo = &r
+	}
+}
+
+func setupWithSegmentRepo(r repository.SegmentRepo) setupOpts {
+	return func(s *setupConfig) {
+		s.segmentRepo = &r
+	}
+}
+
+func setupWithAuthRepo(r repository.AuthRepo) setupOpts {
+	return func(s *setupConfig) {
+		s.authRepo = &r
+	}
+}
+
+func setupWithClientService(c *mockClientService) setupOpts {
+	return func(s *setupConfig) {
+		s.clientService = c
+	}
+}
+
 // setupHTTPServer is a helper that loads test config for populating the repos
 // and injects all the required dependencies into the proxy service and http server
-func setupHTTPServer(t *testing.T, bypassAuth bool) *HTTPServer {
+func setupHTTPServer(t *testing.T, bypassAuth bool, opts ...setupOpts) *HTTPServer {
 	fileSystem := fileSystem{path: "../config/test"}
 	config, err := config.NewLocalConfig(fileSystem, "../config/test")
 	if err != nil {
@@ -52,30 +125,69 @@ func setupHTTPServer(t *testing.T, bypassAuth bool) *HTTPServer {
 	}
 
 	cache := cache.NewMemCache()
-	featureRepo, err := repository.NewFeatureFlagRepo(cache, config.FeatureFlag())
-	if err != nil {
-		t.Fatal(err)
+
+	setupConfig := &setupConfig{}
+	for _, opt := range opts {
+		opt(setupConfig)
 	}
 
-	targetRepo, err := repository.NewTargetRepo(cache, config.Targets())
-	if err != nil {
-		t.Fatal(err)
+	if setupConfig.featureRepo == nil {
+		fr, err := repository.NewFeatureFlagRepo(cache, config.FeatureFlag())
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		setupConfig.featureRepo = &fr
 	}
 
-	segmentRepo, err := repository.NewSegmentRepo(cache, config.Segments())
-	if err != nil {
-		t.Fatal(err)
+	if setupConfig.targetRepo == nil {
+		tr, err := repository.NewTargetRepo(cache, config.Targets())
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		setupConfig.targetRepo = &tr
 	}
 
-	authRepo, _ := repository.NewAuthRepo(cache, map[domain.AuthAPIKey]string{
-		domain.AuthAPIKey(hashedAPIKey123): envID123,
-	})
-	tokenSource := ffproxy.NewTokenSource(log.NoOpLogger{}, authRepo, hash.NewSha256(), []byte(`secret`))
+	if setupConfig.segmentRepo == nil {
+		sr, err := repository.NewSegmentRepo(cache, config.Segments())
+		if err != nil {
+			t.Fatal(err)
+		}
 
+		setupConfig.segmentRepo = &sr
+	}
+
+	if setupConfig.authRepo == nil {
+		ar, err := repository.NewAuthRepo(cache, map[domain.AuthAPIKey]string{
+			domain.AuthAPIKey(hashedAPIKey123): envID123,
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		setupConfig.authRepo = &ar
+	}
+
+	if setupConfig.clientService == nil {
+		setupConfig.clientService = &mockClientService{authenticate: func(t domain.Target) (domain.Target, error) {
+			return t, nil
+		}}
+	}
+
+	tokenSource := ffproxy.NewTokenSource(log.NoOpLogger{}, setupConfig.authRepo, hash.NewSha256(), []byte(`secret`))
 	logger := log.NewNoOpLogger()
 
 	var service proxyservice.ProxyService
-	service = proxyservice.NewService(featureRepo, targetRepo, segmentRepo, tokenSource.GenerateToken, proxyservice.NewFeatureEvaluator(), logger)
+	service = proxyservice.NewService(
+		*setupConfig.featureRepo,
+		*setupConfig.targetRepo,
+		*setupConfig.segmentRepo,
+		tokenSource.GenerateToken,
+		proxyservice.NewFeatureEvaluator(),
+		setupConfig.clientService,
+		logger,
+	)
 	service = middleware.NewAuthMiddleware(tokenSource.ValidateToken, bypassAuth, service)
 	endpoints := NewEndpoints(service)
 
@@ -656,49 +768,123 @@ func TestHTTPServer_PostMetrics(t *testing.T) {
 }
 
 func TestHTTPServer_PostAuthentication(t *testing.T) {
-	// setup HTTPServer with auth bypassed
-	server := setupHTTPServer(t, true)
-	testServer := httptest.NewServer(server)
-	defer testServer.Close()
+	authenticateErr := func(t domain.Target) (domain.Target, error) {
+		return domain.Target{}, errors.New("an error")
+	}
+
+	authenticateSuccess := func(t domain.Target) (domain.Target, error) {
+		return t, nil
+	}
+
+	bodyWithTarget := []byte(fmt.Sprintf(`
+		{
+		  "apiKey": "%s",
+		  "target": {
+			"identifier": "foo",
+			"name": "bar",
+			"anonymous": true,
+			"attributes": {
+			  "hello": "world",
+			  "age": 27
+			}
+		  }
+		}
+	`, apiKey123))
+	targetKey := domain.NewTargetKey(envID123)
+
+	targets := []domain.Target{
+		{Target: admingen.Target{
+			Identifier: "foo",
+			Name:       "bar",
+			Anonymous:  boolPtr(true),
+			Attributes: &map[string]interface{}{
+				"hello": "world",
+				"age":   float64(27),
+			},
+		}},
+	}
 
 	testCases := map[string]struct {
-		method             string
-		url                string
-		body               []byte
-		expectedStatusCode int
+		method                       string
+		url                          string
+		body                         []byte
+		expectedStatusCode           int
+		clientService                *mockClientService
+		expectedCacheTargets         []domain.Target
+		expectedClientServiceTargets []domain.Target
 	}{
 		"Given I make a request that isn't a POST request": {
 			method:             http.MethodGet,
-			url:                fmt.Sprintf("%s/client/auth", testServer.URL),
 			expectedStatusCode: http.StatusMethodNotAllowed,
 		},
 		"Given I make an auth request with an APIKey that doesn't exist": {
 			method:             http.MethodPost,
-			url:                fmt.Sprintf("%s/client/auth", testServer.URL),
 			body:               []byte(`{"apiKey": "hello"}`),
 			expectedStatusCode: http.StatusUnauthorized,
 		},
 		"Given I make an auth request with an APIKey that does exist": {
 			method:             http.MethodPost,
-			url:                fmt.Sprintf("%s/client/auth", testServer.URL),
 			body:               []byte(fmt.Sprintf(`{"apiKey": "%s"}`, apiKey123)),
 			expectedStatusCode: http.StatusOK,
+		},
+		"Given I include a Target in my Auth request and have a working connection to FeatureFlags": {
+			method: http.MethodPost,
+			body:   bodyWithTarget,
+			clientService: &mockClientService{
+				authenticate: authenticateSuccess,
+				targetsc:     make(chan domain.Target, 1),
+			},
+			expectedStatusCode:           http.StatusOK,
+			expectedCacheTargets:         targets,
+			expectedClientServiceTargets: targets,
+		},
+		"Given I include a Target in my Auth request and no connection to FeatureFlags": {
+			method: http.MethodPost,
+			body:   bodyWithTarget,
+			clientService: &mockClientService{
+				authenticate: authenticateErr,
+				targetsc:     make(chan domain.Target, 1),
+			},
+			expectedStatusCode:           http.StatusOK,
+			expectedCacheTargets:         targets,
+			expectedClientServiceTargets: []domain.Target{},
 		},
 	}
 
 	for desc, tc := range testCases {
+		tc := tc
+
+		targetRepo, err := repository.NewTargetRepo(cache.NewMemCache(), nil)
+		if err != nil {
+			t.Fatalf("failed to setup targete repo: %s", err)
+		}
+
+		// setup HTTPServer with auth bypassed
+		server := setupHTTPServer(
+			t,
+			true,
+			setupWithClientService(tc.clientService),
+			setupWithTargetRepo(targetRepo),
+		)
+		testServer := httptest.NewServer(server)
+
 		t.Run(desc, func(t *testing.T) {
-			var req *http.Request
-			var err error
+			defer testServer.Close()
+
+			var (
+				req *http.Request
+				err error
+				url string = fmt.Sprintf("%s/client/auth", testServer.URL)
+			)
 
 			switch tc.method {
 			case http.MethodPost:
-				req, err = http.NewRequest(http.MethodPost, tc.url, bytes.NewBuffer(tc.body))
+				req, err = http.NewRequest(http.MethodPost, url, bytes.NewBuffer(tc.body))
 				if err != nil {
 					t.Fatal(err)
 				}
 			case http.MethodGet:
-				req, err = http.NewRequest(http.MethodGet, tc.url, nil)
+				req, err = http.NewRequest(http.MethodGet, url, nil)
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -724,6 +910,24 @@ func TestHTTPServer_PostAuthentication(t *testing.T) {
 			}
 
 			assert.Equal(t, tc.expectedStatusCode, resp.StatusCode)
+
+			if tc.clientService != nil {
+				actualClientTargets := []domain.Target{}
+				for _, t := range tc.clientService.Targets() {
+					actualClientTargets = append(actualClientTargets, t)
+				}
+
+				cacheTargets, err := targetRepo.Get(context.Background(), targetKey)
+				if err != nil {
+					t.Errorf("failed to get targets from cache: %s", err)
+				}
+
+				t.Log("Then the Targets in the ClientService should match the expected Targets")
+				assert.ElementsMatch(t, tc.expectedClientServiceTargets, actualClientTargets)
+
+				t.Log("And the Targets in the TargetRepo should match the expected Targets ")
+				assert.ElementsMatch(t, tc.expectedCacheTargets, cacheTargets)
+			}
 		})
 	}
 }

@@ -33,12 +33,12 @@ func NewTokenSource(l log.Logger, repo authRepo, hasher hasher, secret []byte) T
 }
 
 // GenerateToken creates a token from a key
-func (a TokenSource) GenerateToken(key string) (string, error) {
+func (a TokenSource) GenerateToken(key string) (domain.Token, error) {
 	h := a.hasher.Hash(key)
 
 	env, ok := a.repo.Get(context.Background(), domain.AuthAPIKey(h))
 	if !ok {
-		return "", fmt.Errorf("Key %q not found", key)
+		return domain.Token{}, fmt.Errorf("Key %q not found", key)
 	}
 
 	t := time.Now().Unix()
@@ -53,10 +53,10 @@ func (a TokenSource) GenerateToken(key string) (string, error) {
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, c)
 	authToken, err := token.SignedString(a.secret)
 	if err != nil {
-		return "", err
+		return domain.Token{}, err
 	}
 
-	return authToken, nil
+	return domain.NewToken(authToken, c), nil
 }
 
 // ValidateToken checks whether a token is valid or not

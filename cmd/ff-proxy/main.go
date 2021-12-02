@@ -53,6 +53,7 @@ var (
 	orgIdentifier     string
 	adminService      string
 	adminServiceToken string
+	clientService     string
 	authSecret        string
 	sdkBaseURL        string
 	sdkEventsURL      string
@@ -72,6 +73,7 @@ const (
 	orgIdentifierEnv     = "ORG_IDENTIFIER"
 	adminServiceEnv      = "ADMIN_SERVICE"
 	adminServiceTokenEnv = "ADMIN_SERVICE_TOKEN"
+	clientServiceEnv     = "CLIENT_SERVICE"
 	authSecretEnv        = "AUTH_SECRET"
 	sdkBaseURLEnv        = "SDK_BASE_URL"
 	sdkEventsURLEnv      = "SDK_EVENTS_URL"
@@ -89,6 +91,7 @@ const (
 	orgIdentifierFlag     = "org-identifier"
 	adminServiceFlag      = "admin-service"
 	adminServiceTokenFlag = "admin-service-token"
+	clientServiceFlag     = "client-service"
 	authSecretFlag        = "auth-secret"
 	sdkBaseURLFlag        = "sdk-base-url"
 	sdkEventsURLFlag      = "sdk-events-url"
@@ -106,8 +109,9 @@ func init() {
 	flag.IntVar(&port, portFlag, 7000, "port that the proxy service is exposed on")
 	flag.StringVar(&accountIdentifier, accountIdentifierFlag, "", "account identifier to load remote config for")
 	flag.StringVar(&orgIdentifier, orgIdentifierFlag, "", "org identifier to load remote config for")
-	flag.StringVar(&adminService, adminServiceFlag, "https://harness.io/gateway/cf", "the url of the admin service")
+	flag.StringVar(&adminService, adminServiceFlag, "https://harness.io/gateway/cf", "the url of the ff admin service")
 	flag.StringVar(&adminServiceToken, adminServiceTokenFlag, "", "token to use with the ff service")
+	flag.StringVar(&clientService, clientServiceFlag, "https://config.ff.harness.io/", "the url of the ff client service")
 	flag.StringVar(&authSecret, authSecretFlag, "", "the secret used for signing auth tokens")
 	flag.StringVar(&sdkBaseURL, sdkBaseURLFlag, "https://config.ff.harness.io/", "url for the sdk to connect to")
 	flag.StringVar(&sdkEventsURL, sdkEventsURLFlag, "https://events.ff.harness.io/", "url for the sdk to send metrics to")
@@ -126,6 +130,7 @@ func init() {
 		orgIdentifierEnv:     orgIdentifierFlag,
 		adminServiceEnv:      adminServiceFlag,
 		adminServiceTokenEnv: adminServiceTokenFlag,
+		clientServiceEnv:     clientServiceFlag,
 		authSecretEnv:        authSecretFlag,
 		sdkBaseURLEnv:        sdkBaseURLFlag,
 		sdkEventsURLEnv:      sdkEventsURLFlag,
@@ -191,7 +196,7 @@ func main() {
 		cancel()
 	}()
 
-	adminClient, err := services.NewAdminClient(logger, adminService, adminServiceToken)
+	adminService, err := services.NewAdminService(logger, adminService, adminServiceToken)
 	if err != nil {
 		logger.Error("msg", "failed to create admin client", "err", err)
 		os.Exit(1)
@@ -242,7 +247,7 @@ func main() {
 			orgIdentifier,
 			apiKeys,
 			hash.NewSha256(),
-			adminClient,
+			adminService,
 			config.WithLogger(logger),
 			config.WithConcurrency(20),
 		)
@@ -296,9 +301,15 @@ func main() {
 
 	featureEvaluator := proxyservice.NewFeatureEvaluator()
 
+	clientService, err := services.NewClientService(logger, clientService)
+	if err != nil {
+		logger.Error("msg", "failed to create client for the feature flags clinet service", "err", err)
+		os.Exit(1)
+	}
+
 	// Setup service and middleware
 	var service proxyservice.ProxyService
-	service = proxyservice.NewService(fcr, tr, sr, tokenSource.GenerateToken, featureEvaluator, logger)
+	service = proxyservice.NewService(fcr, tr, sr, tokenSource.GenerateToken, featureEvaluator, clientService, logger)
 	service = middleware.NewAuthMiddleware(tokenSource.ValidateToken, bypassAuth, service)
 	service = middleware.NewLoggingMiddleware(logger, debug, service)
 
