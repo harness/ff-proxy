@@ -7,6 +7,7 @@ import (
 
 	ffproxy "github.com/harness/ff-proxy"
 	"github.com/harness/ff-proxy/domain"
+	"github.com/wings-software/ff-server/pkg/hash"
 )
 
 type config struct {
@@ -21,6 +22,7 @@ type config struct {
 // FeatureFlag, Target and Segment information from them.
 type LocalConfig struct {
 	config map[string]config
+	hasher hash.Hasher
 }
 
 // NewLocalConfig creates a new FeatureFlagConfig that loads config from
@@ -28,6 +30,7 @@ type LocalConfig struct {
 func NewLocalConfig(fs fs.FS, dir string) (LocalConfig, error) {
 	o := LocalConfig{
 		config: make(map[string]config),
+		hasher: hash.NewSha256(),
 	}
 
 	if err := o.loadConfig(fs, dir); err != nil {
@@ -170,7 +173,8 @@ func (f LocalConfig) AuthConfig() map[domain.AuthAPIKey]string {
 	results := map[domain.AuthAPIKey]string{}
 	for _, cfg := range f.config {
 		for _, key := range cfg.Auth {
-			results[key] = cfg.Environment
+			hashedKey := f.hasher.Hash(string(key))
+			results[domain.AuthAPIKey(hashedKey)] = cfg.Environment
 		}
 	}
 	return results

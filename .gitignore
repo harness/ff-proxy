@@ -14,5 +14,7 @@ cf.session.sql
 
 ff-proxy
 .*
+!.*.env
+ff-example-sdk
 
 **/bench-test/env*
