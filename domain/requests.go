@@ -3,6 +3,7 @@ package domain
 // AuthRequest contains the fields sent in an authentication request
 type AuthRequest struct {
 	APIKey string
+	Target Target
 }
 
 // AuthResponse contains the fields returned in an authentication response

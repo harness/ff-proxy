@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"reflect"
+	"time"
 
 	"github.com/harness/ff-proxy/domain"
 	clientgen "github.com/harness/ff-proxy/gen/client"
@@ -64,28 +66,35 @@ type evaluator interface {
 }
 
 // authTokenFn is a function that can generate an auth token
-type authTokenFn func(key string) (string, error)
+type authTokenFn func(key string) (domain.Token, error)
+
+// clientService is the interface for interacting with the feature flag client service
+type clientService interface {
+	Authenticate(ctx context.Context, apiKey string, target domain.Target) (string, error)
+}
 
 // Service is the proxy service implementation
 type Service struct {
-	logger      log.Logger
-	featureRepo repository.FeatureFlagRepo
-	targetRepo  repository.TargetRepo
-	segmentRepo repository.SegmentRepo
-	authFn      authTokenFn
-	evaluator   evaluator
+	logger        log.Logger
+	featureRepo   repository.FeatureFlagRepo
+	targetRepo    repository.TargetRepo
+	segmentRepo   repository.SegmentRepo
+	authFn        authTokenFn
+	evaluator     evaluator
+	clientService clientService
 }
 
 // NewService creates and returns a ProxyService
-func NewService(fr repository.FeatureFlagRepo, tr repository.TargetRepo, sr repository.SegmentRepo, authFn authTokenFn, e evaluator, l log.Logger) Service {
+func NewService(fr repository.FeatureFlagRepo, tr repository.TargetRepo, sr repository.SegmentRepo, authFn authTokenFn, e evaluator, c clientService, l log.Logger) Service {
 	l = log.With(l, "component", "ProxyService")
 	return Service{
-		logger:      l,
-		featureRepo: fr,
-		targetRepo:  tr,
-		segmentRepo: sr,
-		authFn:      authFn,
-		evaluator:   e,
+		logger:        l,
+		featureRepo:   fr,
+		targetRepo:    tr,
+		segmentRepo:   sr,
+		authFn:        authFn,
+		evaluator:     e,
+		clientService: c,
 	}
 }
 
@@ -97,7 +106,32 @@ func (s Service) Authenticate(ctx context.Context, req domain.AuthRequest) (doma
 		return domain.AuthResponse{}, ErrUnauthorised
 	}
 
-	return domain.AuthResponse{AuthToken: token}, nil
+	// We don't need to bother saving the Target if it's empty
+	if reflect.DeepEqual(req.Target, domain.Target{}) {
+		return domain.AuthResponse{AuthToken: token.TokenString()}, nil
+	}
+
+	envID := token.Claims().Environment
+	s.targetRepo.Add(ctx, domain.NewTargetKey(envID), req.Target)
+
+	// We forward the auth request to the client service so that the Target is
+	// updated/added in FeatureFlags. Potentially a bold assumption but since the
+	// Target is added to the cache above I don't think this is in the critical
+	// path so we can call it in a goroutine and just log out if it fails since
+	// the proxy will continue to work for the SDKs with this Target. That being
+	// said I'm not sure what the long term solution is here if it fails for
+	// having Target parity between Feature Flags and the Proxy
+	go func() {
+		newCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+
+		if _, err := s.clientService.Authenticate(newCtx, req.APIKey, req.Target); err != nil {
+			s.logger.Error("msg", "failed to forward Target registrationg via auth request to client service", "err", err)
+		}
+		s.logger.Debug("msg", "successfully registered target with feature flags", "target_identifier", req.Target.Target.Identifier)
+	}()
+
+	return domain.AuthResponse{AuthToken: token.TokenString()}, nil
 }
 
 // FeatureConfig gets all FeatureConfig for an environment
@@ -131,7 +165,6 @@ func (s Service) FeatureConfig(ctx context.Context, req domain.FeatureConfigRequ
 			Segments:    segmentArrayToMap(segments),
 		})
 	}
-
 
 	return configs, nil
 }
@@ -317,4 +350,3 @@ func segmentArrayToMap(segments []domain.Segment) map[string]domain.Segment {
 	}
 	return segmentMap
 }
-

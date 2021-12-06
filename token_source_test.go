@@ -58,7 +58,7 @@ func TestTokenSource_GenerateToken(t *testing.T) {
 			}
 
 			if tc.expectedEnv != "" {
-				token, err := jwt.ParseWithClaims(actual, &domain.Claims{}, func(t *jwt.Token) (interface{}, error) {
+				token, err := jwt.ParseWithClaims(actual.TokenString(), &domain.Claims{}, func(t *jwt.Token) (interface{}, error) {
 					return secret, nil
 				})
 				if err != nil {
@@ -70,7 +70,7 @@ func TestTokenSource_GenerateToken(t *testing.T) {
 				assert.Equal(t, tc.expectedEnv, claims.Environment)
 				assert.Nil(t, claims.Valid())
 			} else {
-				assert.Equal(t, tc.expectedEnv, actual)
+				assert.Equal(t, tc.expectedEnv, actual.Claims().Environment)
 			}
 
 		})

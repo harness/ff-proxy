@@ -22,25 +22,25 @@ func (d doer) Do(r *http.Request) (*http.Response, error) {
 	return d.c.Do(r)
 }
 
-// AdminClient is a client for interacting with the admin service
-type AdminClient struct {
+// AdminService is a client for interacting with the admin service
+type AdminService struct {
 	log    log.Logger
 	client admingen.ClientWithResponsesInterface
 }
 
-// NewAdminClient creates an AdminClient
-func NewAdminClient(l log.Logger, addr string, serviceToken string) (AdminClient, error) {
-	l = log.With(l, "component", "AdminClient")
+// NewAdminService creates an AdminClient
+func NewAdminService(l log.Logger, addr string, serviceToken string) (AdminService, error) {
+	l = log.With(l, "component", "FF-AdminService-Client")
 
 	c, err := admingen.NewClientWithResponses(
 		addr,
 		admingen.WithHTTPClient(doer{c: http.DefaultClient, token: serviceToken}),
 	)
 	if err != nil {
-		return AdminClient{}, err
+		return AdminService{}, err
 	}
 
-	return AdminClient{log: l, client: c}, nil
+	return AdminService{log: l, client: c}, nil
 }
 
 // PageEnvironmentsInput contains the paramters required to make a PageEnvironments
@@ -61,7 +61,7 @@ type PageEnvironmentsResult struct {
 
 // PageEnvironments is used for synchronously paging over environments by making
 // request to the admin services /admin/environments endpoint
-func (r AdminClient) PageEnvironments(ctx context.Context, input PageEnvironmentsInput) (PageEnvironmentsResult, error) {
+func (r AdminService) PageEnvironments(ctx context.Context, input PageEnvironmentsInput) (PageEnvironmentsResult, error) {
 	pageNumber := admingen.PageNumber(input.PageNumber)
 	pageSize := admingen.PageSize(input.PageSize)
 
@@ -109,7 +109,7 @@ type PageProjectsResult struct {
 
 // PageProjects is used for synchronously paging over projects by making requests
 // to the admin services /admin/projects endpoint
-func (r AdminClient) PageProjects(ctx context.Context, input PageProjectsInput) (PageProjectsResult, error) {
+func (r AdminService) PageProjects(ctx context.Context, input PageProjectsInput) (PageProjectsResult, error) {
 	pageNumber := admingen.PageNumber(input.PageNumber)
 	pageSize := admingen.PageSize(input.PageSize)
 
@@ -159,7 +159,7 @@ type PageTargetsResult struct {
 
 // PageTargets is used for synchronously paging over projects by making requests
 // to the admin services /admin/targets endpoint.
-func (r AdminClient) PageTargets(ctx context.Context, input PageTargetsInput) (PageTargetsResult, error) {
+func (r AdminService) PageTargets(ctx context.Context, input PageTargetsInput) (PageTargetsResult, error) {
 	pageNumber := admingen.PageNumber(input.PageNumber)
 	pageSize := admingen.PageSize(input.PageSize)
 
