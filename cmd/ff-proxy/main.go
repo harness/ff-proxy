@@ -100,6 +100,7 @@ const (
 
 func init() {
 	flag.BoolVar(&bypassAuth, bypassAuthFlag, false, "bypasses authentication")
+	// TODO - FFM-1812 - we should update this to be loglevel
 	flag.BoolVar(&debug, debugFlag, false, "enables debug logging")
 	flag.BoolVar(&offline, offlineFlag, false, "enables side loading of data from config dir")
 	flag.StringVar(&host, hostFlag, "localhost", "host of the proxy service")
@@ -138,10 +139,16 @@ func init() {
 	flag.Parse()
 }
 
-func initFF(ctx context.Context, cache sdkCache.Cache, baseURL, eventURL, sdkKey string) {
-	logger := log.NewLogger(os.Stderr, debug)
+func initFF(ctx context.Context, cache sdkCache.Cache, baseURL, eventURL, envID, sdkKey string) {
+	logger := logrus.New()
+	// TODO - FFM-1812 - use global log level from config
+	logger.SetLevel(logrus.InfoLevel)
+	logger.SetFormatter(&logrus.TextFormatter{TimestampFormat: "2006-01-02 15:04:05", FullTimestamp: true})
+	// contextLogger adds the environment ID to each log so we can distinguish between sdk instances
+	contextLogger := logger.WithField("environment", envID)
 
 	client, err := harness.NewCfClient(sdkKey,
+		harness.WithLogger(contextLogger),
 		harness.WithURL(baseURL),
 		harness.WithEventsURL(eventURL),
 		harness.WithStreamEnabled(true),
@@ -150,12 +157,12 @@ func initFF(ctx context.Context, cache sdkCache.Cache, baseURL, eventURL, sdkKey
 	)
 	defer func() {
 		if err := client.Close(); err != nil {
-			logger.Error("error while closing client err: %v", err)
+			contextLogger.Error("error while closing client err: %v", err)
 		}
 	}()
 
 	if err != nil {
-		logger.Error("could not connect to CF servers %v", err)
+		contextLogger.Error("could not connect to CF servers %v", err)
 	}
 
 	<-ctx.Done()
@@ -263,7 +270,7 @@ func main() {
 			}
 
 			cacheWrapper := cache.NewWrapper(sdkCache, envID, logrus.New())
-			go initFF(ctx, cacheWrapper, sdkBaseURL, sdkEventsURL, apiKey)
+			go initFF(ctx, cacheWrapper, sdkBaseURL, sdkEventsURL, envID, apiKey)
 		}
 	}
 
