@@ -13,11 +13,11 @@ import (
 )
 
 type mockCache struct {
-	set    func() error
-	get    func() error
-	getAll func() (map[string][]byte, error)
+	set       func() error
+	get       func() error
+	getAll    func() (map[string][]byte, error)
 	removeAll func()
-	remove func()
+	remove    func()
 }
 
 // Set sets a value in the cache for a given key and field
@@ -240,6 +240,129 @@ func TestTargetRepo_GetByIdentifer(t *testing.T) {
 			}
 
 			assert.Equal(t, tc.expected, actual)
+		})
+	}
+}
+
+func TestTargetRepo_DeltaAdd(t *testing.T) {
+	key123 := domain.NewTargetKey("123")
+
+	target1 := domain.Target{
+		Target: admingen.Target{
+			Identifier:  "target1",
+			Name:        "target1",
+			Environment: "123",
+			Project:     "foo",
+		},
+	}
+
+	target2 := domain.Target{
+		Target: admingen.Target{
+			Identifier:  "target2",
+			Name:        "target2",
+			Environment: "123",
+			Project:     "foo",
+		},
+	}
+
+	target3 := domain.Target{
+		Target: admingen.Target{
+			Identifier:  "target3",
+			Name:        "target3",
+			Environment: "123",
+			Project:     "foo",
+		},
+	}
+
+	target1ProjectBar := domain.Target{
+		Target: admingen.Target{
+			Identifier:  "target1",
+			Name:        "target1",
+			Environment: "123",
+			Project:     "bar",
+		},
+	}
+
+	target2ProjectBar := domain.Target{
+		Target: admingen.Target{
+			Identifier:  "target2",
+			Name:        "target2",
+			Environment: "123",
+			Project:     "bar",
+		},
+	}
+
+	testCases := map[string]struct {
+		cache      cache.Cache
+		repoConfig map[domain.TargetKey][]domain.Target
+		key        domain.TargetKey
+		targets    []domain.Target
+		expected   []domain.Target
+		shouldErr  bool
+	}{
+		"Given I have an empty TargetRepo and I add two Targets": {
+			cache:      cache.NewMemCache(),
+			repoConfig: map[domain.TargetKey][]domain.Target{},
+			key:        key123,
+			targets:    []domain.Target{target1, target2},
+			expected:   []domain.Target{target1, target2},
+			shouldErr:  false,
+		},
+		"Given I have a TargetRepo with Target3 and I add Target1 and Target1": {
+			cache: cache.NewMemCache(),
+			repoConfig: map[domain.TargetKey][]domain.Target{
+				key123: []domain.Target{target3},
+			},
+			key:       key123,
+			targets:   []domain.Target{target1, target2},
+			expected:  []domain.Target{target1, target2},
+			shouldErr: false,
+		},
+		"Given I have a TargetRepo with two Targets and I add the same Targets with a different Project value ": {
+			cache: cache.NewMemCache(),
+			repoConfig: map[domain.TargetKey][]domain.Target{
+				key123: []domain.Target{target1, target2},
+			},
+			key:       key123,
+			targets:   []domain.Target{target1ProjectBar, target2ProjectBar},
+			expected:  []domain.Target{target1ProjectBar, target2ProjectBar},
+			shouldErr: false,
+		},
+		"Given I have a TargetRepo with two Targets and I try to add no Targets": {
+			cache: cache.NewMemCache(),
+			repoConfig: map[domain.TargetKey][]domain.Target{
+				key123: []domain.Target{target1, target2},
+			},
+			key:       key123,
+			targets:   []domain.Target{},
+			expected:  []domain.Target{target1, target2},
+			shouldErr: true,
+		},
+	}
+
+	for desc, tc := range testCases {
+		tc := tc
+
+		t.Run(desc, func(t *testing.T) {
+			ctx := context.Background()
+
+			repo, err := NewTargetRepo(tc.cache, tc.repoConfig)
+			if err != nil {
+				t.Fatalf("(%s): error = %v, shouldErr = %v", desc, err, tc.shouldErr)
+			}
+
+			err = repo.DeltaAdd(ctx, tc.key, tc.targets...)
+			if (err != nil) != tc.shouldErr {
+				t.Errorf("(%s): error = %v, shouldErr = %v", desc, err, tc.shouldErr)
+			}
+
+			t.Log("And the values in the repo should match the expected values")
+			actual, err := repo.Get(ctx, tc.key)
+			if err != nil {
+				t.Errorf("(%s): unexpected error getting targets: %s", desc, err)
+			}
+
+			assert.ElementsMatch(t, tc.expected, actual)
 		})
 	}
 }

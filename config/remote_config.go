@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"sync"
+	"time"
 
 	"github.com/harness/ff-proxy/domain"
 	"github.com/harness/ff-proxy/log"
@@ -39,25 +40,35 @@ type adminClient interface {
 
 // RemoteConfig is a type that retrieves config from the Feature Flags Service
 type RemoteConfig struct {
-	client       adminClient
-	log          log.Logger
-	concurrency  int
-	authConfig   map[domain.AuthAPIKey]string
-	targetConfig map[domain.TargetKey][]domain.Target
+	client           adminClient
+	log              log.Logger
+	concurrency      int
+	authConfig       map[domain.AuthAPIKey]string
+	targetConfig     map[domain.TargetKey][]domain.Target
+	accountIdentifer string
+	orgIdentifier    string
+	allowedAPIKeys   map[string]struct{}
+	// we store project and environment info after the initial load so that the
+	// PollTargets functioncan use it and not have to make GetProjects and
+	// GetEnvironments requests every time
+	projEnvInfo map[string]configPipeline
 }
 
 // NewRemoteConfig creates a RemoteConfig and retrieves the configuration for
 // the given Account, Org and APIKeys from the Feature Flags Service
 func NewRemoteConfig(ctx context.Context, accountIdentifer string, orgIdentifier string, apiKeys []string, hasher hash.Hasher, client adminClient, opts ...RemoteOption) RemoteConfig {
-	rc := &RemoteConfig{
-		client:       client,
-		authConfig:   make(map[domain.AuthAPIKey]string),
-		targetConfig: make(map[domain.TargetKey][]domain.Target),
-	}
-
 	allowedAPIKeys := map[string]struct{}{}
 	for _, key := range apiKeys {
 		allowedAPIKeys[hasher.Hash(key)] = struct{}{}
+	}
+
+	rc := &RemoteConfig{
+		client:           client,
+		authConfig:       make(map[domain.AuthAPIKey]string),
+		targetConfig:     make(map[domain.TargetKey][]domain.Target),
+		accountIdentifer: accountIdentifer,
+		orgIdentifier:    orgIdentifier,
+		allowedAPIKeys:   allowedAPIKeys,
 	}
 
 	for _, opt := range opts {
@@ -72,7 +83,8 @@ func NewRemoteConfig(ctx context.Context, accountIdentifer string, orgIdentifier
 		rc.concurrency = 10
 	}
 	rc.log = log.With(rc.log, "component", "RemoteConfig", "account_identifier", accountIdentifer, "org_identifier", orgIdentifier)
-	rc.load(ctx, accountIdentifer, orgIdentifier, allowedAPIKeys)
+
+	rc.authConfig, rc.targetConfig, rc.projEnvInfo = makeConfigs(orDone(ctx, rc.load(ctx, accountIdentifer, orgIdentifier, allowedAPIKeys)))
 	return *rc
 }
 
@@ -86,14 +98,44 @@ func (r RemoteConfig) AuthConfig() map[domain.AuthAPIKey]string {
 	return r.authConfig
 }
 
-// load setups a pipeline to retrieve the Project, Environment and Target informatino
+// PollTargets polls feature flags to fetch the latest targets at a rate determined
+// by the ticker and returns the latest targets on a channel.
+func (r RemoteConfig) PollTargets(ctx context.Context, ticker <-chan time.Time) <-chan map[domain.TargetKey][]domain.Target {
+	out := make(chan map[domain.TargetKey][]domain.Target)
+
+	go func() {
+		defer func() {
+			close(out)
+		}()
+
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker:
+				r.log.Debug("msg", "polling for new targets")
+				_, targetConfig, _ := makeConfigs(r.addTargetConfig(ctx, configPipelineGenerator(ctx, r.projEnvInfo)))
+
+				select {
+				case <-ctx.Done():
+					return
+				case out <- targetConfig:
+				}
+			}
+		}
+	}()
+
+	return out
+}
+
+// load setups a pipeline to retrieve the Project, Environment and Target information
 // from the AdminService and then uses the config that was built up by the pipeline
 // to build the auth and target config.
 //
 // The first stage of the pipeline retrieves the project information and then after
 // that we fan out to get the Environment and Target config to reduce the time it
 // takes to retrieve the config.
-func (r *RemoteConfig) load(ctx context.Context, accountIdentifer string, orgIdentifier string, allowedAPIKeys map[string]struct{}) error {
+func (r *RemoteConfig) load(ctx context.Context, accountIdentifer string, orgIdentifier string, allowedAPIKeys map[string]struct{}) <-chan configPipeline {
 	pipelineInput := configPipeline{
 		AccountIdentifier: accountIdentifer,
 		OrgIdentifier:     orgIdentifier,
@@ -119,15 +161,61 @@ func (r *RemoteConfig) load(ctx context.Context, accountIdentifer string, orgIde
 		pipelineResults[i] = r.addTargetConfig(ctx, stage2Result)
 	}
 
-	// Read all the config from the pipeline and build up the authConfig and
-	// targetConfig maps
-	r.authConfig, r.targetConfig = makeConfigs(fanIn(ctx, pipelineResults...))
-	return nil
+	return fanIn(ctx, pipelineResults...)
 }
 
-func makeConfigs(results <-chan configPipeline) (map[domain.AuthAPIKey]string, map[domain.TargetKey][]domain.Target) {
+// orDone is a helper that encapsulates the logic for reading from a channel
+// whilst waiting for a cancellation.
+func orDone(ctx context.Context, c <-chan configPipeline) <-chan configPipeline {
+	out := make(chan configPipeline)
+
+	go func() {
+		defer close(out)
+
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case cp, ok := <-c:
+				if !ok {
+					return
+				}
+
+				select {
+				case <-ctx.Done():
+				case out <- cp:
+				}
+			}
+		}
+	}()
+
+	return out
+}
+
+// configPipelineGenerator is a function for creating and sending a map of
+// configPipelines down a channel
+func configPipelineGenerator(ctx context.Context, m map[string]configPipeline) <-chan configPipeline {
+	out := make(chan configPipeline)
+
+	go func() {
+		defer close(out)
+
+		for _, cp := range m {
+			select {
+			case <-ctx.Done():
+				return
+			case out <- cp:
+			}
+		}
+	}()
+
+	return out
+}
+
+func makeConfigs(results <-chan configPipeline) (map[domain.AuthAPIKey]string, map[domain.TargetKey][]domain.Target, map[string]configPipeline) {
 	authConfig := map[domain.AuthAPIKey]string{}
 	targetConfig := map[domain.TargetKey][]domain.Target{}
+	projEnvInfo := map[string]configPipeline{}
 
 	for result := range results {
 		for _, key := range result.APIKeys {
@@ -136,8 +224,16 @@ func makeConfigs(results <-chan configPipeline) (map[domain.AuthAPIKey]string, m
 
 		targetKey := domain.NewTargetKey(result.EnvironmentID)
 		targetConfig[targetKey] = append(targetConfig[targetKey], result.Targets...)
+
+		projEnvInfo[result.EnvironmentID] = configPipeline{
+			AccountIdentifier:     result.AccountIdentifier,
+			OrgIdentifier:         result.OrgIdentifier,
+			ProjectIdentifier:     result.ProjectIdentifier,
+			EnvironmentID:         result.EnvironmentID,
+			EnvironmentIdentifier: result.EnvironmentIdentifier,
+		}
 	}
-	return authConfig, targetConfig
+	return authConfig, targetConfig, projEnvInfo
 }
 
 // configPipeline is the input and output for each stage of the pipeline that
@@ -148,7 +244,7 @@ type configPipeline struct {
 	AllowedKeys           map[string]struct{}
 	ProjectIdentifier     string
 	EnvironmentID         string
-	EnvironmnetIdentifier string
+	EnvironmentIdentifier string
 	APIKeys               []string
 	Targets               []domain.Target
 }
@@ -256,7 +352,7 @@ func (r RemoteConfig) addEnvironmentConfig(ctx context.Context, inputs <-chan co
 						continue
 					}
 					input.EnvironmentID = *env.Id
-					input.EnvironmnetIdentifier = env.Identifier
+					input.EnvironmentIdentifier = env.Identifier
 					input.APIKeys = []string{}
 					for _, key := range *env.ApiKeys.ApiKeys {
 						if key.Key != nil {
@@ -291,7 +387,7 @@ func (r RemoteConfig) addTargetConfig(ctx context.Context, inputs <-chan configP
 				AccountIdentifier:     input.AccountIdentifier,
 				OrgIdentifier:         input.OrgIdentifier,
 				ProjectIdentifier:     input.ProjectIdentifier,
-				EnvironmentIdentifier: input.EnvironmnetIdentifier,
+				EnvironmentIdentifier: input.EnvironmentIdentifier,
 				PageNumber:            0,
 				PageSize:              100,
 			}

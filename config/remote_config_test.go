@@ -4,7 +4,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sync"
 	"testing"
+	"time"
 
 	"github.com/harness/ff-proxy/domain"
 	admingen "github.com/harness/ff-proxy/gen/admin"
@@ -93,9 +95,13 @@ type mockAdminClient struct {
 	environments map[string][]admingen.Environment
 	targets      map[string][]admingen.Target
 	hit          int
+	*sync.Mutex
 }
 
 func (m mockAdminClient) PageProjects(ctx context.Context, input services.PageProjectsInput) (services.PageProjectsResult, error) {
+	m.Lock()
+	defer m.Unlock()
+
 	key := fmt.Sprintf("%s-%s", input.AccountIdentifier, input.OrgIdentifier)
 
 	projects, ok := m.projects[key]
@@ -107,6 +113,9 @@ func (m mockAdminClient) PageProjects(ctx context.Context, input services.PagePr
 }
 
 func (m mockAdminClient) PageEnvironments(ctx context.Context, input services.PageEnvironmentsInput) (services.PageEnvironmentsResult, error) {
+	m.Lock()
+	defer m.Unlock()
+
 	defer func() {
 		m.hit++
 	}()
@@ -120,6 +129,9 @@ func (m mockAdminClient) PageEnvironments(ctx context.Context, input services.Pa
 }
 
 func (m mockAdminClient) PageTargets(ctx context.Context, input services.PageTargetsInput) (services.PageTargetsResult, error) {
+	m.Lock()
+	defer m.Unlock()
+
 	key := fmt.Sprintf("%s-%s", input.ProjectIdentifier, input.EnvironmentIdentifier)
 
 	targets, ok := m.targets[key]
@@ -130,29 +142,36 @@ func (m mockAdminClient) PageTargets(ctx context.Context, input services.PageTar
 	return services.PageTargetsResult{Targets: targets, Finished: true}, nil
 }
 
-func TestRemoteConfig(t *testing.T) {
-	const (
-		accountIdentifer = "account1"
-		orgIdentifier    = "org1"
-	)
+const (
+	accountIdentifer = "account1"
+	orgIdentifier    = "org1"
+)
 
-	allowAllAPIKeys := []string{"1", "2", "3", "4"}
-	allowSomeAPIKeys := []string{"1", "2", "3"}
+var (
+	allowAllAPIKeys  = []string{"1", "2", "3", "4"}
+	allowSomeAPIKeys = []string{"1", "2", "3"}
 
-	expectedAuthConfigAllAPIKeys := map[domain.AuthAPIKey]string{
+	allowAllAPIKeysMap = map[string]struct{}{
+		"1": struct{}{},
+		"2": struct{}{},
+		"3": struct{}{},
+		"4": struct{}{},
+	}
+
+	expectedAuthConfigAllAPIKeys = map[domain.AuthAPIKey]string{
 		domain.AuthAPIKey("1"): "123",
 		domain.AuthAPIKey("2"): "123",
 		domain.AuthAPIKey("3"): "123",
 		domain.AuthAPIKey("4"): "456",
 	}
 
-	expectedAuthConfigSomeAPIKeys := map[domain.AuthAPIKey]string{
+	expectedAuthConfigSomeAPIKeys = map[domain.AuthAPIKey]string{
 		domain.AuthAPIKey("1"): "123",
 		domain.AuthAPIKey("2"): "123",
 		domain.AuthAPIKey("3"): "123",
 	}
 
-	expectedTargetConfigAllAPIKeys := map[domain.TargetKey][]domain.Target{
+	expectedTargetConfigAllAPIKeys = map[domain.TargetKey][]domain.Target{
 		domain.NewTargetKey("123"): []domain.Target{
 			{
 				Target: admingen.Target{Identifier: "QA-Target-1"},
@@ -171,7 +190,7 @@ func TestRemoteConfig(t *testing.T) {
 		},
 	}
 
-	expectedTargetConfigSomeAPIKeys := map[domain.TargetKey][]domain.Target{
+	expectedTargetConfigSomeAPIKeys = map[domain.TargetKey][]domain.Target{
 		domain.NewTargetKey("123"): []domain.Target{
 			{
 				Target: admingen.Target{Identifier: "QA-Target-1"},
@@ -181,7 +200,9 @@ func TestRemoteConfig(t *testing.T) {
 			},
 		},
 	}
+)
 
+func TestRemoteConfig(t *testing.T) {
 	testCases := map[string]struct {
 		accountIdentifier    string
 		orgIdentifier        string
@@ -232,6 +253,7 @@ func TestRemoteConfig(t *testing.T) {
 				projects:     projects,
 				environments: environments,
 				targets:      targets,
+				Mutex:        &sync.Mutex{},
 			}
 
 			rc := NewRemoteConfig(ctx, tc.accountIdentifier, tc.orgIdentifier, tc.allowedAPIKeys, mockHasher{}, adminClient, WithConcurrency(1), WithLogger(log.NoOpLogger{}))
@@ -275,14 +297,20 @@ func TestMakeConfig(t *testing.T) {
 
 	input := []configPipeline{
 		{
-			EnvironmentID: "123",
-			APIKeys:       []string{"1", "2", "3", "4", "5", "6"},
-			Targets:       []domain.Target{target1, target2},
+			AccountIdentifier:     "account1",
+			OrgIdentifier:         "org1",
+			EnvironmentID:         "123",
+			EnvironmentIdentifier: "env1",
+			APIKeys:               []string{"1", "2", "3", "4", "5", "6"},
+			Targets:               []domain.Target{target1, target2},
 		},
 		{
-			EnvironmentID: "123",
-			APIKeys:       []string{},
-			Targets:       []domain.Target{target3},
+			AccountIdentifier:     "account1",
+			OrgIdentifier:         "org1",
+			EnvironmentID:         "123",
+			EnvironmentIdentifier: "env1",
+			APIKeys:               []string{},
+			Targets:               []domain.Target{target3},
 		},
 	}
 
@@ -307,8 +335,109 @@ func TestMakeConfig(t *testing.T) {
 		},
 	}
 
-	actualAuth, actualTarget := makeConfigs(results)
+	expectedProjEnvInfo := map[string]configPipeline{
+		"123": {
+			AccountIdentifier:     "account1",
+			OrgIdentifier:         "org1",
+			EnvironmentID:         "123",
+			EnvironmentIdentifier: "env1",
+		},
+	}
+
+	actualAuth, actualTarget, actualProjEnvInfo := makeConfigs(results)
 
 	assert.Equal(t, expectedAuth, actualAuth)
 	assert.Equal(t, expectedTargets, actualTarget)
+	assert.Equal(t, expectedProjEnvInfo, actualProjEnvInfo)
+}
+
+func TestPollTargets(t *testing.T) {
+	admingenTarget1 := admingen.Target{
+		Identifier:  "target1",
+		Name:        "target1",
+		Environment: "123",
+	}
+
+	newTarget1 := domain.Target{
+		Target: admingenTarget1,
+	}
+
+	expectedNewTargets := map[domain.TargetKey][]domain.Target{}
+	for k, t := range expectedTargetConfigAllAPIKeys {
+		expectedNewTargets[k] = t
+	}
+	key456 := domain.NewTargetKey("456")
+	expectedNewTargets[key456] = append(expectedNewTargets[key456], newTarget1)
+
+	testCases := map[string]struct {
+		accountIdentifier string
+		orgIdentifier     string
+		allowedAPIKeys    []string
+		cancel            bool
+		targetsToAdd      []admingen.Target
+		expectedTargets   map[domain.TargetKey][]domain.Target
+	}{
+		"Given I have a RemoteConfig with Targets and I don't add new ones to the admin client": {
+			accountIdentifier: accountIdentifer,
+			orgIdentifier:     orgIdentifier,
+			allowedAPIKeys:    allowAllAPIKeys,
+			cancel:            false,
+			expectedTargets:   expectedTargetConfigAllAPIKeys,
+		},
+		"Given I have a RemoteConfig with Targets and I add a new Target to the admin client": {
+			accountIdentifier: accountIdentifer,
+			orgIdentifier:     orgIdentifier,
+			allowedAPIKeys:    allowAllAPIKeys,
+			cancel:            false,
+			targetsToAdd:      []admingen.Target{admingenTarget1},
+			expectedTargets:   expectedNewTargets,
+		},
+		"Given I have a RemoteConfig with Targets I poll but the context is canceled immediately": {
+			accountIdentifier: accountIdentifer,
+			orgIdentifier:     orgIdentifier,
+			allowedAPIKeys:    allowAllAPIKeys,
+			cancel:            true,
+			targetsToAdd:      []admingen.Target{admingenTarget1},
+			expectedTargets:   nil,
+		},
+	}
+
+	for desc, tc := range testCases {
+		tc := tc
+		t.Run(desc, func(t *testing.T) {
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+
+			ticker := make(chan time.Time)
+
+			if tc.cancel {
+				defer close(ticker)
+				cancel()
+			} else {
+				close(ticker)
+			}
+
+			adminClient := mockAdminClient{
+				projects:     projects,
+				environments: environments,
+				targets:      targets,
+				Mutex:        &sync.Mutex{},
+			}
+
+			remoteConfig := NewRemoteConfig(ctx, tc.accountIdentifier, tc.orgIdentifier, tc.allowedAPIKeys, mockHasher{}, adminClient)
+
+			if len(tc.targetsToAdd) > 0 {
+				t.Log("And I add Targets to the admin client")
+				key := string("FeatureFlagsDev-Dev")
+
+				adminClient.Lock()
+				adminClient.targets[key] = append(adminClient.targets[key], tc.targetsToAdd...)
+				adminClient.Unlock()
+			}
+
+			// Only poll once for testing
+			actual := <-remoteConfig.PollTargets(ctx, ticker)
+			assert.Equal(t, tc.expectedTargets, actual)
+		})
+	}
 }
