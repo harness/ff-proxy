@@ -7,11 +7,10 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"strings"
 
-	"github.com/gorilla/mux"
 	"github.com/harness/ff-proxy/domain"
 	proxyservice "github.com/harness/ff-proxy/proxy-service"
+	"github.com/labstack/echo/v4"
 )
 
 var (
@@ -39,6 +38,13 @@ func encodeError(ctx context.Context, err error, w http.ResponseWriter) {
 	})
 }
 
+func encodeEchoError(c echo.Context, err error) error {
+	code := codeFrom(err)
+	return c.JSON(code, map[string]interface{}{
+		"error": err.Error(),
+	})
+}
+
 // encodeStreamResponse sets the headers for a streaming response
 func encodeStreamResponse(ctx context.Context, w http.ResponseWriter, response interface{}) error {
 	w.Header().Set("Content-Type", "text/event-stream; charset=utf-8")
@@ -50,31 +56,33 @@ func encodeStreamResponse(ctx context.Context, w http.ResponseWriter, response i
 
 // codeFrom casts a service error to an http.StatusCode
 func codeFrom(err error) int {
-	switch err {
-	case proxyservice.ErrNotImplemented:
-		return http.StatusNotImplemented
-	case proxyservice.ErrNotFound:
-		return http.StatusNotFound
-	case proxyservice.ErrUnauthorised:
-		return http.StatusUnauthorized
-	default:
-		if errors.Is(err, errBadRequest) {
-			return http.StatusBadRequest
-		}
-
-		if errors.Is(err, proxyservice.ErrNotFound) {
-			return http.StatusNotFound
-		}
-		return http.StatusInternalServerError
+	if errors.Is(err, errBadRequest) {
+		return http.StatusBadRequest
 	}
+
+	if errors.Is(err, proxyservice.ErrNotFound) {
+		return http.StatusNotFound
+	}
+
+	if errors.Is(err, proxyservice.ErrUnauthorised) {
+		return http.StatusUnauthorized
+	}
+
+	if errors.Is(err, proxyservice.ErrNotImplemented) {
+		return http.StatusNotImplemented
+	}
+
+	return http.StatusInternalServerError
 }
 
 // decodeAuthRequest decodes POST /client/auth requests into a domain.AuthRequest
 // that can be passed to the service. It returns a wrapped bad request error if
 // the request body is empty or if the apiKey is empty
-func decodeAuthRequest(ctx context.Context, r *http.Request) (interface{}, error) {
+func decodeAuthRequest(c echo.Context) (interface{}, error) {
+	defer c.Request().Body.Close()
+
 	req := domain.AuthRequest{}
-	b, err := io.ReadAll(r.Body)
+	b, err := io.ReadAll(c.Request().Body)
 	if err != nil {
 		return nil, err
 	}
@@ -95,16 +103,13 @@ func decodeAuthRequest(ctx context.Context, r *http.Request) (interface{}, error
 
 // decodeGetFeatureConfigisRequest decodes GET /client/env/{environmentUUID}/feature-configs requests
 // into a domain.FeatureConfigRequest that can be passed to the ProxyService
-func decodeGetFeatureConfigsRequest(ctx context.Context, r *http.Request) (interface{}, error) {
-	vars := mux.Vars(r)
-	envID, ok := vars["environmentUUID"]
-	if !ok {
+func decodeGetFeatureConfigsRequest(c echo.Context) (interface{}, error) {
+	envID := c.Param("environment_uuid")
+	if envID == "" {
 		return nil, errBadRouting
 	}
 
-	token := strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer ")
 	req := domain.FeatureConfigRequest{
-		Token:         token,
 		EnvironmentID: envID,
 	}
 	return req, nil
@@ -112,17 +117,15 @@ func decodeGetFeatureConfigsRequest(ctx context.Context, r *http.Request) (inter
 
 // decodeGetFeatureConfigsByIdentifierRequest decodes GET /client/env/{environmentUUID}/feature-configs/{identifier} requests
 // into a domain.FeatureConfigsByIdentifierRequest that can be passed to the ProxyService
-func decodeGetFeatureConfigsByIdentifierRequest(ctx context.Context, r *http.Request) (interface{}, error) {
-	vars := mux.Vars(r)
-	envID, ok := vars["environmentUUID"]
-	if !ok {
+func decodeGetFeatureConfigsByIdentifierRequest(c echo.Context) (interface{}, error) {
+	envID := c.Param("environment_uuid")
+	identifier := c.Param("identifier")
+
+	if envID == "" || identifier == "" {
 		return nil, errBadRouting
 	}
 
-	token := strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer ")
-	identifier := vars["identifier"]
 	req := domain.FeatureConfigByIdentifierRequest{
-		Token:         token,
 		EnvironmentID: envID,
 		Identifier:    identifier,
 	}
@@ -131,16 +134,13 @@ func decodeGetFeatureConfigsByIdentifierRequest(ctx context.Context, r *http.Req
 
 // decodeGetTargetSegmentsRequest decodes GET /client/env/{environmentUUID}/target-segments requests
 // into a domain.TargetSegmentsRequest that can be passed to the ProxyService
-func decodeGetTargetSegmentsRequest(ctx context.Context, r *http.Request) (interface{}, error) {
-	vars := mux.Vars(r)
-	envID, ok := vars["environmentUUID"]
-	if !ok {
+func decodeGetTargetSegmentsRequest(c echo.Context) (interface{}, error) {
+	envID := c.Param("environment_uuid")
+	if envID == "" {
 		return nil, errBadRouting
 	}
 
-	token := strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer ")
 	req := domain.TargetSegmentsRequest{
-		Token:         token,
 		EnvironmentID: envID,
 	}
 	return req, nil
@@ -148,21 +148,15 @@ func decodeGetTargetSegmentsRequest(ctx context.Context, r *http.Request) (inter
 
 // decodeGetTargetSegmentsByIdentifierRequest decodes GET /client/env/{environmentUUID}/target-segments/{identifier}
 // requests into a domain.TargetSegmentsByIdentifierRequest that can be passed to the ProxyService
-func decodeGetTargetSegmentsByIdentifierRequest(ctx context.Context, r *http.Request) (interface{}, error) {
-	vars := mux.Vars(r)
-	envID, ok := vars["environmentUUID"]
-	if !ok {
+func decodeGetTargetSegmentsByIdentifierRequest(c echo.Context) (interface{}, error) {
+	envID := c.Param("environment_uuid")
+	identifier := c.Param("identifier")
+
+	if envID == "" || identifier == "" {
 		return nil, errBadRouting
 	}
 
-	identifier := vars["identifier"]
-	if !ok {
-		return nil, errBadRouting
-	}
-
-	token := strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer ")
 	req := domain.TargetSegmentsByIdentifierRequest{
-		Token:         token,
 		EnvironmentID: envID,
 		Identifier:    identifier,
 	}
@@ -171,22 +165,15 @@ func decodeGetTargetSegmentsByIdentifierRequest(ctx context.Context, r *http.Req
 
 // decodeGetEvaluationsRequest decodes GET /client/env/{environmentUUID}/target/{target}/evaluations
 // requests into a domain.EvaluationsRequest that can be passed to the ProxyService
-func decodeGetEvaluationsRequest(ctx context.Context, r *http.Request) (interface{}, error) {
-	vars := mux.Vars(r)
+func decodeGetEvaluationsRequest(c echo.Context) (interface{}, error) {
+	envID := c.Param("environment_uuid")
+	target := c.Param("target")
 
-	envID, ok := vars["environmentUUID"]
-	if !ok {
+	if envID == "" || target == "" {
 		return nil, errBadRouting
 	}
 
-	target, ok := vars["target"]
-	if !ok {
-		return nil, errBadRouting
-	}
-
-	token := strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer ")
 	req := domain.EvaluationsRequest{
-		Token:            token,
 		EnvironmentID:    envID,
 		TargetIdentifier: target,
 	}
@@ -195,27 +182,12 @@ func decodeGetEvaluationsRequest(ctx context.Context, r *http.Request) (interfac
 
 // decodeGetEvaluationsByFeatureRequest decodes GET /client/env/{environmentUUID}/target/{target}/evaluations/{feature}
 // requests into a domain.EvaluationsByFeatureRequest that can be passed to the ProxyService
-func decodeGetEvaluationsByFeatureRequest(ctx context.Context, r *http.Request) (interface{}, error) {
-	vars := mux.Vars(r)
+func decodeGetEvaluationsByFeatureRequest(c echo.Context) (interface{}, error) {
+	envID := c.Param("environment_uuid")
+	target := c.Param("target")
+	feature := c.Param("feature")
 
-	envID, ok := vars["environmentUUID"]
-	if !ok {
-		return nil, errBadRouting
-	}
-
-	target, ok := vars["target"]
-	if !ok {
-		return nil, errBadRouting
-	}
-
-	feature, ok := vars["feature"]
-	if !ok {
-		return nil, errBadRouting
-	}
-
-	token := strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer ")
 	req := domain.EvaluationsByFeatureRequest{
-		Token:             token,
 		EnvironmentID:     envID,
 		TargetIdentifier:  target,
 		FeatureIdentifier: feature,
@@ -225,12 +197,10 @@ func decodeGetEvaluationsByFeatureRequest(ctx context.Context, r *http.Request) 
 
 // decodeGetStreamRequest decodes GET /stream requests into a domain.StreamRequest that
 // can be passed to the ProxyService
-func decodeGetStreamRequest(ctx context.Context, r *http.Request) (interface{}, error) {
-	apiKey := r.Header.Get("API-Key")
+func decodeGetStreamRequest(c echo.Context) (interface{}, error) {
+	apiKey := c.Request().Header.Get("API-Key")
 
-	token := strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer ")
 	req := domain.StreamRequest{
-		Token:  token,
 		APIKey: apiKey,
 	}
 
@@ -241,16 +211,10 @@ func decodeGetStreamRequest(ctx context.Context, r *http.Request) (interface{}, 
 }
 
 // decodeMetricsRequest decodes POST /metrics/{environment} requests into domain.Metrics
-func decodeMetricsRequest(ctx context.Context, r *http.Request) (interface{}, error) {
-	defer r.Body.Close()
+func decodeMetricsRequest(c echo.Context) (interface{}, error) {
+	defer c.Request().Body.Close()
 
-	vars := mux.Vars(r)
-	envID, ok := vars["environmentUUID"]
-	if !ok {
-		return nil, errBadRouting
-	}
-
-	b, err := io.ReadAll(r.Body)
+	b, err := io.ReadAll(c.Request().Body)
 	if err != nil {
 		return nil, err
 	}
@@ -260,7 +224,10 @@ func decodeMetricsRequest(ctx context.Context, r *http.Request) (interface{}, er
 		return nil, err
 	}
 
-	req.EnvironmentID = envID
-	req.Token = r.Header.Get("Authorization")
+	req.EnvironmentID = c.Param("environment_uuid")
+	if req.EnvironmentID == "" {
+		return nil, errBadRouting
+	}
+
 	return req, nil
 }

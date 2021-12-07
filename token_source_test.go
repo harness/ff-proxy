@@ -1,9 +1,10 @@
 package ffproxy
 
 import (
-	"github.com/harness/ff-proxy/cache"
 	"testing"
 	"time"
+
+	"github.com/harness/ff-proxy/cache"
 
 	"github.com/dgrijalva/jwt-go"
 	"github.com/harness/ff-proxy/domain"
@@ -99,40 +100,4 @@ func mustGenerateFakeToken(t *testing.T, secret []byte) string {
 	}
 
 	return token
-}
-
-func TestTokenSource_ValidateToken(t *testing.T) {
-	var (
-		secret     = []byte(`secret`)
-		fakeSecret = []byte(`foo`)
-
-		authRepo, _    = repository.NewAuthRepo(cache.NewMemCache(), nil)
-		tokenSource = NewTokenSource(log.NoOpLogger{}, authRepo, hash.NewSha256(), secret)
-	)
-
-	testCases := map[string]struct {
-		token    string
-		expected bool
-	}{
-		"Given I pass an empty token": {
-			token:    "",
-			expected: false,
-		},
-		"Given I pass a generated from a different secret": {
-			token:    mustGenerateFakeToken(t, fakeSecret),
-			expected: false,
-		},
-		"Given I pass a token generated from the same secret": {
-			token:    mustGenerateFakeToken(t, secret),
-			expected: true,
-		},
-	}
-
-	for desc, tc := range testCases {
-		tc := tc
-		t.Run(desc, func(t *testing.T) {
-			actual := tokenSource.ValidateToken(tc.token)
-			assert.Equal(t, tc.expected, actual)
-		})
-	}
 }

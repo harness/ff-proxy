@@ -58,24 +58,3 @@ func (a TokenSource) GenerateToken(key string) (domain.Token, error) {
 
 	return domain.NewToken(authToken, c), nil
 }
-
-// ValidateToken checks whether a token is valid or not
-func (a TokenSource) ValidateToken(t string) bool {
-	if t == "" {
-		a.log.Error("msg", "token was empty")
-		return false
-	}
-
-	token, err := jwt.ParseWithClaims(t, &domain.Claims{}, func(t *jwt.Token) (interface{}, error) {
-		return a.secret, nil
-	})
-	if err != nil {
-		a.log.Error("msg", "failed to parse token", "err", err)
-		return false
-	}
-
-	if _, ok := token.Claims.(*domain.Claims); ok && token.Valid {
-		return true
-	}
-	return false
-}
