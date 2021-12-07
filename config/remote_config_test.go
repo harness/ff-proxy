@@ -308,7 +308,7 @@ func TestMakeConfig(t *testing.T) {
 			AccountIdentifier:     "account1",
 			OrgIdentifier:         "org1",
 			EnvironmentID:         "123",
-			EnvironmentIdentifier: "env2",
+			EnvironmentIdentifier: "env1",
 			APIKeys:               []string{},
 			Targets:               []domain.Target{target3},
 		},
@@ -335,18 +335,12 @@ func TestMakeConfig(t *testing.T) {
 		},
 	}
 
-	expectedProjEnvInfo := []configPipeline{
-		{
+	expectedProjEnvInfo := map[string]configPipeline{
+		"123": {
 			AccountIdentifier:     "account1",
 			OrgIdentifier:         "org1",
 			EnvironmentID:         "123",
 			EnvironmentIdentifier: "env1",
-		},
-		{
-			AccountIdentifier:     "account1",
-			OrgIdentifier:         "org1",
-			EnvironmentID:         "123",
-			EnvironmentIdentifier: "env2",
 		},
 	}
 
@@ -354,7 +348,7 @@ func TestMakeConfig(t *testing.T) {
 
 	assert.Equal(t, expectedAuth, actualAuth)
 	assert.Equal(t, expectedTargets, actualTarget)
-	assert.ElementsMatch(t, expectedProjEnvInfo, actualProjEnvInfo)
+	assert.Equal(t, expectedProjEnvInfo, actualProjEnvInfo)
 }
 
 func TestPollTargets(t *testing.T) {

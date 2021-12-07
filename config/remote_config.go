@@ -51,7 +51,7 @@ type RemoteConfig struct {
 	// we store project and environment info after the initial load so that the
 	// PollTargets functioncan use it and not have to make GetProjects and
 	// GetEnvironments requests every time
-	projEnvInfo []configPipeline
+	projEnvInfo map[string]configPipeline
 }
 
 // NewRemoteConfig creates a RemoteConfig and retrieves the configuration for
@@ -192,15 +192,15 @@ func orDone(ctx context.Context, c <-chan configPipeline) <-chan configPipeline 
 	return out
 }
 
-// configPipelineGenerator is a function for creating and sending a slice of
+// configPipelineGenerator is a function for creating and sending a map of
 // configPipelines down a channel
-func configPipelineGenerator(ctx context.Context, slice []configPipeline) <-chan configPipeline {
+func configPipelineGenerator(ctx context.Context, m map[string]configPipeline) <-chan configPipeline {
 	out := make(chan configPipeline)
 
 	go func() {
 		defer close(out)
 
-		for _, cp := range slice {
+		for _, cp := range m {
 			select {
 			case <-ctx.Done():
 				return
@@ -212,10 +212,10 @@ func configPipelineGenerator(ctx context.Context, slice []configPipeline) <-chan
 	return out
 }
 
-func makeConfigs(results <-chan configPipeline) (map[domain.AuthAPIKey]string, map[domain.TargetKey][]domain.Target, []configPipeline) {
+func makeConfigs(results <-chan configPipeline) (map[domain.AuthAPIKey]string, map[domain.TargetKey][]domain.Target, map[string]configPipeline) {
 	authConfig := map[domain.AuthAPIKey]string{}
 	targetConfig := map[domain.TargetKey][]domain.Target{}
-	projEnvInfo := []configPipeline{}
+	projEnvInfo := map[string]configPipeline{}
 
 	for result := range results {
 		for _, key := range result.APIKeys {
@@ -225,13 +225,13 @@ func makeConfigs(results <-chan configPipeline) (map[domain.AuthAPIKey]string, m
 		targetKey := domain.NewTargetKey(result.EnvironmentID)
 		targetConfig[targetKey] = append(targetConfig[targetKey], result.Targets...)
 
-		projEnvInfo = append(projEnvInfo, configPipeline{
+		projEnvInfo[result.EnvironmentID] = configPipeline{
 			AccountIdentifier:     result.AccountIdentifier,
 			OrgIdentifier:         result.OrgIdentifier,
 			ProjectIdentifier:     result.ProjectIdentifier,
 			EnvironmentID:         result.EnvironmentID,
 			EnvironmentIdentifier: result.EnvironmentIdentifier,
-		})
+		}
 	}
 	return authConfig, targetConfig, projEnvInfo
 }
