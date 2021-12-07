@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/signal"
 	"strings"
+	"time"
 
 	"github.com/hashicorp/go-retryablehttp"
 
@@ -47,61 +48,64 @@ func (i *keys) Set(value string) error {
 }
 
 var (
-	debug             bool
-	bypassAuth        bool
-	offline           bool
-	host              string
-	port              int
-	accountIdentifier string
-	orgIdentifier     string
-	adminService      string
-	adminServiceToken string
-	clientService     string
-	authSecret        string
-	sdkBaseURL        string
-	sdkEventsURL      string
-	redisAddress      string
-	redisPassword     string
-	redisDB           int
-	apiKeys           keys
+	debug              bool
+	bypassAuth         bool
+	offline            bool
+	host               string
+	port               int
+	accountIdentifier  string
+	orgIdentifier      string
+	adminService       string
+	adminServiceToken  string
+	clientService      string
+	authSecret         string
+	sdkBaseURL         string
+	sdkEventsURL       string
+	redisAddress       string
+	redisPassword      string
+	redisDB            int
+	apiKeys            keys
+	targetPollDuration int
 )
 
 const (
-	bypassAuthEnv        = "BYPASS_AUTH"
-	debugEnv             = "DEBUG"
-	offlineEnv           = "OFFLINE"
-	hostEnv              = "HOST"
-	portEnv              = "PORT"
-	accountIdentifierEnv = "ACCOUNT_IDENTIFIER"
-	orgIdentifierEnv     = "ORG_IDENTIFIER"
-	adminServiceEnv      = "ADMIN_SERVICE"
-	adminServiceTokenEnv = "ADMIN_SERVICE_TOKEN"
-	clientServiceEnv     = "CLIENT_SERVICE"
-	authSecretEnv        = "AUTH_SECRET"
-	sdkBaseURLEnv        = "SDK_BASE_URL"
-	sdkEventsURLEnv      = "SDK_EVENTS_URL"
-	redisAddrEnv         = "REDIS_ADDRESS"
-	redisPasswordEnv     = "REDIS_PASSWORD"
-	redisDBEnv           = "REDIS_DB"
-	apiKeysEnv           = "API_KEYS"
+	bypassAuthEnv         = "BYPASS_AUTH"
+	debugEnv              = "DEBUG"
+	offlineEnv            = "OFFLINE"
+	hostEnv               = "HOST"
+	portEnv               = "PORT"
+	accountIdentifierEnv  = "ACCOUNT_IDENTIFIER"
+	orgIdentifierEnv      = "ORG_IDENTIFIER"
+	adminServiceEnv       = "ADMIN_SERVICE"
+	adminServiceTokenEnv  = "ADMIN_SERVICE_TOKEN"
+	clientServiceEnv      = "CLIENT_SERVICE"
+	authSecretEnv         = "AUTH_SECRET"
+	sdkBaseURLEnv         = "SDK_BASE_URL"
+	sdkEventsURLEnv       = "SDK_EVENTS_URL"
+	redisAddrEnv          = "REDIS_ADDRESS"
+	redisPasswordEnv      = "REDIS_PASSWORD"
+	redisDBEnv            = "REDIS_DB"
+	apiKeysEnv            = "API_KEYS"
+	targetPollDurationEnv = "TARGET_POLL_DURATION"
 
-	bypassAuthFlag        = "bypass-auth"
-	debugFlag             = "debug"
-	offlineFlag           = "offline"
-	hostFlag              = "host"
-	portFlag              = "port"
-	accountIdentifierFlag = "account-identifier"
-	orgIdentifierFlag     = "org-identifier"
-	adminServiceFlag      = "admin-service"
-	adminServiceTokenFlag = "admin-service-token"
-	clientServiceFlag     = "client-service"
-	authSecretFlag        = "auth-secret"
-	sdkBaseURLFlag        = "sdk-base-url"
-	sdkEventsURLFlag      = "sdk-events-url"
-	redisAddressFlag      = "redis-address"
-	redisPasswordFlag     = "redis-password"
-	redisDBFlag           = "redis-db"
-	apiKeysFlag           = "api-keys"
+	bypassAuthFlag         = "bypass-auth"
+	debugFlag              = "debug"
+	offlineFlag            = "offline"
+	hostFlag               = "host"
+	portFlag               = "port"
+	accountIdentifierFlag  = "account-identifier"
+	orgIdentifierFlag      = "org-identifier"
+	adminServiceFlag       = "admin-service"
+	adminServiceTokenFlag  = "admin-service-token"
+	clientServiceFlag      = "client-service"
+	authSecretFlag         = "auth-secret"
+	sdkBaseURLFlag         = "sdk-base-url"
+	sdkEventsURLFlag       = "sdk-events-url"
+	redisAddressFlag       = "redis-address"
+	redisPasswordFlag      = "redis-password"
+	redisDBFlag            = "redis-db"
+	apiKeysFlag            = "api-keys"
+	targetPollDurationFlag = "target-poll-duration"
 )
 
 func init() {
@@ -123,25 +127,27 @@ func init() {
 	flag.StringVar(&redisPassword, redisPasswordFlag, "", "Optional. Redis password")
 	flag.IntVar(&redisDB, redisDBFlag, 0, "Database to be selected after connecting to the server.")
 	flag.Var(&apiKeys, apiKeysFlag, "API keys to connect with ff-server for each environment")
+	flag.IntVar(&targetPollDuration, targetPollDurationFlag, 60, "How often in seconds the proxy polls feature flags for Target changes")
 
 	loadFlagsFromEnv(map[string]string{
-		bypassAuthEnv:        bypassAuthFlag,
-		debugEnv:             debugFlag,
-		offlineEnv:           offlineFlag,
-		hostEnv:              hostFlag,
-		portEnv:              portFlag,
-		accountIdentifierEnv: accountIdentifierFlag,
-		orgIdentifierEnv:     orgIdentifierFlag,
-		adminServiceEnv:      adminServiceFlag,
-		adminServiceTokenEnv: adminServiceTokenFlag,
-		clientServiceEnv:     clientServiceFlag,
-		authSecretEnv:        authSecretFlag,
-		sdkBaseURLEnv:        sdkBaseURLFlag,
-		sdkEventsURLEnv:      sdkEventsURLFlag,
-		redisAddrEnv:         redisAddressFlag,
-		redisPasswordEnv:     redisPasswordFlag,
-		redisDBEnv:           redisDBFlag,
-		apiKeysEnv:           apiKeysFlag,
+		bypassAuthEnv:         bypassAuthFlag,
+		debugEnv:              debugFlag,
+		offlineEnv:            offlineFlag,
+		hostEnv:               hostFlag,
+		portEnv:               portFlag,
+		accountIdentifierEnv:  accountIdentifierFlag,
+		orgIdentifierEnv:      orgIdentifierFlag,
+		adminServiceEnv:       adminServiceFlag,
+		adminServiceTokenEnv:  adminServiceTokenFlag,
+		clientServiceEnv:      clientServiceFlag,
+		authSecretEnv:         authSecretFlag,
+		sdkBaseURLEnv:         sdkBaseURLFlag,
+		sdkEventsURLEnv:       sdkEventsURLFlag,
+		redisAddrEnv:          redisAddressFlag,
+		redisPasswordEnv:      redisPasswordFlag,
+		redisDBEnv:            redisDBFlag,
+		apiKeysEnv:            apiKeysFlag,
+		targetPollDurationEnv: targetPollDurationFlag,
 	})
 
 	flag.Parse()
@@ -200,7 +206,7 @@ func main() {
 
 	// Setup logger
 	logger := log.NewLogger(os.Stderr, debug)
-	logger.Info("msg", "service config", "debug", debug, "bypass-auth", bypassAuth, "offline", offline, "host", host, "port", port, "admin-service", adminService, "account-identifier", accountIdentifier, "org-identifier", orgIdentifier, "sdk-base-url", sdkBaseURL, "sdk-events-url", sdkEventsURL, "redis-addr", redisAddress, "redis-db", redisDB, "api-keys", fmt.Sprintf("%v", apiKeys))
+	logger.Info("msg", "service config", "debug", debug, "bypass-auth", bypassAuth, "offline", offline, "host", host, "port", port, "admin-service", adminService, "account-identifier", accountIdentifier, "org-identifier", orgIdentifier, "sdk-base-url", sdkBaseURL, "sdk-events-url", sdkEventsURL, "redis-addr", redisAddress, "redis-db", redisDB, "api-keys", fmt.Sprintf("%v", apiKeys), "target-poll-duration", fmt.Sprintf("%ds", targetPollDuration))
 
 	// Setup cancelation
 	sigc := make(chan os.Signal, 1)
@@ -216,13 +222,6 @@ func main() {
 		logger.Error("msg", "failed to create admin client", "err", err)
 		os.Exit(1)
 	}
-
-	var (
-		featureConfig map[domain.FeatureFlagKey][]domain.FeatureFlag
-		targetConfig  map[domain.TargetKey][]domain.Target
-		segmentConfig map[domain.SegmentKey][]domain.Segment
-		authConfig    map[domain.AuthAPIKey]string
-	)
 
 	// Create cache
 	var sdkCache cache.Cache
@@ -241,6 +240,15 @@ func main() {
 
 	apiKeyHasher := hash.NewSha256()
 
+	var (
+		featureConfig map[domain.FeatureFlagKey][]domain.FeatureFlag
+		targetConfig  map[domain.TargetKey][]domain.Target
+		segmentConfig map[domain.SegmentKey][]domain.Segment
+		authConfig    map[domain.AuthAPIKey]string
+	)
+
+	var remoteConfig config.RemoteConfig
+
 	// Load either local config from files or remote config from ff-server
 	if offline {
 		config, err := config.NewLocalConfig(ffproxy.DefaultConfig, ffproxy.DefaultConfigDir)
@@ -256,7 +264,7 @@ func main() {
 		logger.Info("msg", "retrieved offline config")
 	} else {
 		logger.Info("msg", "retrieving config from ff-server...")
-		config := config.NewRemoteConfig(
+		remoteConfig = config.NewRemoteConfig(
 			ctx,
 			accountIdentifier,
 			orgIdentifier,
@@ -266,9 +274,10 @@ func main() {
 			config.WithLogger(logger),
 			config.WithConcurrency(20),
 		)
+		logger.Info("msg", "got past NewRemoteConfig")
 
-		authConfig = config.AuthConfig()
-		targetConfig = config.TargetConfig()
+		authConfig = remoteConfig.AuthConfig()
+		targetConfig = remoteConfig.TargetConfig()
 		logger.Info("msg", "successfully retrieved config from ff-server")
 
 		// start an sdk instance for each api key
@@ -344,6 +353,20 @@ func main() {
 			os.Exit(1)
 		}
 	}()
+
+	if !offline {
+		go func() {
+			ticker := time.NewTicker(time.Duration(targetPollDuration) * time.Second)
+			defer ticker.Stop()
+
+			logger.Info("msg", fmt.Sprintf("polling for new targets every %d seconds", targetPollDuration))
+			for targetConfig := range remoteConfig.PollTargets(ctx, ticker.C) {
+				for key, values := range targetConfig {
+					tr.DeltaAdd(ctx, key, values...)
+				}
+			}
+		}()
+	}
 
 	if err := server.Serve(); err != nil {
 		logger.Error("msg", "server stopped", "err", err)

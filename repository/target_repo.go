@@ -2,9 +2,11 @@ package repository
 
 import (
 	"context"
+	"errors"
 	"fmt"
-	"github.com/harness/ff-proxy/cache"
 	"time"
+
+	"github.com/harness/ff-proxy/cache"
 
 	"github.com/harness/ff-proxy/domain"
 )
@@ -76,4 +78,48 @@ func (t TargetRepo) GetByIdentifier(ctx context.Context, key domain.TargetKey, i
 		return domain.Target{}, err
 	}
 	return target, nil
+}
+
+// DeltaAdd adds new Targets and updates existing Targets for the given key if they
+// exist in the cache. It will remove any existing Targets from the cache that are not
+// in the list of new Targets. If you pass it an empty list of Targets it will return
+// an error to avoid wiping all of the Targets from the cache. If we want to remove
+// all of the Targets for a given key then we should add an explicit Remove method
+// that calls cache.Remove.
+func (t TargetRepo) DeltaAdd(ctx context.Context, key domain.TargetKey, targets ...domain.Target) error {
+	if len(targets) == 0 {
+		return fmt.Errorf("can't perform DeltaAdd with zero targets for key %s", key)
+	}
+
+	results, err := t.cache.GetAll(ctx, string(key))
+	if err != nil {
+		// If the key doesn't already exist in the cache we will want to add it
+		if !errors.Is(err, domain.ErrCacheNotFound) {
+			return err
+		}
+	}
+
+	existingTargets := map[string]domain.Target{}
+	for _, b := range results {
+		target := &domain.Target{}
+		if err := target.UnmarshalBinary(b); err != nil {
+			return err
+		}
+		existingTargets[target.Identifier] = *target
+	}
+
+	newTargets := map[string]domain.Target{}
+	for _, target := range targets {
+		newTargets[target.Identifier] = target
+	}
+
+	// If there are targets from the cache that aren't in the map of new targets
+	// then we'll want to remove them.
+	for identifier := range existingTargets {
+		if _, ok := newTargets[identifier]; !ok {
+			t.cache.Remove(ctx, string(key), identifier)
+		}
+	}
+
+	return t.Add(ctx, key, targets...)
 }
