@@ -4,6 +4,7 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	"github.com/hashicorp/go-retryablehttp"
 	stdlog "log"
 	"os"
 	"os/signal"
@@ -152,9 +153,14 @@ func initFF(ctx context.Context, cache sdkCache.Cache, baseURL, eventURL, envID,
 	// contextLogger adds the environment ID to each log so we can distinguish between sdk instances
 	contextLogger := logger.WithField("environment", envID)
 
+	retryClient := retryablehttp.NewClient()
+	retryClient.RetryMax = 5
+	retryClient.Logger = contextLogger
+
 	client, err := harness.NewCfClient(sdkKey,
 		harness.WithLogger(contextLogger),
 		harness.WithURL(baseURL),
+		harness.WithHTTPClient(retryClient.StandardClient()),
 		harness.WithEventsURL(eventURL),
 		harness.WithStreamEnabled(true),
 		harness.WithCache(cache),
