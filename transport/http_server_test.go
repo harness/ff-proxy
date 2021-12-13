@@ -13,12 +13,12 @@ import (
 	"os"
 	"testing"
 
+	sdklogger "github.com/harness/ff-golang-server-sdk/logger"
 	ffproxy "github.com/harness/ff-proxy"
 	"github.com/harness/ff-proxy/cache"
 	"github.com/harness/ff-proxy/config"
 	"github.com/harness/ff-proxy/domain"
 	admingen "github.com/harness/ff-proxy/gen/admin"
-	"github.com/harness/ff-proxy/log"
 	"github.com/harness/ff-proxy/middleware"
 	proxyservice "github.com/harness/ff-proxy/proxy-service"
 	"github.com/harness/ff-proxy/repository"
@@ -175,8 +175,9 @@ func setupHTTPServer(t *testing.T, bypassAuth bool, opts ...setupOpts) *HTTPServ
 		}}
 	}
 
-	tokenSource := ffproxy.NewTokenSource(log.NoOpLogger{}, setupConfig.authRepo, hash.NewSha256(), []byte(`secret`))
-	logger := log.NewNoOpLogger()
+	logger := sdklogger.NoOpLogger{}
+
+	tokenSource := ffproxy.NewTokenSource(logger, setupConfig.authRepo, hash.NewSha256(), []byte(`secret`))
 
 	var service proxyservice.ProxyService
 	service = proxyservice.NewService(

@@ -75,7 +75,7 @@ type clientService interface {
 
 // Service is the proxy service implementation
 type Service struct {
-	logger        log.Logger
+	logger        log.ContextualLogger
 	featureRepo   repository.FeatureFlagRepo
 	targetRepo    repository.TargetRepo
 	segmentRepo   repository.SegmentRepo
@@ -86,7 +86,7 @@ type Service struct {
 }
 
 // NewService creates and returns a ProxyService
-func NewService(fr repository.FeatureFlagRepo, tr repository.TargetRepo, sr repository.SegmentRepo, authFn authTokenFn, e evaluator, c clientService, l log.Logger, offline bool) Service {
+func NewService(fr repository.FeatureFlagRepo, tr repository.TargetRepo, sr repository.SegmentRepo, authFn authTokenFn, e evaluator, c clientService, l log.ContextualLogger, offline bool) Service {
 	l = log.With(l, "component", "ProxyService")
 	return Service{
 		logger:        l,
@@ -102,9 +102,11 @@ func NewService(fr repository.FeatureFlagRepo, tr repository.TargetRepo, sr repo
 
 // Authenticate performs authentication
 func (s Service) Authenticate(ctx context.Context, req domain.AuthRequest) (domain.AuthResponse, error) {
+	s.logger = s.logger.With("method", "Authenticate")
+
 	token, err := s.authFn(req.APIKey)
 	if err != nil {
-		s.logger.Error("msg", "failed to generate auth token", "err", err)
+		s.logger.Error(ctx, "failed to generate auth token", "err", err)
 		return domain.AuthResponse{}, ErrUnauthorised
 	}
 
@@ -134,9 +136,9 @@ func (s Service) Authenticate(ctx context.Context, req domain.AuthRequest) (doma
 		defer cancel()
 
 		if _, err := s.clientService.Authenticate(newCtx, req.APIKey, req.Target); err != nil {
-			s.logger.Error("msg", "failed to forward Target registrationg via auth request to client service", "err", err)
+			s.logger.Error(ctx, "failed to forward Target registrationg via auth request to client service", "err", err)
 		}
-		s.logger.Debug("msg", "successfully registered target with feature flags", "target_identifier", req.Target.Target.Identifier)
+		s.logger.Debug(ctx, "successfully registered target with feature flags", "target_identifier", req.Target.Target.Identifier)
 	}()
 
 	return domain.AuthResponse{AuthToken: token.TokenString()}, nil
@@ -144,6 +146,8 @@ func (s Service) Authenticate(ctx context.Context, req domain.AuthRequest) (doma
 
 // FeatureConfig gets all FeatureConfig for an environment
 func (s Service) FeatureConfig(ctx context.Context, req domain.FeatureConfigRequest) ([]domain.FeatureConfig, error) {
+	s.logger = s.logger.With("method", "FeatureConfig")
+
 	configs := []domain.FeatureConfig{}
 	flagKey := domain.NewFeatureConfigKey(req.EnvironmentID)
 	segmentKey := domain.NewSegmentKey(req.EnvironmentID)
@@ -179,6 +183,8 @@ func (s Service) FeatureConfig(ctx context.Context, req domain.FeatureConfigRequ
 
 // FeatureConfigByIdentifier gets the feature config for a feature
 func (s Service) FeatureConfigByIdentifier(ctx context.Context, req domain.FeatureConfigByIdentifierRequest) (domain.FeatureConfig, error) {
+	s.logger = s.logger.With("method", "FeatureConfigByIdentifier")
+
 	flagKey := domain.NewFeatureConfigKey(req.EnvironmentID)
 	segmentKey := domain.NewSegmentKey(req.EnvironmentID)
 
@@ -209,6 +215,8 @@ func (s Service) FeatureConfigByIdentifier(ctx context.Context, req domain.Featu
 
 // TargetSegments gets all of the TargetSegments in an environment
 func (s Service) TargetSegments(ctx context.Context, req domain.TargetSegmentsRequest) ([]domain.Segment, error) {
+	s.logger = s.logger.With("method", "TargetSegments")
+
 	key := domain.NewSegmentKey(req.EnvironmentID)
 
 	segments, err := s.segmentRepo.Get(ctx, key)
@@ -224,6 +232,8 @@ func (s Service) TargetSegments(ctx context.Context, req domain.TargetSegmentsRe
 
 // TargetSegmentsByIdentifier get a TargetSegments from an environment by its identifier
 func (s Service) TargetSegmentsByIdentifier(ctx context.Context, req domain.TargetSegmentsByIdentifierRequest) (domain.Segment, error) {
+	s.logger = s.logger.With("method", "TargetSegmentsByIdentifier")
+
 	key := domain.NewSegmentKey(req.EnvironmentID)
 
 	segment, err := s.segmentRepo.GetByIdentifier(ctx, key, req.Identifier)
@@ -239,6 +249,8 @@ func (s Service) TargetSegmentsByIdentifier(ctx context.Context, req domain.Targ
 
 // Evaluations gets all of the evaluations in an environment for a target
 func (s Service) Evaluations(ctx context.Context, req domain.EvaluationsRequest) ([]clientgen.Evaluation, error) {
+	s.logger = s.logger.With("method", "Evaluations")
+
 	configs := []domain.FeatureConfig{}
 	flagKey := domain.NewFeatureConfigKey(req.EnvironmentID)
 	targetKey := domain.NewTargetKey(req.EnvironmentID)
@@ -289,6 +301,8 @@ func (s Service) Evaluations(ctx context.Context, req domain.EvaluationsRequest)
 
 // EvaluationsByFeature gets all of the evaluations in an environment for a target for a particular feature
 func (s Service) EvaluationsByFeature(ctx context.Context, req domain.EvaluationsByFeatureRequest) (clientgen.Evaluation, error) {
+	s.logger = s.logger.With("method", "EvaluationsByFeature")
+
 	featureKey := domain.NewFeatureConfigKey(req.EnvironmentID)
 	segmentKey := domain.NewSegmentKey(req.EnvironmentID)
 	targetKey := domain.NewTargetKey(req.EnvironmentID)
@@ -333,7 +347,7 @@ func (s Service) EvaluationsByFeature(ctx context.Context, req domain.Evaluation
 
 	// This shouldn't happen
 	if len(evaluations) != 1 {
-		s.logger.Error("msg", "evaluations should only have a length of one")
+		s.logger.Error(ctx, "evaluations should only have a length of one")
 		return clientgen.Evaluation{}, ErrInternal
 	}
 
@@ -342,12 +356,15 @@ func (s Service) EvaluationsByFeature(ctx context.Context, req domain.Evaluation
 
 // Stream streams flag updates out to the client
 func (s Service) Stream(ctx context.Context, req domain.StreamRequest, stream domain.Stream) error {
+	s.logger = s.logger.With("method", "Stream")
 	return ErrNotImplemented
 }
 
 // Metrics forwards metrics to the analytics service
 func (s Service) Metrics(ctx context.Context, req domain.MetricsRequest) error {
-	s.logger.Debug("msg", "got metrics request", "metrics", fmt.Sprintf("%+v", req))
+	s.logger = s.logger.With("method", "Metrics")
+
+	s.logger.Debug(ctx, "got metrics request", "metrics", fmt.Sprintf("%+v", req))
 	return ErrNotImplemented
 }
 

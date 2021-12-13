@@ -3,7 +3,6 @@ package config
 import (
 	"context"
 	"fmt"
-	"os"
 	"sync"
 	"time"
 
@@ -76,13 +75,13 @@ func NewRemoteConfig(ctx context.Context, accountIdentifer string, orgIdentifier
 	}
 
 	if rc.log == nil {
-		rc.log = log.NewLogger(os.Stderr, false)
+		rc.log = log.NoOpLogger{}
 	}
 
 	if rc.concurrency == 0 {
 		rc.concurrency = 10
 	}
-	rc.log = log.With(rc.log, "component", "RemoteConfig", "account_identifier", accountIdentifer, "org_identifier", orgIdentifier)
+	rc.log = rc.log.With("component", "RemoteConfig", "account_identifier", accountIdentifer, "org_identifier", orgIdentifier)
 
 	rc.authConfig, rc.targetConfig, rc.projEnvInfo = makeConfigs(orDone(ctx, rc.load(ctx, accountIdentifer, orgIdentifier, allowedAPIKeys)))
 	return *rc
@@ -113,7 +112,7 @@ func (r RemoteConfig) PollTargets(ctx context.Context, ticker <-chan time.Time) 
 			case <-ctx.Done():
 				return
 			case <-ticker:
-				r.log.Debug("msg", "polling for new targets")
+				r.log.Debug("polling for new targets")
 				_, targetConfig, _ := makeConfigs(r.addTargetConfig(ctx, configPipelineGenerator(ctx, r.projEnvInfo)))
 
 				select {
@@ -299,7 +298,7 @@ func (r RemoteConfig) addProjectConfig(ctx context.Context, input configPipeline
 			result, err := r.client.PageProjects(ctx, projectInput)
 			done = result.Finished
 			if err != nil {
-				r.log.Error("msg", "error paging projects", "err", err)
+				r.log.Error("error paging projects", "err", err)
 				return
 			}
 
@@ -341,7 +340,7 @@ func (r RemoteConfig) addEnvironmentConfig(ctx context.Context, inputs <-chan co
 				result, err := r.client.PageEnvironments(ctx, environmentInput)
 				done = result.Finished
 				if err != nil {
-					r.log.Error("msg", "error paging environments", "err", err)
+					r.log.Error("error paging environments", "err", err)
 					continue
 				}
 
@@ -397,7 +396,7 @@ func (r RemoteConfig) addTargetConfig(ctx context.Context, inputs <-chan configP
 				result, err := r.client.PageTargets(ctx, targetInput)
 				done = result.Finished
 				if err != nil {
-					r.log.Error("msg", "error paging targets", "err", err, "input", fmt.Sprintf("%+v", targetInput))
+					r.log.Error("error paging targets", "err", err, "input", fmt.Sprintf("%+v", targetInput))
 					continue
 				}
 

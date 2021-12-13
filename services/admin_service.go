@@ -30,7 +30,7 @@ type AdminService struct {
 
 // NewAdminService creates an AdminClient
 func NewAdminService(l log.Logger, addr string, serviceToken string) (AdminService, error) {
-	l = log.With(l, "component", "FF-AdminService-Client")
+	l = l.With("component", "AdminServiceClient")
 
 	c, err := admingen.NewClientWithResponses(
 		addr,
@@ -62,10 +62,12 @@ type PageEnvironmentsResult struct {
 // PageEnvironments is used for synchronously paging over environments by making
 // request to the admin services /admin/environments endpoint
 func (r AdminService) PageEnvironments(ctx context.Context, input PageEnvironmentsInput) (PageEnvironmentsResult, error) {
+	r.log = r.log.With("method", "PageEnvironments")
+
 	pageNumber := admingen.PageNumber(input.PageNumber)
 	pageSize := admingen.PageSize(input.PageSize)
 
-	r.log.Debug("msg", "GetAllEnvironmentsWithResponse", "projectIdentifier", input.ProjectIdentifier, "pageSize", input.PageSize, "pageNumber", input.PageNumber)
+	r.log.Debug("getting environments", "projectIdentifier", input.ProjectIdentifier, "pageSize", input.PageSize, "pageNumber", input.PageNumber)
 	resp, err := r.client.GetAllEnvironmentsWithResponse(ctx, &admingen.GetAllEnvironmentsParams{
 		AccountIdentifier: admingen.AccountQueryParam(input.AccountIdentifier),
 		Org:               admingen.OrgQueryParam(input.OrgIdentifier),
@@ -110,10 +112,12 @@ type PageProjectsResult struct {
 // PageProjects is used for synchronously paging over projects by making requests
 // to the admin services /admin/projects endpoint
 func (r AdminService) PageProjects(ctx context.Context, input PageProjectsInput) (PageProjectsResult, error) {
+	r.log = r.log.With("method", "PageProjects")
+
 	pageNumber := admingen.PageNumber(input.PageNumber)
 	pageSize := admingen.PageSize(input.PageSize)
 
-	r.log.Debug("msg", "GetAllProjectsWithResponse", "pageSize", input.PageSize, "pageNumber", input.PageNumber)
+	r.log.Debug("getting projects", "pageSize", input.PageSize, "pageNumber", input.PageNumber)
 	resp, err := r.client.GetAllProjectsWithResponse(ctx, &admingen.GetAllProjectsParams{
 		AccountIdentifier: admingen.AccountQueryParam(input.AccountIdentifier),
 		Org:               admingen.OrgQueryParam(input.OrgIdentifier),
@@ -160,10 +164,12 @@ type PageTargetsResult struct {
 // PageTargets is used for synchronously paging over projects by making requests
 // to the admin services /admin/targets endpoint.
 func (r AdminService) PageTargets(ctx context.Context, input PageTargetsInput) (PageTargetsResult, error) {
+	r.log = r.log.With("method", "PageTargets")
+
 	pageNumber := admingen.PageNumber(input.PageNumber)
 	pageSize := admingen.PageSize(input.PageSize)
 
-	r.log.Debug("msg", "GetAllTargetsWithResponse", "project_identifier", input.ProjectIdentifier, "environment_identifier", input.EnvironmentIdentifier, "pageSize", input.PageSize, "pageNumber", input.PageNumber)
+	r.log.Debug("getting targets", "project_identifier", input.ProjectIdentifier, "environment_identifier", input.EnvironmentIdentifier, "pageSize", input.PageSize, "pageNumber", input.PageNumber)
 	resp, err := r.client.GetAllTargetsWithResponse(ctx, &admingen.GetAllTargetsParams{
 		AccountIdentifier: admingen.AccountQueryParam(input.AccountIdentifier),
 		Org:               admingen.OrgQueryParam(input.OrgIdentifier),

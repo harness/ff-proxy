@@ -10,10 +10,16 @@ func NewNoOpLogger() NoOpLogger {
 }
 
 // Info does nothing on a NoOpLogger
-func (n NoOpLogger) Info(keyvals ...interface{}) {}
+func (n NoOpLogger) Info(msg string, keyvals ...interface{}) {}
 
 // Debug does nothing on a NoOpLogger
-func (n NoOpLogger) Debug(keyvals ...interface{}) {}
+func (n NoOpLogger) Debug(msg string, keyvals ...interface{}) {}
 
 // Error  does nothing on a NoOpLogger
-func (n NoOpLogger) Error(keyvals ...interface{}) {}
+func (n NoOpLogger) Error(msg string, keyvals ...interface{}) {}
+
+// Warn  does nothing on a NoOpLogger
+func (n NoOpLogger) Warn(msg string, keyvals ...interface{}) {}
+
+// With does nothing on a NoOpLogger
+func (n NoOpLogger) With(keyvals ...interface{}) Logger { return NoOpLogger{} }

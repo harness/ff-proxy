@@ -17,7 +17,7 @@ type ClientService struct {
 
 // NewClientService creates a ClientService
 func NewClientService(l log.Logger, addr string) (ClientService, error) {
-	l = log.With(l, "component", "FF-ClientService-Client")
+	l = l.With("component", "ClientServiceClient")
 
 	client, err := clientgen.NewClientWithResponses(addr)
 	if err != nil {
