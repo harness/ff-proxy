@@ -10,7 +10,7 @@ require (
 	github.com/go-redis/redis/v8 v8.11.4
 	github.com/google/uuid v1.3.0
 	github.com/gorilla/mux v1.8.0
-	github.com/harness/ff-golang-server-sdk v0.0.24-0.20211207112015-ed0101ca4576
+	github.com/harness/ff-golang-server-sdk v0.0.24-0.20211213150413-5f8101c152b9
 	github.com/labstack/echo/v4 v4.6.1
 	github.com/sirupsen/logrus v1.8.1
 	github.com/stretchr/testify v1.7.0
