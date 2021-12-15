@@ -51,7 +51,6 @@ var (
 	debug              bool
 	bypassAuth         bool
 	offline            bool
-	host               string
 	port               int
 	accountIdentifier  string
 	orgIdentifier      string
@@ -72,7 +71,6 @@ const (
 	bypassAuthEnv         = "BYPASS_AUTH"
 	debugEnv              = "DEBUG"
 	offlineEnv            = "OFFLINE"
-	hostEnv               = "HOST"
 	portEnv               = "PORT"
 	accountIdentifierEnv  = "ACCOUNT_IDENTIFIER"
 	orgIdentifierEnv      = "ORG_IDENTIFIER"
@@ -91,7 +89,6 @@ const (
 	bypassAuthFlag         = "bypass-auth"
 	debugFlag              = "debug"
 	offlineFlag            = "offline"
-	hostFlag               = "host"
 	portFlag               = "port"
 	accountIdentifierFlag  = "account-identifier"
 	orgIdentifierFlag      = "org-identifier"
@@ -113,7 +110,6 @@ func init() {
 	// TODO - FFM-1812 - we should update this to be loglevel
 	flag.BoolVar(&debug, debugFlag, false, "enables debug logging")
 	flag.BoolVar(&offline, offlineFlag, false, "enables side loading of data from config dir")
-	flag.StringVar(&host, hostFlag, "localhost", "host of the proxy service")
 	flag.IntVar(&port, portFlag, 7000, "port that the proxy service is exposed on")
 	flag.StringVar(&accountIdentifier, accountIdentifierFlag, "", "account identifier to load remote config for")
 	flag.StringVar(&orgIdentifier, orgIdentifierFlag, "", "org identifier to load remote config for")
@@ -133,7 +129,6 @@ func init() {
 		bypassAuthEnv:         bypassAuthFlag,
 		debugEnv:              debugFlag,
 		offlineEnv:            offlineFlag,
-		hostEnv:               hostFlag,
 		portEnv:               portFlag,
 		accountIdentifierEnv:  accountIdentifierFlag,
 		orgIdentifierEnv:      orgIdentifierFlag,
@@ -206,7 +201,7 @@ func main() {
 
 	// Setup logger
 	logger := log.NewLogger(os.Stderr, debug)
-	logger.Info("msg", "service config", "debug", debug, "bypass-auth", bypassAuth, "offline", offline, "host", host, "port", port, "admin-service", adminService, "account-identifier", accountIdentifier, "org-identifier", orgIdentifier, "sdk-base-url", sdkBaseURL, "sdk-events-url", sdkEventsURL, "redis-addr", redisAddress, "redis-db", redisDB, "api-keys", fmt.Sprintf("%v", apiKeys), "target-poll-duration", fmt.Sprintf("%ds", targetPollDuration))
+	logger.Info("msg", "service config", "debug", debug, "bypass-auth", bypassAuth, "offline", offline, "port", port, "admin-service", adminService, "account-identifier", accountIdentifier, "org-identifier", orgIdentifier, "sdk-base-url", sdkBaseURL, "sdk-events-url", sdkEventsURL, "redis-addr", redisAddress, "redis-db", redisDB, "api-keys", fmt.Sprintf("%v", apiKeys), "target-poll-duration", fmt.Sprintf("%ds", targetPollDuration))
 
 	// Setup cancelation
 	sigc := make(chan os.Signal, 1)
@@ -337,7 +332,7 @@ func main() {
 
 	// Configure endpoints and server
 	endpoints := transport.NewEndpoints(service)
-	server := transport.NewHTTPServer(host, port, endpoints, logger)
+	server := transport.NewHTTPServer(port, endpoints, logger)
 	server.Use(
 		echomiddleware.RequestID(),
 		middleware.NewEchoLoggingMiddleware(),

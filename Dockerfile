@@ -28,4 +28,3 @@ RUN apk update && apk add --no-cache bash
 COPY --from=builder /app/ff-proxy /app/ff-proxy
 USER nobody:nogroup
 ENTRYPOINT ["/app/ff-proxy"]
-CMD ["--help"]

@@ -19,12 +19,12 @@ type HTTPServer struct {
 
 // NewHTTPServer registers the passed endpoints against routes and returns an
 // HTTPServer that's ready to use
-func NewHTTPServer(host string, port int, e *Endpoints, l log.Logger) *HTTPServer {
+func NewHTTPServer(port int, e *Endpoints, l log.Logger) *HTTPServer {
 	l = log.With(l, "component", "HTTPServer")
 
 	router := echo.New()
 	server := &http.Server{
-		Addr:              fmt.Sprintf("%s:%d", host, port),
+		Addr:              fmt.Sprintf(":%d", port),
 		Handler:           cors(router),
 		ReadTimeout:       30 * time.Second,
 		ReadHeaderTimeout: 30 * time.Second,
