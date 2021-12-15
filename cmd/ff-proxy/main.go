@@ -147,13 +147,13 @@ func init() {
 	flag.Parse()
 }
 
-func initFF(ctx context.Context, cache sdkCache.Cache, baseURL, eventURL, envID, sdkKey string, l log.Logger) {
+func initFF(ctx context.Context, cache sdkCache.Cache, baseURL, eventURL, envID, envIdent, projectIdent, sdkKey string, l log.Logger) {
 
 	retryClient := retryablehttp.NewClient()
 	retryClient.RetryMax = 5
 	retryClient.Logger = l.With("component", "RetryClient", "environment", envID)
 
-	l = l.With("component", "SDK", "environmentID", envID)
+	l = l.With("component", "SDK", "environmentID", envID, "environment_identifier", envIdent, "project_identifier", projectIdent)
 	structuredLogger, ok := l.(log.StructuredLogger)
 	if !ok {
 		l.Error("unexpected logger", "expected", "log.StructuredLogger", "got", fmt.Sprintf("%T", structuredLogger))
@@ -216,7 +216,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	logger.Info("service config", "debug", debug, "bypass-auth", bypassAuth, "offline", offline, "host", host, "port", port, "admin-service", adminService, "account-identifier", accountIdentifier, "org-identifier", orgIdentifier, "sdk-base-url", sdkBaseURL, "sdk-events-url", sdkEventsURL, "redis-addr", redisAddress, "redis-db", redisDB, "api-keys", fmt.Sprintf("%v", apiKeys), "target-poll-duration", fmt.Sprintf("%ds", targetPollDuration))
+	logger.Info("service config", "debug", debug, "bypass-auth", bypassAuth, "offline", offline, "port", port, "admin-service", adminService, "account-identifier", accountIdentifier, "org-identifier", orgIdentifier, "sdk-base-url", sdkBaseURL, "sdk-events-url", sdkEventsURL, "redis-addr", redisAddress, "redis-db", redisDB, "api-keys", fmt.Sprintf("%v", apiKeys), "target-poll-duration", fmt.Sprintf("%ds", targetPollDuration))
 
 	adminService, err := services.NewAdminService(logger, adminService, adminServiceToken)
 	if err != nil {
@@ -280,6 +280,8 @@ func main() {
 		targetConfig = remoteConfig.TargetConfig()
 		logger.Info("successfully retrieved config from ff-server")
 
+		envIDToProjectEnvironmentInfo := remoteConfig.ProjectEnvironmentInfo()
+
 		// start an sdk instance for each api key
 		for _, apiKey := range apiKeys {
 			apiKeyHash := apiKeyHasher.Hash(apiKey)
@@ -291,8 +293,10 @@ func main() {
 				continue
 			}
 
+			projEnvInfo := envIDToProjectEnvironmentInfo[authConfig[domain.AuthAPIKey(apiKeyHash)]]
+
 			cacheWrapper := cache.NewWrapper(sdkCache, envID, logger)
-			go initFF(ctx, cacheWrapper, sdkBaseURL, sdkEventsURL, envID, apiKey, logger)
+			go initFF(ctx, cacheWrapper, sdkBaseURL, sdkEventsURL, envID, projEnvInfo.EnvironmentIdentifier, projEnvInfo.ProjectIdentifier, apiKey, logger)
 		}
 	}
 

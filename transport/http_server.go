@@ -19,7 +19,7 @@ type HTTPServer struct {
 
 // NewHTTPServer registers the passed endpoints against routes and returns an
 // HTTPServer that's ready to use
-func NewHTTPServer(host string, port int, e *Endpoints, l log.Logger) *HTTPServer {
+func NewHTTPServer(port int, e *Endpoints, l log.Logger) *HTTPServer {
 	l = l.With("component", "HTTPServer")
 
 	router := echo.New()

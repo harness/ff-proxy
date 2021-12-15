@@ -97,6 +97,25 @@ func (r RemoteConfig) AuthConfig() map[domain.AuthAPIKey]string {
 	return r.authConfig
 }
 
+type projEnvInfo struct {
+	EnvironmentIdentifier string
+	ProjectIdentifier     string
+}
+
+// ProjectEnvironmentInfo returns a map of environmentIDs to structs containing
+// the Environment and Project Identifiers
+func (r RemoteConfig) ProjectEnvironmentInfo() map[string]projEnvInfo {
+	m := map[string]projEnvInfo{}
+
+	for envID, cp := range r.projEnvInfo {
+		m[envID] = projEnvInfo{
+			EnvironmentIdentifier: cp.EnvironmentIdentifier,
+			ProjectIdentifier:     cp.ProjectIdentifier,
+		}
+	}
+	return m
+}
+
 // PollTargets polls feature flags to fetch the latest targets at a rate determined
 // by the ticker and returns the latest targets on a channel.
 func (r RemoteConfig) PollTargets(ctx context.Context, ticker <-chan time.Time) <-chan map[domain.TargetKey][]domain.Target {
