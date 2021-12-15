@@ -5,16 +5,7 @@
 
 ## Quick Start
 
-If you want to quickly get an instance of the proxy running locally use `make run` which will run the proxy in a docker container in offline mode along with a redis container that the Proxy will use as its cache for storing data. This will also preload the proxy with some basic feature, target, segment and auth config so that you can point an SDK to it to see how it behaves.
-
-If you are unsure of how to point an sdk at the proxy there is an [example server sdk](./cmd/example-sdk) one in this repo with default flag values that are configured to work with the basic config that gets loaded into the Proxy when you use `make run`. Use `make build-example-sdk` to build the sdk and then run the binary `./ff-example-sdk`. The SDK should connect to the Proxy and start evaluating the `harnessappdemodarkmode` flag and periodically log out its value e.g
-```
-2021-12-01T12:34:31.403Z	INFO	client/client.go:345	Retrieving flags finished
-KeyFeature flag 'harnessappdemodarkmode' is true for this user
-```
-
-If you want to turn the `harnessappdemodarkmode` flag on then you will want to change it's state in the [config](./config/env-94ef7361-1f2d-40af-9b2c-c1145d537e5a/feature_config.json#L276) to `off`
-
+If you want to quickly get an instance of the proxy running locally in online or offline mode view the [get started docs](./docs).
 
 ## Getting Started
 

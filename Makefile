@@ -57,7 +57,7 @@ dev: ## Brings up services that the proxy uses
 
 PHONY+= run
 run: ## Runs the proxy and redis
-	docker-compose -f ./docker-compose.yml up ${DOCKER_BUILD_OPTS} --remove-orphans redis proxy
+	docker-compose --env-file .offline.docker.env -f ./docker-compose.yml up ${DOCKER_BUILD_OPTS} --remove-orphans redis proxy
 
 PHONY+= stop
 stop: ## Stops all services brought up by make run

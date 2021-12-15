@@ -2,10 +2,26 @@ version: "3.9"
 services:
   proxy:
     image: "harness/ff-proxy:latest"
-    env_file: ".offline.docker.env"
+    environment:
+      - DEBUG=${DEBUG}
+      - OFFLINE=${OFFLINE}
+      - BYPASS_AUTH=${BYPASS_AUTH}
+      - PORT=${PORT}
+      - ACCOUNT_IDENTIFIER=${ACCOUNT_IDENTIFIER}
+      - ORG_IDENTIFIER=${ORG_IDENTIFIER}
+      - ADMIN_SERVICE=${ADMIN_SERVICE}
+      - ADMIN_SERVICE_TOKEN=${ADMIN_SERVICE_TOKEN}
+      - CLIENT_SERVICE=${CLIENT_SERVICE_TOKEN}
+      - AUTH_SECRET=${AUTH_SECRET}
+      - SDK_BASE_URL=${SDK_BASE_URL}
+      - SDK_EVENTS_URL=${SDK_EVENTS_URL}
+      - REDIS_ADDRESS=${REDIS_ADDRESS}
+      - REDIS_PASSWORD=${REDIS_PASSWORD}
+      - REDIS_DB=${REDIS_DB}
+      - API_KEYS=${API_KEYS}
+      - TARGET_POLL_DURATION=${TARGET_POLL_DURATION}
     volumes:
       - ./config:/config
-    command: ./app/ff-proxy
     ports:
       - "7000:7000"
 
