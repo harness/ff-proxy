@@ -4,8 +4,16 @@
 [![Slack](https://img.shields.io/badge/slack-ff--team-orange.svg?style=flat?label=ff-team)](https://harness.slack.com/archives/C02AN03D478)
 
 ## Quick Start
+The proxy can run in one of two modes
 
-If you want to quickly get an instance of the proxy running locally in online or offline mode view the [get started docs](./docs).
+1) Offline, where you download flag configuration and load it into the proxy, completely disconnected from Harness
+2) Online, where the proxy will connect to harness to fetch feature flag configuration, and automatically fetch updates as flags are modified.
+
+To get started take a look at
+
+[Running in Offline mode](./docs/get_started_offline.md)
+
+[Running in Online mode](./docs/get_started_online.md)
 
 ## Getting Started
 
