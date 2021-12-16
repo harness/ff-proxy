@@ -25,6 +25,7 @@ RUN make build
 ############################
 FROM alpine:latest
 RUN apk update && apk add --no-cache bash
+RUN apk add --no-cache ca-certificates && apk update ca-certificates
 COPY --from=builder /app/ff-proxy /app/ff-proxy
 USER nobody:nogroup
 ENTRYPOINT ["/app/ff-proxy"]
