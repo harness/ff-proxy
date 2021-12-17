@@ -328,7 +328,7 @@ func main() {
 
 	// Setup service and middleware
 	var service proxyservice.ProxyService
-	service = proxyservice.NewService(fcr, tr, sr, tokenSource.GenerateToken, featureEvaluator, clientService, logger)
+	service = proxyservice.NewService(fcr, tr, sr, tokenSource.GenerateToken, featureEvaluator, clientService, logger, offline)
 
 	// Configure endpoints and server
 	endpoints := transport.NewEndpoints(service)

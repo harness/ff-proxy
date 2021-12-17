@@ -187,10 +187,11 @@ func setupHTTPServer(t *testing.T, bypassAuth bool, opts ...setupOpts) *HTTPServ
 		proxyservice.NewFeatureEvaluator(),
 		setupConfig.clientService,
 		logger,
+		false,
 	)
 	endpoints := NewEndpoints(service)
 
-	server := NewHTTPServer("localhost", 7000, endpoints, logger)
+	server := NewHTTPServer(7000, endpoints, logger)
 	server.Use(middleware.NewEchoAuthMiddleware([]byte(`secret`), bypassAuth))
 	return server
 }

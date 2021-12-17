@@ -82,10 +82,11 @@ type Service struct {
 	authFn        authTokenFn
 	evaluator     evaluator
 	clientService clientService
+	offline       bool
 }
 
 // NewService creates and returns a ProxyService
-func NewService(fr repository.FeatureFlagRepo, tr repository.TargetRepo, sr repository.SegmentRepo, authFn authTokenFn, e evaluator, c clientService, l log.Logger) Service {
+func NewService(fr repository.FeatureFlagRepo, tr repository.TargetRepo, sr repository.SegmentRepo, authFn authTokenFn, e evaluator, c clientService, l log.Logger, offline bool) Service {
 	l = log.With(l, "component", "ProxyService")
 	return Service{
 		logger:        l,
@@ -95,6 +96,7 @@ func NewService(fr repository.FeatureFlagRepo, tr repository.TargetRepo, sr repo
 		authFn:        authFn,
 		evaluator:     e,
 		clientService: c,
+		offline:       offline,
 	}
 }
 
@@ -113,6 +115,12 @@ func (s Service) Authenticate(ctx context.Context, req domain.AuthRequest) (doma
 
 	envID := token.Claims().Environment
 	s.targetRepo.Add(ctx, domain.NewTargetKey(envID), req.Target)
+
+	// if the proxy is running in offline mode we're done, we don't need to bother
+	// forwarding the request to FeatureFlags
+	if s.offline {
+		return domain.AuthResponse{AuthToken: token.TokenString()}, nil
+	}
 
 	// We forward the auth request to the client service so that the Target is
 	// updated/added in FeatureFlags. Potentially a bold assumption but since the

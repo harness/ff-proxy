@@ -114,7 +114,7 @@ func setupService(cfg benchmarkConfig, b *testing.B) ProxyService {
 
 	// Client service isn't used by the methods we benchmark so we can get away
 	// with making it nil
-	return NewService(featureRepo, targetRepo, segmentRepo, authFn, NewFeatureEvaluator(), nil, log.NoOpLogger{})
+	return NewService(featureRepo, targetRepo, segmentRepo, authFn, NewFeatureEvaluator(), nil, log.NoOpLogger{}, true)
 }
 
 type benchmark struct {
