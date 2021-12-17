@@ -8,9 +8,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/harness/ff-golang-server-sdk/logger"
 	"github.com/harness/ff-proxy/domain"
 	admingen "github.com/harness/ff-proxy/gen/admin"
+	"github.com/harness/ff-proxy/log"
 	"github.com/harness/ff-proxy/services"
 	"github.com/stretchr/testify/assert"
 )
@@ -256,7 +256,7 @@ func TestRemoteConfig(t *testing.T) {
 				Mutex:        &sync.Mutex{},
 			}
 
-			rc := NewRemoteConfig(ctx, tc.accountIdentifier, tc.orgIdentifier, tc.allowedAPIKeys, mockHasher{}, adminClient, WithConcurrency(1), WithLogger(logger.NoOpLogger{}))
+			rc := NewRemoteConfig(ctx, tc.accountIdentifier, tc.orgIdentifier, tc.allowedAPIKeys, mockHasher{}, adminClient, WithConcurrency(1), WithLogger(log.NoOpLogger{}))
 			actualAuthConfig := rc.AuthConfig()
 			actualTargetConfig := rc.TargetConfig()
 

@@ -437,6 +437,8 @@ github.com/harness/ff-golang-server-sdk v0.0.24-0.20211214093737-aee23bcf5bce h1
 github.com/harness/ff-golang-server-sdk v0.0.24-0.20211214093737-aee23bcf5bce/go.mod h1:YsJKYmEcJuxceJKcRjfXON5z+F9VHOS5dDzTVQLb7bI=
 github.com/harness/ff-golang-server-sdk v0.0.24-0.20211214093936-d79f9a42c139 h1:Zrn86t1+KMM8jx9B0J1b4snQwqqnoQOY2r7L2n4v4Yw=
 github.com/harness/ff-golang-server-sdk v0.0.24-0.20211214093936-d79f9a42c139/go.mod h1:YsJKYmEcJuxceJKcRjfXON5z+F9VHOS5dDzTVQLb7bI=
+github.com/harness/ff-golang-server-sdk v0.0.24-0.20211217102743-a69b17ae360c h1:aTn8OPSqmD0v4ICI6tbB4CXPjrFh5SC1x/GlVvF18GM=
+github.com/harness/ff-golang-server-sdk v0.0.24-0.20211217102743-a69b17ae360c/go.mod h1:XPa7+w1VKXUG5udSF8RYqYdmZ47bWHn2gzk1iZTJBxM=
 github.com/hashicorp/consul/api v1.1.0/go.mod h1:VmuI/Lkw1nC05EYQWNKwWGbkg+FbDBtguAZLlVdkD9Q=
 github.com/hashicorp/consul/api v1.3.0/go.mod h1:MmDNSzIMUjNpY/mQ398R4bk2FnqQLoPndWW5VkKPlCE=
 github.com/hashicorp/consul/api v1.10.1/go.mod h1:XjsvQN+RJGWI2TWy1/kqaE16HrR2J/FWgkYjdZQsX9M=

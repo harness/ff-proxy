@@ -87,7 +87,7 @@ type Service struct {
 
 // NewService creates and returns a ProxyService
 func NewService(fr repository.FeatureFlagRepo, tr repository.TargetRepo, sr repository.SegmentRepo, authFn authTokenFn, e evaluator, c clientService, l log.ContextualLogger, offline bool) Service {
-	l = log.With(l, "component", "ProxyService")
+	l = l.With("component", "ProxyService")
 	return Service{
 		logger:        l,
 		featureRepo:   fr,

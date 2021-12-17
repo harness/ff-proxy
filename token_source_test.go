@@ -4,8 +4,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/harness/ff-golang-server-sdk/logger"
 	"github.com/harness/ff-proxy/cache"
+	"github.com/harness/ff-proxy/log"
 
 	"github.com/dgrijalva/jwt-go"
 	"github.com/harness/ff-proxy/domain"
@@ -25,7 +25,7 @@ func TestTokenSource_GenerateToken(t *testing.T) {
 	authRepo, _ := repository.NewAuthRepo(cache.NewMemCache(), map[domain.AuthAPIKey]string{
 		domain.AuthAPIKey(hashedKey): envID,
 	})
-	tokenSource := NewTokenSource(logger.NoOpLogger{}, authRepo, hash.NewSha256(), secret)
+	tokenSource := NewTokenSource(log.NoOpLogger{}, authRepo, hash.NewSha256(), secret)
 
 	testCases := map[string]struct {
 		key         string
