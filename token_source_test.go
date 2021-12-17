@@ -5,10 +5,10 @@ import (
 	"time"
 
 	"github.com/harness/ff-proxy/cache"
+	"github.com/harness/ff-proxy/log"
 
 	"github.com/dgrijalva/jwt-go"
 	"github.com/harness/ff-proxy/domain"
-	"github.com/harness/ff-proxy/log"
 	"github.com/harness/ff-proxy/repository"
 	"github.com/stretchr/testify/assert"
 	"github.com/wings-software/ff-server/pkg/hash"

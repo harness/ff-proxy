@@ -28,7 +28,7 @@ type TokenSource struct {
 
 // NewTokenSource creates a new TokenSource
 func NewTokenSource(l log.Logger, repo authRepo, hasher hasher, secret []byte) TokenSource {
-	l = log.With(l, "component", "TokenSource")
+	l = l.With("component", "TokenSource")
 	return TokenSource{log: l, repo: repo, hasher: hasher, secret: secret}
 }
 

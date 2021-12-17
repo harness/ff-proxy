@@ -124,7 +124,7 @@ type EnvironmentID string
 
 // AuthConfig contains a hashed APIKey and the EnvironmentID it belongs to
 type AuthConfig struct {
-	APIKey  AuthAPIKey
+	APIKey        AuthAPIKey
 	EnvironmentID EnvironmentID
 }
 

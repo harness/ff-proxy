@@ -10,6 +10,7 @@ import (
 	"github.com/harness/ff-golang-server-sdk/evaluation"
 	"github.com/harness/ff-golang-server-sdk/logger"
 	"github.com/harness/ff-proxy/domain"
+	"github.com/harness/ff-proxy/log"
 )
 
 // Cache is the interface for any type that stores keys against a map of fields -> values
@@ -39,13 +40,13 @@ type Cache interface {
 // to have it's own unique cache
 type Wrapper struct {
 	// for now we only support our Memcache
-	cache Cache
+	cache       Cache
 	environment string
-	logger      logger.Logger
+	logger      log.Logger
 	lastUpdate  time.Time
 	// we clear out old data for the given environment when we run the first Set instruction
 	// this is to verify the sdk has fetched the new data successfully before purging the old data
-	firstSet    bool
+	firstSet bool
 }
 
 type cacheKey struct {
@@ -55,12 +56,14 @@ type cacheKey struct {
 }
 
 // NewWrapper creates a new Wrapper instance
-func NewWrapper(cache Cache, environment string, logger logger.Logger) *Wrapper {
+func NewWrapper(cache Cache, environment string, l log.Logger) *Wrapper {
+	l = l.With("component", "CacheWrapper")
+
 	return &Wrapper{
-		cache:  cache,
+		cache:       cache,
 		environment: environment,
-		logger:      logger,
-		firstSet: true,
+		logger:      l,
+		firstSet:    true,
 	}
 }
 
@@ -70,25 +73,27 @@ func (wrapper *Wrapper) getTime() time.Time {
 
 // Set sets a new value for a key
 func (wrapper *Wrapper) Set(key interface{}, value interface{}) (evicted bool) {
+	wrapper.logger = wrapper.logger.With("method", "Set", "key", key, "value", value)
+
 	// on first set delete old data
 	if wrapper.firstSet {
 		wrapper.Purge()
 	}
 	cacheKey, err := wrapper.decodeDTOKey(key)
 	if err != nil {
-		wrapper.logger.Errorf("Set failed: %s", err)
+		wrapper.logger.Error("failed to set key, value in cache", "err", err)
 		return
 	}
 
 	domainValue, err := wrapper.convertEvaluationToDomain(cacheKey.kind, value)
 	if err != nil {
-		wrapper.logger.Errorf("Set failed: %s", err)
+		wrapper.logger.Error("failed to convert Evaluation object to Domain object", "err", err)
 		return
 	}
 
 	err = wrapper.cache.Set(context.Background(), cacheKey.name, cacheKey.field, domainValue)
 	if err != nil {
-		wrapper.logger.Warnf("Error setting key %s to wrapper with value %s: %s", key, value, err)
+		wrapper.logger.Warn("failed to set key to wrapper cache", "err", err)
 		return
 	}
 
@@ -100,15 +105,17 @@ func (wrapper *Wrapper) Set(key interface{}, value interface{}) (evicted bool) {
 
 // Get looks up a key's value from the cache.
 func (wrapper *Wrapper) Get(key interface{}) (value interface{}, ok bool) {
+	wrapper.logger = wrapper.logger.With("method", "Get", "key", key)
+
 	cacheKey, err := wrapper.decodeDTOKey(key)
 	if err != nil {
-		wrapper.logger.Errorf("Get failed: %s", err)
+		wrapper.logger.Error("failed to get key", "err", err)
 		return nil, false
 	}
 
 	value, err = wrapper.get(cacheKey)
 	if err != nil {
-		wrapper.logger.Errorf("Couldn't get field %s of type %s because %s", cacheKey.field, cacheKey.kind, err)
+		wrapper.logger.Error("failed to get field for cacheKey", "cacheKeyField", cacheKey.field, "cacheKeyKind", cacheKey.kind, "err", err)
 		return nil, false
 	}
 
@@ -134,9 +141,11 @@ func (wrapper *Wrapper) Keys() []interface{} {
 
 // Remove removes the provided key from the cache.
 func (wrapper *Wrapper) Remove(key interface{}) (present bool) {
+	wrapper.logger = wrapper.logger.With("method", "Remove", "key", key)
+
 	cacheKey, err := wrapper.decodeDTOKey(key)
 	if err != nil {
-		wrapper.logger.Errorf("Remove failed: %s", err)
+		wrapper.logger.Error("failed to remove key", "err", err)
 		return false
 	}
 
@@ -151,9 +160,20 @@ func (wrapper *Wrapper) Updated() time.Time {
 	return wrapper.lastUpdate
 }
 
-// SetLogger set logger
-func (wrapper *Wrapper) SetLogger(logger logger.Logger) {
-	wrapper.logger = logger
+// SetLogger sets the wrappers logger from a logger.Logger
+func (wrapper *Wrapper) SetLogger(l logger.Logger) {
+	og, ok := l.(*logger.ZapLogger)
+	if !ok {
+		l.Warnf("failed to set logger in cache wrapper, expected logger to be *logger.ZapLogger, got %T", og)
+		return
+	}
+
+	sugar := og.Sugar()
+	if sugar == nil {
+		l.Warn("failed to extract logger")
+		return
+	}
+	wrapper.logger = log.NewStructuredLoggerFromSugar(*sugar).With("component", "CacheWrapper")
 }
 
 // Contains checks if a key is in the cache
@@ -239,17 +259,19 @@ func (wrapper *Wrapper) convertEvaluationToDomain(keyType string, value interfac
 }
 
 func (wrapper *Wrapper) getKeysByType(keyType string) []interface{} {
+	wrapper.logger = wrapper.logger.With("method", "getKeysByType", "keyType", keyType)
+
 	var keys []interface{}
 
 	keyName, err := wrapper.generateKeyName(keyType)
 	if err != nil {
-		wrapper.logger.Warnf(err.Error())
+		wrapper.logger.Warn("failed to generate key name", "err", err)
 		return nil
 	}
 
 	results, err := wrapper.cache.GetAll(context.Background(), keyName)
 	if err != nil {
-		wrapper.logger.Warnf("Couldn't fetch results for %s: %s", keyName, err)
+		wrapper.logger.Warn("failed to GetAll values for keyName", "keyName", keyName, "err", err)
 		return nil
 	}
 
@@ -265,9 +287,11 @@ func (wrapper *Wrapper) getKeysByType(keyType string) []interface{} {
 }
 
 func (wrapper *Wrapper) deleteByType(keyType string) {
+	wrapper.logger = wrapper.logger.With("method", "deleteByType", "keyType", keyType)
+
 	keyName, err := wrapper.generateKeyName(keyType)
 	if err != nil {
-		wrapper.logger.Warnf("skipping purge of key type %s: %s", keyType, err)
+		wrapper.logger.Warn("skipping purge of key type", "err", err)
 		return
 	}
 

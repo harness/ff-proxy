@@ -175,8 +175,9 @@ func setupHTTPServer(t *testing.T, bypassAuth bool, opts ...setupOpts) *HTTPServ
 		}}
 	}
 
-	tokenSource := ffproxy.NewTokenSource(log.NoOpLogger{}, setupConfig.authRepo, hash.NewSha256(), []byte(`secret`))
-	logger := log.NewNoOpLogger()
+	logger := log.NoOpLogger{}
+
+	tokenSource := ffproxy.NewTokenSource(logger, setupConfig.authRepo, hash.NewSha256(), []byte(`secret`))
 
 	var service proxyservice.ProxyService
 	service = proxyservice.NewService(
@@ -186,7 +187,7 @@ func setupHTTPServer(t *testing.T, bypassAuth bool, opts ...setupOpts) *HTTPServ
 		tokenSource.GenerateToken,
 		proxyservice.NewFeatureEvaluator(),
 		setupConfig.clientService,
-		logger,
+		log.NewNoOpContextualLogger(),
 		false,
 	)
 	endpoints := NewEndpoints(service)

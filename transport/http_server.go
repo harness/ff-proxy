@@ -20,7 +20,7 @@ type HTTPServer struct {
 // NewHTTPServer registers the passed endpoints against routes and returns an
 // HTTPServer that's ready to use
 func NewHTTPServer(port int, e *Endpoints, l log.Logger) *HTTPServer {
-	l = log.With(l, "component", "HTTPServer")
+	l = l.With("component", "HTTPServer")
 
 	router := echo.New()
 	server := &http.Server{
@@ -48,13 +48,13 @@ func (h *HTTPServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 // Serve listens on the HTTPServers addr and handles requests
 func (h *HTTPServer) Serve() error {
-	h.log.Info("msg", "starting http server", "addr", h.server.Addr)
+	h.log.Info("starting http server", "addr", h.server.Addr)
 	return h.server.ListenAndServe()
 }
 
 // Shutdown gracefully shutsdown the server
 func (h *HTTPServer) Shutdown(ctx context.Context) error {
-	h.log.Info("msg", "shutting down http server", "addr", h.server.Addr)
+	h.log.Info("shutting down http server", "addr", h.server.Addr)
 	return h.server.Shutdown(ctx)
 }
 

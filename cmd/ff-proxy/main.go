@@ -16,6 +16,7 @@ import (
 
 	sdkCache "github.com/harness/ff-golang-server-sdk/cache"
 	harness "github.com/harness/ff-golang-server-sdk/client"
+	"github.com/harness/ff-golang-server-sdk/logger"
 	ffproxy "github.com/harness/ff-proxy"
 	"github.com/harness/ff-proxy/cache"
 	"github.com/harness/ff-proxy/config"
@@ -26,8 +27,6 @@ import (
 	"github.com/harness/ff-proxy/repository"
 	"github.com/harness/ff-proxy/services"
 	"github.com/harness/ff-proxy/transport"
-	echomiddleware "github.com/labstack/echo/v4/middleware"
-	"github.com/sirupsen/logrus"
 	"github.com/wings-software/ff-server/pkg/hash"
 )
 
@@ -148,20 +147,22 @@ func init() {
 	flag.Parse()
 }
 
-func initFF(ctx context.Context, cache sdkCache.Cache, baseURL, eventURL, envID, sdkKey string) {
-	logger := logrus.New()
-	// TODO - FFM-1812 - use global log level from config
-	logger.SetLevel(logrus.InfoLevel)
-	logger.SetFormatter(&logrus.TextFormatter{TimestampFormat: "2006-01-02 15:04:05", FullTimestamp: true})
-	// contextLogger adds the environment ID to each log so we can distinguish between sdk instances
-	contextLogger := logger.WithField("environment", envID)
+func initFF(ctx context.Context, cache sdkCache.Cache, baseURL, eventURL, envID, envIdent, projectIdent, sdkKey string, l log.Logger) {
 
 	retryClient := retryablehttp.NewClient()
 	retryClient.RetryMax = 5
-	retryClient.Logger = contextLogger
+	retryClient.Logger = l.With("component", "RetryClient", "environment", envID)
+
+	l = l.With("component", "SDK", "environmentID", envID, "environment_identifier", envIdent, "project_identifier", projectIdent)
+	structuredLogger, ok := l.(log.StructuredLogger)
+	if !ok {
+		l.Error("unexpected logger", "expected", "log.StructuredLogger", "got", fmt.Sprintf("%T", structuredLogger))
+	}
+
+	sdklogger := logger.NewZapLoggerFromSugar(structuredLogger.Sugar())
 
 	client, err := harness.NewCfClient(sdkKey,
-		harness.WithLogger(contextLogger),
+		harness.WithLogger(sdklogger),
 		harness.WithURL(baseURL),
 		harness.WithHTTPClient(retryClient.StandardClient()),
 		harness.WithEventsURL(eventURL),
@@ -171,12 +172,12 @@ func initFF(ctx context.Context, cache sdkCache.Cache, baseURL, eventURL, envID,
 	)
 	defer func() {
 		if err := client.Close(); err != nil {
-			contextLogger.Errorf("error while closing client err: %v", err)
+			l.Error("error while closing client", "err", err)
 		}
 	}()
 
 	if err != nil {
-		contextLogger.Errorf("could not connect to CF servers %v", err)
+		l.Error("could not connect to CF servers", "err", err)
 	}
 
 	<-ctx.Done()
@@ -199,10 +200,6 @@ func main() {
 	}
 	validateFlags(requiredFlags)
 
-	// Setup logger
-	logger := log.NewLogger(os.Stderr, debug)
-	logger.Info("msg", "service config", "debug", debug, "bypass-auth", bypassAuth, "offline", offline, "port", port, "admin-service", adminService, "account-identifier", accountIdentifier, "org-identifier", orgIdentifier, "sdk-base-url", sdkBaseURL, "sdk-events-url", sdkEventsURL, "redis-addr", redisAddress, "redis-db", redisDB, "api-keys", fmt.Sprintf("%v", apiKeys), "target-poll-duration", fmt.Sprintf("%ds", targetPollDuration))
-
 	// Setup cancelation
 	sigc := make(chan os.Signal, 1)
 	signal.Notify(sigc, os.Interrupt)
@@ -212,9 +209,18 @@ func main() {
 		cancel()
 	}()
 
+	// Setup logger
+	logger, err := log.NewStructuredLogger(debug)
+	if err != nil {
+		fmt.Println("we have no logger")
+		os.Exit(1)
+	}
+
+	logger.Info("service config", "debug", debug, "bypass-auth", bypassAuth, "offline", offline, "port", port, "admin-service", adminService, "account-identifier", accountIdentifier, "org-identifier", orgIdentifier, "sdk-base-url", sdkBaseURL, "sdk-events-url", sdkEventsURL, "redis-addr", redisAddress, "redis-db", redisDB, "api-keys", fmt.Sprintf("%v", apiKeys), "target-poll-duration", fmt.Sprintf("%ds", targetPollDuration))
+
 	adminService, err := services.NewAdminService(logger, adminService, adminServiceToken)
 	if err != nil {
-		logger.Error("msg", "failed to create admin client", "err", err)
+		logger.Error("failed to create admin client", "err", err)
 		os.Exit(1)
 	}
 
@@ -226,10 +232,10 @@ func main() {
 			Password: redisPassword,
 			DB:       redisDB,
 		})
-		logger.Info("msg", "connecting to redis", "address", redisAddress)
+		logger.Info("connecting to redis", "address", redisAddress)
 		sdkCache = cache.NewRedisCache(client)
 	} else {
-		logger.Info("msg", "initialising default memcache")
+		logger.Info("initialising default memcache")
 		sdkCache = cache.NewMemCache()
 	}
 
@@ -248,7 +254,7 @@ func main() {
 	if offline {
 		config, err := config.NewLocalConfig(ffproxy.DefaultConfig, ffproxy.DefaultConfigDir)
 		if err != nil {
-			logger.Error("msg", "failed to load config", "err", err)
+			logger.Error("failed to load config", "err", err)
 			os.Exit(1)
 		}
 		featureConfig = config.FeatureFlag()
@@ -256,9 +262,9 @@ func main() {
 		segmentConfig = config.Segments()
 		authConfig = config.AuthConfig()
 
-		logger.Info("msg", "retrieved offline config")
+		logger.Info("retrieved offline config")
 	} else {
-		logger.Info("msg", "retrieving config from ff-server...")
+		logger.Info("retrieving config from ff-server...")
 		remoteConfig = config.NewRemoteConfig(
 			ctx,
 			accountIdentifier,
@@ -269,11 +275,12 @@ func main() {
 			config.WithLogger(logger),
 			config.WithConcurrency(20),
 		)
-		logger.Info("msg", "got past NewRemoteConfig")
 
 		authConfig = remoteConfig.AuthConfig()
 		targetConfig = remoteConfig.TargetConfig()
-		logger.Info("msg", "successfully retrieved config from ff-server")
+		logger.Info("successfully retrieved config from ff-server")
+
+		envIDToProjectEnvironmentInfo := remoteConfig.ProjectEnvironmentInfo()
 
 		// start an sdk instance for each api key
 		for _, apiKey := range apiKeys {
@@ -282,37 +289,39 @@ func main() {
 			// find corresponding environmentID for apiKey
 			envID, ok := authConfig[domain.AuthAPIKey(apiKeyHash)]
 			if !ok {
-				logger.Error("API key not found, skipping", apiKey)
+				logger.Error("API key not found, skipping", "api-key", apiKey)
 				continue
 			}
 
-			cacheWrapper := cache.NewWrapper(sdkCache, envID, logrus.New())
-			go initFF(ctx, cacheWrapper, sdkBaseURL, sdkEventsURL, envID, apiKey)
+			projEnvInfo := envIDToProjectEnvironmentInfo[authConfig[domain.AuthAPIKey(apiKeyHash)]]
+
+			cacheWrapper := cache.NewWrapper(sdkCache, envID, logger)
+			go initFF(ctx, cacheWrapper, sdkBaseURL, sdkEventsURL, envID, projEnvInfo.EnvironmentIdentifier, projEnvInfo.ProjectIdentifier, apiKey, logger)
 		}
 	}
 
 	// Create repos
 	tr, err := repository.NewTargetRepo(sdkCache, targetConfig)
 	if err != nil {
-		logger.Error("msg", "failed to create target repo", "err", err)
+		logger.Error("failed to create target repo", "err", err)
 		os.Exit(1)
 	}
 
 	fcr, err := repository.NewFeatureFlagRepo(sdkCache, featureConfig)
 	if err != nil {
-		logger.Error("msg", "failed to create feature config repo", "err", err)
+		logger.Error("failed to create feature config repo", "err", err)
 		os.Exit(1)
 	}
 
 	sr, err := repository.NewSegmentRepo(sdkCache, segmentConfig)
 	if err != nil {
-		logger.Error("msg", "failed to create segment repo", "err", err)
+		logger.Error("failed to create segment repo", "err", err)
 		os.Exit(1)
 	}
 
 	authRepo, err := repository.NewAuthRepo(sdkCache, authConfig)
 	if err != nil {
-		logger.Error("msg", "failed to create auth config repo", "err", err)
+		logger.Error("failed to create auth config repo", "err", err)
 		os.Exit(1)
 	}
 
@@ -322,29 +331,29 @@ func main() {
 
 	clientService, err := services.NewClientService(logger, clientService)
 	if err != nil {
-		logger.Error("msg", "failed to create client for the feature flags clinet service", "err", err)
+		logger.Error("failed to create client for the feature flags client service", "err", err)
 		os.Exit(1)
 	}
 
 	// Setup service and middleware
 	var service proxyservice.ProxyService
-	service = proxyservice.NewService(fcr, tr, sr, tokenSource.GenerateToken, featureEvaluator, clientService, logger, offline)
+	service = proxyservice.NewService(fcr, tr, sr, tokenSource.GenerateToken, featureEvaluator, clientService, log.NewContextualLogger(logger, log.ExtractRequestValuesFromContext), offline)
 
 	// Configure endpoints and server
 	endpoints := transport.NewEndpoints(service)
 	server := transport.NewHTTPServer(port, endpoints, logger)
 	server.Use(
-		echomiddleware.RequestID(),
+		middleware.NewEchoRequestIDMiddleware(),
 		middleware.NewEchoLoggingMiddleware(),
 		middleware.NewEchoAuthMiddleware([]byte(authSecret), bypassAuth),
 	)
 
 	go func() {
 		<-ctx.Done()
-		logger.Info("msg", "recevied interrupt, shutting down server...")
+		logger.Info("recevied interrupt, shutting down server...")
 
 		if err := server.Shutdown(ctx); err != nil {
-			logger.Error("msg", "server error'd during shutdown", "err", err)
+			logger.Error("server error'd during shutdown", "err", err)
 			os.Exit(1)
 		}
 	}()
@@ -354,7 +363,7 @@ func main() {
 			ticker := time.NewTicker(time.Duration(targetPollDuration) * time.Second)
 			defer ticker.Stop()
 
-			logger.Info("msg", fmt.Sprintf("polling for new targets every %d seconds", targetPollDuration))
+			logger.Info(fmt.Sprintf("polling for new targets every %d seconds", targetPollDuration))
 			for targetConfig := range remoteConfig.PollTargets(ctx, ticker.C) {
 				for key, values := range targetConfig {
 					tr.DeltaAdd(ctx, key, values...)
@@ -364,7 +373,7 @@ func main() {
 	}
 
 	if err := server.Serve(); err != nil {
-		logger.Error("msg", "server stopped", "err", err)
+		logger.Error("server stopped", "err", err)
 	}
 }
 

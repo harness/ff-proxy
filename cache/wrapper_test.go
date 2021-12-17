@@ -7,8 +7,7 @@ import (
 
 	"github.com/harness/ff-golang-server-sdk/dto"
 	"github.com/harness/ff-golang-server-sdk/evaluation"
-	"github.com/sirupsen/logrus"
-	"github.com/sirupsen/logrus/hooks/test"
+	"github.com/harness/ff-proxy/log"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -82,7 +81,7 @@ var (
 
 func TestEmptyCache(t *testing.T) {
 	memCache := NewMemCache()
-	wrapper := NewWrapper(&memCache, "testEnv", logrus.New())
+	wrapper := NewWrapper(&memCache, "testEnv", log.NoOpLogger{})
 
 	t.Run("Empty cache should have len 0", func(t *testing.T) {
 		assert.Equal(t, 0, wrapper.Len())
@@ -160,7 +159,7 @@ func TestSet(t *testing.T) {
 
 	for desc, tc := range testCases {
 		t.Run(fmt.Sprintf("Set %s", desc), func(t *testing.T) {
-			cache := NewWrapper(memCachePtr(NewMemCache()), "env", logrus.New())
+			cache := NewWrapper(memCachePtr(NewMemCache()), "env", log.NoOpLogger{})
 			// add value(s)
 			for _, val := range tc.values {
 				cache.Set(val.key, val.value)
@@ -180,7 +179,7 @@ func TestSet(t *testing.T) {
 		})
 
 		t.Run(fmt.Sprintf("Remove %s", desc), func(t *testing.T) {
-			cache := NewWrapper(memCachePtr(NewMemCache()), "env", logrus.New())
+			cache := NewWrapper(memCachePtr(NewMemCache()), "env", log.NoOpLogger{})
 			// add value(s)
 			for _, val := range tc.values {
 				cache.Set(val.key, val.value)
@@ -206,7 +205,7 @@ func TestSet(t *testing.T) {
 		})
 
 		t.Run(fmt.Sprintf("Purge %s", desc), func(t *testing.T) {
-			cache := NewWrapper(memCachePtr(NewMemCache()), "env", logrus.New())
+			cache := NewWrapper(memCachePtr(NewMemCache()), "env", log.NoOpLogger{})
 			// add value(s)
 			for _, val := range tc.values {
 				cache.Set(val.key, val.value)
@@ -233,47 +232,30 @@ func TestSet(t *testing.T) {
 
 func TestInvalidInputs(t *testing.T) {
 	memCache := NewMemCache()
-	wrapper := NewWrapper(&memCache, "testEnv", logrus.New())
-	logger, hook := test.NewNullLogger()
-	wrapper.SetLogger(logger)
+	wrapper := NewWrapper(&memCache, "testEnv", log.NoOpLogger{})
 
 	t.Run("Set with invalid key", func(t *testing.T) {
 		wrapper.Set("invalidKey", evaluationSegmentFoo)
-		assert.Equal(t, "Set failed: couldn't convert key to dto.Key: invalidKey", hook.LastEntry().Message)
 		assert.Equal(t, 0, wrapper.Len())
-	})
-
-	t.Run("Get with invalid key", func(t *testing.T) {
-		wrapper.Get("invalidKey")
-		assert.Equal(t, "Get failed: couldn't convert key to dto.Key: invalidKey", hook.LastEntry().Message)
-	})
-
-	t.Run("Remove with invalid key", func(t *testing.T) {
-		wrapper.Remove("invalidKey")
-		assert.Equal(t, "Remove failed: couldn't convert key to dto.Key: invalidKey", hook.LastEntry().Message)
 	})
 
 	t.Run("Set segment invalid input", func(t *testing.T) {
 		wrapper.Set(segmentFooKey, "invalidSegment")
-		assert.Equal(t, "Set failed: couldn't convert to evaluation.Segment", hook.LastEntry().Message)
 		assert.Equal(t, 0, wrapper.Len())
 	})
 
 	t.Run("Set feature invalid input", func(t *testing.T) {
 		wrapper.Set(featureBarKey, "invalidFeature")
-		assert.Equal(t, "Set failed: couldn't convert to evaluation.FeatureFlag", hook.LastEntry().Message)
 		assert.Equal(t, 0, wrapper.Len())
 	})
 
 	t.Run("Set invalid key type", func(t *testing.T) {
 		wrapper.Set(dto.Key{Name: "test", Type: "invalidType"}, "invalidFeature")
-		assert.Equal(t, "Set failed: key type not recognised: invalidType", hook.LastEntry().Message)
 		assert.Equal(t, 0, wrapper.Len())
 	})
 
 	t.Run("Resize not implemented", func(t *testing.T) {
 		evicted := wrapper.Resize(100)
-		assert.Equal(t, "Resize method not supported", hook.LastEntry().Message)
 		assert.Equal(t, 0, evicted)
 	})
 }
