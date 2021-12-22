@@ -3,10 +3,9 @@ package services
 import (
 	"context"
 	"fmt"
-	"net/http"
-
 	admingen "github.com/harness/ff-proxy/gen/admin"
 	"github.com/harness/ff-proxy/log"
+	"net/http"
 )
 
 // doer is a simple http client that gets passed to the generated admin client
@@ -18,7 +17,7 @@ type doer struct {
 
 // Do injects the api-key header into the request
 func (d doer) Do(r *http.Request) (*http.Response, error) {
-	r.Header.Add("api-key", fmt.Sprintf("Bearer %s", d.token))
+	r.Header.Add("x-api-key", d.token)
 	return d.c.Do(r)
 }
 
