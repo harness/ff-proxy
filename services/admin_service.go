@@ -86,7 +86,7 @@ func (r AdminService) PageEnvironments(ctx context.Context, input PageEnvironmen
 
 	// If there are no environments in the response then there are either none
 	// to retrieve or we've paged over them all so we're done
-	if *resp.JSON200.Data.Environments != nil && len(*resp.JSON200.Data.Environments) == 0 {
+	if resp.JSON200.Data.Environments != nil && len(*resp.JSON200.Data.Environments) == 0 {
 		return PageEnvironmentsResult{Finished: true}, nil
 	}
 
@@ -135,7 +135,7 @@ func (r AdminService) PageProjects(ctx context.Context, input PageProjectsInput)
 
 	// If there are no projects in the response then there are either none
 	// to retrieve or we've paged over them all so we're done
-	if *resp.JSON200.Data.Projects != nil && len(*resp.JSON200.Data.Projects) == 0 {
+	if resp.JSON200.Data.Projects != nil && len(*resp.JSON200.Data.Projects) == 0 {
 		return PageProjectsResult{Finished: true}, nil
 	}
 
@@ -189,7 +189,7 @@ func (r AdminService) PageTargets(ctx context.Context, input PageTargetsInput) (
 
 	// If there are no projects in the response then there are either none
 	// to retrieve or we've paged over them all so we're done
-	if *resp.JSON200.Targets != nil && len(*resp.JSON200.Targets) == 0 {
+	if resp.JSON200.Targets != nil && len(*resp.JSON200.Targets) == 0 {
 		return PageTargetsResult{Finished: true}, nil
 	}
 

@@ -136,7 +136,7 @@ func (s Service) Authenticate(ctx context.Context, req domain.AuthRequest) (doma
 		defer cancel()
 
 		if _, err := s.clientService.Authenticate(newCtx, req.APIKey, req.Target); err != nil {
-			s.logger.Error(ctx, "failed to forward Target registrationg via auth request to client service", "err", err)
+			s.logger.Error(ctx, "failed to forward Target registration via auth request to client service", "err", err)
 		}
 		s.logger.Debug(ctx, "successfully registered target with feature flags", "target_identifier", req.Target.Target.Identifier)
 	}()

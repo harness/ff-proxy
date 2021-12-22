@@ -441,9 +441,7 @@ func (r RemoteConfig) addTargetConfig(ctx context.Context, inputs <-chan configP
 
 // filterOnAllowedAPIKeys filters the pipeline by the AllowedKeys. If an input in
 // the pipeline only contains APIKeys that don't exist in the AllowedKeys then
-// it will not be passed further down the pipeline. If an input has two keys and
-// one of them exists in the AllowedKeys then the one that doesn't exist will be
-// removed and the input will be passed down the pipeline with just the one APIKey.
+// it will not be passed further down the pipeline.
 func (r RemoteConfig) filterOnAllowedAPIKeys(ctx context.Context, inputs <-chan configPipeline) <-chan configPipeline {
 	out := make(chan configPipeline)
 
@@ -458,10 +456,11 @@ func (r RemoteConfig) filterOnAllowedAPIKeys(ctx context.Context, inputs <-chan 
 
 			keys := []string{}
 
-			// filter found api keys - only keep ones specified in AllowedKeys
+			// filter found api keys - only keep if any specified in AllowedKeys
 			for _, key := range input.APIKeys {
 				if _, ok := input.AllowedKeys[key]; ok {
-					keys = append(keys, key)
+					keys = input.APIKeys
+					break
 				}
 			}
 
