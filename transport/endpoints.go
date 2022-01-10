@@ -2,7 +2,6 @@ package transport
 
 import (
 	"context"
-
 	"github.com/go-kit/kit/endpoint"
 	"github.com/harness/ff-proxy/domain"
 )
@@ -22,6 +21,7 @@ type Endpoints struct {
 	GetEvaluationsByFeature       endpoint.Endpoint
 	GetStream                     streamEndpoint
 	PostMetrics                   endpoint.Endpoint
+	Health                        endpoint.Endpoint
 }
 
 // NewEndpoints returns an initalised Endpoints where each endpoint invokes the
@@ -37,6 +37,7 @@ func NewEndpoints(p ProxyService) *Endpoints {
 		GetEvaluationsByFeature:       makeGetEvaluationsByFeatureEndpoint(p),
 		GetStream:                     makeGetStreamEndpoint(p),
 		PostMetrics:                   makePostMetricsEndpoint(p),
+		Health:                        makeHealthEndpoint(p),
 	}
 }
 
@@ -157,3 +158,16 @@ func makePostMetricsEndpoint(s ProxyService) endpoint.Endpoint {
 		return nil, nil
 	}
 }
+
+// makeHealthEndpoint is a function to convert a services Health method
+// to an endpoint
+func makeHealthEndpoint(s ProxyService) endpoint.Endpoint {
+	return func(ctx context.Context, request interface{}) (response interface{}, err error) {
+		res, err := s.Health(ctx)
+		if err != nil {
+			return nil, err
+		}
+		return res, nil
+	}
+}
+

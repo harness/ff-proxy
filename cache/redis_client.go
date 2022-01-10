@@ -69,3 +69,12 @@ func (r *RedisCache) RemoveAll(ctx context.Context, key string) {
 func (r *RedisCache) Remove(ctx context.Context, key string, field string) {
 	r.client.HDel(ctx, key, field)
 }
+
+// HealthCheck checks cache health
+func (r *RedisCache) HealthCheck(ctx context.Context) error {
+	res := r.client.Ping(ctx)
+	if res.Err() != nil {
+		return fmt.Errorf("redis failed to respond")
+	}
+	return nil
+}

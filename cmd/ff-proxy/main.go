@@ -14,7 +14,7 @@ import (
 
 	"github.com/go-redis/redis/v8"
 
-	sdkCache "github.com/harness/ff-golang-server-sdk/cache"
+	gosdkCache "github.com/harness/ff-golang-server-sdk/cache"
 	harness "github.com/harness/ff-golang-server-sdk/client"
 	"github.com/harness/ff-golang-server-sdk/logger"
 	ffproxy "github.com/harness/ff-proxy"
@@ -64,6 +64,8 @@ var (
 	redisDB            int
 	apiKeys            keys
 	targetPollDuration int
+	sdkClients         map[string]*harness.CfClient
+	sdkCache           cache.Cache
 )
 
 const (
@@ -123,6 +125,7 @@ func init() {
 	flag.IntVar(&redisDB, redisDBFlag, 0, "Database to be selected after connecting to the server.")
 	flag.Var(&apiKeys, apiKeysFlag, "API keys to connect with ff-server for each environment")
 	flag.IntVar(&targetPollDuration, targetPollDurationFlag, 60, "How often in seconds the proxy polls feature flags for Target changes")
+	sdkClients = map[string]*harness.CfClient{}
 
 	loadFlagsFromEnv(map[string]string{
 		bypassAuthEnv:         bypassAuthFlag,
@@ -147,7 +150,7 @@ func init() {
 	flag.Parse()
 }
 
-func initFF(ctx context.Context, cache sdkCache.Cache, baseURL, eventURL, envID, envIdent, projectIdent, sdkKey string, l log.Logger) {
+func initFF(ctx context.Context, cache gosdkCache.Cache, baseURL, eventURL, envID, envIdent, projectIdent, sdkKey string, l log.Logger) {
 
 	retryClient := retryablehttp.NewClient()
 	retryClient.RetryMax = 5
@@ -170,6 +173,8 @@ func initFF(ctx context.Context, cache sdkCache.Cache, baseURL, eventURL, envID,
 		harness.WithCache(cache),
 		harness.WithStoreEnabled(false), // store should be disabled until we implement a wrapper to handle multiple envs
 	)
+
+	sdkClients[envID] = client
 	defer func() {
 		if err := client.Close(); err != nil {
 			l.Error("error while closing client", "err", err)
@@ -225,7 +230,6 @@ func main() {
 	}
 
 	// Create cache
-	var sdkCache cache.Cache
 	if redisAddress != "" {
 		client := redis.NewClient(&redis.Options{
 			Addr:     redisAddress,
@@ -337,7 +341,7 @@ func main() {
 
 	// Setup service and middleware
 	var service proxyservice.ProxyService
-	service = proxyservice.NewService(fcr, tr, sr, tokenSource.GenerateToken, featureEvaluator, clientService, log.NewContextualLogger(logger, log.ExtractRequestValuesFromContext), offline)
+	service = proxyservice.NewService(fcr, tr, sr, cacheHealthCheck, envHealthCheck, tokenSource.GenerateToken, featureEvaluator, clientService, log.NewContextualLogger(logger, log.ExtractRequestValuesFromContext), offline)
 
 	// Configure endpoints and server
 	endpoints := transport.NewEndpoints(service)
@@ -375,6 +379,27 @@ func main() {
 	if err := server.Serve(); err != nil {
 		logger.Error("server stopped", "err", err)
 	}
+}
+
+// checks the health of the connected cache instance
+func cacheHealthCheck(ctx context.Context) error {
+	return sdkCache.HealthCheck(ctx)
+}
+
+// checks the health of all connected environments
+// returns an error, if any for each
+func envHealthCheck(ctx context.Context) map[string]error {
+	envHealth := map[string]error{}
+	for env, sdk := range sdkClients {
+		// get SDK health details
+		var err error
+		streamConnected := sdk.IsStreamConnected()
+		if !streamConnected {
+			err = fmt.Errorf("environment %s unhealthy, stream not connected", env)
+		}
+		envHealth[env] = err
+	}
+	return envHealth
 }
 
 func loadFlagsFromEnv(envToFlag map[string]string) {

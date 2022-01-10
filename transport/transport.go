@@ -35,4 +35,7 @@ type ProxyService interface {
 
 	// Metrics forwards metrics to the analytics service
 	Metrics(ctx context.Context, req domain.MetricsRequest) error
+
+	// Health checks the health of the system
+	Health(ctx context.Context) (domain.HealthResponse, error)
 }

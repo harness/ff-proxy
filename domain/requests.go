@@ -11,6 +11,9 @@ type AuthResponse struct {
 	AuthToken string `json:"authToken"`
 }
 
+// HealthResponse contains the fields returned in a healthcheck response
+type HealthResponse map[string]string
+
 // FeatureConfigRequest contains the fields sent in a GET /client/env/{environmentUUID}/feature-configs
 type FeatureConfigRequest struct {
 	EnvironmentID string

@@ -101,3 +101,9 @@ func (m MemCache) Remove(ctx context.Context, key string, field string) {
 
 	delete(fields, field)
 }
+
+// HealthCheck checks cache health
+// we don't have any connection to check here so just return no errors
+func (m MemCache) HealthCheck(ctx context.Context) error {
+	return nil
+}

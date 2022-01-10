@@ -80,6 +80,8 @@ type setupConfig struct {
 	targetRepo    *repository.TargetRepo
 	segmentRepo   *repository.SegmentRepo
 	authRepo      *repository.AuthRepo
+	cacheHealthFn proxyservice.CacheHealthFn
+	envHealthFn   proxyservice.EnvHealthFn
 	clientService *mockClientService
 }
 
@@ -112,6 +114,18 @@ func setupWithAuthRepo(r repository.AuthRepo) setupOpts {
 func setupWithClientService(c *mockClientService) setupOpts {
 	return func(s *setupConfig) {
 		s.clientService = c
+	}
+}
+
+func setupWithCacheHealthFn(fn proxyservice.CacheHealthFn) setupOpts {
+	return func(s *setupConfig) {
+		s.cacheHealthFn = fn
+	}
+}
+
+func setupWithEnvHealthFn(fn proxyservice.EnvHealthFn) setupOpts {
+	return func(s *setupConfig) {
+		s.envHealthFn = fn
 	}
 }
 
@@ -175,6 +189,18 @@ func setupHTTPServer(t *testing.T, bypassAuth bool, opts ...setupOpts) *HTTPServ
 		}}
 	}
 
+	if setupConfig.cacheHealthFn == nil {
+		setupConfig.cacheHealthFn = func(ctx context.Context) error {
+			return nil
+		}
+	}
+
+	if setupConfig.envHealthFn == nil {
+		setupConfig.envHealthFn = func(ctx context.Context) map[string]error {
+			return map[string]error{"123": nil, "456": nil}
+		}
+	}
+
 	logger := log.NoOpLogger{}
 
 	tokenSource := ffproxy.NewTokenSource(logger, setupConfig.authRepo, hash.NewSha256(), []byte(`secret`))
@@ -184,6 +210,8 @@ func setupHTTPServer(t *testing.T, bypassAuth bool, opts ...setupOpts) *HTTPServ
 		*setupConfig.featureRepo,
 		*setupConfig.targetRepo,
 		*setupConfig.segmentRepo,
+		setupConfig.cacheHealthFn,
+		setupConfig.envHealthFn,
 		tokenSource.GenerateToken,
 		proxyservice.NewFeatureEvaluator(),
 		setupConfig.clientService,
@@ -1000,4 +1028,101 @@ func TestAuthentication(t *testing.T) {
 		}
 	}
 
+}
+
+// TestHTTPServer_Health sets up a service with health check functions
+// injects it into the HTTPServer and makes HTTP requests to the /health endpoint
+func TestHTTPServer_Health(t *testing.T) {
+
+	healthyResponse := []byte(`{"cache":"healthy","env-123":"healthy","env-456":"healthy"}
+`)
+	cacheUnhealthyResponse := []byte(`{"cache":"unhealthy","env-123":"healthy","env-456":"healthy"}
+`)
+	env456UnhealthyResponse := []byte(`{"cache":"healthy","env-123":"healthy","env-456":"unhealthy"}
+`)
+	cacheHealthErr := func(ctx context.Context) error {
+		return fmt.Errorf("cache is borked")
+	}
+
+	envHealthErr := func(ctx context.Context) map[string]error {
+		return map[string]error{"123": nil, "456": fmt.Errorf("stream disconnected")}
+	}
+
+	testCases := map[string]struct {
+		method               string
+		url                  string
+		cacheHealthFn        proxyservice.CacheHealthFn
+		envHealthFn          proxyservice.EnvHealthFn
+		expectedStatusCode   int
+		expectedResponseBody []byte
+	}{
+		"Given I make a request that isn't a GET request": {
+			method:             http.MethodPost,
+			expectedStatusCode: http.StatusMethodNotAllowed,
+		},
+		"Given I make a GET request and everything is healthy": {
+			method:               http.MethodGet,
+			expectedStatusCode:   http.StatusOK,
+			expectedResponseBody: healthyResponse,
+		},
+		"Given I make a GET request and cache is unhealthy": {
+			method:               http.MethodGet,
+			expectedStatusCode:   http.StatusServiceUnavailable,
+			cacheHealthFn:        cacheHealthErr,
+			expectedResponseBody: cacheUnhealthyResponse,
+		},
+		"Given I make a GET request and env 456 is unhealthy": {
+			method:               http.MethodGet,
+			expectedStatusCode:   http.StatusServiceUnavailable,
+			envHealthFn:          envHealthErr,
+			expectedResponseBody: env456UnhealthyResponse,
+		},
+	}
+	for desc, tc := range testCases {
+		tc := tc
+		// setup HTTPServer & service with auth bypassed
+		server := setupHTTPServer(t, true,
+			setupWithCacheHealthFn(tc.cacheHealthFn),
+			setupWithEnvHealthFn(tc.envHealthFn),
+		)
+		testServer := httptest.NewServer(server)
+		t.Run(desc, func(t *testing.T) {
+			defer testServer.Close()
+			var req *http.Request
+			var err error
+			url := fmt.Sprintf("%s/health", testServer.URL)
+
+			switch tc.method {
+			case http.MethodPost:
+				req, err = http.NewRequest(http.MethodPost, url, bytes.NewBuffer([]byte{}))
+				if err != nil {
+					t.Fatal(err)
+				}
+			case http.MethodGet:
+				req, err = http.NewRequest(http.MethodGet, url, nil)
+				if err != nil {
+					t.Fatal(err)
+				}
+			}
+
+			resp, err := testServer.Client().Do(req)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer resp.Body.Close()
+
+			assert.Equal(t, tc.expectedStatusCode, resp.StatusCode)
+
+			if tc.expectedResponseBody != nil {
+				actual, err := io.ReadAll(resp.Body)
+				if err != nil {
+					t.Fatalf("(%s): failed to read response body: %s", desc, err)
+				}
+
+				if !assert.ElementsMatch(t, tc.expectedResponseBody, actual) {
+					t.Errorf("(%s) expected: %s \n got: %s ", desc, tc.expectedResponseBody, actual)
+				}
+			}
+		})
+	}
 }

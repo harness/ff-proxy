@@ -41,6 +41,9 @@ type ProxyService interface {
 
 	// Metrics forwards metrics to the analytics service
 	Metrics(ctx context.Context, req domain.MetricsRequest) error
+
+	// Health checks the health of the system
+	Health(ctx context.Context) (domain.HealthResponse, error)
 }
 
 var (
@@ -68,6 +71,12 @@ type evaluator interface {
 // authTokenFn is a function that can generate an auth token
 type authTokenFn func(key string) (domain.Token, error)
 
+// CacheHealthFn is a function that checks the cache health
+type CacheHealthFn func(ctx context.Context) error
+
+// EnvHealthFn is a function that checks the health of all connected environments
+type EnvHealthFn func(ctx context.Context) map[string]error
+
 // clientService is the interface for interacting with the feature flag client service
 type clientService interface {
 	Authenticate(ctx context.Context, apiKey string, target domain.Target) (string, error)
@@ -79,6 +88,8 @@ type Service struct {
 	featureRepo   repository.FeatureFlagRepo
 	targetRepo    repository.TargetRepo
 	segmentRepo   repository.SegmentRepo
+	cacheHealthFn CacheHealthFn
+	envHealthFn   EnvHealthFn
 	authFn        authTokenFn
 	evaluator     evaluator
 	clientService clientService
@@ -86,13 +97,15 @@ type Service struct {
 }
 
 // NewService creates and returns a ProxyService
-func NewService(fr repository.FeatureFlagRepo, tr repository.TargetRepo, sr repository.SegmentRepo, authFn authTokenFn, e evaluator, c clientService, l log.ContextualLogger, offline bool) Service {
+func NewService(fr repository.FeatureFlagRepo, tr repository.TargetRepo, sr repository.SegmentRepo, cacheHealthFn CacheHealthFn, envHealthFn EnvHealthFn, authFn authTokenFn, e evaluator, c clientService, l log.ContextualLogger, offline bool) Service {
 	l = l.With("component", "ProxyService")
 	return Service{
 		logger:        l,
 		featureRepo:   fr,
 		targetRepo:    tr,
 		segmentRepo:   sr,
+		cacheHealthFn: cacheHealthFn,
+		envHealthFn:   envHealthFn,
 		authFn:        authFn,
 		evaluator:     e,
 		clientService: c,
@@ -366,6 +379,38 @@ func (s Service) Metrics(ctx context.Context, req domain.MetricsRequest) error {
 
 	s.logger.Debug(ctx, "got metrics request", "metrics", fmt.Sprintf("%+v", req))
 	return ErrNotImplemented
+}
+
+// Health checks the health of the system
+func (s Service) Health(ctx context.Context) (domain.HealthResponse, error) {
+	s.logger = s.logger.With("method", "Health")
+	s.logger.Debug(ctx, "got health request")
+	systemHealth := domain.HealthResponse{}
+
+	// check health functions
+	err := s.cacheHealthFn(ctx)
+	if err != nil {
+		s.logger.Error(ctx, fmt.Sprintf("cache healthcheck error: %s", err.Error()))
+	}
+	systemHealth["cache"] = boolToHealthString(err == nil)
+	envHealth := s.envHealthFn(ctx)
+	for env, err := range envHealth {
+		if err != nil {
+			s.logger.Error(ctx, fmt.Sprintf("environment healthcheck error: %s", err.Error()))
+		}
+
+		envHealthy := err == nil
+		systemHealth[fmt.Sprintf("env-%s", env)] = boolToHealthString(envHealthy)
+	}
+
+	return systemHealth, nil
+}
+
+func boolToHealthString(healthy bool) string {
+	if !healthy {
+		return "unhealthy"
+	}
+	return "healthy"
 }
 
 func segmentArrayToMap(segments []domain.Segment) map[string]domain.Segment {

@@ -73,6 +73,13 @@ func (h *HTTPServer) registerEndpoints(e *Endpoints) {
 		encodeEchoError,
 	))
 
+	h.router.GET("/health", NewUnaryHandler(
+		e.Health,
+		decodeHealthRequest,
+		encodeHealthResponse,
+		encodeEchoError,
+	))
+
 	h.router.GET("/client/env/:environment_uuid/feature-configs", NewUnaryHandler(
 		e.GetFeatureConfigs,
 		decodeGetFeatureConfigsRequest,

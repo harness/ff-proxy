@@ -9,13 +9,12 @@ require (
 	github.com/go-redis/redis/v8 v8.11.4
 	github.com/golang-jwt/jwt v3.2.2+incompatible
 	github.com/google/uuid v1.3.0
-	github.com/harness/ff-golang-server-sdk v0.0.24-0.20211224134156-e284c4cb25b6
+	github.com/harness/ff-golang-server-sdk v0.0.24-0.20220111144918-95f59344bbf9
 	github.com/hashicorp/go-retryablehttp v0.6.8
 	github.com/labstack/echo/v4 v4.6.1
 	github.com/sirupsen/logrus v1.8.1
 	github.com/stretchr/testify v1.7.0
 	github.com/wings-software/ff-server v0.0.0-20211104155359-ef96ccfe30cc
-	github.com/xtgo/uuid v0.0.0-20140804021211-a0b114877d4c
 	go.uber.org/zap v1.19.1
 	gopkg.in/yaml.v2 v2.4.0
 )
@@ -47,6 +46,7 @@ require (
 	github.com/spaolacci/murmur3 v1.1.0 // indirect
 	github.com/valyala/bytebufferpool v1.0.0 // indirect
 	github.com/valyala/fasttemplate v1.2.1 // indirect
+	github.com/xtgo/uuid v0.0.0-20140804021211-a0b114877d4c // indirect
 	go.uber.org/atomic v1.9.0 // indirect
 	go.uber.org/multierr v1.7.0 // indirect
 	golang.org/x/crypto v0.0.0-20210921155107-089bfa567519 // indirect
