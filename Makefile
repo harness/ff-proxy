@@ -10,7 +10,7 @@ endif
 
 .DEFAULT_GOAL := all
 
-tools = $(addprefix $(GOBIN)/, golangci-lint golint gosec goimports)
+tools = $(addprefix $(GOBIN)/, golangci-lint golint gosec goimports gocov gocov-html)
 deps = $(addprefix $(GOBIN)/, oapi-codegen)
 
 dep: $(deps) ## Install the deps required to generate code and build feature flags
@@ -41,7 +41,7 @@ PHONY+= build-race
 build-race: generate ## Builds the ff-proxy service binary with the race detector enabled
 	CGO_ENABLED=1 go build -race -o ff-proxy ./cmd/ff-proxy/main.go
 
-image: ## Builds a docker image for the proxy called ff-proxy:latest 
+image: ## Builds a docker image for the proxy called ff-proxy:latest
 	@echo "Building Feature Flag Proxy Image"
 	@docker build --build-arg GITHUB_ACCESS_TOKEN=${GITHUB_ACCESS_TOKEN} -t ff-proxy:latest -f ./Dockerfile .
 
@@ -50,6 +50,15 @@ test: ## Run the go tests (runs with race detector enabled)
 	@echo "Running tests"
 	go test -race -v -coverprofile=coverage.out ./...
 	go tool cover -html=coverage.out
+
+###########################################
+# we use -coverpkg command to report coverage for any line run from any package
+# the input for this param is a comma separated list of all packages in our repo excluding the /cmd/ and /gen/ directories
+###########################################
+test-report: ## Run the go tests and generate a coverage report
+	@echo "Running tests"
+	go test -covermode=atomic -coverprofile=proxy.cov -coverpkg=$(shell go list ./... | grep -v /cmd/ | grep -v /gen/ | xargs | sed -e 's/ /,/g') ./...
+	gocov convert ./proxy.cov | gocov-html > ./proxy_test_coverage.html
 
 PHONY+= dev
 dev: ## Brings up services that the proxy uses
@@ -104,7 +113,7 @@ sec: tools ## Run the security checks
 ###########################################
 
 # Install golangci-lint
-$(GOBIN)/golangci-lint: 
+$(GOBIN)/golangci-lint:
 	@echo "🔘 Installing golangci-lint... (`date '+%H:%M:%S'`)"
 	@curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(GOPATH)/bin
 
@@ -117,6 +126,16 @@ $(GOBIN)/golint:
 $(GOBIN)/goimports:
 	@echo "🔘 Installing goimports ... (`date '+%H:%M:%S'`)"
 	@go install golang.org/x/tools/cmd/goimports@latest
+
+# Install gocov to parse code coverage
+$(GOBIN)/gocov:
+	@echo "🔘 Installing gocov ... (`date '+%H:%M:%S'`)"
+	@go install github.com/axw/gocov/gocov@latest
+
+# Install gocov-html to generate a code coverage html file
+$(GOBIN)/gocov-html:
+	@echo "🔘 Installing gocov-html ... (`date '+%H:%M:%S'`)"
+	@go install github.com/matm/gocov-html@latest
 
 # Install gosec for security scans
 $(GOBIN)/gosec:
