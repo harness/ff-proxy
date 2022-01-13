@@ -112,9 +112,17 @@ func setupService(cfg benchmarkConfig, b *testing.B) ProxyService {
 		return domain.Token{}, nil
 	}
 
+	cacheHealthFn := func(ctx context.Context) error {
+		return nil
+	}
+
+	envHealthFn := func(ctx context.Context) map[string]error {
+		return map[string]error{}
+	}
+
 	// Client service isn't used by the methods we benchmark so we can get away
 	// with making it nil
-	return NewService(featureRepo, targetRepo, segmentRepo, authFn, NewFeatureEvaluator(), nil, log.NewNoOpContextualLogger(), true)
+	return NewService(featureRepo, targetRepo, segmentRepo, cacheHealthFn, envHealthFn, authFn, NewFeatureEvaluator(), nil, log.NewNoOpContextualLogger(), true)
 }
 
 type benchmark struct {

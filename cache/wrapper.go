@@ -32,6 +32,8 @@ type Cache interface {
 	RemoveAll(ctx context.Context, key string)
 	// Remove removes a field for a given key
 	Remove(ctx context.Context, key string, field string)
+	// HealthCheck checks cache health
+	HealthCheck(ctx context.Context) error
 }
 
 // Wrapper wraps a given cache with logic to store features and segments passed from the golang sdk

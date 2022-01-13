@@ -48,7 +48,7 @@ func NewEchoAuthMiddleware(secret []byte, bypassAuth bool) echo.MiddlewareFunc {
 				return true
 			}
 
-			return c.Request().URL.Path == "/client/auth"
+			return c.Request().URL.Path == "/client/auth" || c.Request().URL.Path == "/health"
 		},
 		ErrorHandlerWithContext: func(err error, c echo.Context) error {
 			return c.JSON(http.StatusUnauthorized, err)

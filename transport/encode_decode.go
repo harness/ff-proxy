@@ -26,6 +26,27 @@ func encodeResponse(ctx context.Context, w http.ResponseWriter, response interfa
 	return json.NewEncoder(w).Encode(response)
 }
 
+// encodeHealthResponse encodes a healthcheck response with status code
+func encodeHealthResponse(ctx context.Context, w http.ResponseWriter, response interface{}) error {
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	w.WriteHeader(getHealthStatusCode(response))
+	return json.NewEncoder(w).Encode(response)
+}
+
+func getHealthStatusCode(response interface{}) int {
+	healthRes, ok := response.(domain.HealthResponse)
+	if !ok {
+		return http.StatusInternalServerError
+	}
+
+	for _, health := range healthRes {
+		if health != "healthy" {
+			return http.StatusServiceUnavailable
+		}
+	}
+	return http.StatusOK
+}
+
 // encodeError encodes error responses returned from handlers
 func encodeError(ctx context.Context, err error, w http.ResponseWriter) {
 	if err == nil {
@@ -99,6 +120,11 @@ func decodeAuthRequest(c echo.Context) (interface{}, error) {
 		return nil, fmt.Errorf("%w: apiKey cannot be empty", errBadRequest)
 	}
 	return req, nil
+}
+
+// decodeHealthRequest returns an empty interface
+func decodeHealthRequest(c echo.Context) (interface{}, error) {
+	return nil, nil
 }
 
 // decodeGetFeatureConfigisRequest decodes GET /client/env/{environmentUUID}/feature-configs requests

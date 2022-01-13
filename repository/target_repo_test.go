@@ -20,6 +20,10 @@ type mockCache struct {
 	remove    func()
 }
 
+func (m *mockCache) HealthCheck(ctx context.Context) error {
+	return nil
+}
+
 // Set sets a value in the cache for a given key and field
 func (m *mockCache) Set(ctx context.Context, key string, field string, value encoding.BinaryMarshaler) error {
 	return m.set()
