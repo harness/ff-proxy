@@ -62,7 +62,7 @@ test-report: ## Run the go tests and generate a coverage report
 
 PHONY+= dev
 dev: ## Brings up services that the proxy uses
-	docker-compose -f ./docker-compose.yml run -d --service-ports redis
+	docker-compose -f ./docker-compose.yml up -d --remove-orphans redis pushpin
 
 PHONY+= run
 run: ## Runs the proxy and redis

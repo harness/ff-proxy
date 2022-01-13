@@ -23,9 +23,13 @@ RUN make build
 ############################
 # STEP 2 build a small image
 ############################
-FROM alpine:latest
-RUN apk update && apk add --no-cache bash
-RUN apk add --no-cache ca-certificates && apk update ca-certificates
+FROM fanout/pushpin
 COPY --from=builder /app/ff-proxy /app/ff-proxy
-USER nobody:nogroup
-ENTRYPOINT ["/app/ff-proxy"]
+COPY --from=builder ./app/config/pushpin /etc/pushpin
+COPY --from=builder ./app/start.sh /start.sh
+
+# Seem to need to be root in order to get pushpin running
+USER root
+
+EXPOSE 7000
+CMD ["./start.sh"]

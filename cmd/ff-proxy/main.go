@@ -116,7 +116,7 @@ func init() {
 	// TODO - FFM-1812 - we should update this to be loglevel
 	flag.BoolVar(&debug, debugFlag, false, "enables debug logging")
 	flag.BoolVar(&offline, offlineFlag, false, "enables side loading of data from config dir")
-	flag.IntVar(&port, portFlag, 7000, "port that the proxy service is exposed on")
+	flag.IntVar(&port, portFlag, 8000, "port that the proxy service is exposed on")
 	flag.StringVar(&accountIdentifier, accountIdentifierFlag, "", "account identifier to load remote config for")
 	flag.StringVar(&orgIdentifier, orgIdentifierFlag, "", "org identifier to load remote config for")
 	flag.StringVar(&adminService, adminServiceFlag, "https://app.harness.io/gateway/cf", "the url of the ff admin service")
