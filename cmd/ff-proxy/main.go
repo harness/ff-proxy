@@ -4,7 +4,9 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	"io"
 	stdlog "log"
+	"net/http"
 	"os"
 	"os/signal"
 	"strings"
@@ -64,6 +66,7 @@ var (
 	redisDB            int
 	apiKeys            keys
 	targetPollDuration int
+	heartbeatInterval  int
 	sdkClients         map[string]*harness.CfClient
 	sdkCache           cache.Cache
 )
@@ -86,6 +89,7 @@ const (
 	redisDBEnv            = "REDIS_DB"
 	apiKeysEnv            = "API_KEYS"
 	targetPollDurationEnv = "TARGET_POLL_DURATION"
+	heartbeatIntervalEnv  = "HEARTBEAT_INTERVAL"
 
 	bypassAuthFlag         = "bypass-auth"
 	debugFlag              = "debug"
@@ -104,6 +108,7 @@ const (
 	redisDBFlag            = "redis-db"
 	apiKeysFlag            = "api-keys"
 	targetPollDurationFlag = "target-poll-duration"
+	heartbeatIntervalFlag  = "heartbeat-interval"
 )
 
 func init() {
@@ -125,6 +130,7 @@ func init() {
 	flag.IntVar(&redisDB, redisDBFlag, 0, "Database to be selected after connecting to the server.")
 	flag.Var(&apiKeys, apiKeysFlag, "API keys to connect with ff-server for each environment")
 	flag.IntVar(&targetPollDuration, targetPollDurationFlag, 60, "How often in seconds the proxy polls feature flags for Target changes")
+	flag.IntVar(&heartbeatInterval, heartbeatIntervalFlag, 60, "How often in seconds the proxy polls pings it's health function")
 	sdkClients = map[string]*harness.CfClient{}
 
 	loadFlagsFromEnv(map[string]string{
@@ -145,6 +151,7 @@ func init() {
 		redisDBEnv:            redisDBFlag,
 		apiKeysEnv:            apiKeysFlag,
 		targetPollDurationEnv: targetPollDurationFlag,
+		heartbeatIntervalEnv:  heartbeatIntervalFlag,
 	})
 
 	flag.Parse()
@@ -221,7 +228,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	logger.Info("service config", "debug", debug, "bypass-auth", bypassAuth, "offline", offline, "port", port, "admin-service", adminService, "account-identifier", accountIdentifier, "org-identifier", orgIdentifier, "sdk-base-url", sdkBaseURL, "sdk-events-url", sdkEventsURL, "redis-addr", redisAddress, "redis-db", redisDB, "api-keys", fmt.Sprintf("%v", apiKeys), "target-poll-duration", fmt.Sprintf("%ds", targetPollDuration))
+	logger.Info("service config", "debug", debug, "bypass-auth", bypassAuth, "offline", offline, "port", port, "admin-service", adminService, "account-identifier", accountIdentifier, "org-identifier", orgIdentifier, "sdk-base-url", sdkBaseURL, "sdk-events-url", sdkEventsURL, "redis-addr", redisAddress, "redis-db", redisDB, "api-keys", fmt.Sprintf("%v", apiKeys), "target-poll-duration", fmt.Sprintf("%ds", targetPollDuration), "heartbeat-interval", fmt.Sprintf("%ds", heartbeatInterval))
 
 	adminService, err := services.NewAdminService(logger, adminService, adminServiceToken)
 	if err != nil {
@@ -376,6 +383,12 @@ func main() {
 		}()
 	}
 
+	go func() {
+		ticker := time.NewTicker(time.Duration(heartbeatInterval) * time.Second)
+		logger.Info(fmt.Sprintf("polling heartbeat every %d seconds", heartbeatInterval))
+		heartbeat(ctx, ticker.C, fmt.Sprintf("http://localhost:%d", port), logger)
+	}()
+
 	if err := server.Serve(); err != nil {
 		logger.Error("server stopped", "err", err)
 	}
@@ -384,6 +397,42 @@ func main() {
 // checks the health of the connected cache instance
 func cacheHealthCheck(ctx context.Context) error {
 	return sdkCache.HealthCheck(ctx)
+}
+
+// heartbeat kicks off a goroutine that polls the /health endpoint at intervals
+// determined by how frequently events are sent on the tick channel.
+func heartbeat(ctx context.Context, tick <-chan time.Time, listenAddr string, logger log.StructuredLogger) {
+	go func() {
+		for {
+			select {
+			case <-ctx.Done():
+				logger.Info("stopping heartbeat")
+				return
+			case <-tick:
+				resp, err := http.Get(fmt.Sprintf("%s/health", listenAddr))
+				if err != nil {
+					logger.Error(fmt.Sprintf("heartbeat request failed: %d", resp.StatusCode))
+				}
+
+				if resp.StatusCode == http.StatusOK {
+					logger.Info(fmt.Sprintf("heartbeat healthy: status code: %d", resp.StatusCode))
+					resp.Body.Close()
+					continue
+				}
+
+				b, err := io.ReadAll(resp.Body)
+				if err != nil {
+					resp.Body.Close()
+					logger.Error(fmt.Sprintf("failed to read response body from %s", resp.Request.URL.String()))
+					logger.Error(fmt.Sprintf("heartbeat unhealthy: status code: %d", resp.StatusCode))
+					continue
+				}
+				resp.Body.Close()
+
+				logger.Error(fmt.Sprintf("heartbeat unhealthy: status code: %d, body: %s", resp.StatusCode, b))
+			}
+		}
+	}()
 }
 
 // checks the health of all connected environments
