@@ -48,11 +48,14 @@ func (i *keys) Set(value string) error {
 	return nil
 }
 
+const (
+	port = 8000
+)
+
 var (
 	debug              bool
 	bypassAuth         bool
 	offline            bool
-	port               int
 	accountIdentifier  string
 	orgIdentifier      string
 	adminService       string
@@ -75,7 +78,6 @@ const (
 	bypassAuthEnv         = "BYPASS_AUTH"
 	debugEnv              = "DEBUG"
 	offlineEnv            = "OFFLINE"
-	portEnv               = "PORT"
 	accountIdentifierEnv  = "ACCOUNT_IDENTIFIER"
 	orgIdentifierEnv      = "ORG_IDENTIFIER"
 	adminServiceEnv       = "ADMIN_SERVICE"
@@ -94,7 +96,6 @@ const (
 	bypassAuthFlag         = "bypass-auth"
 	debugFlag              = "debug"
 	offlineFlag            = "offline"
-	portFlag               = "port"
 	accountIdentifierFlag  = "account-identifier"
 	orgIdentifierFlag      = "org-identifier"
 	adminServiceFlag       = "admin-service"
@@ -116,7 +117,6 @@ func init() {
 	// TODO - FFM-1812 - we should update this to be loglevel
 	flag.BoolVar(&debug, debugFlag, false, "enables debug logging")
 	flag.BoolVar(&offline, offlineFlag, false, "enables side loading of data from config dir")
-	flag.IntVar(&port, portFlag, 8000, "port that the proxy service is exposed on")
 	flag.StringVar(&accountIdentifier, accountIdentifierFlag, "", "account identifier to load remote config for")
 	flag.StringVar(&orgIdentifier, orgIdentifierFlag, "", "org identifier to load remote config for")
 	flag.StringVar(&adminService, adminServiceFlag, "https://app.harness.io/gateway/cf", "the url of the ff admin service")
@@ -137,7 +137,6 @@ func init() {
 		bypassAuthEnv:         bypassAuthFlag,
 		debugEnv:              debugFlag,
 		offlineEnv:            offlineFlag,
-		portEnv:               portFlag,
 		accountIdentifierEnv:  accountIdentifierFlag,
 		orgIdentifierEnv:      orgIdentifierFlag,
 		adminServiceEnv:       adminServiceFlag,
