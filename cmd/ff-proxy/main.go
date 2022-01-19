@@ -156,7 +156,7 @@ func init() {
 	flag.Parse()
 }
 
-func initFF(ctx context.Context, cache gosdkCache.Cache, baseURL, eventURL, envID, envIdent, projectIdent, sdkKey string, l log.Logger) {
+func initFF(ctx context.Context, cache gosdkCache.Cache, baseURL, eventURL, envID, envIdent, projectIdent, sdkKey string, l log.Logger, eventListener ffproxy.EventListener) {
 
 	retryClient := retryablehttp.NewClient()
 	retryClient.RetryMax = 5
@@ -178,6 +178,7 @@ func initFF(ctx context.Context, cache gosdkCache.Cache, baseURL, eventURL, envI
 		harness.WithStreamEnabled(true),
 		harness.WithCache(cache),
 		harness.WithStoreEnabled(false), // store should be disabled until we implement a wrapper to handle multiple envs
+		harness.WithEventStreamListener(eventListener),
 	)
 
 	sdkClients[envID] = client
@@ -305,8 +306,10 @@ func main() {
 
 			projEnvInfo := envIDToProjectEnvironmentInfo[authConfig[domain.AuthAPIKey(apiKeyHash)]]
 
+			eventListener := ffproxy.NewEventListener(logger, nil, apiKeyHasher)
+
 			cacheWrapper := cache.NewWrapper(sdkCache, envID, logger)
-			go initFF(ctx, cacheWrapper, sdkBaseURL, sdkEventsURL, envID, projEnvInfo.EnvironmentIdentifier, projEnvInfo.ProjectIdentifier, apiKey, logger)
+			go initFF(ctx, cacheWrapper, sdkBaseURL, sdkEventsURL, envID, projEnvInfo.EnvironmentIdentifier, projEnvInfo.ProjectIdentifier, apiKey, logger, eventListener)
 		}
 	}
 

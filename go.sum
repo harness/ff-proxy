@@ -178,6 +178,7 @@ github.com/fatih/color v1.7.0/go.mod h1:Zm6kSWBoL9eyXnKyktHP6abPY2pDugNf5Kwzbycv
 github.com/fatih/color v1.9.0/go.mod h1:eQcE1qtQxscV5RaZvpXrrb8Drkc3/DdQ+uUYCNjL+zU=
 github.com/fatih/color v1.12.0 h1:mRhaKNwANqRgUBGKmnI5ZxEk7QXmjQeCcuYFMX2bfcc=
 github.com/fatih/color v1.12.0/go.mod h1:ELkj/draVOlAH/xkhN6mQ50Qd0MPOk5AAr3maGEBuJM=
+github.com/fatih/structtag v1.2.0/go.mod h1:mBJUNpUnHmRKrKlQQlmCrh5PuhftFbNv8Ys4/aAZl94=
 github.com/fogleman/gg v1.2.1-0.20190220221249-0403632d5b90/go.mod h1:R/bRT+9gY/C5z7JzPU0zXsXHKM4/ayA+zqcVNZzPa1k=
 github.com/franela/goblin v0.0.0-20200105215937-c9ffbefa60db/go.mod h1:7dvUGVsVBjqR7JHJk0brhHOZYGmfBYOrK0ZhYMEtBr4=
 github.com/franela/goblin v0.0.0-20210519012713-85d372ac71e2/go.mod h1:VzmDKDJVZI3aJmnRI9VjAn9nJ8qPPsN1fqzr9dqInIo=
@@ -445,6 +446,8 @@ github.com/harness/ff-golang-server-sdk v0.0.24-0.20211224134156-e284c4cb25b6 h1
 github.com/harness/ff-golang-server-sdk v0.0.24-0.20211224134156-e284c4cb25b6/go.mod h1:XPa7+w1VKXUG5udSF8RYqYdmZ47bWHn2gzk1iZTJBxM=
 github.com/harness/ff-golang-server-sdk v0.0.24-0.20220111144918-95f59344bbf9 h1:+MDHf0LYRd9CADCVNrAq5TlduESxTvql4MsI3LaUak4=
 github.com/harness/ff-golang-server-sdk v0.0.24-0.20220111144918-95f59344bbf9/go.mod h1:g27JJDAEVUo+6eaGHElRunETSFkIGdI9XSWVM5Y61do=
+github.com/harness/ff-golang-server-sdk v0.0.24-0.20220119131602-fb0e102ab915 h1:9ddPGT/EBny+L1ykWvdZf1d/eS19iBmXhrtQqcIGgEk=
+github.com/harness/ff-golang-server-sdk v0.0.24-0.20220119131602-fb0e102ab915/go.mod h1:LRSKL1xL+RrAesnL5eq/dA/EQJ9G0F1XSxPCaapS2Vk=
 github.com/hashicorp/consul/api v1.1.0/go.mod h1:VmuI/Lkw1nC05EYQWNKwWGbkg+FbDBtguAZLlVdkD9Q=
 github.com/hashicorp/consul/api v1.3.0/go.mod h1:MmDNSzIMUjNpY/mQ398R4bk2FnqQLoPndWW5VkKPlCE=
 github.com/hashicorp/consul/api v1.10.1/go.mod h1:XjsvQN+RJGWI2TWy1/kqaE16HrR2J/FWgkYjdZQsX9M=
