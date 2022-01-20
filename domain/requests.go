@@ -62,19 +62,25 @@ type StreamResponse struct {
 // MetricsRequest contains the fields sent in a POST /metrics request
 type MetricsRequest struct {
 	EnvironmentID string        `json:"environment_id"`
-	TargetData    []targetData  `json:"targetData"`
-	MetricsData   []metricsData `json:"metricsData"`
+	TargetData    []TargetData  `json:"TargetData"`
+	MetricsData   []MetricsData `json:"MetricsData"`
 }
 
-type targetData struct {
+type TargetData struct {
 	Identifier string                   `json:"identifier"`
 	Name       string                   `json:"name"`
-	Attributes []map[string]interface{} `json:"attributes"`
+	Attributes []KeyValue               `json:"attributes"`
 }
 
-type metricsData struct {
+type MetricsData struct {
 	Timestamp   int64                    `json:"timestamp"`
 	Count       int                      `json:"count"`
 	MetricsType string                   `json:"metricsType"`
-	Attributes  []map[string]interface{} `json:"attributes"`
+	Attributes  []KeyValue               `json:"attributes"`
+}
+
+// KeyValue defines model for KeyValue.
+type KeyValue struct {
+	Key   string `json:"key"`
+	Value string `json:"value"`
 }
