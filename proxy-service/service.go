@@ -11,6 +11,7 @@ import (
 	clientgen "github.com/harness/ff-proxy/gen/client"
 	"github.com/harness/ff-proxy/log"
 	"github.com/harness/ff-proxy/repository"
+	"github.com/wings-software/ff-server/pkg/hash"
 )
 
 //ProxyService is the interface for the ProxyService
@@ -36,8 +37,8 @@ type ProxyService interface {
 	// Evaluations gets all of the evaluations in an environment for a target for a particular feature
 	EvaluationsByFeature(ctx context.Context, req domain.EvaluationsByFeatureRequest) (clientgen.Evaluation, error)
 
-	// Stream streams flag updates out to the client
-	Stream(ctx context.Context, req domain.StreamRequest, stream domain.Stream) error
+	// Stream returns the name of the GripChannel that the client should subscribe to
+	Stream(ctx context.Context, req domain.StreamRequest) (domain.StreamResponse, error)
 
 	// Metrics forwards metrics to the analytics service
 	Metrics(ctx context.Context, req domain.MetricsRequest) error
@@ -82,6 +83,21 @@ type clientService interface {
 	Authenticate(ctx context.Context, apiKey string, target domain.Target) (string, error)
 }
 
+// Config is the config for a Service
+type Config struct {
+	Logger        log.ContextualLogger
+	FeatureRepo   repository.FeatureFlagRepo
+	TargetRepo    repository.TargetRepo
+	SegmentRepo   repository.SegmentRepo
+	CacheHealthFn CacheHealthFn
+	EnvHealthFn   EnvHealthFn
+	AuthFn        authTokenFn
+	Evaluator     evaluator
+	ClientService clientService
+	Offline       bool
+	Hasher        hash.Hasher
+}
+
 // Service is the proxy service implementation
 type Service struct {
 	logger        log.ContextualLogger
@@ -94,22 +110,24 @@ type Service struct {
 	evaluator     evaluator
 	clientService clientService
 	offline       bool
+	hasher        hash.Hasher
 }
 
 // NewService creates and returns a ProxyService
-func NewService(fr repository.FeatureFlagRepo, tr repository.TargetRepo, sr repository.SegmentRepo, cacheHealthFn CacheHealthFn, envHealthFn EnvHealthFn, authFn authTokenFn, e evaluator, c clientService, l log.ContextualLogger, offline bool) Service {
-	l = l.With("component", "ProxyService")
+func NewService(c Config) Service {
+	l := c.Logger.With("component", "ProxyService")
 	return Service{
 		logger:        l,
-		featureRepo:   fr,
-		targetRepo:    tr,
-		segmentRepo:   sr,
-		cacheHealthFn: cacheHealthFn,
-		envHealthFn:   envHealthFn,
-		authFn:        authFn,
-		evaluator:     e,
-		clientService: c,
-		offline:       offline,
+		featureRepo:   c.FeatureRepo,
+		targetRepo:    c.TargetRepo,
+		segmentRepo:   c.SegmentRepo,
+		cacheHealthFn: c.CacheHealthFn,
+		envHealthFn:   c.EnvHealthFn,
+		authFn:        c.AuthFn,
+		evaluator:     c.Evaluator,
+		clientService: c.ClientService,
+		offline:       c.Offline,
+		hasher:        c.Hasher,
 	}
 }
 
@@ -367,10 +385,12 @@ func (s Service) EvaluationsByFeature(ctx context.Context, req domain.Evaluation
 	return evaluations[0], nil
 }
 
-// Stream streams flag updates out to the client
-func (s Service) Stream(ctx context.Context, req domain.StreamRequest, stream domain.Stream) error {
+// Stream returns the name of the GripChannel that the client should subscribe to
+func (s Service) Stream(ctx context.Context, req domain.StreamRequest) (domain.StreamResponse, error) {
 	s.logger = s.logger.With("method", "Stream")
-	return ErrNotImplemented
+	gc := s.hasher.Hash(req.APIKey)
+
+	return domain.StreamResponse{GripChannel: gc}, nil
 }
 
 // Metrics forwards metrics to the analytics service

@@ -54,6 +54,11 @@ type StreamRequest struct {
 	APIKey string `json:"api_key"`
 }
 
+// StreamResponse contains the fields returned by a Stream request
+type StreamResponse struct {
+	GripChannel string
+}
+
 // MetricsRequest contains the fields sent in a POST /metrics request
 type MetricsRequest struct {
 	EnvironmentID string        `json:"environment_id"`
