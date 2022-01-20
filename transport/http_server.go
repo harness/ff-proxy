@@ -122,7 +122,7 @@ func (h *HTTPServer) registerEndpoints(e *Endpoints) {
 		encodeEchoError,
 	))
 
-	h.router.GET("/stream", NewServerStreamHandler(
+	h.router.GET("/stream", NewUnaryHandler(
 		e.GetStream,
 		decodeGetStreamRequest,
 		encodeStreamResponse,

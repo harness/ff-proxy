@@ -5,7 +5,6 @@ import (
 	"net/http"
 
 	"github.com/go-kit/kit/endpoint"
-	"github.com/harness/ff-proxy/domain"
 	"github.com/labstack/echo/v4"
 )
 
@@ -37,31 +36,6 @@ func NewUnaryHandler(e endpoint.Endpoint, dec decodeRequestFunc, enc encodeRespo
 		}
 
 		if err := enc(ctx, w, resp); err != nil {
-			return errorEncoder(c, err)
-		}
-		return nil
-	}
-}
-
-// NewServerStreamHandler creates and returns an echo.HandlerFunc that can return
-// a stream of messages in response to a single response
-func NewServerStreamHandler(e streamEndpoint, dec decodeRequestFunc, enc encodeResponseFunc, errorEncoder errorEncoderFunc) echo.HandlerFunc {
-	return func(c echo.Context) error {
-		ctx := c.Request().Context()
-		w := c.Response().Writer
-
-		req, err := dec(c)
-		if err != nil {
-			return errorEncoder(c, err)
-		}
-
-		stream := domain.NewStream(w)
-		err = e(ctx, req, stream)
-		if err != nil {
-			return errorEncoder(c, err)
-		}
-
-		if err := enc(ctx, w, stream); err != nil {
 			return errorEncoder(c, err)
 		}
 		return nil

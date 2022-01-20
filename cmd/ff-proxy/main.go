@@ -349,8 +349,19 @@ func main() {
 	}
 
 	// Setup service and middleware
-	var service proxyservice.ProxyService
-	service = proxyservice.NewService(fcr, tr, sr, cacheHealthCheck, envHealthCheck, tokenSource.GenerateToken, featureEvaluator, clientService, log.NewContextualLogger(logger, log.ExtractRequestValuesFromContext), offline)
+	service := proxyservice.NewService(proxyservice.Config{
+		Logger:        log.NewContextualLogger(logger, log.ExtractRequestValuesFromContext),
+		FeatureRepo:   fcr,
+		TargetRepo:    tr,
+		SegmentRepo:   sr,
+		CacheHealthFn: cacheHealthCheck,
+		EnvHealthFn:   envHealthCheck,
+		AuthFn:        tokenSource.GenerateToken,
+		Evaluator:     featureEvaluator,
+		ClientService: clientService,
+		Offline:       offline,
+		Hasher:        apiKeyHasher,
+	})
 
 	// Configure endpoints and server
 	endpoints := transport.NewEndpoints(service)

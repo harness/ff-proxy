@@ -206,18 +206,19 @@ func setupHTTPServer(t *testing.T, bypassAuth bool, opts ...setupOpts) *HTTPServ
 	tokenSource := ffproxy.NewTokenSource(logger, setupConfig.authRepo, hash.NewSha256(), []byte(`secret`))
 
 	var service proxyservice.ProxyService
-	service = proxyservice.NewService(
-		*setupConfig.featureRepo,
-		*setupConfig.targetRepo,
-		*setupConfig.segmentRepo,
-		setupConfig.cacheHealthFn,
-		setupConfig.envHealthFn,
-		tokenSource.GenerateToken,
-		proxyservice.NewFeatureEvaluator(),
-		setupConfig.clientService,
-		log.NewNoOpContextualLogger(),
-		false,
-	)
+	service = proxyservice.NewService(proxyservice.Config{
+		Logger:        log.NewNoOpContextualLogger(),
+		FeatureRepo:   *setupConfig.featureRepo,
+		TargetRepo:    *setupConfig.targetRepo,
+		SegmentRepo:   *setupConfig.segmentRepo,
+		CacheHealthFn: setupConfig.cacheHealthFn,
+		EnvHealthFn:   setupConfig.envHealthFn,
+		AuthFn:        tokenSource.GenerateToken,
+		Evaluator:     proxyservice.NewFeatureEvaluator(),
+		ClientService: setupConfig.clientService,
+		Offline:       false,
+		Hasher:        hash.NewSha256(),
+	})
 	endpoints := NewEndpoints(service)
 
 	server := NewHTTPServer(7000, endpoints, logger)
@@ -1123,6 +1124,95 @@ func TestHTTPServer_Health(t *testing.T) {
 					t.Errorf("(%s) expected: %s \n got: %s ", desc, tc.expectedResponseBody, actual)
 				}
 			}
+		})
+	}
+}
+
+func TestHTTPServer_Stream(t *testing.T) {
+	// setup HTTPServer & service with auth bypassed
+	server := setupHTTPServer(t, true)
+	testServer := httptest.NewServer(server)
+	defer testServer.Close()
+
+	testCases := map[string]struct {
+		method                  string
+		headers                 http.Header
+		url                     string
+		expectedStatusCode      int
+		expectedResponseHeaders http.Header
+	}{
+		"Given I make a request that isn't a GET request": {
+			method:             http.MethodPost,
+			headers:            http.Header{},
+			url:                fmt.Sprintf("%s/stream", testServer.URL),
+			expectedStatusCode: http.StatusMethodNotAllowed,
+		},
+		"Given I make a GET request but don't have an API-Key header": {
+			method:             http.MethodGet,
+			headers:            http.Header{},
+			url:                fmt.Sprintf("%s/stream", testServer.URL),
+			expectedStatusCode: http.StatusBadRequest,
+		},
+		"Given I make a GET request and have an empty API Key header": {
+			method: http.MethodGet,
+			headers: http.Header{
+				"API-Key": []string{},
+			},
+			url:                fmt.Sprintf("%s/stream", testServer.URL),
+			expectedStatusCode: http.StatusBadRequest,
+		},
+		"Given I make a GET request with a populated API Key Header": {
+			method: http.MethodGet,
+			headers: http.Header{
+				"API-Key": []string{"abcd"},
+			},
+			url:                fmt.Sprintf("%s/stream", testServer.URL),
+			expectedStatusCode: http.StatusOK,
+			expectedResponseHeaders: http.Header{
+				"Content-Type":    []string{"text/event-stream"},
+				"Grip-Hold":       []string{"stream"},
+				"Grip-Channel":    []string{"88d4266fd4e6338d13b845fcf289579d209c897823b9217da3e161936f031589"}, // Sha256 of abcd
+				"Grip-Keep-Alive": []string{"format=cstring,timeout=30"},
+			},
+		},
+	}
+	for desc, tc := range testCases {
+		tc := tc
+		t.Run(desc, func(t *testing.T) {
+
+			var req *http.Request
+			var err error
+
+			switch tc.method {
+			case http.MethodPost:
+				req, err = http.NewRequest(http.MethodPost, tc.url, bytes.NewBuffer([]byte{}))
+				if err != nil {
+					t.Fatal(err)
+				}
+			case http.MethodGet:
+				req, err = http.NewRequest(http.MethodGet, tc.url, nil)
+				if err != nil {
+					t.Fatal(err)
+				}
+			}
+			req.Header = tc.headers
+
+			resp, err := testServer.Client().Do(req)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer resp.Body.Close()
+
+			assert.Equal(t, tc.expectedStatusCode, resp.StatusCode)
+			if tc.expectedResponseHeaders != nil {
+				for header := range tc.expectedResponseHeaders {
+					actualValue := resp.Header.Get(header)
+					expectedValue := resp.Header.Get(header)
+
+					assert.Equal(t, expectedValue, actualValue)
+				}
+			}
+
 		})
 	}
 }

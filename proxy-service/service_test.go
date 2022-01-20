@@ -16,6 +16,7 @@ import (
 	"github.com/harness/ff-proxy/domain"
 	"github.com/harness/ff-proxy/log"
 	"github.com/harness/ff-proxy/repository"
+	"github.com/wings-software/ff-server/pkg/hash"
 )
 
 type fileSystem struct {
@@ -122,7 +123,18 @@ func setupService(cfg benchmarkConfig, b *testing.B) ProxyService {
 
 	// Client service isn't used by the methods we benchmark so we can get away
 	// with making it nil
-	return NewService(featureRepo, targetRepo, segmentRepo, cacheHealthFn, envHealthFn, authFn, NewFeatureEvaluator(), nil, log.NewNoOpContextualLogger(), true)
+	return NewService(Config{
+		Logger:        log.NewNoOpContextualLogger(),
+		FeatureRepo:   featureRepo,
+		TargetRepo:    targetRepo,
+		SegmentRepo:   segmentRepo,
+		CacheHealthFn: cacheHealthFn,
+		EnvHealthFn:   envHealthFn,
+		AuthFn:        authFn,
+		Evaluator:     NewFeatureEvaluator(),
+		Offline:       true,
+		Hasher:        hash.NewSha256(),
+	})
 }
 
 type benchmark struct {
