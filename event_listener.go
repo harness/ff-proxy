@@ -50,7 +50,7 @@ func (e EventListener) Pub(ctx context.Context, event stream.Event) error {
 	}
 
 	if err := e.stream.Pub(ctx, topic, values); err != nil {
-		e.log.Error(err.Error())
+		e.log.Error("failed to publish event to stream", "err", err)
 		return err
 	}
 	return nil
