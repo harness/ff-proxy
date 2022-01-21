@@ -34,10 +34,10 @@ func NewMetricService(l log.Logger, addr string, accountID string, serviceToken 
 
 // StoreMetrics aggregates and stores metrics
 func (m MetricService) StoreMetrics(ctx context.Context, req domain.MetricsRequest) error {
+	m.metricsLock.Lock()
+	defer m.metricsLock.Unlock()
 	// store metrics to send later
 	if _,ok := m.metrics[req.EnvironmentID]; ok {
-		m.metricsLock.Lock()
-		defer m.metricsLock.Unlock()
 		currentMetrics := m.metrics[req.EnvironmentID]
 		currentMetrics.MetricsData = append(currentMetrics.MetricsData, req.MetricsData...)
 		currentMetrics.TargetData = append(currentMetrics.TargetData, req.TargetData...)
@@ -50,10 +50,17 @@ func (m MetricService) StoreMetrics(ctx context.Context, req domain.MetricsReque
 }
 
 func (m MetricService) SendMetrics(ctx context.Context) {
+	// copy metrics before sending so we don't hog the lock for network requests
 	m.metricsLock.Lock()
-	defer m.metricsLock.Unlock()
+	metricsCopy := map[string]domain.MetricsRequest{}
+	for key, val := range m.metrics {
+		metricsCopy[key] = val
+		delete(m.metrics, key)
+	}
+	m.metrics = make(map[string]domain.MetricsRequest)
+	m.metricsLock.Unlock()
 
-	for envID, metric := range m.metrics {
+	for envID, metric := range metricsCopy {
 		metricDataToSend :=  convertDomainMetricsToClient(metric.MetricsData)
 		targetDataToSend := convertDomainTargetsToClient(metric.TargetData)
 
@@ -67,7 +74,6 @@ func (m MetricService) SendMetrics(ctx context.Context) {
 		if res != nil && res.StatusCode() != 200 {
 			m.log.Error("sending metrics failed", "environment", envID, "status code", res.StatusCode())
 		}
-		delete(m.metrics, envID)
 	}
 }
 

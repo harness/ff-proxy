@@ -160,7 +160,7 @@ func init() {
 	flag.StringVar(&adminService, adminServiceFlag, "https://app.harness.io/gateway/cf", "the url of the ff admin service")
 	flag.StringVar(&adminServiceToken, adminServiceTokenFlag, "", "token to use with the ff service")
 	flag.StringVar(&clientService, clientServiceFlag, "https://config.ff.harness.io/api/1.0", "the url of the ff client service")
-	flag.StringVar(&metricService, metricServiceFlag, "http://localhost:3000/api/1.0", "the url of the ff metric service")
+	flag.StringVar(&metricService, metricServiceFlag, "https://events.ff.harness.io/api/1.0", "the url of the ff metric service")
 	flag.StringVar(&authSecret, authSecretFlag, "", "the secret used for signing auth tokens")
 	flag.StringVar(&sdkBaseURL, sdkBaseURLFlag, "https://config.ff.harness.io/api/1.0", "url for the sdk to connect to")
 	flag.StringVar(&sdkEventsURL, sdkEventsURLFlag, "https://events.ff.harness.io/api/1.0", "url for the sdk to send metrics to")
