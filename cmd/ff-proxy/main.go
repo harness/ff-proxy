@@ -19,6 +19,7 @@ import (
 	gosdkCache "github.com/harness/ff-golang-server-sdk/cache"
 	harness "github.com/harness/ff-golang-server-sdk/client"
 	"github.com/harness/ff-golang-server-sdk/logger"
+	"github.com/harness/ff-golang-server-sdk/stream"
 	ffproxy "github.com/harness/ff-proxy"
 	"github.com/harness/ff-proxy/cache"
 	"github.com/harness/ff-proxy/config"
@@ -156,7 +157,7 @@ func init() {
 	flag.Parse()
 }
 
-func initFF(ctx context.Context, cache gosdkCache.Cache, baseURL, eventURL, envID, envIdent, projectIdent, sdkKey string, l log.Logger, eventListener ffproxy.EventListener) {
+func initFF(ctx context.Context, cache gosdkCache.Cache, baseURL, eventURL, envID, envIdent, projectIdent, sdkKey string, l log.Logger, eventListener stream.EventStreamListener) {
 
 	retryClient := retryablehttp.NewClient()
 	retryClient.RetryMax = 5
@@ -306,7 +307,10 @@ func main() {
 
 			projEnvInfo := envIDToProjectEnvironmentInfo[authConfig[domain.AuthAPIKey(apiKeyHash)]]
 
-			eventListener := ffproxy.NewEventListener(logger, nil, apiKeyHasher)
+			var eventListener stream.EventStreamListener
+			if rc, ok := sdkCache.(*cache.RedisCache); ok {
+				eventListener = ffproxy.NewEventListener(logger, rc, apiKeyHasher)
+			}
 
 			cacheWrapper := cache.NewWrapper(sdkCache, envID, logger)
 			go initFF(ctx, cacheWrapper, sdkBaseURL, sdkEventsURL, envID, projEnvInfo.EnvironmentIdentifier, projEnvInfo.ProjectIdentifier, apiKey, logger, eventListener)
