@@ -310,6 +310,8 @@ func main() {
 			var eventListener stream.EventStreamListener
 			if rc, ok := sdkCache.(*cache.RedisCache); ok {
 				eventListener = ffproxy.NewEventListener(logger, rc, apiKeyHasher)
+			} else {
+				logger.Info("proxy is not configured with a redis cache, therefore streaming will not be enabled")
 			}
 
 			cacheWrapper := cache.NewWrapper(sdkCache, envID, logger)

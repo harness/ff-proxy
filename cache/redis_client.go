@@ -88,7 +88,7 @@ func (r *RedisCache) Pub(ctx context.Context, topic string, values map[string]in
 		Values: values,
 	}).Err()
 	if err != nil {
-		return fmt.Errorf("failed to publish event to redis stream: %s", err)
+		return fmt.Errorf("failed to publish event to redis stream %q: %s", topic, err)
 	}
 	return nil
 }
