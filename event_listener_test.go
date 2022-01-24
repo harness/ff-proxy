@@ -3,9 +3,11 @@ package ffproxy
 import (
 	"context"
 	"errors"
+	"fmt"
 	"testing"
 
 	"github.com/harness/ff-golang-server-sdk/stream"
+	"github.com/harness/ff-proxy/domain"
 	"github.com/harness/ff-proxy/log"
 	"github.com/r3labs/sse"
 	"github.com/stretchr/testify/assert"
@@ -13,50 +15,79 @@ import (
 )
 
 type mockStream struct {
-	data map[string][]map[string]interface{}
+	data map[string][]domain.StreamEvent
 	err  error
 }
 
-func (m mockStream) Pub(ctx context.Context, topic string, values map[string]interface{}) error {
+func newMockStream(err error, topic string, events ...domain.StreamEvent) mockStream {
+	return mockStream{
+		data: map[string][]domain.StreamEvent{
+			topic: events,
+		},
+		err: err,
+	}
+}
+
+func (m mockStream) Sub(ctx context.Context, topic string, checkpoint string, onReceive func(domain.StreamEvent)) error {
 	if m.err != nil {
 		return m.err
 	}
 
-	m.data[topic] = append(m.data[topic], values)
+	events, ok := m.data[topic]
+	if !ok {
+		return fmt.Errorf("topic %q not found in mockStream", topic)
+	}
+
+	for _, event := range events {
+		if domain.Checkpoint(event.Checkpoint).IsOlder(domain.Checkpoint(checkpoint)) {
+			continue
+		}
+
+		onReceive(event)
+	}
+	return nil
+}
+
+func (m mockStream) Pub(ctx context.Context, topic string, event domain.StreamEvent) error {
+	if m.err != nil {
+		return m.err
+	}
+
+	m.data[topic] = append(m.data[topic], event)
 	return nil
 }
 
 func TestEventListener_Pub(t *testing.T) {
 	apiKey := "123"
-	hashedAPIKey := hash.NewSha256().Hash(apiKey)
+	envID := "abc"
 
 	testCases := map[string]struct {
 		stream    mockStream
 		event     stream.Event
 		shouldErr bool
-		expected  map[string][]map[string]interface{}
+		expected  map[string][]domain.StreamEvent
 	}{
 		"Given I try to publish an event containing a nil SSEEvent": {
 			stream: mockStream{
-				data: make(map[string][]map[string]interface{}),
+				data: make(map[string][]domain.StreamEvent),
 				err:  nil,
 			},
 			event: stream.Event{
 				APIKey:      apiKey,
-				Environment: "abc",
+				Environment: envID,
 				SSEEvent:    nil,
 			},
 			shouldErr: true,
-			expected:  make(map[string][]map[string]interface{}),
+			expected:  map[string][]domain.StreamEvent{},
 		},
 		"Given I have a mockStream that errors when the EventListener tries to publish to it": {
 			stream: mockStream{
-				data: make(map[string][]map[string]interface{}),
+				data: make(map[string][]domain.StreamEvent),
 				err:  errors.New("pub err"),
 			},
 			event: stream.Event{
 				APIKey:      apiKey,
-				Environment: "abc",
+				Environment: envID,
 				SSEEvent: &sse.Event{
 					ID:    []byte("1"),
 					Data:  []byte("foo"),
@@ -65,16 +96,16 @@ func TestEventListener_Pub(t *testing.T) {
 				},
 			},
 			shouldErr: true,
-			expected:  make(map[string][]map[string]interface{}),
+			expected:  map[string][]domain.StreamEvent{},
 		},
 		"Given I have a mockStream that doesn't error when the EventListener tries to publish to it": {
 			stream: mockStream{
-				data: make(map[string][]map[string]interface{}),
+				data: make(map[string][]domain.StreamEvent),
 				err:  nil,
 			},
 			event: stream.Event{
 				APIKey:      apiKey,
-				Environment: "abc",
+				Environment: envID,
 				SSEEvent: &sse.Event{
 					ID:    []byte("1"),
 					Data:  []byte("foo"),
@@ -83,13 +114,14 @@ func TestEventListener_Pub(t *testing.T) {
 				},
 			},
 			shouldErr: false,
-			expected: map[string][]map[string]interface{}{
-				hashedAPIKey: []map[string]interface{}{
+			expected: map[string][]domain.StreamEvent{
+				envID: []domain.StreamEvent{
 					{
-						"ID":    []byte("1"),
-						"Data":  []byte("foo"),
-						"Event": []byte("patch"),
-						"Retry": []byte("nope"),
+						Checkpoint: domain.Checkpoint(""),
+						Values: map[domain.StreamEventValue]string{
+							domain.StreamEventValueAPIKey: envID,
+							domain.StreamEventValueData:   fmt.Sprintf("event: *\ndata: foo\n\n"),
+						},
 					},
 				},
 			},

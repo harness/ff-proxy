@@ -10,8 +10,10 @@ import (
 	"os"
 	"os/signal"
 	"strings"
+	"sync"
 	"time"
 
+	"github.com/fanout/go-gripcontrol"
 	"github.com/hashicorp/go-retryablehttp"
 
 	"github.com/go-redis/redis/v8"
@@ -32,6 +34,30 @@ import (
 	"github.com/harness/ff-proxy/transport"
 	"github.com/wings-software/ff-server/pkg/hash"
 )
+
+type sdkClientMap struct {
+	*sync.RWMutex
+	m map[string]*harness.CfClient
+}
+
+func newSDKClientMap() *sdkClientMap {
+	return &sdkClientMap{
+		RWMutex: &sync.RWMutex{},
+		m:       map[string]*harness.CfClient{},
+	}
+}
+
+func (s *sdkClientMap) set(key string, value *harness.CfClient) {
+	s.Lock()
+	defer s.Unlock()
+	s.m[key] = value
+}
+
+func (s *sdkClientMap) copy() map[string]*harness.CfClient {
+	s.RLock()
+	defer s.RUnlock()
+	return s.m
+}
 
 // keys implements the flag.Value interface and allows us to pass a comma seperated
 // list of api keys e.g. -api-keys 123,456,789
@@ -71,7 +97,7 @@ var (
 	apiKeys            keys
 	targetPollDuration int
 	heartbeatInterval  int
-	sdkClients         map[string]*harness.CfClient
+	sdkClients         *sdkClientMap
 	sdkCache           cache.Cache
 )
 
@@ -132,7 +158,7 @@ func init() {
 	flag.Var(&apiKeys, apiKeysFlag, "API keys to connect with ff-server for each environment")
 	flag.IntVar(&targetPollDuration, targetPollDurationFlag, 60, "How often in seconds the proxy polls feature flags for Target changes")
 	flag.IntVar(&heartbeatInterval, heartbeatIntervalFlag, 60, "How often in seconds the proxy polls pings it's health function")
-	sdkClients = map[string]*harness.CfClient{}
+	sdkClients = newSDKClientMap()
 
 	loadFlagsFromEnv(map[string]string{
 		bypassAuthEnv:         bypassAuthFlag,
@@ -163,7 +189,7 @@ func initFF(ctx context.Context, cache gosdkCache.Cache, baseURL, eventURL, envI
 	retryClient.RetryMax = 5
 	retryClient.Logger = l.With("component", "RetryClient", "environment", envID)
 
-	l = l.With("component", "SDK", "environmentID", envID, "environment_identifier", envIdent, "project_identifier", projectIdent)
+	l = l.With("component", "SDK", "apiKey", sdkKey, "environmentID", envID, "environment_identifier", envIdent, "project_identifier", projectIdent)
 	structuredLogger, ok := l.(log.StructuredLogger)
 	if !ok {
 		l.Error("unexpected logger", "expected", "log.StructuredLogger", "got", fmt.Sprintf("%T", structuredLogger))
@@ -182,7 +208,7 @@ func initFF(ctx context.Context, cache gosdkCache.Cache, baseURL, eventURL, envI
 		harness.WithEventStreamListener(eventListener),
 	)
 
-	sdkClients[envID] = client
+	sdkClients.set(envID, client)
 	defer func() {
 		if err := client.Close(); err != nil {
 			l.Error("error while closing client", "err", err)
@@ -261,6 +287,7 @@ func main() {
 	)
 
 	var remoteConfig config.RemoteConfig
+	topics := map[string]struct{}{}
 
 	// Load either local config from files or remote config from ff-server
 	if offline {
@@ -305,8 +332,12 @@ func main() {
 				continue
 			}
 
+			// Build up a map of topics to pass to the stream worker
+			topics[envID] = struct{}{}
+
 			projEnvInfo := envIDToProjectEnvironmentInfo[authConfig[domain.AuthAPIKey(apiKeyHash)]]
 
+			// Start an event listener for each embedded SDK
 			var eventListener stream.EventStreamListener
 			if rc, ok := sdkCache.(*cache.RedisCache); ok {
 				eventListener = ffproxy.NewEventListener(logger, rc, apiKeyHasher)
@@ -317,6 +348,29 @@ func main() {
 			cacheWrapper := cache.NewWrapper(sdkCache, envID, logger)
 			go initFF(ctx, cacheWrapper, sdkBaseURL, sdkEventsURL, envID, projEnvInfo.EnvironmentIdentifier, projEnvInfo.ProjectIdentifier, apiKey, logger, eventListener)
 		}
+	}
+
+	gpc := gripcontrol.NewGripPubControl([]map[string]interface{}{
+		{
+			"control_uri": "http://localhost:5561",
+		},
+	})
+
+	t := []string{}
+	for top := range topics {
+		t = append(t, top)
+	}
+
+	streamingEnabled := false
+
+	if rc, ok := sdkCache.(*cache.RedisCache); ok {
+		logger.Info("starting stream worker...")
+		sc := ffproxy.NewCheckpointingStream(ctx, rc, rc, logger)
+		streamWorker := ffproxy.NewStreamWorker(logger, gpc, sc, t...)
+		streamWorker.Run(ctx)
+		streamingEnabled = true
+	} else {
+		logger.Info("the proxy isn't configured with redis so the streamworker will not be started ")
 	}
 
 	// Create repos
@@ -356,17 +410,19 @@ func main() {
 
 	// Setup service and middleware
 	service := proxyservice.NewService(proxyservice.Config{
-		Logger:        log.NewContextualLogger(logger, log.ExtractRequestValuesFromContext),
-		FeatureRepo:   fcr,
-		TargetRepo:    tr,
-		SegmentRepo:   sr,
-		CacheHealthFn: cacheHealthCheck,
-		EnvHealthFn:   envHealthCheck,
-		AuthFn:        tokenSource.GenerateToken,
-		Evaluator:     featureEvaluator,
-		ClientService: clientService,
-		Offline:       offline,
-		Hasher:        apiKeyHasher,
+		Logger:           log.NewContextualLogger(logger, log.ExtractRequestValuesFromContext),
+		FeatureRepo:      fcr,
+		TargetRepo:       tr,
+		SegmentRepo:      sr,
+		AuthRepo:         authRepo,
+		CacheHealthFn:    cacheHealthCheck,
+		EnvHealthFn:      envHealthCheck,
+		AuthFn:           tokenSource.GenerateToken,
+		Evaluator:        featureEvaluator,
+		ClientService:    clientService,
+		Offline:          offline,
+		Hasher:           apiKeyHasher,
+		StreamingEnabled: streamingEnabled,
 	})
 
 	// Configure endpoints and server
@@ -458,7 +514,7 @@ func heartbeat(ctx context.Context, tick <-chan time.Time, listenAddr string, lo
 // returns an error, if any for each
 func envHealthCheck(ctx context.Context) map[string]error {
 	envHealth := map[string]error{}
-	for env, sdk := range sdkClients {
+	for env, sdk := range sdkClients.copy() {
 		// get SDK health details
 		var err error
 		streamConnected := sdk.IsStreamConnected()

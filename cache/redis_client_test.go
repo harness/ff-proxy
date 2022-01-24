@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/go-redis/redis/v8"
+	"github.com/harness/ff-proxy/domain"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -55,7 +56,13 @@ func TestRedisCache_Pub(t *testing.T) {
 		t.Run(desc, func(t *testing.T) {
 
 			rc := RedisCache{client: tc.mockRedis}
-			err := rc.Pub(context.Background(), "foo", map[string]interface{}{"hello": "world"})
+			event := domain.StreamEvent{
+				Values: map[domain.StreamEventValue]string{
+					domain.StreamEventValueData: "hello world",
+				},
+			}
+
+			err := rc.Pub(context.Background(), "foo", event)
 			if (err != nil) != tc.shouldErr {
 				t.Errorf("(%s): error = %v, shouldErr = %v", desc, err, tc.shouldErr)
 			}
@@ -76,13 +83,15 @@ func TestRedisCache_Sub(t *testing.T) {
 					{
 						ID: "1642764292396-0",
 						Values: map[string]interface{}{
-							"Hello": "World",
+							"HashedAPIKey": "123",
+							"Data":         "hello world",
 						},
 					},
 					{
 						ID: "1642764292396-0",
 						Values: map[string]interface{}{
-							"Foo": "Bar",
+							"HashedAPIKey": "123",
+							"Data":         "foo bar",
 						},
 					},
 				},
@@ -94,23 +103,35 @@ func TestRedisCache_Sub(t *testing.T) {
 	testCases := map[string]struct {
 		mockRedis mockRedis
 		shouldErr bool
-		expected  []map[string]interface{}
+		expected  []domain.StreamEvent
 	}{
 		"Given I have a redis client that errors reading from a stream": {
 			mockRedis: mockRedis{
 				xread: xreadError,
 			},
 			shouldErr: true,
-			expected:  []map[string]interface{}{},
+			expected:  []domain.StreamEvent{},
 		},
 		"Given I have a redis client that reads from a stream successfully": {
 			mockRedis: mockRedis{
 				xread: xreadSuccess,
 			},
 			shouldErr: false,
-			expected: []map[string]interface{}{
-				{"Hello": "World"},
-				{"Foo": "Bar"},
+			expected: []domain.StreamEvent{
+				{
+					Checkpoint: domain.Checkpoint("1642764292396-0"),
+					Values: map[domain.StreamEventValue]string{
+						domain.StreamEventValueAPIKey: "123",
+						domain.StreamEventValueData:   "hello world",
+					},
+				},
+				{
+					Checkpoint: domain.Checkpoint("1642764292396-0"),
+					Values: map[domain.StreamEventValue]string{
+						domain.StreamEventValueAPIKey: "123",
+						domain.StreamEventValueData:   "foo bar",
+					},
+				},
 			},
 		},
 	}
@@ -121,12 +142,12 @@ func TestRedisCache_Sub(t *testing.T) {
 
 			rc := NewRedisCache(tc.mockRedis)
 
-			actual := []map[string]interface{}{}
+			actual := []domain.StreamEvent{}
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
 
-			err := rc.Sub(ctx, "foo", func(values map[string]interface{}) {
-				actual = append(actual, values)
+			err := rc.Sub(ctx, "foo", "", func(event domain.StreamEvent) {
+				actual = append(actual, event)
 				if len(actual) == 2 {
 					cancel()
 				}

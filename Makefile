@@ -51,14 +51,25 @@ test: ## Run the go tests (runs with race detector enabled)
 	go test -race -v -coverprofile=coverage.out ./...
 	go tool cover -html=coverage.out
 
+PHONY+= integration-test
+integration-test: ## Brings up pushpin & redis and runs go tests (runs with race detector enabled)
+	@echo "Running tests"
+	make dev
+	go test -short -race -v -coverprofile=coverage.out ./...
+	go tool cover -html=coverage.out
+	make stop
+
+
 ###########################################
 # we use -coverpkg command to report coverage for any line run from any package
 # the input for this param is a comma separated list of all packages in our repo excluding the /cmd/ and /gen/ directories
 ###########################################
 test-report: ## Run the go tests and generate a coverage report
 	@echo "Running tests"
-	go test -covermode=atomic -coverprofile=proxy.cov -coverpkg=$(shell go list ./... | grep -v /cmd/ | grep -v /gen/ | xargs | sed -e 's/ /,/g') ./...
+	make dev
+	go test -short -covermode=atomic -coverprofile=proxy.cov -coverpkg=$(shell go list ./... | grep -v /cmd/ | grep -v /gen/ | xargs | sed -e 's/ /,/g') ./...
 	gocov convert ./proxy.cov | gocov-html > ./proxy_test_coverage.html
+	make stop
 
 PHONY+= dev
 dev: ## Brings up services that the proxy uses
