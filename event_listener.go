@@ -2,7 +2,7 @@ package ffproxy
 
 import (
 	"context"
-	"fmt"
+	"errors"
 
 	"github.com/harness/ff-golang-server-sdk/stream"
 	"github.com/harness/ff-proxy/log"
@@ -12,7 +12,7 @@ import (
 // Stream is a placeholder interface that will be implemented by our InMemStream
 // and Redis Stream (FFM-2105, FFM-2102)
 type Stream interface {
-	Pub(ctx context.Context, topic string, event interface{})
+	Pub(ctx context.Context, topic string, values map[string]interface{}) error
 }
 
 // EventListener implements the golang sdks stream.EventStreamListener interface
@@ -37,11 +37,21 @@ func NewEventListener(l log.Logger, s Stream, h hash.Hasher) EventListener {
 // Pub makes EventListener implement the golang sdks stream.EventStreamListener
 // interface.
 func (e EventListener) Pub(ctx context.Context, event stream.Event) error {
-	e.log.Info("got Event from SDK", "event", fmt.Sprintf("%+v", event))
+	if event.SSEEvent == nil {
+		return errors.New("can't publish event with nil SSEEvent")
+	}
 
-	// TODO:Push event to stream implementation
-	//topic := e.hasher.Hash(event.APIKey)
-	//e.stream.Pub(ctx, topic, event.SSEEvent)
+	topic := e.hasher.Hash(event.APIKey)
+	values := map[string]interface{}{
+		"ID":    event.SSEEvent.ID,
+		"Data":  event.SSEEvent.Data,
+		"Event": event.SSEEvent.Event,
+		"Retry": event.SSEEvent.Retry,
+	}
 
+	if err := e.stream.Pub(ctx, topic, values); err != nil {
+		e.log.Error("failed to publish event to stream", "err", err)
+		return err
+	}
 	return nil
 }

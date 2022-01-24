@@ -11,11 +11,11 @@ import (
 
 // RedisCache provides a redis implementation of our cache.Cache interface
 type RedisCache struct {
-	client *redis.Client
+	client redis.UniversalClient
 }
 
 // NewRedisCache creates an initialised RedisCache
-func NewRedisCache(client *redis.Client) *RedisCache {
+func NewRedisCache(client redis.UniversalClient) *RedisCache {
 	return &RedisCache{client: client}
 }
 
@@ -77,4 +77,49 @@ func (r *RedisCache) HealthCheck(ctx context.Context) error {
 		return fmt.Errorf("redis failed to respond")
 	}
 	return nil
+}
+
+// Pub publishes the passed values to a topic. If the topic doesn't exist Pub
+// will create it as well as publishing the values to it.
+func (r *RedisCache) Pub(ctx context.Context, topic string, values map[string]interface{}) error {
+	err := r.client.XAdd(ctx, &redis.XAddArgs{
+		Stream: fmt.Sprintf("stream-%s", topic),
+		ID:     "*",
+		Values: values,
+	}).Err()
+	if err != nil {
+		return fmt.Errorf("failed to publish event to redis stream %q: %s", topic, err)
+	}
+	return nil
+}
+
+// Sub subscribes to a topic and continually listens for new messages and as new
+// messages come in it passes them to the callback. Sub is a blocking function
+// and will only exit if there is an error receiving on the redis stream or if
+// the context is canceled.
+func (r *RedisCache) Sub(ctx context.Context, topic string, onReceive func(values map[string]interface{})) error {
+	stream := fmt.Sprintf("stream-%s", topic)
+	id := "$"
+
+	for {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		default:
+			xstreams, err := r.client.XRead(ctx, &redis.XReadArgs{
+				Streams: []string{stream, id},
+				Block:   0,
+			}).Result()
+			if err != nil {
+				return err
+			}
+
+			for _, stream := range xstreams {
+				for _, msg := range stream.Messages {
+					id = msg.ID
+					onReceive(msg.Values)
+				}
+			}
+		}
+	}
 }
