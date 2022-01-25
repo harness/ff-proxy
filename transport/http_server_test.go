@@ -411,7 +411,10 @@ func TestHTTPServer_GetTargetSegments(t *testing.T) {
 		"Given I make GET request for an environment that doesn't exist": {
 			method:             http.MethodGet,
 			url:                fmt.Sprintf("%s/client/env/abcd/target-segments", testServer.URL),
-			expectedStatusCode: http.StatusNotFound,
+			// we return an empty segment array for this right now because we can't tell the difference between
+			// an environment not existing at all and there just being no segments in it
+			// if we return not found server SDK's won't be able to initialise unless they have at least one target group for each environment
+			expectedStatusCode: http.StatusOK,
 		},
 		"Given I make GET request for an environment and identifier that exist": {
 			method:               http.MethodGet,
@@ -484,11 +487,6 @@ func TestHTTPServer_GetTargetSegmentsByIdentifier(t *testing.T) {
 			method:             http.MethodPost,
 			url:                fmt.Sprintf("%s/client/env/1234/target-segments/james", testServer.URL),
 			expectedStatusCode: http.StatusMethodNotAllowed,
-		},
-		"Given I make GET request for an environment that doesn't exist": {
-			method:             http.MethodGet,
-			url:                fmt.Sprintf("%s/client/env/abcd/target-segments", testServer.URL),
-			expectedStatusCode: http.StatusNotFound,
 		},
 		"Given I make GET request for an identifier that doesn't exist": {
 			method:             http.MethodGet,
