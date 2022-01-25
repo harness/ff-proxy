@@ -13,13 +13,14 @@ import (
 type MetricService struct {
 	log    log.Logger
 	accountID string
+	enabled bool
 	client clientgen.ClientWithResponsesInterface
 	metrics map[string]domain.MetricsRequest
 	metricsLock sync.Mutex
 }
 
 // NewMetricService creates a MetricService
-func NewMetricService(l log.Logger, addr string, accountID string, serviceToken string) (MetricService, error) {
+func NewMetricService(l log.Logger, addr string, accountID string, serviceToken string, enabled bool) (MetricService, error) {
 	l = l.With("component", "MetricServiceClient")
 	client, err := clientgen.NewClientWithResponses(
 		addr,
@@ -29,11 +30,14 @@ func NewMetricService(l log.Logger, addr string, accountID string, serviceToken 
 		return MetricService{}, err
 	}
 
-	return MetricService{log: l, accountID: accountID, client: client, metrics: map[string]domain.MetricsRequest{}, metricsLock: sync.Mutex{}}, nil
+	return MetricService{log: l, accountID: accountID, client: client, enabled: enabled, metrics: map[string]domain.MetricsRequest{}, metricsLock: sync.Mutex{}}, nil
 }
 
 // StoreMetrics aggregates and stores metrics
 func (m MetricService) StoreMetrics(ctx context.Context, req domain.MetricsRequest) error {
+	if !m.enabled {
+		return nil
+	}
 	m.metricsLock.Lock()
 	defer m.metricsLock.Unlock()
 	// store metrics to send later

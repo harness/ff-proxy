@@ -425,10 +425,6 @@ func (s Service) Metrics(ctx context.Context, req domain.MetricsRequest) error {
 	s.logger = s.logger.With("method", "Metrics")
 
 	s.logger.Debug(ctx, "got metrics request", "metrics", fmt.Sprintf("%+v", req))
-	// if we're offline discard the metrics
-	if s.offline {
-		return nil
-	}
 	return s.metricService.StoreMetrics(ctx, req)
 }
 

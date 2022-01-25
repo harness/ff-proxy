@@ -169,7 +169,7 @@ func init() {
 	flag.IntVar(&redisDB, redisDBFlag, 0, "Database to be selected after connecting to the server.")
 	flag.Var(&apiKeys, apiKeysFlag, "API keys to connect with ff-server for each environment")
 	flag.IntVar(&targetPollDuration, targetPollDurationFlag, 60, "How often in seconds the proxy polls feature flags for Target changes")
-	flag.IntVar(&metricPostDuration, metricPostDurationFlag, 60, "How often in seconds the proxy posts metrics to Harness")
+	flag.IntVar(&metricPostDuration, metricPostDurationFlag, 60, "How often in seconds the proxy posts metrics to Harness. Set to 0 to disable.")
 	flag.IntVar(&heartbeatInterval, heartbeatIntervalFlag, 60, "How often in seconds the proxy polls pings it's health function")
 	flag.BoolVar(&pprofEnabled, pprofEnabledFlag, false, "enables pprof on port 6060")
 	sdkClients = newSDKClientMap()
@@ -427,7 +427,8 @@ func main() {
 
 	featureEvaluator := proxyservice.NewFeatureEvaluator()
 
-	metricService, err := services.NewMetricService(logger, metricService, accountIdentifier, adminServiceToken)
+	metricsEnabled := metricPostDuration != 0 && !offline
+	metricService, err := services.NewMetricService(logger, metricService, accountIdentifier, adminServiceToken, metricsEnabled)
 	if err != nil {
 		logger.Error("failed to create client for the feature flags metric service", "err", err)
 		os.Exit(1)
@@ -491,21 +492,26 @@ func main() {
 		}()
 
 		// start metric sending ticker
-		go func() {
-			ticker := time.NewTicker(time.Duration(metricPostDuration) * time.Second)
-			defer ticker.Stop()
+		if metricPostDuration != 0 {
+			go func() {
+				logger.Info(fmt.Sprintf("sending metrics every %d seconds", metricPostDuration))
+				ticker := time.NewTicker(time.Duration(metricPostDuration) * time.Second)
+				defer ticker.Stop()
 
-			for {
-				select {
-				case <-ctx.Done():
-					logger.Info("stopping metrics ticker")
-					return
-				case <-ticker.C:
-					logger.Info("sending metrics")
-					metricService.SendMetrics(ctx)
+				for {
+					select {
+					case <-ctx.Done():
+						logger.Info("stopping metrics ticker")
+						return
+					case <-ticker.C:
+						logger.Info("sending metrics")
+						metricService.SendMetrics(ctx)
+					}
 				}
-			}
-		}()
+			}()
+		} else {
+			logger.Info("sending metrics disabled")
+		}
 	}
 
 	go func() {

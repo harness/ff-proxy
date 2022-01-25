@@ -99,7 +99,7 @@ func TestMetricService_StoreMetrics(t *testing.T) {
 		tc := tc
 		t.Run(desc, func(t *testing.T) {
 
-			metricService := MetricService{metrics: map[string]domain.MetricsRequest{}}
+			metricService := MetricService{metrics: map[string]domain.MetricsRequest{}, enabled: true}
 
 			for _, metric := range tc.metrics {
 				metricService.StoreMetrics(context.Background(), metric)
@@ -171,7 +171,7 @@ func TestMetricService_StoreMetrics(t *testing.T) {
 		 t.Run(desc, func(t *testing.T) {
 			 logger, _ := log.NewStructuredLogger(true)
 			 // create metric service
-			 metricService, _ := NewMetricService(logger, tc.baseURL, tc.accountIdentifier, "token")
+			 metricService, _ := NewMetricService(logger, tc.baseURL, tc.accountIdentifier, "token", true)
 
 			 startURL, _ := url.Parse(tc.baseURL)
 			 req := http.Request{URL: startURL}
