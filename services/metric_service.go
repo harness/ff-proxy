@@ -43,8 +43,15 @@ func (m MetricService) StoreMetrics(ctx context.Context, req domain.MetricsReque
 	// store metrics to send later
 	if _,ok := m.metrics[req.EnvironmentID]; ok {
 		currentMetrics := m.metrics[req.EnvironmentID]
-		currentMetrics.MetricsData = append(currentMetrics.MetricsData, req.MetricsData...)
-		currentMetrics.TargetData = append(currentMetrics.TargetData, req.TargetData...)
+		if req.MetricsData != nil {
+			newMetrics := append(*currentMetrics.MetricsData, *req.MetricsData...)
+			currentMetrics.MetricsData = &newMetrics
+		}
+		if req.TargetData != nil {
+			newTargets := append(*currentMetrics.TargetData, *req.TargetData...)
+			currentMetrics.TargetData = &newTargets
+		}
+
 		m.metrics[req.EnvironmentID] = currentMetrics
 	} else {
 		m.metrics[req.EnvironmentID] = req
@@ -53,7 +60,7 @@ func (m MetricService) StoreMetrics(ctx context.Context, req domain.MetricsReque
 	return nil
 }
 
-func (m MetricService) SendMetrics(ctx context.Context) {
+func (m MetricService) SendMetrics(ctx context.Context, clusterIdentifier string) {
 	// copy metrics before sending so we don't hog the lock for network requests
 	m.metricsLock.Lock()
 	metricsCopy := map[string]domain.MetricsRequest{}
@@ -63,14 +70,13 @@ func (m MetricService) SendMetrics(ctx context.Context) {
 	}
 	m.metrics = make(map[string]domain.MetricsRequest)
 	m.metricsLock.Unlock()
+	clusterParam := clientgen.ClusterQueryOptionalParam(clusterIdentifier)
 
 	for envID, metric := range metricsCopy {
-		metricDataToSend :=  convertDomainMetricsToClient(metric.MetricsData)
-		targetDataToSend := convertDomainTargetsToClient(metric.TargetData)
 
-		res, err := m.client.PostMetricsWithResponse(ctx, clientgen.EnvironmentPathParam(envID), &clientgen.PostMetricsParams{}, clientgen.PostMetricsJSONRequestBody{
-			MetricsData: &metricDataToSend,
-			TargetData:  &targetDataToSend,
+		res, err := m.client.PostMetricsWithResponse(ctx, clientgen.EnvironmentPathParam(envID), &clientgen.PostMetricsParams{Cluster: &clusterParam}, clientgen.PostMetricsJSONRequestBody{
+			MetricsData: metric.MetricsData,
+			TargetData:  metric.TargetData,
 		}, m.addAccountQueryParam)
 		if err != nil {
 			m.log.Error("sending metrics failed", "error", err)
@@ -81,45 +87,9 @@ func (m MetricService) SendMetrics(ctx context.Context) {
 	}
 }
 
-func convertDomainMetricsToClient(metrics []domain.MetricsData) []clientgen.MetricsData {
-	metricDataToSend :=  []clientgen.MetricsData{}
-	for _, metric := range metrics {
-		metricDataToSend = append(metricDataToSend, clientgen.MetricsData{
-			Attributes:  domainAttributesToClientAttributes(metric.Attributes),
-			Count:       metric.Count,
-			MetricsType: metric.MetricsType,
-			Timestamp:   metric.Timestamp,
-		})
-	}
-	return metricDataToSend
-}
-
-func convertDomainTargetsToClient(targets []domain.TargetData) []clientgen.TargetData {
-	targetDataToSend := []clientgen.TargetData{}
-	for _, target := range targets {
-		targetDataToSend = append(targetDataToSend, clientgen.TargetData{
-			Attributes: domainAttributesToClientAttributes(target.Attributes),
-			Identifier: target.Identifier,
-			Name:       target.Name,
-		})
-	}
-	return targetDataToSend
-}
-
 func (m MetricService) addAccountQueryParam (ctx context.Context, req *http.Request) error {
 	queryParams := req.URL.Query()
 	queryParams.Add("accountIdentifier", m.accountID)
 	req.URL.RawQuery = queryParams.Encode()
 	return nil
-}
-
-func domainAttributesToClientAttributes(domainAttrs []domain.KeyValue) []clientgen.KeyValue {
-	clientAttrs := []clientgen.KeyValue{}
-	for _, attr := range domainAttrs {
-		clientAttrs = append(clientAttrs, clientgen.KeyValue{
-			Key:   attr.Key,
-			Value: attr.Value,
-		})
-	}
-	return clientAttrs
 }

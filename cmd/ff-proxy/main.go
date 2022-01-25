@@ -504,8 +504,15 @@ func main() {
 						logger.Info("stopping metrics ticker")
 						return
 					case <-ticker.C:
+						// default to prod cluster
+						clusterIdentifier := "1"
+						// grab which cluster we're connected to from sdk
+						for _, client := range sdkClients.copy() {
+							clusterIdentifier = client.GetClusterIdentifier()
+							break
+						}
 						logger.Info("sending metrics")
-						metricService.SendMetrics(ctx)
+						metricService.SendMetrics(ctx, clusterIdentifier)
 					}
 				}
 			}()

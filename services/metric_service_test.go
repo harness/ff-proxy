@@ -24,45 +24,51 @@ func (m mockService) PostMetricsWithResponse(ctx context.Context, environment cl
 
 var env123MetricsFlag1 = domain.MetricsRequest{
 	EnvironmentID: "123",
-	TargetData:    []domain.TargetData{
-		{
-			Identifier: "targetID",
-			Name: "target name",
-			Attributes: []domain.KeyValue{{Key: "targetkey", Value: "targetvalue"}},
+	Metrics: clientgen.Metrics{
+		TargetData:    &[]clientgen.TargetData{
+			{
+				Identifier: "targetID",
+				Name: "target name",
+				Attributes: []clientgen.KeyValue{{Key: "targetkey", Value: "targetvalue"}},
+			},
 		},
-	},
-	MetricsData:   []domain.MetricsData{
-		{
-			Timestamp: int64(1234),
-			Count: 1,
-			MetricsType: "FFMETRICS",
-			Attributes: []domain.KeyValue{{Key: "featureIdentifier", Value: "flag1"}},
+		MetricsData:   &[]clientgen.MetricsData{
+			{
+				Timestamp: int64(1234),
+				Count: 1,
+				MetricsType: "FFMETRICS",
+				Attributes: []clientgen.KeyValue{{Key: "featureIdentifier", Value: "flag1"}},
+			},
 		},
 	},
 }
 
  var env123MetricsFlag2 = domain.MetricsRequest{
 	 EnvironmentID: "123",
-	 TargetData:    []domain.TargetData{},
-	 MetricsData:   []domain.MetricsData{
-		 {
-			 Timestamp: int64(5678),
-			 Count: 2,
-			 MetricsType: "FFMETRICS",
-			 Attributes: []domain.KeyValue{{Key: "featureIdentifier", Value: "flag2"}},
+	 Metrics: clientgen.Metrics{
+		 TargetData: &[]clientgen.TargetData{},
+		 MetricsData: &[]clientgen.MetricsData{
+			 {
+				 Timestamp:   int64(5678),
+				 Count:       2,
+				 MetricsType: "FFMETRICS",
+				 Attributes:  []clientgen.KeyValue{{Key: "featureIdentifier", Value: "flag2"}},
+			 },
 		 },
 	 },
  }
 
  var env456MetricsFlag1 = domain.MetricsRequest{
 	 EnvironmentID: "456",
-	 TargetData:    []domain.TargetData{},
-	 MetricsData:   []domain.MetricsData{
-		 {
-			 Timestamp: int64(2345),
-			 Count: 1,
-			 MetricsType: "FFMETRICS",
-			 Attributes: []domain.KeyValue{{Key: "featureIdentifier", Value: "flag1"}},
+	 Metrics: clientgen.Metrics{
+		 TargetData: &[]clientgen.TargetData{},
+		 MetricsData: &[]clientgen.MetricsData{
+			 {
+				 Timestamp:   int64(2345),
+				 Count:       1,
+				 MetricsType: "FFMETRICS",
+				 Attributes:  []clientgen.KeyValue{{Key: "featureIdentifier", Value: "flag1"}},
+			 },
 		 },
 	 },
  }
@@ -80,16 +86,20 @@ func TestMetricService_StoreMetrics(t *testing.T) {
 			metrics:  []domain.MetricsRequest{env123MetricsFlag1, env123MetricsFlag2},
 			expected: map[string]domain.MetricsRequest{"123": {
 				EnvironmentID: "123",
-				TargetData:    []domain.TargetData{env123MetricsFlag1.TargetData[0]},
-				MetricsData:   []domain.MetricsData{env123MetricsFlag1.MetricsData[0], env123MetricsFlag2.MetricsData[0]},
+				Metrics: clientgen.Metrics{
+					TargetData:  &[]clientgen.TargetData{(*env123MetricsFlag1.TargetData)[0]},
+					MetricsData: &[]clientgen.MetricsData{(*env123MetricsFlag1.MetricsData)[0], (*env123MetricsFlag2.MetricsData)[0]},
+				},
 			}},
 		},
 		"Given I save two sets of metrics for different environments": {
 			metrics:  []domain.MetricsRequest{env123MetricsFlag1, env123MetricsFlag2, env456MetricsFlag1},
 			expected: map[string]domain.MetricsRequest{"123": {
 				EnvironmentID: "123",
-				TargetData:    []domain.TargetData{env123MetricsFlag1.TargetData[0]},
-				MetricsData:   []domain.MetricsData{env123MetricsFlag1.MetricsData[0], env123MetricsFlag2.MetricsData[0]},
+				Metrics: clientgen.Metrics{
+					TargetData:  &[]clientgen.TargetData{(*env123MetricsFlag1.TargetData)[0]},
+					MetricsData: &[]clientgen.MetricsData{(*env123MetricsFlag1.MetricsData)[0], (*env123MetricsFlag2.MetricsData)[0]},
+				},
 			},
 			"456": env456MetricsFlag1},
 		},
@@ -138,7 +148,7 @@ func TestMetricService_StoreMetrics(t *testing.T) {
 		 	logger, _ := log.NewStructuredLogger(true)
 			 metricService := MetricService{metrics: tc.metrics, client: mockService{postMetricsWithResp: tc.postMetricsWithResp}, log: logger}
 
-			 metricService.SendMetrics(context.Background())
+			 metricService.SendMetrics(context.Background(), "1")
 
 			 // check metrics are cleared after sending
 			 actual := metricService.metrics
