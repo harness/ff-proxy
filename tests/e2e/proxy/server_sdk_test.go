@@ -1,3 +1,5 @@
+// +build e2e
+
 package proxy
 
 import (
@@ -46,6 +48,8 @@ func Test_ServerSDK(t *testing.T) {
 	})
 
 	t.Run("testBoolFlag", func(t *testing.T) {
+		// flag should be configured to return true from remote
+		// we default to false so the test will fail if the proxy didn't initialize correctly
 		flag, _ := client.BoolVariation("test", &defaultTarget, false)
 		assert.True(t, flag)
 	})

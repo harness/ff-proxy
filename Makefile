@@ -57,13 +57,11 @@ test: ## Run the go tests (runs with race detector enabled)
 ###########################################
 test-report: ## Run the go tests and generate a coverage report
 	@echo "Running tests"
-	go test -covermode=atomic -coverprofile=proxy.cov -coverpkg=$(shell go list ./... | grep -v /cmd/ | grep -v /gen/ | xargs | sed -e 's/ /,/g') ./...
+	go test -covermode=atomic -coverprofile=proxy.cov -coverpkg=$(shell go list ./... | grep -v /cmd/ | grep -v /gen/ | grep -v /tests/ | xargs | sed -e 's/ /,/g') ./...
 	gocov convert ./proxy.cov | gocov-html > ./proxy_test_coverage.html
 
-
-e2e-qa: stop ## Run test environment
-	docker-compose --env-file tests/e2e/env/proxy/.env.qa -f ./docker-compose.yml up -d --remove-orphans proxy
-	go test -p 1 -v ./tests/... -env=".env.qa"
+e2e-qa: ## Run test environment
+	go test -p 1 -v ./tests/... -tags=e2e -env=".env.qa"
 
 PHONY+= dev
 dev: ## Brings up services that the proxy uses
