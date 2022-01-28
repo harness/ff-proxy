@@ -60,6 +60,11 @@ test-report: ## Run the go tests and generate a coverage report
 	go test -covermode=atomic -coverprofile=proxy.cov -coverpkg=$(shell go list ./... | grep -v /cmd/ | grep -v /gen/ | xargs | sed -e 's/ /,/g') ./...
 	gocov convert ./proxy.cov | gocov-html > ./proxy_test_coverage.html
 
+
+e2e-qa: stop ## Run test environment
+	docker-compose --env-file tests/e2e/env/proxy/.env.qa -f ./docker-compose.yml up -d --remove-orphans proxy
+	go test -p 1 -v ./tests/... -env=".env.qa"
+
 PHONY+= dev
 dev: ## Brings up services that the proxy uses
 	docker-compose -f ./docker-compose.yml run -d --service-ports redis
@@ -79,7 +84,6 @@ clean-redis: ## Removes all data from redis
 PHONY+= build-example-sdk
 build-example-sdk: ## builds an example sdk that can be used for hitting the proxy
 	CGO_ENABLED=0 go build -o ff-example-sdk ./cmd/example-sdk/main.go
-
 
 #########################################
 # Checks

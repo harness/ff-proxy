@@ -3,6 +3,7 @@ module github.com/harness/ff-proxy
 go 1.17
 
 require (
+	github.com/avast/retry-go v3.0.0+incompatible
 	github.com/deepmap/oapi-codegen v1.6.0
 	github.com/dgrijalva/jwt-go v3.2.0+incompatible
 	github.com/go-kit/kit v0.12.0
@@ -11,6 +12,7 @@ require (
 	github.com/google/uuid v1.3.0
 	github.com/harness/ff-golang-server-sdk v0.0.24-0.20220111144918-95f59344bbf9
 	github.com/hashicorp/go-retryablehttp v0.6.8
+	github.com/joho/godotenv v1.4.0
 	github.com/labstack/echo/v4 v4.6.1
 	github.com/sirupsen/logrus v1.8.1
 	github.com/stretchr/testify v1.7.0
