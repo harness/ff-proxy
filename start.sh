@@ -2,5 +2,5 @@
 
 ./app/ff-proxy &
 
-pushpin --merge-output --port localhost:7000
+pushpin --port localhost:7000
   

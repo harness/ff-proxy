@@ -37,4 +37,4 @@ services:
       - "5555:5555"
     volumes:
       - ./config/pushpin:/etc/pushpin
-    command: "pushpin --port 7000"
+    command: "pushpin --port 7000 --merge-output"

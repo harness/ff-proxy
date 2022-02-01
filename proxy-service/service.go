@@ -85,49 +85,55 @@ type clientService interface {
 
 // Config is the config for a Service
 type Config struct {
-	Logger        log.ContextualLogger
-	FeatureRepo   repository.FeatureFlagRepo
-	TargetRepo    repository.TargetRepo
-	SegmentRepo   repository.SegmentRepo
-	CacheHealthFn CacheHealthFn
-	EnvHealthFn   EnvHealthFn
-	AuthFn        authTokenFn
-	Evaluator     evaluator
-	ClientService clientService
-	Offline       bool
-	Hasher        hash.Hasher
+	Logger           log.ContextualLogger
+	FeatureRepo      repository.FeatureFlagRepo
+	TargetRepo       repository.TargetRepo
+	SegmentRepo      repository.SegmentRepo
+	AuthRepo         repository.AuthRepo
+	CacheHealthFn    CacheHealthFn
+	EnvHealthFn      EnvHealthFn
+	AuthFn           authTokenFn
+	Evaluator        evaluator
+	ClientService    clientService
+	Offline          bool
+	Hasher           hash.Hasher
+	StreamingEnabled bool
 }
 
 // Service is the proxy service implementation
 type Service struct {
-	logger        log.ContextualLogger
-	featureRepo   repository.FeatureFlagRepo
-	targetRepo    repository.TargetRepo
-	segmentRepo   repository.SegmentRepo
-	cacheHealthFn CacheHealthFn
-	envHealthFn   EnvHealthFn
-	authFn        authTokenFn
-	evaluator     evaluator
-	clientService clientService
-	offline       bool
-	hasher        hash.Hasher
+	logger           log.ContextualLogger
+	featureRepo      repository.FeatureFlagRepo
+	targetRepo       repository.TargetRepo
+	segmentRepo      repository.SegmentRepo
+	authRepo         repository.AuthRepo
+	cacheHealthFn    CacheHealthFn
+	envHealthFn      EnvHealthFn
+	authFn           authTokenFn
+	evaluator        evaluator
+	clientService    clientService
+	offline          bool
+	hasher           hash.Hasher
+	streamingEnabled bool
 }
 
 // NewService creates and returns a ProxyService
 func NewService(c Config) Service {
 	l := c.Logger.With("component", "ProxyService")
 	return Service{
-		logger:        l,
-		featureRepo:   c.FeatureRepo,
-		targetRepo:    c.TargetRepo,
-		segmentRepo:   c.SegmentRepo,
-		cacheHealthFn: c.CacheHealthFn,
-		envHealthFn:   c.EnvHealthFn,
-		authFn:        c.AuthFn,
-		evaluator:     c.Evaluator,
-		clientService: c.ClientService,
-		offline:       c.Offline,
-		hasher:        c.Hasher,
+		logger:           l,
+		featureRepo:      c.FeatureRepo,
+		targetRepo:       c.TargetRepo,
+		segmentRepo:      c.SegmentRepo,
+		authRepo:         c.AuthRepo,
+		cacheHealthFn:    c.CacheHealthFn,
+		envHealthFn:      c.EnvHealthFn,
+		authFn:           c.AuthFn,
+		evaluator:        c.Evaluator,
+		clientService:    c.ClientService,
+		offline:          c.Offline,
+		hasher:           c.Hasher,
+		streamingEnabled: c.StreamingEnabled,
 	}
 }
 
@@ -385,12 +391,21 @@ func (s Service) EvaluationsByFeature(ctx context.Context, req domain.Evaluation
 	return evaluations[0], nil
 }
 
-// Stream returns the name of the GripChannel that the client should subscribe to
+// Stream does a lookup for the environmentID for the APIKey in the StreamRequest
+// and returns it as the GripChannel.
 func (s Service) Stream(ctx context.Context, req domain.StreamRequest) (domain.StreamResponse, error) {
 	s.logger = s.logger.With("method", "Stream")
-	gc := s.hasher.Hash(req.APIKey)
+	if !s.streamingEnabled {
+		return domain.StreamResponse{}, fmt.Errorf("%w: streaming will only work if the Proxy is configured with redis, ", ErrNotImplemented)
+	}
 
-	return domain.StreamResponse{GripChannel: gc}, nil
+	hashedAPIKey := s.hasher.Hash(req.APIKey)
+
+	repoKey, ok := s.authRepo.Get(ctx, domain.AuthAPIKey(hashedAPIKey))
+	if !ok {
+		return domain.StreamResponse{}, fmt.Errorf("%w: no environment found for apiKey %q", ErrNotFound, req.APIKey)
+	}
+	return domain.StreamResponse{GripChannel: repoKey}, nil
 }
 
 // Metrics forwards metrics to the analytics service
