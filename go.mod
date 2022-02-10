@@ -5,13 +5,15 @@ go 1.17
 require (
 	github.com/deepmap/oapi-codegen v1.6.0
 	github.com/dgrijalva/jwt-go v3.2.0+incompatible
+	github.com/fanout/go-gripcontrol v0.0.0-20181114050548-adc1002dfd32
 	github.com/go-kit/kit v0.12.0
 	github.com/go-redis/redis/v8 v8.11.4
 	github.com/golang-jwt/jwt v3.2.2+incompatible
 	github.com/google/uuid v1.3.0
-	github.com/harness/ff-golang-server-sdk v0.0.24-0.20220111144918-95f59344bbf9
+	github.com/harness/ff-golang-server-sdk v0.0.24-0.20220119131602-fb0e102ab915
 	github.com/hashicorp/go-retryablehttp v0.6.8
 	github.com/labstack/echo/v4 v4.6.1
+	github.com/r3labs/sse v0.0.0-20201126193848-34e640891548
 	github.com/sirupsen/logrus v1.8.1
 	github.com/stretchr/testify v1.7.0
 	github.com/wings-software/ff-server v0.0.0-20211104155359-ef96ccfe30cc
@@ -23,6 +25,7 @@ require (
 	github.com/cespare/xxhash/v2 v2.1.2 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/dgryski/go-rendezvous v0.0.0-20200823014737-9f7001d12a5f // indirect
+	github.com/fanout/go-pubcontrol v0.0.0-20181114050323-6700863ff8fe // indirect
 	github.com/fsnotify/fsnotify v1.5.1 // indirect
 	github.com/getkin/kin-openapi v0.53.0 // indirect
 	github.com/ghodss/yaml v1.0.0 // indirect
@@ -42,11 +45,9 @@ require (
 	github.com/modern-go/reflect2 v1.0.2 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
-	github.com/r3labs/sse v0.0.0-20201126193848-34e640891548 // indirect
 	github.com/spaolacci/murmur3 v1.1.0 // indirect
 	github.com/valyala/bytebufferpool v1.0.0 // indirect
 	github.com/valyala/fasttemplate v1.2.1 // indirect
-	github.com/xtgo/uuid v0.0.0-20140804021211-a0b114877d4c // indirect
 	go.uber.org/atomic v1.9.0 // indirect
 	go.uber.org/multierr v1.7.0 // indirect
 	golang.org/x/crypto v0.0.0-20210921155107-089bfa567519 // indirect

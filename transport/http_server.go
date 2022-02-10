@@ -122,7 +122,7 @@ func (h *HTTPServer) registerEndpoints(e *Endpoints) {
 		encodeEchoError,
 	))
 
-	h.router.GET("/stream", NewServerStreamHandler(
+	h.router.GET("/stream", NewUnaryHandler(
 		e.GetStream,
 		decodeGetStreamRequest,
 		encodeStreamResponse,
@@ -140,7 +140,7 @@ func (h *HTTPServer) registerEndpoints(e *Endpoints) {
 func cors(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Add("Access-Control-Allow-Origin", "*")
-		w.Header().Add("Access-Control-Allow-Methods", "GET,OPTIONS")
+		w.Header().Add("Access-Control-Allow-Methods", "GET,OPTIONS,POST")
 		w.Header().Add("Access-Control-Allow-Headers", "Content-Type,Authorization,Accept,Origin,API-Key")
 
 		if r.Method == http.MethodOptions {

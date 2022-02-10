@@ -33,6 +33,19 @@ func encodeHealthResponse(ctx context.Context, w http.ResponseWriter, response i
 	return json.NewEncoder(w).Encode(response)
 }
 
+func encodeStreamResponse(ctx context.Context, w http.ResponseWriter, response interface{}) error {
+	r, ok := response.(domain.StreamResponse)
+	if !ok {
+		return fmt.Errorf("internal error encoding stream response")
+	}
+
+	w.Header().Add("Content-Type", "text/event-stream")
+	w.Header().Add("Grip-Hold", "stream")
+	w.Header().Add("Grip-Channel", r.GripChannel)
+	w.Header().Add("Grip-Keep-Alive", "\\n; format=cstring; timeout=15")
+	return nil
+}
+
 func getHealthStatusCode(response interface{}) int {
 	healthRes, ok := response.(domain.HealthResponse)
 	if !ok {
@@ -64,15 +77,6 @@ func encodeEchoError(c echo.Context, err error) error {
 	return c.JSON(code, map[string]interface{}{
 		"error": err.Error(),
 	})
-}
-
-// encodeStreamResponse sets the headers for a streaming response
-func encodeStreamResponse(ctx context.Context, w http.ResponseWriter, response interface{}) error {
-	w.Header().Set("Content-Type", "text/event-stream; charset=utf-8")
-	w.Header().Set("Transfer-Encoding", "chunked")
-	w.Header().Set("Cache-Control", "no-cache")
-	w.Header().Set("Connection", "keep-alive")
-	return nil
 }
 
 // codeFrom casts a service error to an http.StatusCode
