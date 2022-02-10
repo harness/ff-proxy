@@ -59,13 +59,16 @@ func (t TargetRepo) Get(ctx context.Context, key domain.TargetKey) ([]domain.Tar
 		return []domain.Target{}, err
 	}
 
-	targets := []domain.Target{}
+	targets := make([]domain.Target, len(results))
+
+	idx := 0
 	for _, b := range results {
 		target := &domain.Target{}
 		if err := target.UnmarshalBinary(b); err != nil {
 			return []domain.Target{}, err
 		}
-		targets = append(targets, *target)
+		targets[idx] = *target
+		idx++
 	}
 
 	return targets, nil
@@ -99,7 +102,7 @@ func (t TargetRepo) DeltaAdd(ctx context.Context, key domain.TargetKey, targets 
 		}
 	}
 
-	existingTargets := map[string]domain.Target{}
+	existingTargets := make(map[string]domain.Target, len(results))
 	for _, b := range results {
 		target := &domain.Target{}
 		if err := target.UnmarshalBinary(b); err != nil {
@@ -108,7 +111,7 @@ func (t TargetRepo) DeltaAdd(ctx context.Context, key domain.TargetKey, targets 
 		existingTargets[target.Identifier] = *target
 	}
 
-	newTargets := map[string]domain.Target{}
+	newTargets := make(map[string]domain.Target, len(results))
 	for _, target := range targets {
 		newTargets[target.Identifier] = target
 	}

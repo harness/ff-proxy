@@ -3,8 +3,9 @@ package repository
 import (
 	"context"
 	"fmt"
-	"github.com/harness/ff-proxy/cache"
 	"time"
+
+	"github.com/harness/ff-proxy/cache"
 
 	"github.com/harness/ff-proxy/domain"
 )
@@ -50,20 +51,42 @@ func (t SegmentRepo) Add(ctx context.Context, key domain.SegmentKey, values ...d
 	return nil
 }
 
-// Get gets all of the Segments for a given key
 func (t SegmentRepo) Get(ctx context.Context, key domain.SegmentKey) ([]domain.Segment, error) {
 	results, err := t.cache.GetAll(ctx, string(key))
 	if err != nil {
 		return []domain.Segment{}, err
 	}
 
-	segments := []domain.Segment{}
+	segments := make([]domain.Segment, len(results))
+
+	idx := 0
 	for _, b := range results {
 		segment := &domain.Segment{}
 		if err := segment.UnmarshalBinary(b); err != nil {
 			return []domain.Segment{}, err
 		}
-		segments = append(segments, *segment)
+		segments[idx] = *segment
+		idx++
+	}
+
+	return segments, nil
+}
+
+// GetAsMap gets all of the Segments for a given key and returns them in a map
+func (t SegmentRepo) GetAsMap(ctx context.Context, key domain.SegmentKey) (map[string]domain.Segment, error) {
+	results, err := t.cache.GetAll(ctx, string(key))
+	if err != nil {
+		return map[string]domain.Segment{}, err
+	}
+
+	segments := make(map[string]domain.Segment, len(results))
+
+	for _, b := range results {
+		segment := &domain.Segment{}
+		if err := segment.UnmarshalBinary(b); err != nil {
+			return map[string]domain.Segment{}, err
+		}
+		segments[segment.Identifier] = *segment
 	}
 
 	return segments, nil

@@ -199,7 +199,7 @@ func (s Service) FeatureConfig(ctx context.Context, req domain.FeatureConfigRequ
 	}
 
 	// fetch segments
-	segments, err := s.segmentRepo.Get(ctx, segmentKey)
+	segments, err := s.segmentRepo.GetAsMap(ctx, segmentKey)
 	if err != nil {
 		if !errors.Is(err, domain.ErrCacheNotFound) {
 			return []domain.FeatureConfig{}, fmt.Errorf("%w: %s", ErrInternal, err)
@@ -212,7 +212,7 @@ func (s Service) FeatureConfig(ctx context.Context, req domain.FeatureConfigRequ
 	for _, flag := range flags {
 		configs = append(configs, domain.FeatureConfig{
 			FeatureFlag: flag,
-			Segments:    segmentArrayToMap(segments),
+			Segments:    segments,
 		})
 	}
 
@@ -236,7 +236,7 @@ func (s Service) FeatureConfigByIdentifier(ctx context.Context, req domain.Featu
 	}
 
 	// fetch segments
-	segments, err := s.segmentRepo.Get(ctx, segmentKey)
+	segments, err := s.segmentRepo.GetAsMap(ctx, segmentKey)
 	if err != nil {
 		if !errors.Is(err, domain.ErrCacheNotFound) {
 			return domain.FeatureConfig{}, fmt.Errorf("%w: %s", ErrInternal, err)
@@ -248,7 +248,7 @@ func (s Service) FeatureConfigByIdentifier(ctx context.Context, req domain.Featu
 	// build FeatureConfig
 	return domain.FeatureConfig{
 		FeatureFlag: flag,
-		Segments:    segmentArrayToMap(segments),
+		Segments:    segments,
 	}, nil
 }
 
@@ -307,7 +307,7 @@ func (s Service) Evaluations(ctx context.Context, req domain.EvaluationsRequest)
 	}
 
 	// fetch segments
-	segments, err := s.segmentRepo.Get(ctx, segmentKey)
+	segments, err := s.segmentRepo.GetAsMap(ctx, segmentKey)
 	if err != nil {
 		if !errors.Is(err, domain.ErrCacheNotFound) {
 			return nil, fmt.Errorf("%w: %s", ErrInternal, err)
@@ -319,7 +319,7 @@ func (s Service) Evaluations(ctx context.Context, req domain.EvaluationsRequest)
 	for _, flag := range flags {
 		configs = append(configs, domain.FeatureConfig{
 			FeatureFlag: flag,
-			Segments:    segmentArrayToMap(segments),
+			Segments:    segments,
 		})
 	}
 
@@ -358,7 +358,7 @@ func (s Service) EvaluationsByFeature(ctx context.Context, req domain.Evaluation
 	}
 
 	// fetch segment
-	segments, err := s.segmentRepo.Get(ctx, segmentKey)
+	segments, err := s.segmentRepo.GetAsMap(ctx, segmentKey)
 	if err != nil {
 		if errors.Is(err, domain.ErrCacheNotFound) {
 			return clientgen.Evaluation{}, fmt.Errorf("%w: %s", ErrNotFound, err)
@@ -378,7 +378,7 @@ func (s Service) EvaluationsByFeature(ctx context.Context, req domain.Evaluation
 	// build FeatureConfig
 	config := domain.FeatureConfig{
 		FeatureFlag: flag,
-		Segments:    segmentArrayToMap(segments),
+		Segments:    segments,
 	}
 
 	evaluations, err := s.evaluator.Evaluate(target, config)
@@ -450,12 +450,4 @@ func boolToHealthString(healthy bool) string {
 		return "unhealthy"
 	}
 	return "healthy"
-}
-
-func segmentArrayToMap(segments []domain.Segment) map[string]domain.Segment {
-	segmentMap := map[string]domain.Segment{}
-	for _, segment := range segments {
-		segmentMap[segment.Identifier] = segment
-	}
-	return segmentMap
 }
