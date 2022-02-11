@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"reflect"
 	"sync"
 	"testing"
 	"time"
@@ -437,7 +438,9 @@ func TestPollTargets(t *testing.T) {
 
 			// Only poll once for testing
 			actual := <-remoteConfig.PollTargets(ctx, ticker)
-			assert.Equal(t, tc.expectedTargets, actual)
+			if !reflect.DeepEqual(tc.expectedTargets, actual) {
+				t.Errorf("(%s) expected: %v \n got: %v", desc, tc.expectedTargets, actual)
+			}
 		})
 	}
 }

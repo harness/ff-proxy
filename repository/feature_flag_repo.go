@@ -3,8 +3,9 @@ package repository
 import (
 	"context"
 	"fmt"
-	"github.com/harness/ff-proxy/cache"
 	"time"
+
+	"github.com/harness/ff-proxy/cache"
 
 	"github.com/harness/ff-proxy/domain"
 )
@@ -57,13 +58,17 @@ func (f FeatureFlagRepo) Get(ctx context.Context, key domain.FeatureFlagKey) ([]
 		return []domain.FeatureFlag{}, err
 	}
 
-	featureFlags := []domain.FeatureFlag{}
+	featureFlags := make([]domain.FeatureFlag, len(results))
+
+	idx := 0
 	for _, b := range results {
 		featureFlag := &domain.FeatureFlag{}
 		if err := featureFlag.UnmarshalBinary(b); err != nil {
 			return []domain.FeatureFlag{}, err
 		}
-		featureFlags = append(featureFlags, *featureFlag)
+
+		featureFlags[idx] = *featureFlag
+		idx++
 	}
 	return featureFlags, nil
 }

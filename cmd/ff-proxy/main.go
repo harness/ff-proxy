@@ -16,6 +16,8 @@ import (
 	"github.com/fanout/go-gripcontrol"
 	"github.com/hashicorp/go-retryablehttp"
 
+	_ "net/http/pprof" //#nosec
+
 	"github.com/go-redis/redis/v8"
 
 	gosdkCache "github.com/harness/ff-golang-server-sdk/cache"
@@ -99,6 +101,7 @@ var (
 	heartbeatInterval  int
 	sdkClients         *sdkClientMap
 	sdkCache           cache.Cache
+	pprofEnabled       bool
 )
 
 const (
@@ -119,6 +122,7 @@ const (
 	apiKeysEnv            = "API_KEYS"
 	targetPollDurationEnv = "TARGET_POLL_DURATION"
 	heartbeatIntervalEnv  = "HEARTBEAT_INTERVAL"
+	pprofEnabledEnv       = "PPROF"
 
 	bypassAuthFlag         = "bypass-auth"
 	debugFlag              = "debug"
@@ -137,6 +141,7 @@ const (
 	apiKeysFlag            = "api-keys"
 	targetPollDurationFlag = "target-poll-duration"
 	heartbeatIntervalFlag  = "heartbeat-interval"
+	pprofEnabledFlag       = "pprof"
 )
 
 func init() {
@@ -158,6 +163,7 @@ func init() {
 	flag.Var(&apiKeys, apiKeysFlag, "API keys to connect with ff-server for each environment")
 	flag.IntVar(&targetPollDuration, targetPollDurationFlag, 60, "How often in seconds the proxy polls feature flags for Target changes")
 	flag.IntVar(&heartbeatInterval, heartbeatIntervalFlag, 60, "How often in seconds the proxy polls pings it's health function")
+	flag.BoolVar(&pprofEnabled, pprofEnabledFlag, false, "enables pprof on port 6060")
 	sdkClients = newSDKClientMap()
 
 	loadFlagsFromEnv(map[string]string{
@@ -178,6 +184,7 @@ func init() {
 		apiKeysEnv:            apiKeysFlag,
 		targetPollDurationEnv: targetPollDurationFlag,
 		heartbeatIntervalEnv:  heartbeatIntervalFlag,
+		pprofEnabledEnv:       pprofEnabledFlag,
 	})
 
 	flag.Parse()
@@ -223,6 +230,14 @@ func initFF(ctx context.Context, cache gosdkCache.Cache, baseURL, eventURL, envI
 }
 
 func main() {
+	if pprofEnabled {
+		go func() {
+			if err := http.ListenAndServe(":6060", nil); err != nil {
+				stdlog.Printf("failed to start pprof server: %s \n", err)
+			}
+		}()
+	}
+
 	requiredFlags := map[string]interface{}{}
 	if offline {
 		requiredFlags = map[string]interface{}{
@@ -255,7 +270,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	logger.Info("service config", "debug", debug, "bypass-auth", bypassAuth, "offline", offline, "port", port, "admin-service", adminService, "account-identifier", accountIdentifier, "org-identifier", orgIdentifier, "sdk-base-url", sdkBaseURL, "sdk-events-url", sdkEventsURL, "redis-addr", redisAddress, "redis-db", redisDB, "api-keys", fmt.Sprintf("%v", apiKeys), "target-poll-duration", fmt.Sprintf("%ds", targetPollDuration), "heartbeat-interval", fmt.Sprintf("%ds", heartbeatInterval))
+	logger.Info("service config", "pprof", pprofEnabled, "debug", debug, "bypass-auth", bypassAuth, "offline", offline, "port", port, "admin-service", adminService, "account-identifier", accountIdentifier, "org-identifier", orgIdentifier, "sdk-base-url", sdkBaseURL, "sdk-events-url", sdkEventsURL, "redis-addr", redisAddress, "redis-db", redisDB, "api-keys", fmt.Sprintf("%v", apiKeys), "target-poll-duration", fmt.Sprintf("%ds", targetPollDuration), "heartbeat-interval", fmt.Sprintf("%ds", heartbeatInterval))
 
 	adminService, err := services.NewAdminService(logger, adminService, adminServiceToken)
 	if err != nil {
