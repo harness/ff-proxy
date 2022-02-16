@@ -10,7 +10,7 @@ require (
 	github.com/go-redis/redis/v8 v8.11.4
 	github.com/golang-jwt/jwt v3.2.2+incompatible
 	github.com/google/uuid v1.3.0
-	github.com/harness/ff-golang-server-sdk v0.0.24-0.20220119131602-fb0e102ab915
+	github.com/harness/ff-golang-server-sdk v0.0.25-0.20220216175230-9e1cef7fe2a8
 	github.com/hashicorp/go-retryablehttp v0.6.8
 	github.com/labstack/echo/v4 v4.6.1
 	github.com/r3labs/sse v0.0.0-20201126193848-34e640891548

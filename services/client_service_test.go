@@ -3,6 +3,7 @@ package services
 import (
 	"context"
 	"errors"
+	"github.com/harness/ff-proxy/log"
 	"testing"
 
 	"github.com/harness/ff-proxy/domain"
@@ -15,6 +16,7 @@ var errNotFound = errors.New("errNotFound")
 type mockService struct {
 	clientgen.ClientWithResponsesInterface
 	authWithResp func() error
+	postMetricsWithResp func() error
 }
 
 func (m mockService) AuthenticateWithResponse(ctx context.Context, req clientgen.AuthenticateJSONRequestBody, fns ...clientgen.RequestEditorFn) (*clientgen.AuthenticateResponse, error) {
@@ -73,8 +75,9 @@ func TestClientService_Authenticate(t *testing.T) {
 	for desc, tc := range testCases {
 		tc := tc
 		t.Run(desc, func(t *testing.T) {
-
-			clientService := ClientService{client: tc.mockService}
+			logger, _ := log.NewStructuredLogger(true)
+			clientService, _ := NewClientService(logger, "localhost:8000")
+			clientService.client = tc.mockService
 
 			actual, err := clientService.Authenticate(context.Background(), "", domain.Target{})
 			if (err != nil) != tc.shouldErr {

@@ -41,6 +41,10 @@ type mockClientService struct {
 	targetsc     chan domain.Target
 }
 
+type mockMetricService struct {
+	storeMetrics func(ctx context.Context, metrics domain.MetricsRequest) error
+}
+
 func (m *mockClientService) Authenticate(ctx context.Context, apiKey string, target domain.Target) (string, error) {
 	defer close(m.targetsc)
 
@@ -60,6 +64,10 @@ func (m *mockClientService) Targets() []domain.Target {
 		targets = append(targets, t)
 	}
 	return targets
+}
+
+func (m *mockMetricService) StoreMetrics(ctx context.Context, req domain.MetricsRequest) error {
+	return m.storeMetrics(ctx, req)
 }
 
 type fileSystem struct {
@@ -92,6 +100,7 @@ type setupConfig struct {
 	streamWorker  ffproxy.StreamWorker
 	eventListener stream.EventStreamListener
 	cache         cache.Cache
+	metricService *mockMetricService
 }
 
 type setupOpts func(s *setupConfig)
@@ -204,6 +213,12 @@ func setupHTTPServer(t *testing.T, bypassAuth bool, opts ...setupOpts) *HTTPServ
 		}}
 	}
 
+	if setupConfig.metricService == nil {
+		setupConfig.metricService = &mockMetricService{storeMetrics: func(ctx context.Context, metrics domain.MetricsRequest) error {
+			return nil
+		}}
+	}
+
 	if setupConfig.cacheHealthFn == nil {
 		setupConfig.cacheHealthFn = func(ctx context.Context) error {
 			return nil
@@ -232,6 +247,7 @@ func setupHTTPServer(t *testing.T, bypassAuth bool, opts ...setupOpts) *HTTPServ
 		AuthFn:           tokenSource.GenerateToken,
 		Evaluator:        proxyservice.NewFeatureEvaluator(),
 		ClientService:    setupConfig.clientService,
+		MetricService:    setupConfig.metricService,
 		Offline:          false,
 		Hasher:           hash.NewSha256(),
 		StreamingEnabled: true,
@@ -769,7 +785,7 @@ func TestHTTPServer_PostMetrics(t *testing.T) {
 			method:             http.MethodPost,
 			url:                fmt.Sprintf("%s/metrics/1234", testServer.URL),
 			body:               []byte(`{}`),
-			expectedStatusCode: http.StatusNotImplemented,
+			expectedStatusCode: http.StatusOK,
 		},
 	}
 

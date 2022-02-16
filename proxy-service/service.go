@@ -83,6 +83,11 @@ type clientService interface {
 	Authenticate(ctx context.Context, apiKey string, target domain.Target) (string, error)
 }
 
+// metricService is the interface for interacting with the feature flag metric service
+type metricService interface {
+	StoreMetrics(ctx context.Context, metrics domain.MetricsRequest) error
+}
+
 // Config is the config for a Service
 type Config struct {
 	Logger           log.ContextualLogger
@@ -95,6 +100,7 @@ type Config struct {
 	AuthFn           authTokenFn
 	Evaluator        evaluator
 	ClientService    clientService
+	MetricService    metricService
 	Offline          bool
 	Hasher           hash.Hasher
 	StreamingEnabled bool
@@ -112,6 +118,7 @@ type Service struct {
 	authFn           authTokenFn
 	evaluator        evaluator
 	clientService    clientService
+	metricService    metricService
 	offline          bool
 	hasher           hash.Hasher
 	streamingEnabled bool
@@ -131,6 +138,7 @@ func NewService(c Config) Service {
 		authFn:           c.AuthFn,
 		evaluator:        c.Evaluator,
 		clientService:    c.ClientService,
+		metricService:    c.MetricService,
 		offline:          c.Offline,
 		hasher:           c.Hasher,
 		streamingEnabled: c.StreamingEnabled,
@@ -417,7 +425,7 @@ func (s Service) Metrics(ctx context.Context, req domain.MetricsRequest) error {
 	s.logger = s.logger.With("method", "Metrics")
 
 	s.logger.Debug(ctx, "got metrics request", "metrics", fmt.Sprintf("%+v", req))
-	return ErrNotImplemented
+	return s.metricService.StoreMetrics(ctx, req)
 }
 
 // Health checks the health of the system

@@ -1,5 +1,7 @@
 package domain
 
+import clientgen "github.com/harness/ff-proxy/gen/client"
+
 // AuthRequest contains the fields sent in an authentication request
 type AuthRequest struct {
 	APIKey string
@@ -62,19 +64,5 @@ type StreamResponse struct {
 // MetricsRequest contains the fields sent in a POST /metrics request
 type MetricsRequest struct {
 	EnvironmentID string        `json:"environment_id"`
-	TargetData    []targetData  `json:"targetData"`
-	MetricsData   []metricsData `json:"metricsData"`
-}
-
-type targetData struct {
-	Identifier string                   `json:"identifier"`
-	Name       string                   `json:"name"`
-	Attributes []map[string]interface{} `json:"attributes"`
-}
-
-type metricsData struct {
-	Timestamp   int64                    `json:"timestamp"`
-	Count       int                      `json:"count"`
-	MetricsType string                   `json:"metricsType"`
-	Attributes  []map[string]interface{} `json:"attributes"`
+	clientgen.Metrics
 }

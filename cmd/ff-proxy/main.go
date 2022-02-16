@@ -90,6 +90,7 @@ var (
 	adminService       string
 	adminServiceToken  string
 	clientService      string
+	metricService      string
 	authSecret         string
 	sdkBaseURL         string
 	sdkEventsURL       string
@@ -98,6 +99,7 @@ var (
 	redisDB            int
 	apiKeys            keys
 	targetPollDuration int
+	metricPostDuration int
 	heartbeatInterval  int
 	sdkClients         *sdkClientMap
 	sdkCache           cache.Cache
@@ -113,6 +115,7 @@ const (
 	adminServiceEnv       = "ADMIN_SERVICE"
 	adminServiceTokenEnv  = "ADMIN_SERVICE_TOKEN"
 	clientServiceEnv      = "CLIENT_SERVICE"
+	metricServiceEnv      = "METRIC_SERVICE"
 	authSecretEnv         = "AUTH_SECRET"
 	sdkBaseURLEnv         = "SDK_BASE_URL"
 	sdkEventsURLEnv       = "SDK_EVENTS_URL"
@@ -121,6 +124,7 @@ const (
 	redisDBEnv            = "REDIS_DB"
 	apiKeysEnv            = "API_KEYS"
 	targetPollDurationEnv = "TARGET_POLL_DURATION"
+	metricPostDurationEnv = "METRIC_POST_DURATION"
 	heartbeatIntervalEnv  = "HEARTBEAT_INTERVAL"
 	pprofEnabledEnv       = "PPROF"
 
@@ -132,6 +136,7 @@ const (
 	adminServiceFlag       = "admin-service"
 	adminServiceTokenFlag  = "admin-service-token"
 	clientServiceFlag      = "client-service"
+	metricServiceFlag      = "metric-service"
 	authSecretFlag         = "auth-secret"
 	sdkBaseURLFlag         = "sdk-base-url"
 	sdkEventsURLFlag       = "sdk-events-url"
@@ -140,6 +145,7 @@ const (
 	redisDBFlag            = "redis-db"
 	apiKeysFlag            = "api-keys"
 	targetPollDurationFlag = "target-poll-duration"
+	metricPostDurationFlag = "metric-post-duration"
 	heartbeatIntervalFlag  = "heartbeat-interval"
 	pprofEnabledFlag       = "pprof"
 )
@@ -154,6 +160,7 @@ func init() {
 	flag.StringVar(&adminService, adminServiceFlag, "https://app.harness.io/gateway/cf", "the url of the ff admin service")
 	flag.StringVar(&adminServiceToken, adminServiceTokenFlag, "", "token to use with the ff service")
 	flag.StringVar(&clientService, clientServiceFlag, "https://config.ff.harness.io/api/1.0", "the url of the ff client service")
+	flag.StringVar(&metricService, metricServiceFlag, "https://events.ff.harness.io/api/1.0", "the url of the ff metric service")
 	flag.StringVar(&authSecret, authSecretFlag, "", "the secret used for signing auth tokens")
 	flag.StringVar(&sdkBaseURL, sdkBaseURLFlag, "https://config.ff.harness.io/api/1.0", "url for the sdk to connect to")
 	flag.StringVar(&sdkEventsURL, sdkEventsURLFlag, "https://events.ff.harness.io/api/1.0", "url for the sdk to send metrics to")
@@ -162,6 +169,7 @@ func init() {
 	flag.IntVar(&redisDB, redisDBFlag, 0, "Database to be selected after connecting to the server.")
 	flag.Var(&apiKeys, apiKeysFlag, "API keys to connect with ff-server for each environment")
 	flag.IntVar(&targetPollDuration, targetPollDurationFlag, 60, "How often in seconds the proxy polls feature flags for Target changes")
+	flag.IntVar(&metricPostDuration, metricPostDurationFlag, 60, "How often in seconds the proxy posts metrics to Harness. Set to 0 to disable.")
 	flag.IntVar(&heartbeatInterval, heartbeatIntervalFlag, 60, "How often in seconds the proxy polls pings it's health function")
 	flag.BoolVar(&pprofEnabled, pprofEnabledFlag, false, "enables pprof on port 6060")
 	sdkClients = newSDKClientMap()
@@ -175,6 +183,7 @@ func init() {
 		adminServiceEnv:       adminServiceFlag,
 		adminServiceTokenEnv:  adminServiceTokenFlag,
 		clientServiceEnv:      clientServiceFlag,
+		metricServiceEnv:      metricServiceFlag,
 		authSecretEnv:         authSecretFlag,
 		sdkBaseURLEnv:         sdkBaseURLFlag,
 		sdkEventsURLEnv:       sdkEventsURLFlag,
@@ -183,6 +192,7 @@ func init() {
 		redisDBEnv:            redisDBFlag,
 		apiKeysEnv:            apiKeysFlag,
 		targetPollDurationEnv: targetPollDurationFlag,
+		metricPostDurationEnv: metricPostDurationFlag,
 		heartbeatIntervalEnv:  heartbeatIntervalFlag,
 		pprofEnabledEnv:       pprofEnabledFlag,
 	})
@@ -417,6 +427,13 @@ func main() {
 
 	featureEvaluator := proxyservice.NewFeatureEvaluator()
 
+	metricsEnabled := metricPostDuration != 0 && !offline
+	metricService, err := services.NewMetricService(logger, metricService, accountIdentifier, adminServiceToken, metricsEnabled)
+	if err != nil {
+		logger.Error("failed to create client for the feature flags metric service", "err", err)
+		os.Exit(1)
+	}
+
 	clientService, err := services.NewClientService(logger, clientService)
 	if err != nil {
 		logger.Error("failed to create client for the feature flags client service", "err", err)
@@ -435,6 +452,7 @@ func main() {
 		AuthFn:           tokenSource.GenerateToken,
 		Evaluator:        featureEvaluator,
 		ClientService:    clientService,
+		MetricService:    metricService,
 		Offline:          offline,
 		Hasher:           apiKeyHasher,
 		StreamingEnabled: streamingEnabled,
@@ -460,6 +478,7 @@ func main() {
 	}()
 
 	if !offline {
+		// start target polling ticker
 		go func() {
 			ticker := time.NewTicker(time.Duration(targetPollDuration) * time.Second)
 			defer ticker.Stop()
@@ -471,6 +490,35 @@ func main() {
 				}
 			}
 		}()
+
+		// start metric sending ticker
+		if metricPostDuration != 0 {
+			go func() {
+				logger.Info(fmt.Sprintf("sending metrics every %d seconds", metricPostDuration))
+				ticker := time.NewTicker(time.Duration(metricPostDuration) * time.Second)
+				defer ticker.Stop()
+
+				for {
+					select {
+					case <-ctx.Done():
+						logger.Info("stopping metrics ticker")
+						return
+					case <-ticker.C:
+						// default to prod cluster
+						clusterIdentifier := "1"
+						// grab which cluster we're connected to from sdk
+						for _, client := range sdkClients.copy() {
+							clusterIdentifier = client.GetClusterIdentifier()
+							break
+						}
+						logger.Info("sending metrics")
+						metricService.SendMetrics(ctx, clusterIdentifier)
+					}
+				}
+			}()
+		} else {
+			logger.Info("sending metrics disabled")
+		}
 	}
 
 	go func() {
