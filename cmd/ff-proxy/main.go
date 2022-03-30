@@ -259,7 +259,7 @@ func main() {
 			orgIdentifierEnv:     orgIdentifier,
 			adminServiceTokenEnv: adminServiceToken,
 			authSecretEnv:        authSecret,
-			apiKeysEnv:           apiKeysFlag,
+			apiKeysEnv:           apiKeys,
 		}
 	}
 	validateFlags(requiredFlags)
@@ -613,6 +613,10 @@ func validateFlags(flags map[string]interface{}) {
 			}
 		case []string:
 			if len(v.([]string)) == 0 {
+				unset = append(unset, k)
+			}
+		case keys:
+			if len(v.(keys)) == 0 {
 				unset = append(unset, k)
 			}
 		}
