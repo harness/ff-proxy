@@ -123,6 +123,12 @@ func decodeAuthRequest(c echo.Context) (interface{}, error) {
 	if req.APIKey == "" {
 		return nil, fmt.Errorf("%w: apiKey cannot be empty", errBadRequest)
 	}
+
+	// Mimic what the client service does and set identifier value as the
+	// name if it hasn't been provided.
+	if req.Target.Name == "" {
+		req.Target.Name = req.Target.Identifier
+	}
 	return req, nil
 }
 
