@@ -28,8 +28,12 @@ COPY --from=builder /app/ff-proxy /app/ff-proxy
 COPY --from=builder ./app/config/pushpin /etc/pushpin
 COPY --from=builder ./app/start.sh /start.sh
 
+RUN mkdir /log
+RUN chmod 0500 /app/ff-proxy /log
+RUN chown nobody:nogroup /app/ff-proxy
+
 # Seem to need to be root in order to get pushpin running
-USER root
+USER nobody
 
 EXPOSE 7000
 CMD ["./start.sh"]
