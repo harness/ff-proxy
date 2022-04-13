@@ -29,8 +29,12 @@ COPY --from=builder ./app/config/pushpin /etc/pushpin
 COPY --from=builder ./app/start.sh /start.sh
 
 RUN mkdir /log
-RUN chmod 0500 /app/ff-proxy /log
-RUN chown nobody:nogroup /app/ff-proxy
+RUN mkdir /pushpin
+RUN mkdir /pushpin/run
+RUN mkdir /pushpin/log
+RUN chmod -R 0500 /app/ff-proxy 
+RUN chmod -R 0755 /log /pushpin
+RUN chown -R nobody:nogroup /app/ff-proxy /log /pushpin 
 
 # Seem to need to be root in order to get pushpin running
 USER nobody
