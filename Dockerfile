@@ -34,10 +34,10 @@ RUN mkdir /pushpin/run
 RUN mkdir /pushpin/log
 RUN chmod -R 0500 /app/ff-proxy /usr/lib/pushpin /etc/pushpin
 RUN chmod -R 0755 /log /pushpin /usr/lib/pushpin /etc/pushpin
-RUN chown -R nobody:nogroup /app/ff-proxy /log /pushpin /usr/lib/pushpin /etc/pushpin
+RUN chown -R 65534:65534 /app/ff-proxy /log /pushpin /usr/lib/pushpin /etc/pushpin
 
-# Seem to need to be root in order to get pushpin running
-USER nobody
+# Setting this to 65534 which hould be the nodbody user
+USER 65534
 
 EXPOSE 7000
 CMD ["./start.sh"]
