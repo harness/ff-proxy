@@ -329,7 +329,7 @@ func main() {
 		logger.Info("retrieved offline config")
 	} else {
 		logger.Info("retrieving config from ff-server...")
-		remoteConfig = config.NewRemoteConfig(
+		remoteConfig, err := config.NewRemoteConfig(
 			ctx,
 			accountIdentifier,
 			orgIdentifier,
@@ -339,10 +339,15 @@ func main() {
 			config.WithLogger(logger),
 			config.WithConcurrency(20),
 		)
+		if err != nil {
+			logger.Error("error(s) encountered fetching config from FeatureFlags, startup will continue but the Proxy may be missing required config", "errors", err)
+		} else {
+			logger.Info("successfully retrieved config from FeatureFlags")
+
+		}
 
 		authConfig = remoteConfig.AuthConfig()
 		targetConfig = remoteConfig.TargetConfig()
-		logger.Info("successfully retrieved config from ff-server")
 
 		envIDToProjectEnvironmentInfo := remoteConfig.ProjectEnvironmentInfo()
 

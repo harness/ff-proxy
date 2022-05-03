@@ -209,6 +209,7 @@ func TestRemoteConfig(t *testing.T) {
 		orgIdentifier        string
 		allowedAPIKeys       []string
 		cancel               bool
+		shouldErr            bool
 		expectedAuthConfig   map[domain.AuthAPIKey]string
 		expectedTargetConfig map[domain.TargetKey][]domain.Target
 	}{
@@ -216,6 +217,7 @@ func TestRemoteConfig(t *testing.T) {
 			accountIdentifier:    accountIdentifer,
 			orgIdentifier:        orgIdentifier,
 			allowedAPIKeys:       allowAllAPIKeys,
+			shouldErr:            false,
 			expectedAuthConfig:   expectedAuthConfigAllAPIKeys,
 			expectedTargetConfig: expectedTargetConfigAllAPIKeys,
 		},
@@ -223,12 +225,14 @@ func TestRemoteConfig(t *testing.T) {
 			accountIdentifier:    accountIdentifer,
 			orgIdentifier:        orgIdentifier,
 			allowedAPIKeys:       allowSomeAPIKeys,
+			shouldErr:            false,
 			expectedAuthConfig:   expectedAuthConfigSomeAPIKeys,
 			expectedTargetConfig: expectedTargetConfigSomeAPIKeys,
 		},
 		"Given I try to load config for an account and org that don't exist": {
 			accountIdentifier:    "foo",
 			orgIdentifier:        "bar",
+			shouldErr:            true,
 			expectedAuthConfig:   map[domain.AuthAPIKey]string{},
 			expectedTargetConfig: map[domain.TargetKey][]domain.Target{},
 		},
@@ -236,6 +240,7 @@ func TestRemoteConfig(t *testing.T) {
 			accountIdentifier:    "account1",
 			orgIdentifier:        "org1",
 			cancel:               true,
+			shouldErr:            false,
 			expectedAuthConfig:   map[domain.AuthAPIKey]string{},
 			expectedTargetConfig: map[domain.TargetKey][]domain.Target{},
 		},
@@ -257,7 +262,11 @@ func TestRemoteConfig(t *testing.T) {
 				Mutex:        &sync.Mutex{},
 			}
 
-			rc := NewRemoteConfig(ctx, tc.accountIdentifier, tc.orgIdentifier, tc.allowedAPIKeys, mockHasher{}, adminClient, WithConcurrency(1), WithLogger(log.NoOpLogger{}))
+			rc, err := NewRemoteConfig(ctx, tc.accountIdentifier, tc.orgIdentifier, tc.allowedAPIKeys, mockHasher{}, adminClient, WithConcurrency(1), WithLogger(log.NoOpLogger{}))
+			if (err != nil) != tc.shouldErr {
+				t.Errorf("(%s): error = %v, shouldErr = %v", desc, err, tc.shouldErr)
+			}
+
 			actualAuthConfig := rc.AuthConfig()
 			actualTargetConfig := rc.TargetConfig()
 
@@ -345,11 +354,11 @@ func TestMakeConfig(t *testing.T) {
 		},
 	}
 
-	actualAuth, actualTarget, actualProjEnvInfo := makeConfigs(results)
+	config := makeConfigs(results)
 
-	assert.Equal(t, expectedAuth, actualAuth)
-	assert.Equal(t, expectedTargets, actualTarget)
-	assert.Equal(t, expectedProjEnvInfo, actualProjEnvInfo)
+	assert.Equal(t, expectedAuth, config.auth)
+	assert.Equal(t, expectedTargets, config.targets)
+	assert.Equal(t, expectedProjEnvInfo, config.projectEnvironments)
 }
 
 func TestPollTargets(t *testing.T) {
@@ -375,6 +384,7 @@ func TestPollTargets(t *testing.T) {
 		orgIdentifier     string
 		allowedAPIKeys    []string
 		cancel            bool
+		shouldErr         bool
 		targetsToAdd      []admingen.Target
 		expectedTargets   map[domain.TargetKey][]domain.Target
 	}{
@@ -383,6 +393,7 @@ func TestPollTargets(t *testing.T) {
 			orgIdentifier:     orgIdentifier,
 			allowedAPIKeys:    allowAllAPIKeys,
 			cancel:            false,
+			shouldErr:         false,
 			expectedTargets:   expectedTargetConfigAllAPIKeys,
 		},
 		"Given I have a RemoteConfig with Targets and I add a new Target to the admin client": {
@@ -390,6 +401,7 @@ func TestPollTargets(t *testing.T) {
 			orgIdentifier:     orgIdentifier,
 			allowedAPIKeys:    allowAllAPIKeys,
 			cancel:            false,
+			shouldErr:         false,
 			targetsToAdd:      []admingen.Target{admingenTarget1},
 			expectedTargets:   expectedNewTargets,
 		},
@@ -398,6 +410,7 @@ func TestPollTargets(t *testing.T) {
 			orgIdentifier:     orgIdentifier,
 			allowedAPIKeys:    allowAllAPIKeys,
 			cancel:            true,
+			shouldErr:         false,
 			targetsToAdd:      []admingen.Target{admingenTarget1},
 			expectedTargets:   nil,
 		},
@@ -425,7 +438,10 @@ func TestPollTargets(t *testing.T) {
 				Mutex:        &sync.Mutex{},
 			}
 
-			remoteConfig := NewRemoteConfig(ctx, tc.accountIdentifier, tc.orgIdentifier, tc.allowedAPIKeys, mockHasher{}, adminClient)
+			remoteConfig, err := NewRemoteConfig(ctx, tc.accountIdentifier, tc.orgIdentifier, tc.allowedAPIKeys, mockHasher{}, adminClient)
+			if (err != nil) != tc.shouldErr {
+				t.Errorf("(%s): error = %v, shouldErr = %v", desc, err, tc.shouldErr)
+			}
 
 			if len(tc.targetsToAdd) > 0 {
 				t.Log("And I add Targets to the admin client")
