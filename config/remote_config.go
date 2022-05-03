@@ -55,7 +55,7 @@ type RemoteConfig struct {
 
 // NewRemoteConfig creates a RemoteConfig and retrieves the configuration for
 // the given Account, Org and APIKeys from the Feature Flags Service
-func NewRemoteConfig(ctx context.Context, accountIdentifer string, orgIdentifier string, apiKeys []string, hasher hash.Hasher, client adminClient, opts ...RemoteOption) RemoteConfig {
+func NewRemoteConfig(ctx context.Context, accountIdentifer string, orgIdentifier string, apiKeys []string, hasher hash.Hasher, client adminClient, opts ...RemoteOption) (RemoteConfig, error) {
 	allowedAPIKeys := map[string]struct{}{}
 	for _, key := range apiKeys {
 		allowedAPIKeys[hasher.Hash(key)] = struct{}{}
@@ -83,8 +83,12 @@ func NewRemoteConfig(ctx context.Context, accountIdentifer string, orgIdentifier
 	}
 	rc.log = rc.log.With("component", "RemoteConfig", "account_identifier", accountIdentifer, "org_identifier", orgIdentifier)
 
-	rc.authConfig, rc.targetConfig, rc.projEnvInfo = makeConfigs(orDone(ctx, rc.load(ctx, accountIdentifer, orgIdentifier, allowedAPIKeys)))
-	return *rc
+	config := makeConfigs(orDone(ctx, rc.load(ctx, accountIdentifer, orgIdentifier, allowedAPIKeys)))
+	rc.authConfig = config.auth
+	rc.targetConfig = config.targets
+	rc.projEnvInfo = config.projectEnvironments
+
+	return *rc, config.err
 }
 
 // TargetConfig returns the Target information that was retrieved from the Feature Flags Service
@@ -132,12 +136,15 @@ func (r RemoteConfig) PollTargets(ctx context.Context, ticker <-chan time.Time) 
 				return
 			case <-ticker:
 				r.log.Debug("polling for new targets")
-				_, targetConfig, _ := makeConfigs(r.addTargetConfig(ctx, configPipelineGenerator(ctx, r.projEnvInfo)))
+				config := makeConfigs(r.addTargetConfig(ctx, configPipelineGenerator(ctx, r.projEnvInfo)))
+				if config.err != nil {
+					r.log.Error("failed to fetch targets", "err", config.err)
+				}
 
 				select {
 				case <-ctx.Done():
 					return
-				case out <- targetConfig:
+				case out <- config.targets:
 				}
 			}
 		}
@@ -230,12 +237,33 @@ func configPipelineGenerator(ctx context.Context, m map[string]configPipeline) <
 	return out
 }
 
-func makeConfigs(results <-chan configPipeline) (map[domain.AuthAPIKey]string, map[domain.TargetKey][]domain.Target, map[string]configPipeline) {
+type configResult struct {
+	// auth contains the auth config fetched from FeatureFlags
+	auth map[domain.AuthAPIKey]string
+	// targets contains the targets fetched from FeatureFlags
+	targets map[domain.TargetKey][]domain.Target
+	// projectEnvironments is a map of environmentIDs to
+	projectEnvironments map[string]configPipeline
+	// errs contains any errors encountered retreiving the config
+	err error
+}
+
+func makeConfigs(results <-chan configPipeline) configResult {
 	authConfig := map[domain.AuthAPIKey]string{}
 	targetConfig := map[domain.TargetKey][]domain.Target{}
 	projEnvInfo := map[string]configPipeline{}
 
+	var err error = nil
+
 	for result := range results {
+		if result.Err != nil {
+			if err == nil {
+				err = result.Err
+				continue
+			}
+			err = fmt.Errorf("%w: %s", err, result.Err)
+		}
+
 		for _, key := range result.APIKeys {
 			authConfig[domain.AuthAPIKey(key)] = result.EnvironmentID
 		}
@@ -251,7 +279,13 @@ func makeConfigs(results <-chan configPipeline) (map[domain.AuthAPIKey]string, m
 			EnvironmentIdentifier: result.EnvironmentIdentifier,
 		}
 	}
-	return authConfig, targetConfig, projEnvInfo
+
+	return configResult{
+		auth:                authConfig,
+		targets:             targetConfig,
+		projectEnvironments: projEnvInfo,
+		err:                 err,
+	}
 }
 
 // configPipeline is the input and output for each stage of the pipeline that
@@ -265,6 +299,7 @@ type configPipeline struct {
 	EnvironmentIdentifier string
 	APIKeys               []string
 	Targets               []domain.Target
+	Err                   error
 }
 
 // fanIn joins multiple ConfigPipeline channels into a single channel
@@ -317,23 +352,29 @@ func (r RemoteConfig) addProjectConfig(ctx context.Context, input configPipeline
 			result, err := r.client.PageProjects(ctx, projectInput)
 			done = result.Finished
 			if err != nil {
-				r.log.Error("error paging projects", "err", err)
+				input.Err = fmt.Errorf("failed to page projects: %s", err)
+				sendOrDone(ctx, out, input)
 				return
 			}
 
 			for _, project := range result.Projects {
 				input.ProjectIdentifier = project.Identifier
-
-				select {
-				case <-ctx.Done():
-					return
-				case out <- input:
-				}
+				sendOrDone(ctx, out, input)
 			}
 			projectInput.PageNumber++
 		}
 	}()
 	return out
+}
+
+// sendOrDone is a helper function that blocks until we've written to the passed
+// channel or the context has been cancelled
+func sendOrDone(ctx context.Context, ch chan<- configPipeline, value configPipeline) {
+	select {
+	case <-ctx.Done():
+		return
+	case ch <- value:
+	}
 }
 
 // addEnvironmentConfig is the stage of the pipeline that adds the EnvironmentID,
@@ -345,6 +386,13 @@ func (r RemoteConfig) addEnvironmentConfig(ctx context.Context, inputs <-chan co
 		defer close(out)
 
 		for input := range inputs {
+			// If an earlier stage in the pipeline has failed there's no point
+			// trying to execute this stage. We still pass the event on so the
+			// caller can get the original error
+			if input.Err != nil {
+				sendOrDone(ctx, out, input)
+				continue
+			}
 
 			environmentInput := services.PageEnvironmentsInput{
 				AccountIdentifier: input.AccountIdentifier,
@@ -359,7 +407,8 @@ func (r RemoteConfig) addEnvironmentConfig(ctx context.Context, inputs <-chan co
 				result, err := r.client.PageEnvironments(ctx, environmentInput)
 				done = result.Finished
 				if err != nil {
-					r.log.Error("error paging environments", "err", err)
+					input.Err = fmt.Errorf("failed to page envrionments: %s", err)
+					sendOrDone(ctx, out, input)
 					continue
 				}
 
@@ -378,11 +427,7 @@ func (r RemoteConfig) addEnvironmentConfig(ctx context.Context, inputs <-chan co
 						}
 					}
 
-					select {
-					case <-ctx.Done():
-						return
-					case out <- input:
-					}
+					sendOrDone(ctx, out, input)
 				}
 
 				environmentInput.PageNumber++
@@ -401,6 +446,14 @@ func (r RemoteConfig) addTargetConfig(ctx context.Context, inputs <-chan configP
 		defer close(out)
 
 		for input := range inputs {
+			// If an earlier stage in the pipeline has failed there's no point
+			// trying to execute this stage. We still pass the event on so the
+			// caller can get the original error
+			if input.Err != nil {
+				sendOrDone(ctx, out, input)
+				continue
+			}
+
 			targetInput := services.PageTargetsInput{
 				AccountIdentifier:     input.AccountIdentifier,
 				OrgIdentifier:         input.OrgIdentifier,
@@ -415,7 +468,8 @@ func (r RemoteConfig) addTargetConfig(ctx context.Context, inputs <-chan configP
 				result, err := r.client.PageTargets(ctx, targetInput)
 				done = result.Finished
 				if err != nil {
-					r.log.Error("error paging targets", "err", err, "input", fmt.Sprintf("%+v", targetInput))
+					input.Err = fmt.Errorf("failed to page targets: %s", err)
+					sendOrDone(ctx, out, input)
 					continue
 				}
 
@@ -425,12 +479,7 @@ func (r RemoteConfig) addTargetConfig(ctx context.Context, inputs <-chan configP
 				}
 				input.Targets = targets
 
-				select {
-				case <-ctx.Done():
-					return
-				case out <- input:
-				}
-
+				sendOrDone(ctx, out, input)
 				targetInput.PageNumber++
 			}
 		}
@@ -449,6 +498,12 @@ func (r RemoteConfig) filterOnAllowedAPIKeys(ctx context.Context, inputs <-chan 
 		defer close(out)
 
 		for input := range inputs {
+			// If an earlier stage in the pipeline has failed there's no point
+			// trying to execute this stage. We still pass the event on so the
+			// caller can get the original error
+			if input.Err != nil {
+				sendOrDone(ctx, out, input)
+			}
 			// if no allowed keys skip
 			if len(input.AllowedKeys) == 0 || input.AllowedKeys == nil {
 				continue
@@ -469,7 +524,7 @@ func (r RemoteConfig) filterOnAllowedAPIKeys(ctx context.Context, inputs <-chan 
 			}
 
 			input.APIKeys = keys
-			out <- input
+			sendOrDone(ctx, out, input)
 		}
 	}()
 	return out
