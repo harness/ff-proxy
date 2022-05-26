@@ -140,3 +140,7 @@ Like with running the proxy, there is also some default config that's loaded in 
 
 ### Generating test report
 You can generate a test report by running ```make test-report```. This will output a html test coverage report in the base directory.
+    
+
+### Common Issues
+**Port 7000 already in use** on MacOS Monterey and above. By default Apple now reserve ports 5000 and 7000 for Airplay functionality - see instructions on disabling this so you can use port 7000 for dev [here](https://developer.apple.com/forums/thread/682332)
