@@ -329,7 +329,7 @@ func main() {
 		logger.Info("retrieved offline config")
 	} else {
 		logger.Info("retrieving config from ff-server...")
-		remoteConfig, err := config.NewRemoteConfig(
+		remoteConfig, err = config.NewRemoteConfig(
 			ctx,
 			accountIdentifier,
 			orgIdentifier,
