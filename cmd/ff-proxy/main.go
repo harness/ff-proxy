@@ -104,6 +104,8 @@ var (
 	sdkClients         *sdkClientMap
 	sdkCache           cache.Cache
 	pprofEnabled       bool
+	flagPollInterval   int
+	flagStreamEnabled  bool
 )
 
 const (
@@ -126,6 +128,8 @@ const (
 	targetPollDurationEnv = "TARGET_POLL_DURATION"
 	metricPostDurationEnv = "METRIC_POST_DURATION"
 	heartbeatIntervalEnv  = "HEARTBEAT_INTERVAL"
+	flagPollIntervalEnv   = "FLAG_POLL_INTERVAL"
+	flagStreamEnabledEnv  = "FLAG_STREAM_ENABLED"
 	pprofEnabledEnv       = "PPROF"
 
 	bypassAuthFlag         = "bypass-auth"
@@ -148,6 +152,8 @@ const (
 	metricPostDurationFlag = "metric-post-duration"
 	heartbeatIntervalFlag  = "heartbeat-interval"
 	pprofEnabledFlag       = "pprof"
+	flagStreamEnabledFlag  = "flag-stream-enabled"
+	flagPollIntervalFlag   = "flag-poll-interval"
 )
 
 func init() {
@@ -172,6 +178,8 @@ func init() {
 	flag.IntVar(&metricPostDuration, metricPostDurationFlag, 60, "How often in seconds the proxy posts metrics to Harness. Set to 0 to disable.")
 	flag.IntVar(&heartbeatInterval, heartbeatIntervalFlag, 60, "How often in seconds the proxy polls pings it's health function")
 	flag.BoolVar(&pprofEnabled, pprofEnabledFlag, false, "enables pprof on port 6060")
+	flag.IntVar(&flagPollInterval, flagPollIntervalFlag, 1, "how often in minutes the proxy should poll for flag updates (if stream not connected)")
+	flag.BoolVar(&flagStreamEnabled, flagStreamEnabledFlag, true, "should the proxy connect to Harness in streaming mode to get flag changes")
 	sdkClients = newSDKClientMap()
 
 	loadFlagsFromEnv(map[string]string{
@@ -195,6 +203,8 @@ func init() {
 		metricPostDurationEnv: metricPostDurationFlag,
 		heartbeatIntervalEnv:  heartbeatIntervalFlag,
 		pprofEnabledEnv:       pprofEnabledFlag,
+		flagStreamEnabledEnv:  flagStreamEnabledFlag,
+		flagPollIntervalEnv:   flagPollIntervalFlag,
 	})
 
 	flag.Parse()
@@ -219,7 +229,8 @@ func initFF(ctx context.Context, cache gosdkCache.Cache, baseURL, eventURL, envI
 		harness.WithURL(baseURL),
 		harness.WithHTTPClient(retryClient.StandardClient()),
 		harness.WithEventsURL(eventURL),
-		harness.WithStreamEnabled(true),
+		harness.WithStreamEnabled(flagStreamEnabled),
+		harness.WithPullInterval(uint(flagPollInterval)),
 		harness.WithCache(cache),
 		harness.WithStoreEnabled(false), // store should be disabled until we implement a wrapper to handle multiple envs
 		harness.WithEventStreamListener(eventListener),
@@ -280,7 +291,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	logger.Info("service config", "pprof", pprofEnabled, "debug", debug, "bypass-auth", bypassAuth, "offline", offline, "port", port, "admin-service", adminService, "account-identifier", accountIdentifier, "org-identifier", orgIdentifier, "sdk-base-url", sdkBaseURL, "sdk-events-url", sdkEventsURL, "redis-addr", redisAddress, "redis-db", redisDB, "api-keys", fmt.Sprintf("%v", apiKeys), "target-poll-duration", fmt.Sprintf("%ds", targetPollDuration), "heartbeat-interval", fmt.Sprintf("%ds", heartbeatInterval))
+	logger.Info("service config", "pprof", pprofEnabled, "debug", debug, "bypass-auth", bypassAuth, "offline", offline, "port", port, "admin-service", adminService, "account-identifier", accountIdentifier, "org-identifier", orgIdentifier, "sdk-base-url", sdkBaseURL, "sdk-events-url", sdkEventsURL, "redis-addr", redisAddress, "redis-db", redisDB, "api-keys", fmt.Sprintf("%v", apiKeys), "target-poll-duration", fmt.Sprintf("%ds", targetPollDuration), "heartbeat-interval", fmt.Sprintf("%ds", heartbeatInterval), "flag-stream-enabled", flagStreamEnabled, "flag-poll-interval", fmt.Sprintf("%dm", flagPollInterval))
 
 	adminService, err := services.NewAdminService(logger, adminService, adminServiceToken)
 	if err != nil {
@@ -582,6 +593,12 @@ func heartbeat(ctx context.Context, tick <-chan time.Time, listenAddr string, lo
 // returns an error, if any for each
 func envHealthCheck(ctx context.Context) map[string]error {
 	envHealth := map[string]error{}
+
+	// if the user chooses to run connected sdks in polling mode then we can skip the stream health checks
+	if !flagStreamEnabled {
+		return envHealth
+	}
+
 	for env, sdk := range sdkClients.copy() {
 		// get SDK health details
 		var err error
