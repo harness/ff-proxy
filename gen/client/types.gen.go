@@ -66,7 +66,7 @@ type FeatureConfig struct {
 	Project              string          `json:"project"`
 	Rules                *[]ServingRule  `json:"rules,omitempty"`
 	State                FeatureState    `json:"state"`
-	VariationToTargetMap *[]VariationMap `json:"variationToTargetMap,omitempty"`
+	VariationToTargetMap *[]VariationMap `json:"variationToTargetMap"` // TODO - this has been manually changed. If it's omitempty the .NET SDK won't parse the FeatureConfig and won't work. We should update ff-api so this is mandatory and these generate correctly
 	Variations           []Variation     `json:"variations"`
 	Version              *int64          `json:"version,omitempty"`
 }

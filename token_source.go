@@ -44,6 +44,7 @@ func (a TokenSource) GenerateToken(key string) (domain.Token, error) {
 	t := time.Now().Unix()
 	c := domain.Claims{
 		Environment: env,
+		ClusterIdentifier: "1",
 		StandardClaims: jwt.StandardClaims{
 			IssuedAt:  t,
 			NotBefore: t,
