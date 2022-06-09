@@ -34,7 +34,7 @@ generate: ## Generates the client for the ff-servers client service
 	oapi-codegen -generate types -package=admin ./ff-api/docs/release/admin-v1.yaml > gen/admin/types.gen.go
 
 PHONY+= build
-build: generate ## Builds the ff-proxy service binary
+build: ## Builds the ff-proxy service binary
 	CGO_ENABLED=0 go build -o ff-proxy ./cmd/ff-proxy/main.go
 
 PHONY+= build-race
