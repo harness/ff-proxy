@@ -3,6 +3,7 @@ package repository
 import (
 	"context"
 	"fmt"
+	"github.com/harness/ff-proxy/gen/client"
 	"time"
 
 	"github.com/harness/ff-proxy/cache"
@@ -66,7 +67,12 @@ func (f FeatureFlagRepo) Get(ctx context.Context, key domain.FeatureFlagKey) ([]
 		if err := featureFlag.UnmarshalBinary(b); err != nil {
 			return []domain.FeatureFlag{}, err
 		}
-
+		// some sdks e.g. .NET don't cope well with being returned a null VariationToTargetMap so we send back an empty struct here for now
+		// to match ff-server behaviour
+		if featureFlag.VariationToTargetMap == nil {
+			emptyVariationMap := []client.VariationMap{}
+			featureFlag.VariationToTargetMap = &emptyVariationMap
+		}
 		featureFlags[idx] = *featureFlag
 		idx++
 	}
@@ -78,6 +84,12 @@ func (f FeatureFlagRepo) GetByIdentifier(ctx context.Context, key domain.Feature
 	featureFlag := domain.FeatureFlag{}
 	if err := f.cache.Get(ctx, string(key), identifier, &featureFlag); err != nil {
 		return domain.FeatureFlag{}, err
+	}
+	// some sdks e.g. .NET don't cope well with being returned a null VariationToTargetMap so we send back an empty struct here for now
+	// to match ff-server behaviour
+	if featureFlag.VariationToTargetMap == nil {
+		emptyVariationMap := []client.VariationMap{}
+		featureFlag.VariationToTargetMap = &emptyVariationMap
 	}
 	return featureFlag, nil
 }
