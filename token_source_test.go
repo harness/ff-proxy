@@ -7,7 +7,7 @@ import (
 	"github.com/harness/ff-proxy/cache"
 	"github.com/harness/ff-proxy/log"
 
-	"github.com/dgrijalva/jwt-go"
+	"github.com/golang-jwt/jwt/v4"
 	"github.com/harness/ff-proxy/domain"
 	"github.com/harness/ff-proxy/repository"
 	"github.com/stretchr/testify/assert"

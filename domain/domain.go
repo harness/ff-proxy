@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/dgrijalva/jwt-go"
+	"github.com/golang-jwt/jwt/v4"
 	admingen "github.com/harness/ff-proxy/gen/admin"
 	clientgen "github.com/harness/ff-proxy/gen/client"
 )
