@@ -4,11 +4,11 @@ go 1.17
 
 require (
 	github.com/deepmap/oapi-codegen v1.6.0
-	github.com/dgrijalva/jwt-go v3.2.0+incompatible
 	github.com/fanout/go-gripcontrol v0.0.0-20181114050548-adc1002dfd32
 	github.com/go-kit/kit v0.12.0
 	github.com/go-redis/redis/v8 v8.11.4
 	github.com/golang-jwt/jwt v3.2.2+incompatible
+	github.com/golang-jwt/jwt/v4 v4.4.2
 	github.com/google/uuid v1.3.0
 	github.com/harness/ff-golang-server-sdk v0.0.25-0.20220216175230-9e1cef7fe2a8
 	github.com/hashicorp/go-retryablehttp v0.6.8
@@ -24,6 +24,7 @@ require (
 require (
 	github.com/cespare/xxhash/v2 v2.1.2 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
+	github.com/dgrijalva/jwt-go v3.2.0+incompatible // indirect
 	github.com/dgryski/go-rendezvous v0.0.0-20200823014737-9f7001d12a5f // indirect
 	github.com/fanout/go-pubcontrol v0.0.0-20181114050323-6700863ff8fe // indirect
 	github.com/fsnotify/fsnotify v1.5.1 // indirect
