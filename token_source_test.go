@@ -9,9 +9,9 @@ import (
 
 	"github.com/golang-jwt/jwt/v4"
 	"github.com/harness/ff-proxy/domain"
+	"github.com/harness/ff-proxy/hash"
 	"github.com/harness/ff-proxy/repository"
 	"github.com/stretchr/testify/assert"
-	"github.com/wings-software/ff-server/pkg/hash"
 )
 
 func TestTokenSource_GenerateToken(t *testing.T) {

@@ -23,13 +23,13 @@ import (
 	"github.com/harness/ff-proxy/config"
 	"github.com/harness/ff-proxy/domain"
 	admingen "github.com/harness/ff-proxy/gen/admin"
+	"github.com/harness/ff-proxy/hash"
 	"github.com/harness/ff-proxy/log"
 	"github.com/harness/ff-proxy/middleware"
 	proxyservice "github.com/harness/ff-proxy/proxy-service"
 	"github.com/harness/ff-proxy/repository"
 	"github.com/r3labs/sse"
 	"github.com/stretchr/testify/assert"
-	"github.com/wings-software/ff-server/pkg/hash"
 )
 
 func boolPtr(b bool) *bool {

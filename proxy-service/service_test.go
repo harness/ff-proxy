@@ -14,9 +14,9 @@ import (
 	"github.com/harness/ff-proxy/cache"
 	"github.com/harness/ff-proxy/config"
 	"github.com/harness/ff-proxy/domain"
+	"github.com/harness/ff-proxy/hash"
 	"github.com/harness/ff-proxy/log"
 	"github.com/harness/ff-proxy/repository"
-	"github.com/wings-software/ff-server/pkg/hash"
 )
 
 type fileSystem struct {

@@ -16,7 +16,6 @@ require (
 	github.com/r3labs/sse v0.0.0-20201126193848-34e640891548
 	github.com/sirupsen/logrus v1.8.1
 	github.com/stretchr/testify v1.7.0
-	github.com/wings-software/ff-server v0.0.0-20211104155359-ef96ccfe30cc
 	go.uber.org/zap v1.19.1
 	gopkg.in/yaml.v2 v2.4.0
 )
