@@ -7,7 +7,7 @@ import (
 
 	ffproxy "github.com/harness/ff-proxy"
 	"github.com/harness/ff-proxy/domain"
-	"github.com/wings-software/ff-server/pkg/hash"
+	"github.com/harness/ff-proxy/hash"
 )
 
 type config struct {

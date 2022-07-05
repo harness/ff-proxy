@@ -7,8 +7,8 @@ import (
 
 	"github.com/harness/ff-golang-server-sdk/stream"
 	"github.com/harness/ff-proxy/domain"
+	"github.com/harness/ff-proxy/hash"
 	"github.com/harness/ff-proxy/log"
-	"github.com/wings-software/ff-server/pkg/hash"
 )
 
 // EventListener implements the golang sdks stream.EventStreamListener interface
