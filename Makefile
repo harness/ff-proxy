@@ -66,10 +66,8 @@ integration-test: ## Brings up pushpin & redis and runs go tests (runs with race
 ###########################################
 test-report: ## Run the go tests and generate a coverage report
 	@echo "Running tests"
-	make dev
-	go test -short -covermode=atomic -coverprofile=proxy.cov -coverpkg=$(shell go list ./... | grep -v /cmd/ | grep -v /gen/ | xargs | sed -e 's/ /,/g') ./...
+	go test -covermode=atomic -coverprofile=proxy.cov -coverpkg=$(shell go list ./... | grep -v /cmd/ | grep -v /gen/ | xargs | sed -e 's/ /,/g') ./...
 	gocov convert ./proxy.cov | gocov-html > ./proxy_test_coverage.html
-	make stop
 
 PHONY+= dev
 dev: ## Brings up services that the proxy uses
