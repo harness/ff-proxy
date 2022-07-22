@@ -8,6 +8,7 @@ import (
 	stdlog "log"
 	"net/http"
 	"os"
+	"os/exec"
 	"os/signal"
 	"strings"
 	"sync"
@@ -106,6 +107,7 @@ var (
 	pprofEnabled       bool
 	flagPollInterval   int
 	flagStreamEnabled  bool
+	generateOfflineConfig  bool
 )
 
 const (
@@ -130,6 +132,7 @@ const (
 	heartbeatIntervalEnv  = "HEARTBEAT_INTERVAL"
 	flagPollIntervalEnv   = "FLAG_POLL_INTERVAL"
 	flagStreamEnabledEnv  = "FLAG_STREAM_ENABLED"
+	generateOfflineConfigEnv  = "GENERATE_OFFLINE_CONFIG"
 	pprofEnabledEnv       = "PPROF"
 
 	bypassAuthFlag         = "bypass-auth"
@@ -153,6 +156,7 @@ const (
 	heartbeatIntervalFlag  = "heartbeat-interval"
 	pprofEnabledFlag       = "pprof"
 	flagStreamEnabledFlag  = "flag-stream-enabled"
+	generateOfflineConfigFlag  = "generate-offline-config"
 	flagPollIntervalFlag   = "flag-poll-interval"
 )
 
@@ -180,6 +184,7 @@ func init() {
 	flag.BoolVar(&pprofEnabled, pprofEnabledFlag, false, "enables pprof on port 6060")
 	flag.IntVar(&flagPollInterval, flagPollIntervalFlag, 1, "how often in minutes the proxy should poll for flag updates (if stream not connected)")
 	flag.BoolVar(&flagStreamEnabled, flagStreamEnabledFlag, true, "should the proxy connect to Harness in streaming mode to get flag changes")
+	flag.BoolVar(&generateOfflineConfig, generateOfflineConfigFlag, false, "if true the proxy will produce offline config in the /config directory then terminate")
 	sdkClients = newSDKClientMap()
 
 	loadFlagsFromEnv(map[string]string{
@@ -204,6 +209,7 @@ func init() {
 		heartbeatIntervalEnv:  heartbeatIntervalFlag,
 		pprofEnabledEnv:       pprofEnabledFlag,
 		flagStreamEnabledEnv:  flagStreamEnabledFlag,
+		generateOfflineConfigEnv:  generateOfflineConfigFlag,
 		flagPollIntervalEnv:   flagPollIntervalFlag,
 	})
 
@@ -275,6 +281,31 @@ func main() {
 	}
 	validateFlags(requiredFlags)
 
+	// Setup logger
+	logger, err := log.NewStructuredLogger(debug)
+	if err != nil {
+		fmt.Println("we have no logger")
+		os.Exit(1)
+	}
+
+	if generateOfflineConfig {
+		// run the proxy config generator directly TODO: Move this code natively into the proxy going forward
+		accountArg := fmt.Sprintf("%s=%s", "-account-identifier", accountIdentifier)
+		orgArg := fmt.Sprintf("%s=%s", "-org-identifier", orgIdentifier)
+		tokenArg := fmt.Sprintf("%s=%s", "-admin-service-token", adminServiceToken)
+		apiKeyArg := fmt.Sprintf("%s=%s", "-api-keys", apiKeys.String())
+		cmnd := exec.Command("./proxy-config-fetcher", accountArg, orgArg, tokenArg, apiKeyArg)
+		cmnd.Stdout = os.Stdout
+		cmnd.Stderr = os.Stderr
+		logger.Debug(cmnd.String())
+		err := cmnd.Run()
+		if err != nil {
+			logger.Error("error generating config: %s", err)
+			os.Exit(1)
+		}
+		os.Exit(0)
+	}
+
 	// Setup cancelation
 	sigc := make(chan os.Signal, 1)
 	signal.Notify(sigc, os.Interrupt)
@@ -283,13 +314,6 @@ func main() {
 		<-sigc
 		cancel()
 	}()
-
-	// Setup logger
-	logger, err := log.NewStructuredLogger(debug)
-	if err != nil {
-		fmt.Println("we have no logger")
-		os.Exit(1)
-	}
 
 	logger.Info("service config", "pprof", pprofEnabled, "debug", debug, "bypass-auth", bypassAuth, "offline", offline, "port", port, "admin-service", adminService, "account-identifier", accountIdentifier, "org-identifier", orgIdentifier, "sdk-base-url", sdkBaseURL, "sdk-events-url", sdkEventsURL, "redis-addr", redisAddress, "redis-db", redisDB, "api-keys", fmt.Sprintf("%v", apiKeys), "target-poll-duration", fmt.Sprintf("%ds", targetPollDuration), "heartbeat-interval", fmt.Sprintf("%ds", heartbeatInterval), "flag-stream-enabled", flagStreamEnabled, "flag-poll-interval", fmt.Sprintf("%dm", flagPollInterval))
 
@@ -327,7 +351,10 @@ func main() {
 
 	// Load either local config from files or remote config from ff-server
 	if offline {
-		config, err := config.NewLocalConfig(ffproxy.DefaultConfig, ffproxy.DefaultConfigDir)
+		// TODO - this works in the built image, see if we can have a better way to automatically work running locally too
+		// change to fs:= ffproxy.DefaultConfig if running locally
+		fs := os.DirFS("")
+		config, err := config.NewLocalConfig(fs, ffproxy.DefaultConfigDir)
 		if err != nil {
 			logger.Error("failed to load config", "err", err)
 			os.Exit(1)
