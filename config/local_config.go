@@ -91,7 +91,7 @@ func decodeConfigFiles(c map[string]config) fs.WalkDirFunc {
 		// file is in is by parsing the path
 		env, err := getParentDirFromPath(path)
 		if err != nil {
-			return err
+			return nil
 		}
 
 		if i.Name() == "feature_config.json" {
@@ -173,8 +173,7 @@ func (f LocalConfig) AuthConfig() map[domain.AuthAPIKey]string {
 	results := map[domain.AuthAPIKey]string{}
 	for _, cfg := range f.config {
 		for _, key := range cfg.Auth {
-			hashedKey := f.hasher.Hash(string(key))
-			results[domain.AuthAPIKey(hashedKey)] = cfg.Environment
+			results[key] = cfg.Environment
 		}
 	}
 	return results

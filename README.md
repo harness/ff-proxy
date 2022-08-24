@@ -92,10 +92,12 @@ The structure of the config repo is as follows
 ```
 |____test
 | |____env-1234
+| | |____auth_config.json
 | | |____feature_config.json
 | | |____targets.json
 | | |____segments.json
 |____env-94ef7361-1f2d-40af-9b2c-c1145d537e5a
+| |____auth_config.json
 | |____feature_config.json
 | |____targets.json
 | |____segments.json
@@ -107,24 +109,59 @@ All config used for testing is kept under the `./config/test` directory and any 
 .
 |____test
 | |____env-1234
-| | |____.targets.json.swp
+| | |____auth_config.json
 | | |____feature_config.json
 | | |____targets.json
 | | |____segments.json
 |____env-94ef7361-1f2d-40af-9b2c-c1145d537e5a
+| |____auth_config.json
 | |____feature_config.json
 | |____targets.json
 | |____segments.json
 |____env-af727e7a-0094-4d4e-b3a7-58db398af3a6
+| |____auth_config.json
 | |____feature_config.json
 | |____targets.json
 | |____segments.json
 ```
 
 The contents of each individual config file comes from the following endpoints
+- `auth_config.json` - GET /admin/apikey (and creating an array of each key hash)
 - `feature_config.json` - GET /client/env/<env>/feature-configs
 - `segments.json` - GET /client/env/<env>/target-segments
 - `targets.json` - GET /admin/targets
+
+### Generating Offline Config Files
+Note: This checked in exe will be removed shortly when we move this generation code into the ff-proxy codeline.
+
+There's a utility exe checked into the repo (proxy-config-fetcher) that will take a few parameters and generate the correct file structure needed to run the proxy in offline mode, the steps to use it are as follows:
+
+#### Generate config using the main proxy program
+Run the proxy with the --generate-offline-config flag set to true and it will generate all the required offline config into the correct folder structure then exit.
+Docker command to do this:
+
+```docker run -v $(PWD)/config:/config -e GENERATE_OFFLINE_CONFIG=false -e ACCOUNT_IDENTIFIER=$ACCOUNT_IDENTIFIER -e ORG_IDENTIFIER=$ORG_IDENTIFIER -e ADMIN_SERVICE_TOKEN=$ADMIN_SERVICE_TOKEN -e API_KEYS=$API_KEYS -e OFFLINE=true -e AUTH_SECRET=foo -e REDIS_ADDRESS=host.docker.internal:6379 -e DEBUG=true -p 7001:7000 ff-proxy:latest```
+
+
+#### Generate config using the exe
+
+The exe takes 5 parameters, `account-identifier`, `org-identifier`, `admin-service-token`, `api-keys` plus an optional `debug` flag. Note that the `api-keys` parameter requires just one server api key from each environment you would like to load offline data for, it is not a list of all keys from every environment that you'd like to authenticate with.
+
+It can be run via the command line like so:
+
+`./proxy-config-fetcher --account-identifier=account --org-identifier=org --admin-service-token=pat.token --api-keys=server_key_env_1,server_key_env_2
+`
+
+This command will generate a folder in the `/config` directory for each environment, matching the layout described above in "Developing the Proxy" section.
+
+#### Use generated config to run in offline mode
+To run the proxy using the generated config you should ensure these generated folders e.g. `env-123` and `env-456` are in the `/config` directory and run the proxy using the `--offline` flag. 
+If running via docker this /config directory will need to be mounted to the container.
+
+#### Troubleshooting config generator
+If the config is generated successfully you will see a few log messages as it writes the various files e.g. 
+
+`{"level":"info","ts":"2022-07-22T10:26:35+01:00","caller":"proxy-config-fetcher/main.go:214","msg":"writing features","count":2}`
 
 ### Running the Proxy from docker
 The docker image can be built by running ```make image```.

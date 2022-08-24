@@ -27,6 +27,7 @@ FROM fanout/pushpin
 COPY --from=builder /app/ff-proxy /app/ff-proxy
 COPY --from=builder ./app/config/pushpin /etc/pushpin
 COPY --from=builder ./app/start.sh /start.sh
+COPY --from=builder /app/proxy-config-fetcher-linux /proxy-config-fetcher
 
 RUN mkdir /log
 RUN mkdir /pushpin
