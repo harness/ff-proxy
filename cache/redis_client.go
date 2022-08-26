@@ -60,7 +60,7 @@ func (r *RedisCache) Get(ctx context.Context, key string, field string, v encodi
 	}
 
 	if err := v.UnmarshalBinary(b); err != nil {
-		return fmt.Errorf("%w: failed to unmarshal value to %T for key: %q, field: %q", v, key, field, domain.ErrCacheInternal)
+		return fmt.Errorf("%v: failed to unmarshal value to %T for key: %q, field: %q", v, key, field, domain.ErrCacheInternal)
 	}
 	return nil
 }

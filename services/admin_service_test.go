@@ -329,8 +329,7 @@ func TestAdminService_PageTargets(t *testing.T) {
 						Body:         nil,
 						HTTPResponse: &http.Response{StatusCode: http.StatusOK},
 						JSON200: &admingen.Targets{
-							Pagination: admingen.Pagination{},
-							Targets:    &[]admingen.Target{},
+							Targets: &[]admingen.Target{},
 						},
 					}, nil
 				},
@@ -348,8 +347,7 @@ func TestAdminService_PageTargets(t *testing.T) {
 						Body:         nil,
 						HTTPResponse: &http.Response{StatusCode: http.StatusUnauthorized},
 						JSON200: &admingen.Targets{
-							Pagination: admingen.Pagination{},
-							Targets:    &[]admingen.Target{target},
+							Targets: &[]admingen.Target{target},
 						},
 					}, nil
 				},

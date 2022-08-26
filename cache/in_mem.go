@@ -76,7 +76,7 @@ func (m MemCache) Get(ctx context.Context, key string, field string, v encoding.
 	}
 
 	if err := v.UnmarshalBinary(value); err != nil {
-		return fmt.Errorf("%w: failed to unmarshal value to %T for key: %q, field: %q", v, key, field, domain.ErrCacheInternal)
+		return fmt.Errorf("%v: failed to unmarshal value to %T for key: %q, field: %q", v, key, field, domain.ErrCacheInternal)
 	}
 	return nil
 }
