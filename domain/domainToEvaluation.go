@@ -45,7 +45,7 @@ func convertGenServe(s clientgen.Serve) *evaluation.Serve {
 func convertGenClause(c clientgen.Clause) *evaluation.Clause {
 	return &evaluation.Clause{
 		Attribute: c.Attribute,
-		ID:        c.Id,
+		ID:        *c.Id,
 		Negate:    c.Negate,
 		Op:        c.Op,
 		Value:     c.Values,
@@ -60,7 +60,7 @@ func convertGenServingRule(r clientgen.ServingRule) *evaluation.ServingRule {
 	return &evaluation.ServingRule{
 		Clauses:  clauses,
 		Priority: r.Priority,
-		RuleID:   r.RuleId,
+		RuleID:   *r.RuleId,
 		Serve:    *convertGenServe(r.Serve),
 	}
 }
@@ -84,7 +84,7 @@ func convertGenVariationMap(v clientgen.VariationMap) *evaluation.VariationMap {
 func convertTargetToIdentifier(tm []clientgen.TargetMap) []string {
 	result := make([]string, 0, len(tm))
 	for j := range tm {
-		result = append(result, *tm[j].Identifier)
+		result = append(result, tm[j].Identifier)
 	}
 	return result
 }
@@ -175,7 +175,7 @@ func ConvertDomainSegment(s Segment) evaluation.Segment {
 		for i, rule := range *s.Rules {
 			rules[i] = evaluation.Clause{
 				Attribute: rule.Attribute,
-				ID:        rule.Id,
+				ID:        *rule.Id,
 				Negate:    rule.Negate,
 				Op:        rule.Op,
 				Value:     rule.Values,
