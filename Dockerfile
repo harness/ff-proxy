@@ -1,7 +1,7 @@
 ############################
 # STEP 1 build executable binary
 ############################
-FROM golang:1.17 as builder
+FROM golang:1.18 as builder
 
 ARG GITHUB_ACCESS_TOKEN
 
