@@ -136,7 +136,7 @@ func ConvertEvaluationFeatureConfig(fc evaluation.FeatureConfig) *FeatureFlag {
 			DefaultServe:         defaultServe,
 			Environment:          fc.Environment,
 			Feature:              fc.Feature,
-			Kind:                 fc.Kind,
+			Kind:                 clientgen.FeatureConfigKind(fc.Kind),
 			OffVariation:         fc.OffVariation,
 			Prerequisites:        &pre,
 			Project:              fc.Project,
