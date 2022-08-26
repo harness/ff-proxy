@@ -70,8 +70,8 @@ func (r AdminService) PageEnvironments(ctx context.Context, input PageEnvironmen
 	r.log.Debug("getting environments", "projectIdentifier", input.ProjectIdentifier, "pageSize", input.PageSize, "pageNumber", input.PageNumber)
 	resp, err := r.client.GetAllEnvironmentsWithResponse(ctx, &admingen.GetAllEnvironmentsParams{
 		AccountIdentifier: admingen.AccountQueryParam(input.AccountIdentifier),
-		Org:               admingen.OrgQueryParam(input.OrgIdentifier),
-		Project:           admingen.ProjectQueryParam(input.ProjectIdentifier),
+		OrgIdentifier:     admingen.OrgQueryParam(input.OrgIdentifier),
+		ProjectIdentifier: admingen.ProjectQueryParam(input.ProjectIdentifier),
 		PageNumber:        &pageNumber,
 		PageSize:          &pageSize,
 	})
@@ -120,7 +120,7 @@ func (r AdminService) PageProjects(ctx context.Context, input PageProjectsInput)
 	r.log.Debug("getting projects", "pageSize", input.PageSize, "pageNumber", input.PageNumber)
 	resp, err := r.client.GetAllProjectsWithResponse(ctx, &admingen.GetAllProjectsParams{
 		AccountIdentifier: admingen.AccountQueryParam(input.AccountIdentifier),
-		Org:               admingen.OrgQueryParam(input.OrgIdentifier),
+		OrgIdentifier:     admingen.OrgQueryParam(input.OrgIdentifier),
 		PageNumber:        &pageNumber,
 		PageSize:          &pageSize,
 	})
@@ -171,12 +171,12 @@ func (r AdminService) PageTargets(ctx context.Context, input PageTargetsInput) (
 
 	r.log.Debug("getting targets", "project_identifier", input.ProjectIdentifier, "environment_identifier", input.EnvironmentIdentifier, "pageSize", input.PageSize, "pageNumber", input.PageNumber)
 	resp, err := r.client.GetAllTargetsWithResponse(ctx, &admingen.GetAllTargetsParams{
-		AccountIdentifier: admingen.AccountQueryParam(input.AccountIdentifier),
-		Org:               admingen.OrgQueryParam(input.OrgIdentifier),
-		Project:           admingen.ProjectQueryParam(input.ProjectIdentifier),
-		Environment:       admingen.EnvironmentQueryParam(input.EnvironmentIdentifier),
-		PageNumber:        &pageNumber,
-		PageSize:          &pageSize,
+		AccountIdentifier:     admingen.AccountQueryParam(input.AccountIdentifier),
+		OrgIdentifier:         admingen.OrgQueryParam(input.OrgIdentifier),
+		ProjectIdentifier:     admingen.ProjectQueryParam(input.ProjectIdentifier),
+		EnvironmentIdentifier: admingen.EnvironmentQueryParam(input.EnvironmentIdentifier),
+		PageNumber:            &pageNumber,
+		PageSize:              &pageSize,
 	})
 	if err != nil {
 		return PageTargetsResult{Finished: true}, err

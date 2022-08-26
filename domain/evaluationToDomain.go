@@ -48,7 +48,7 @@ func convertEvaluationServe(s evaluation.Serve) *clientgen.Serve {
 func convertEvaluationClause(c evaluation.Clause) *clientgen.Clause {
 	return &clientgen.Clause{
 		Attribute: c.Attribute,
-		Id:        c.ID,
+		Id:        &c.ID,
 		Negate:    c.Negate,
 		Op:        c.Op,
 		Values:    c.Value,
@@ -63,7 +63,7 @@ func convertEvaluationServingRule(r evaluation.ServingRule) *clientgen.ServingRu
 	return &clientgen.ServingRule{
 		Clauses:  clauses,
 		Priority: r.Priority,
-		RuleId:   r.RuleID,
+		RuleId:   &r.RuleID,
 		Serve:    *convertEvaluationServe(r.Serve),
 	}
 }
@@ -88,7 +88,7 @@ func convertEvaluationTargetToTargetMap(targets []string) *[]clientgen.TargetMap
 	result := make([]clientgen.TargetMap, 0, len(targets))
 	for j := range targets {
 		result = append(result, clientgen.TargetMap{
-			Identifier: &targets[j],
+			Identifier: targets[j],
 		})
 	}
 	return &result
@@ -174,7 +174,7 @@ func ConvertEvaluationSegment(s evaluation.Segment) *Segment {
 		for i, rule := range s.Rules {
 			rules[i] = clientgen.Clause{
 				Attribute: rule.Attribute,
-				Id:        rule.ID,
+				Id:        &rule.ID,
 				Negate:    rule.Negate,
 				Op:        rule.Op,
 				Values:    rule.Value,
