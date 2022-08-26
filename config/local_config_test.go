@@ -44,7 +44,7 @@ var (
 					Clauses: []clientgen.Clause{
 						{
 							Attribute: "age",
-							Id:        "79f5bca0-17ca-42c2-8934-5cee840fe2e0",
+							Id:        strPtr("79f5bca0-17ca-42c2-8934-5cee840fe2e0"),
 							Negate:    false,
 							Op:        "equal",
 							Values: []string{
@@ -53,7 +53,7 @@ var (
 						},
 					},
 					Priority: 1,
-					RuleId:   "8756c207-abf8-4202-83fd-dedf5d27e2c2",
+					RuleId:   strPtr("8756c207-abf8-4202-83fd-dedf5d27e2c2"),
 					Serve: clientgen.Serve{
 						Variation: strPtr("false"),
 					},
@@ -67,7 +67,7 @@ var (
 					},
 					Targets: &[]clientgen.TargetMap{
 						{
-							Identifier: strPtr("davej"),
+							Identifier: "davej",
 							Name:       "Dave Johnston",
 						},
 					},
@@ -133,7 +133,7 @@ var (
 			Rules: &[]clientgen.Clause{
 				{
 					Attribute: "ip",
-					Id:        "31c18ee7-8051-44cc-8507-b44580467ee5",
+					Id:        strPtr("31c18ee7-8051-44cc-8507-b44580467ee5"),
 					Negate:    false,
 					Op:        "equal",
 					Values:    []string{"2a00:23c5:b672:2401:158:f2a6:67a0:6a79"},

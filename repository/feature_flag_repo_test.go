@@ -28,7 +28,7 @@ var (
 					Clauses: []clientgen.Clause{
 						{
 							Attribute: "name",
-							Id:        "79f5bca0-17ca-42c2-8934-5cee840fe2e0",
+							Id:        strPtr("79f5bca0-17ca-42c2-8934-5cee840fe2e0"),
 							Negate:    false,
 							Op:        "equal",
 							Values: []string{
@@ -37,13 +37,13 @@ var (
 						},
 					},
 					Priority: 1,
-					RuleId:   "8756c207-abf8-4202-83fd-dedf5d27e2c2",
+					RuleId:   strPtr("8756c207-abf8-4202-83fd-dedf5d27e2c2"),
 					Serve: clientgen.Serve{
 						Variation: strPtr("false"),
 					},
 				},
 			},
-			State: clientgen.FeatureState_on,
+			State: clientgen.On,
 			VariationToTargetMap: &[]clientgen.VariationMap{
 				{
 					TargetSegments: &[]string{
@@ -51,7 +51,7 @@ var (
 					},
 					Targets: &[]clientgen.TargetMap{
 						{
-							Identifier: strPtr("davej"),
+							Identifier: "davej",
 							Name:       "Dave Johnston",
 						},
 					},
@@ -92,7 +92,7 @@ var (
 					Clauses: []clientgen.Clause{
 						{
 							Attribute: "name",
-							Id:        "79f5bca0-17ca-42c2-8934-5cee840fe2e0",
+							Id:        strPtr("79f5bca0-17ca-42c2-8934-5cee840fe2e0"),
 							Negate:    false,
 							Op:        "equal",
 							Values: []string{
@@ -101,13 +101,13 @@ var (
 						},
 					},
 					Priority: 1,
-					RuleId:   "8756c207-abf8-4202-83fd-dedf5d27e2c2",
+					RuleId:   strPtr("8756c207-abf8-4202-83fd-dedf5d27e2c2"),
 					Serve: clientgen.Serve{
 						Variation: strPtr("false"),
 					},
 				},
 			},
-			State: clientgen.FeatureState_on,
+			State: clientgen.On,
 			VariationToTargetMap: &[]clientgen.VariationMap{
 				{
 					TargetSegments: &[]string{
@@ -115,7 +115,7 @@ var (
 					},
 					Targets: &[]clientgen.TargetMap{
 						{
-							Identifier: strPtr("davej"),
+							Identifier: "davej",
 							Name:       "Dave Johnston",
 						},
 					},
@@ -152,7 +152,7 @@ func TestFeatureFlagRepo_Add(t *testing.T) {
 	testCases := map[string]struct {
 		cache      cache.Cache
 		repoConfig map[domain.FeatureFlagKey][]domain.FeatureFlag
-		flags    []domain.FeatureFlag
+		flags      []domain.FeatureFlag
 		key        domain.FeatureFlagKey
 		shouldErr  bool
 		expected   []domain.FeatureFlag
@@ -161,7 +161,7 @@ func TestFeatureFlagRepo_Add(t *testing.T) {
 		"Given I have an empty repo and I add a FeatureFlag to it": {
 			cache:      cache.NewMemCache(),
 			repoConfig: emptyConfig,
-			flags:    []domain.FeatureFlag{featureFlagFoo},
+			flags:      []domain.FeatureFlag{featureFlagFoo},
 			key:        key123,
 			shouldErr:  false,
 			expected:   []domain.FeatureFlag{featureFlagFoo},
@@ -179,7 +179,7 @@ func TestFeatureFlagRepo_Add(t *testing.T) {
 		"Given I have a repo with a FeatureFlag in it and I add a new FeatureFlag under the same key": {
 			cache:      cache.NewMemCache(),
 			repoConfig: populatedConfig,
-			flags:    []domain.FeatureFlag{featureFlagBar},
+			flags:      []domain.FeatureFlag{featureFlagBar},
 			key:        key123,
 			shouldErr:  false,
 			expected:   []domain.FeatureFlag{featureFlagFoo, featureFlagBar},
@@ -191,7 +191,7 @@ func TestFeatureFlagRepo_Add(t *testing.T) {
 				getAll: func() (map[string][]byte, error) { return map[string][]byte{}, nil },
 			},
 			repoConfig: nil,
-			flags:    []domain.FeatureFlag{featureFlagBar},
+			flags:      []domain.FeatureFlag{featureFlagBar},
 			key:        key123,
 			shouldErr:  true,
 			expected:   []domain.FeatureFlag{},

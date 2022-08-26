@@ -12,20 +12,20 @@ import (
 
 type mockAdminService struct {
 	admingen.ClientWithResponsesInterface
-	getEnvsWithResp func() (*admingen.GetAllEnvironmentsResponse, error)
+	getEnvsWithResp     func() (*admingen.GetAllEnvironmentsResponse, error)
 	getProjectsWithResp func() (*admingen.GetAllProjectsResponse, error)
-	getTargetsWithResp func() (*admingen.GetAllTargetsResponse, error)
+	getTargetsWithResp  func() (*admingen.GetAllTargetsResponse, error)
 }
 
 func (m mockAdminService) GetAllEnvironmentsWithResponse(ctx context.Context, params *admingen.GetAllEnvironmentsParams, reqEditors ...admingen.RequestEditorFn) (*admingen.GetAllEnvironmentsResponse, error) {
 	return m.getEnvsWithResp()
 }
 
-func (m mockAdminService) GetAllProjectsWithResponse(ctx context.Context, params *admingen.GetAllProjectsParams, reqEditors ...admingen.RequestEditorFn) (*admingen.GetAllProjectsResponse, error){
+func (m mockAdminService) GetAllProjectsWithResponse(ctx context.Context, params *admingen.GetAllProjectsParams, reqEditors ...admingen.RequestEditorFn) (*admingen.GetAllProjectsResponse, error) {
 	return m.getProjectsWithResp()
 }
 
-func (m mockAdminService) 	GetAllTargetsWithResponse(ctx context.Context, params *admingen.GetAllTargetsParams, reqEditors ...admingen.RequestEditorFn) (*admingen.GetAllTargetsResponse, error) {
+func (m mockAdminService) GetAllTargetsWithResponse(ctx context.Context, params *admingen.GetAllTargetsParams, reqEditors ...admingen.RequestEditorFn) (*admingen.GetAllTargetsResponse, error) {
 	return m.getTargetsWithResp()
 }
 
@@ -39,10 +39,10 @@ func TestAdminService_PageEnvironments(t *testing.T) {
 	}
 	envID := "envID"
 	environment := admingen.Environment{
-		Id:          &envID,
-		Identifier:  "envIdentifier",
-		Name:        "env",
-		Project:     "proj",
+		Id:         &envID,
+		Identifier: "envIdentifier",
+		Name:       "env",
+		Project:    "proj",
 	}
 
 	testCases := map[string]struct {
@@ -58,9 +58,9 @@ func TestAdminService_PageEnvironments(t *testing.T) {
 				},
 			},
 			shouldErr: true,
-			input: pageEnvironmentsInput,
-			expected:  PageEnvironmentsResult{
-				Finished:     true,
+			input:     pageEnvironmentsInput,
+			expected: PageEnvironmentsResult{
+				Finished: true,
 			},
 		},
 		"Given PageEnvironments returns non 200 response": {
@@ -69,7 +69,7 @@ func TestAdminService_PageEnvironments(t *testing.T) {
 					return &admingen.GetAllEnvironmentsResponse{
 						Body:         nil,
 						HTTPResponse: &http.Response{StatusCode: http.StatusUnauthorized},
-						JSON401:      &admingen.Error{
+						JSON401: &admingen.Error{
 							Code:    "401",
 							Message: "Unauthorized",
 						},
@@ -77,9 +77,9 @@ func TestAdminService_PageEnvironments(t *testing.T) {
 				},
 			},
 			shouldErr: true,
-			input: pageEnvironmentsInput,
-			expected:  PageEnvironmentsResult{
-				Finished:     true,
+			input:     pageEnvironmentsInput,
+			expected: PageEnvironmentsResult{
+				Finished: true,
 			},
 		},
 		"Given PageEnvironments returns 200 with no Environments": {
@@ -94,15 +94,15 @@ func TestAdminService_PageEnvironments(t *testing.T) {
 							MetaData      *map[string]interface{} `json:"metaData,omitempty"`
 							Status        admingen.Status         `json:"status"`
 						}{
-							Data:         admingen.Environments{Environments: &[]admingen.Environment{}},
+							Data: admingen.Environments{Environments: &[]admingen.Environment{}},
 						},
 					}, nil
 				},
 			},
 			shouldErr: false,
-			input: pageEnvironmentsInput,
-			expected:  PageEnvironmentsResult{
-				Finished:     true,
+			input:     pageEnvironmentsInput,
+			expected: PageEnvironmentsResult{
+				Finished: true,
 			},
 		},
 		"Given PageEnvironments returns 200 with Environments": {
@@ -117,14 +117,14 @@ func TestAdminService_PageEnvironments(t *testing.T) {
 							MetaData      *map[string]interface{} `json:"metaData,omitempty"`
 							Status        admingen.Status         `json:"status"`
 						}{
-							Data:         admingen.Environments{Environments: &[]admingen.Environment{environment}},
+							Data: admingen.Environments{Environments: &[]admingen.Environment{environment}},
 						},
 					}, nil
 				},
 			},
 			shouldErr: false,
-			input: pageEnvironmentsInput,
-			expected:  PageEnvironmentsResult{
+			input:     pageEnvironmentsInput,
+			expected: PageEnvironmentsResult{
 				Finished:     false,
 				Environments: []admingen.Environment{environment},
 			},
@@ -175,9 +175,9 @@ func TestAdminService_PageProjects(t *testing.T) {
 				},
 			},
 			shouldErr: true,
-			input: pageProjectsInput,
-			expected:  PageProjectsResult{
-				Finished:     true,
+			input:     pageProjectsInput,
+			expected: PageProjectsResult{
+				Finished: true,
 			},
 		},
 		"Given PageProjects returns non 200 response": {
@@ -186,7 +186,7 @@ func TestAdminService_PageProjects(t *testing.T) {
 					return &admingen.GetAllProjectsResponse{
 						Body:         nil,
 						HTTPResponse: &http.Response{StatusCode: http.StatusUnauthorized},
-						JSON401:      &admingen.Error{
+						JSON401: &admingen.Error{
 							Code:    "401",
 							Message: "Unauthorized",
 						},
@@ -194,9 +194,9 @@ func TestAdminService_PageProjects(t *testing.T) {
 				},
 			},
 			shouldErr: true,
-			input: pageProjectsInput,
-			expected:  PageProjectsResult{
-				Finished:     true,
+			input:     pageProjectsInput,
+			expected: PageProjectsResult{
+				Finished: true,
 			},
 		},
 		"Given PageProjects returns 200 with no Projects": {
@@ -207,19 +207,19 @@ func TestAdminService_PageProjects(t *testing.T) {
 						HTTPResponse: &http.Response{StatusCode: http.StatusOK},
 						JSON200: &struct {
 							CorrelationId *string                 `json:"correlationId,omitempty"`
-							Data          *admingen.Projects               `json:"data,omitempty"`
+							Data          *admingen.Projects      `json:"data,omitempty"`
 							MetaData      *map[string]interface{} `json:"metaData,omitempty"`
-							Status        *admingen.Status                 `json:"status,omitempty"`
+							Status        *admingen.Status        `json:"status,omitempty"`
 						}{
-							Data:         &admingen.Projects{Projects: &[]admingen.Project{}},
+							Data: &admingen.Projects{Projects: &[]admingen.Project{}},
 						},
 					}, nil
 				},
 			},
 			shouldErr: false,
-			input: pageProjectsInput,
-			expected:  PageProjectsResult{
-				Finished:     true,
+			input:     pageProjectsInput,
+			expected: PageProjectsResult{
+				Finished: true,
 			},
 		},
 		"Given PageProjects returns 200 with Project": {
@@ -230,19 +230,19 @@ func TestAdminService_PageProjects(t *testing.T) {
 						HTTPResponse: &http.Response{StatusCode: http.StatusOK},
 						JSON200: &struct {
 							CorrelationId *string                 `json:"correlationId,omitempty"`
-							Data          *admingen.Projects               `json:"data,omitempty"`
+							Data          *admingen.Projects      `json:"data,omitempty"`
 							MetaData      *map[string]interface{} `json:"metaData,omitempty"`
-							Status        *admingen.Status                 `json:"status,omitempty"`
+							Status        *admingen.Status        `json:"status,omitempty"`
 						}{
-							Data:         &admingen.Projects{Projects: &[]admingen.Project{project}},
+							Data: &admingen.Projects{Projects: &[]admingen.Project{project}},
 						},
 					}, nil
 				},
 			},
 			shouldErr: false,
-			input: pageProjectsInput,
-			expected:  PageProjectsResult{
-				Finished:     false,
+			input:     pageProjectsInput,
+			expected: PageProjectsResult{
+				Finished: false,
 				Projects: []admingen.Project{project},
 			},
 		},
@@ -268,11 +268,11 @@ func TestAdminService_PageProjects(t *testing.T) {
 
 func TestAdminService_PageTargets(t *testing.T) {
 	pageTargetsInput := PageTargetsInput{
-		AccountIdentifier: "account",
-		OrgIdentifier:     "org",
-		ProjectIdentifier: "proj",
-		PageNumber:        0,
-		PageSize:          2,
+		AccountIdentifier:     "account",
+		OrgIdentifier:         "org",
+		ProjectIdentifier:     "proj",
+		PageNumber:            0,
+		PageSize:              2,
 		EnvironmentIdentifier: "env",
 	}
 	target := admingen.Target{
@@ -297,9 +297,9 @@ func TestAdminService_PageTargets(t *testing.T) {
 				},
 			},
 			shouldErr: true,
-			input: pageTargetsInput,
-			expected:  PageTargetsResult{
-				Finished:     true,
+			input:     pageTargetsInput,
+			expected: PageTargetsResult{
+				Finished: true,
 			},
 		},
 		"Given PageTargets returns non 200 response": {
@@ -308,7 +308,7 @@ func TestAdminService_PageTargets(t *testing.T) {
 					return &admingen.GetAllTargetsResponse{
 						Body:         nil,
 						HTTPResponse: &http.Response{StatusCode: http.StatusUnauthorized},
-						JSON401:      &admingen.Error{
+						JSON401: &admingen.Error{
 							Code:    "401",
 							Message: "Unauthorized",
 						},
@@ -316,9 +316,9 @@ func TestAdminService_PageTargets(t *testing.T) {
 				},
 			},
 			shouldErr: true,
-			input: pageTargetsInput,
-			expected:  PageTargetsResult{
-				Finished:     true,
+			input:     pageTargetsInput,
+			expected: PageTargetsResult{
+				Finished: true,
 			},
 		},
 		"Given PageTargets returns 200 with no Targets": {
@@ -328,16 +328,15 @@ func TestAdminService_PageTargets(t *testing.T) {
 						Body:         nil,
 						HTTPResponse: &http.Response{StatusCode: http.StatusOK},
 						JSON200: &admingen.Targets{
-							Pagination: admingen.Pagination{},
-							Targets:    &[]admingen.Target{},
+							Targets: &[]admingen.Target{},
 						},
 					}, nil
 				},
 			},
 			shouldErr: false,
-			input: pageTargetsInput,
-			expected:  PageTargetsResult{
-				Finished:     true,
+			input:     pageTargetsInput,
+			expected: PageTargetsResult{
+				Finished: true,
 			},
 		},
 		"Given PageTargets returns 200 with Environments": {
@@ -347,17 +346,16 @@ func TestAdminService_PageTargets(t *testing.T) {
 						Body:         nil,
 						HTTPResponse: &http.Response{StatusCode: http.StatusUnauthorized},
 						JSON200: &admingen.Targets{
-							Pagination: admingen.Pagination{},
-							Targets:    &[]admingen.Target{target},
+							Targets: &[]admingen.Target{target},
 						},
 					}, nil
 				},
 			},
 			shouldErr: false,
-			input: pageTargetsInput,
-			expected:  PageTargetsResult{
-				Finished:     false,
-				Targets: []admingen.Target{target},
+			input:     pageTargetsInput,
+			expected: PageTargetsResult{
+				Finished: false,
+				Targets:  []admingen.Target{target},
 			},
 		},
 	}
