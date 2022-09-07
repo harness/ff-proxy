@@ -9,16 +9,16 @@ const (
 	BearerAuthScopes = "BearerAuth.Scopes"
 )
 
-// Defines values for APIKeyRequestType.
-const (
-	APIKeyRequestTypeClient APIKeyRequestType = "Client"
-	APIKeyRequestTypeServer APIKeyRequestType = "Server"
-)
-
 // Defines values for ApiKeyType.
 const (
 	ApiKeyTypeClient ApiKeyType = "client"
 	ApiKeyTypeServer ApiKeyType = "server"
+)
+
+// Defines values for ApiKeyRequestType.
+const (
+	ApiKeyRequestTypeClient ApiKeyRequestType = "Client"
+	ApiKeyRequestTypeServer ApiKeyRequestType = "Server"
 )
 
 // Defines values for FeatureKind.
@@ -158,9 +158,6 @@ const (
 	DESC TsSortOrder = "DESC"
 )
 
-// APIKeyRequestType defines model for APIKeyRequestType.
-type APIKeyRequestType string
-
 // The API key is used by SDKs to connect to Harness Feature Flags
 type ApiKey struct {
 	// The Key will be shown only on create. On subsequent GET calls, only the masked APIKeys will be returned
@@ -181,6 +178,9 @@ type ApiKey struct {
 
 // The type of key depending on the SDK that is being used.
 type ApiKeyType string
+
+// The type of key depending on the SDK that is being used.
+type ApiKeyRequestType string
 
 // ApiKeys defines model for ApiKeys.
 type ApiKeys struct {
@@ -1505,11 +1505,13 @@ type Unauthorized = Error
 
 // APIKeyRequest defines model for APIKeyRequest.
 type APIKeyRequest struct {
-	Description *string           `json:"description,omitempty"`
-	ExpiredAt   *int              `json:"expiredAt,omitempty"`
-	Identifier  string            `json:"identifier"`
-	Name        string            `json:"name"`
-	Type        APIKeyRequestType `json:"type"`
+	Description *string `json:"description,omitempty"`
+	ExpiredAt   *int    `json:"expiredAt,omitempty"`
+	Identifier  string  `json:"identifier"`
+	Name        string  `json:"name"`
+
+	// The type of key depending on the SDK that is being used.
+	Type ApiKeyRequestType `json:"type"`
 }
 
 // APIKeyUpdateRequest defines model for APIKeyUpdateRequest.
