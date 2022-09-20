@@ -4,11 +4,11 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	"github.com/harness/ff-proxy/export"
 	"io"
 	stdlog "log"
 	"net/http"
 	"os"
-	"os/exec"
 	"os/signal"
 	"strings"
 	"sync"
@@ -288,24 +288,6 @@ func main() {
 		os.Exit(1)
 	}
 
-	if generateOfflineConfig {
-		// run the proxy config generator directly TODO: Move this code natively into the proxy going forward
-		accountArg := fmt.Sprintf("%s=%s", "-account-identifier", accountIdentifier)
-		orgArg := fmt.Sprintf("%s=%s", "-org-identifier", orgIdentifier)
-		tokenArg := fmt.Sprintf("%s=%s", "-admin-service-token", adminServiceToken)
-		apiKeyArg := fmt.Sprintf("%s=%s", "-api-keys", apiKeys.String())
-		cmnd := exec.Command("./proxy-config-fetcher", accountArg, orgArg, tokenArg, apiKeyArg)
-		cmnd.Stdout = os.Stdout
-		cmnd.Stderr = os.Stderr
-		logger.Debug(cmnd.String())
-		err := cmnd.Run()
-		if err != nil {
-			logger.Error("error generating config: %s", err)
-			os.Exit(1)
-		}
-		os.Exit(0)
-	}
-
 	// Setup cancelation
 	sigc := make(chan os.Signal, 1)
 	signal.Notify(sigc, os.Interrupt)
@@ -324,7 +306,9 @@ func main() {
 	}
 
 	// Create cache
-	if redisAddress != "" {
+	// if we're just generating the offline config we should only use in memory mode for now
+	// when we move to a pattern of allowing periodic config dumps to disk we can remove this requirement
+	if redisAddress != "" && !generateOfflineConfig {
 		client := redis.NewClient(&redis.Options{
 			Addr:     redisAddress,
 			Password: redisPassword,
@@ -350,7 +334,7 @@ func main() {
 	topics := map[string]struct{}{}
 
 	// Load either local config from files or remote config from ff-server
-	if offline {
+	if offline && !generateOfflineConfig {
 		// TODO - this works in the built image, see if we can have a better way to automatically work running locally too
 		// change to fs:= ffproxy.DefaultConfig if running locally
 		fs := os.DirFS("")
@@ -381,7 +365,6 @@ func main() {
 			logger.Error("error(s) encountered fetching config from FeatureFlags, startup will continue but the Proxy may be missing required config", "errors", err)
 		} else {
 			logger.Info("successfully retrieved config from FeatureFlags")
-
 		}
 
 		authConfig = remoteConfig.AuthConfig()
@@ -418,29 +401,6 @@ func main() {
 		}
 	}
 
-	gpc := gripcontrol.NewGripPubControl([]map[string]interface{}{
-		{
-			"control_uri": "http://localhost:5561",
-		},
-	})
-
-	t := []string{}
-	for top := range topics {
-		t = append(t, top)
-	}
-
-	streamingEnabled := false
-
-	if rc, ok := sdkCache.(*cache.RedisCache); ok {
-		logger.Info("starting stream worker...")
-		sc := ffproxy.NewCheckpointingStream(ctx, rc, rc, logger)
-		streamWorker := ffproxy.NewStreamWorker(logger, gpc, sc, t...)
-		streamWorker.Run(ctx)
-		streamingEnabled = true
-	} else {
-		logger.Info("the proxy isn't configured with redis so the streamworker will not be started ")
-	}
-
 	// Create repos
 	tr, err := repository.NewTargetRepo(sdkCache, targetConfig)
 	if err != nil {
@@ -464,6 +424,44 @@ func main() {
 	if err != nil {
 		logger.Error("failed to create auth config repo", "err", err)
 		os.Exit(1)
+	}
+
+	if generateOfflineConfig {
+		if sdksInitialised() {
+			exportService := export.NewService(logger, fcr, tr, sr, authRepo, authConfig)
+			err = exportService.Persist(ctx)
+			if err != nil {
+				logger.Error("offline config export failed err: %s", err)
+				os.Exit(1)
+			}
+			os.Exit(0)
+		} else {
+			logger.Error("SDKs didnt initialise correctly. Failed to generate offline config")
+			os.Exit(1)
+		}
+	}
+
+	gpc := gripcontrol.NewGripPubControl([]map[string]interface{}{
+		{
+			"control_uri": "http://localhost:5561",
+		},
+	})
+
+	t := []string{}
+	for top := range topics {
+		t = append(t, top)
+	}
+
+	streamingEnabled := false
+
+	if rc, ok := sdkCache.(*cache.RedisCache); ok {
+		logger.Info("starting stream worker...")
+		sc := ffproxy.NewCheckpointingStream(ctx, rc, rc, logger)
+		streamWorker := ffproxy.NewStreamWorker(logger, gpc, sc, t...)
+		streamWorker.Run(ctx)
+		streamingEnabled = true
+	} else {
+		logger.Info("the proxy isn't configured with redis so the streamworker will not be started ")
 	}
 
 	tokenSource := ffproxy.NewTokenSource(logger, authRepo, apiKeyHasher, []byte(authSecret))
@@ -674,4 +672,29 @@ func validateFlags(flags map[string]interface{}) {
 	if len(unset) > 0 {
 		stdlog.Fatalf("The following configuaration values are required: %v ", unset)
 	}
+}
+
+// checks that all connected sdks initialised successfully
+func sdksInitialised() bool {
+	// wait for all specified sdks to be started
+	var sdksStarted bool
+	for i := 0; i < 20; i++ {
+		if len(apiKeys) == len(sdkClients.copy()){
+			sdksStarted = true
+			break
+		}
+		time.Sleep(time.Second * 1)
+	}
+	if !sdksStarted {
+		return false
+	}
+
+	// check that all the sdks have fetched flags/segments
+	for _, sdk := range sdkClients.copy() {
+		init, _ := sdk.IsInitialized()
+		if !init {
+			return false
+		}
+	}
+	return true
 }
