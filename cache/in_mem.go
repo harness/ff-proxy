@@ -18,6 +18,16 @@ type MemCache struct {
 	data map[string]map[string][]byte
 }
 
+func (m MemCache) GetByte(ctx context.Context, key string, field string) ([]byte, error) {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (m MemCache) SetByte(ctx context.Context, key string, field string, value []byte) error {
+	//TODO implement me
+	panic("implement me")
+}
+
 // NewMemCache creates an initialised MemCache
 func NewMemCache() MemCache {
 	return MemCache{&sync.RWMutex{}, map[string]map[string][]byte{}}

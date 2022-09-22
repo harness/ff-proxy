@@ -57,3 +57,5 @@ require (
 	gopkg.in/cenkalti/backoff.v1 v1.1.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
+
+replace github.com/harness/ff-golang-server-sdk => /Users/stephenmcconkey/github/ff-golang-server-sdk
