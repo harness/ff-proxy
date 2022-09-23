@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding"
 	"fmt"
+	"sync"
 	"time"
 
 	"github.com/harness/ff-golang-server-sdk/dto"
@@ -49,6 +50,7 @@ type Wrapper struct {
 	// we clear out old data for the given environment when we run the first Set instruction
 	// this is to verify the sdk has fetched the new data successfully before purging the old data
 	firstSet bool
+	m *sync.RWMutex
 }
 
 type cacheKey struct {
@@ -66,6 +68,7 @@ func NewWrapper(cache Cache, environment string, l log.Logger) *Wrapper {
 		environment: environment,
 		logger:      l,
 		firstSet:    true,
+		m: &sync.RWMutex{},
 	}
 }
 
@@ -78,9 +81,12 @@ func (wrapper *Wrapper) Set(key interface{}, value interface{}) (evicted bool) {
 	wrapper.logger = wrapper.logger.With("method", "Set", "key", key, "value", value)
 
 	// on first set delete old data
+	wrapper.m.Lock()
 	if wrapper.firstSet {
 		wrapper.Purge()
+		wrapper.firstSet = false
 	}
+	wrapper.m.Unlock()
 	cacheKey, err := wrapper.decodeDTOKey(key)
 	if err != nil {
 		wrapper.logger.Error("failed to set key, value in cache", "err", err)
@@ -100,7 +106,6 @@ func (wrapper *Wrapper) Set(key interface{}, value interface{}) (evicted bool) {
 	}
 
 	wrapper.lastUpdate = wrapper.getTime()
-	wrapper.firstSet = false
 
 	return
 }
