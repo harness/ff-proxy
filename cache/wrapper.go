@@ -99,14 +99,33 @@ func (wrapper *Wrapper) Set(key interface{}, value interface{}) (evicted bool) {
 		wrapper.logger.Error("failed to set key, value in cache", "err", err)
 		return
 	}
-	featureConfig, ok := value.(rest.FeatureConfig)
-	if !ok {
-		wrapper.logger.Error("failed to cast value in cache to rest.FeatureConfig")
-		return
-	}
-	val, err := json.Marshal(featureConfig)
-	if err != nil {
-		wrapper.logger.Error("failed to marshal featureConfig", "err", err)
+
+	var val []byte
+	switch cacheKey.kind {
+	case dto.KeySegment:
+		segmentConfig, ok := value.(rest.Segment)
+		if !ok {
+			wrapper.logger.Error("failed to cast value in cache to rest.Segment")
+			return
+		}
+		val, err = json.Marshal(segmentConfig)
+		if err != nil {
+			wrapper.logger.Error("failed to marshal segmentConfig", "err", err)
+			return
+		}
+	case dto.KeyFeature:
+		featureConfig, ok := value.(rest.FeatureConfig)
+		if !ok {
+			wrapper.logger.Error("failed to cast value in cache to rest.FeatureConfig")
+			return
+		}
+		val, err = json.Marshal(featureConfig)
+		if err != nil {
+			wrapper.logger.Error("failed to marshal featureConfig", "err", err)
+			return
+		}
+	default:
+		wrapper.logger.Error("unexpected type trying to be set")
 		return
 	}
 
@@ -323,19 +342,20 @@ func (wrapper *Wrapper) getFeatureConfig(key cacheKey) (interface{}, error) {
 }
 
 func (wrapper *Wrapper) getSegment(key cacheKey) (interface{}, error) {
-	var val encoding.BinaryUnmarshaler = &domain.Segment{}
+	var segment = rest.Segment{}
 	// get Segment in domain.Segment format
-	err := wrapper.cache.Get(context.Background(), key.name, key.field, val)
+	val, err := wrapper.cache.GetByte(context.Background(), key.name, key.field)
 	if err != nil {
 		return nil, err
 	}
-	segment, ok := val.(*domain.Segment)
-	if !ok {
-		return nil, fmt.Errorf("couldn't cast cached value to domain.Segment: %s", val)
+
+	err = json.Unmarshal(val, &segment)
+	if err != nil {
+		return nil, fmt.Errorf("couldn't cast cached value to rest.Segment: %s", val)
 	}
 
 	// return to sdk in evaluation.Segment format
-	return domain.ConvertDomainSegment(*segment), nil
+	return segment, nil
 }
 
 func convertToDTOKey(key interface{}) (dto.Key, error) {
