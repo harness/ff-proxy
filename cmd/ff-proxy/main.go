@@ -108,6 +108,7 @@ var (
 	flagPollInterval   int
 	flagStreamEnabled  bool
 	generateOfflineConfig  bool
+	configDirPath       string
 )
 
 const (
@@ -133,6 +134,7 @@ const (
 	flagPollIntervalEnv   = "FLAG_POLL_INTERVAL"
 	flagStreamEnabledEnv  = "FLAG_STREAM_ENABLED"
 	generateOfflineConfigEnv  = "GENERATE_OFFLINE_CONFIG"
+	configDirPathEnv      = "CONFIG_DIR_PATH"
 	pprofEnabledEnv       = "PPROF"
 
 	bypassAuthFlag         = "bypass-auth"
@@ -157,6 +159,7 @@ const (
 	pprofEnabledFlag       = "pprof"
 	flagStreamEnabledFlag  = "flag-stream-enabled"
 	generateOfflineConfigFlag  = "generate-offline-config"
+	configDirPathFlag              = "config-dir-path"
 	flagPollIntervalFlag   = "flag-poll-interval"
 )
 
@@ -185,6 +188,7 @@ func init() {
 	flag.IntVar(&flagPollInterval, flagPollIntervalFlag, 1, "how often in minutes the proxy should poll for flag updates (if stream not connected)")
 	flag.BoolVar(&flagStreamEnabled, flagStreamEnabledFlag, true, "should the proxy connect to Harness in streaming mode to get flag changes")
 	flag.BoolVar(&generateOfflineConfig, generateOfflineConfigFlag, false, "if true the proxy will produce offline config in the /config directory then terminate")
+	flag.StringVar(&configDirPath, configDirPathFlag, "", "specify a custom path to search for /config directory when running in offline mode")
 	sdkClients = newSDKClientMap()
 
 	loadFlagsFromEnv(map[string]string{
@@ -210,6 +214,7 @@ func init() {
 		pprofEnabledEnv:       pprofEnabledFlag,
 		flagStreamEnabledEnv:  flagStreamEnabledFlag,
 		generateOfflineConfigEnv:  generateOfflineConfigFlag,
+		configDirPathEnv:          configDirPathFlag,
 		flagPollIntervalEnv:   flagPollIntervalFlag,
 	})
 
@@ -297,7 +302,7 @@ func main() {
 		cancel()
 	}()
 
-	logger.Info("service config", "pprof", pprofEnabled, "debug", debug, "bypass-auth", bypassAuth, "offline", offline, "port", port, "admin-service", adminService, "account-identifier", accountIdentifier, "org-identifier", orgIdentifier, "sdk-base-url", sdkBaseURL, "sdk-events-url", sdkEventsURL, "redis-addr", redisAddress, "redis-db", redisDB, "api-keys", fmt.Sprintf("%v", apiKeys), "target-poll-duration", fmt.Sprintf("%ds", targetPollDuration), "heartbeat-interval", fmt.Sprintf("%ds", heartbeatInterval), "flag-stream-enabled", flagStreamEnabled, "flag-poll-interval", fmt.Sprintf("%dm", flagPollInterval))
+	logger.Info("service config", "pprof", pprofEnabled, "debug", debug, "bypass-auth", bypassAuth, "offline", offline, "port", port, "admin-service", adminService, "account-identifier", accountIdentifier, "org-identifier", orgIdentifier, "sdk-base-url", sdkBaseURL, "sdk-events-url", sdkEventsURL, "redis-addr", redisAddress, "redis-db", redisDB, "api-keys", fmt.Sprintf("%v", apiKeys), "target-poll-duration", fmt.Sprintf("%ds", targetPollDuration), "heartbeat-interval", fmt.Sprintf("%ds", heartbeatInterval), "flag-stream-enabled", flagStreamEnabled, "flag-poll-interval", fmt.Sprintf("%dm", flagPollInterval), "config-dir-path", configDirPath)
 
 	adminService, err := services.NewAdminService(logger, adminService, adminServiceToken)
 	if err != nil {
@@ -335,9 +340,7 @@ func main() {
 
 	// Load either local config from files or remote config from ff-server
 	if offline && !generateOfflineConfig {
-		// TODO - this works in the built image, see if we can have a better way to automatically work running locally too
-		// change to fs:= ffproxy.DefaultConfig if running locally
-		fs := os.DirFS("")
+		fs := os.DirFS(configDirPath)
 		config, err := config.NewLocalConfig(fs, ffproxy.DefaultConfigDir)
 		if err != nil {
 			logger.Error("failed to load config", "err", err)
