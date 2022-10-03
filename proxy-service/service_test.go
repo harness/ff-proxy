@@ -46,7 +46,7 @@ func getAllBenchmarkConfig() benchmarkConfig {
 	dir := fmt.Sprintf("../config/bench-test")
 	fileSystem := fileSystem{path: dir}
 
-	lc, err := config.NewLocalConfig(fileSystem, dir)
+	lc, err := config.NewLocalConfig(fileSystem)
 	if err != nil {
 		panic(err)
 	}
@@ -69,7 +69,7 @@ func getConfigByEnv(envID string, b *testing.B) benchmarkConfig {
 	dir := fmt.Sprintf("../config/bench-test/env-%s", envID)
 	fileSystem := fileSystem{path: dir}
 
-	lc, err := config.NewLocalConfig(fileSystem, dir)
+	lc, err := config.NewLocalConfig(fileSystem)
 	if err != nil {
 		b.Fatalf("failed to load config: %s", err)
 	}
