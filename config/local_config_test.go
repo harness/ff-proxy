@@ -211,7 +211,7 @@ func TestLocalConfig(t *testing.T) {
 		domain.NewSegmentKey("1234"): []domain.Segment{flagsTeamSegment},
 	}
 
-	lc, err := NewLocalConfig(testConfig, testDir)
+	lc, err := NewLocalConfig(testConfig)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -237,7 +237,7 @@ func TestLocalConfig_Auth(t *testing.T) {
 		domain.AuthAPIKey(apikey3Hash): "1234",
 	}
 
-	lc, err := NewLocalConfig(testConfig, testDir)
+	lc, err := NewLocalConfig(testConfig)
 	if err != nil {
 		t.Fatal(err)
 	}

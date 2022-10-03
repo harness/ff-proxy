@@ -157,7 +157,7 @@ func setupWithCache(c cache.Cache) setupOpts {
 // and injects all the required dependencies into the proxy service and http server
 func setupHTTPServer(t *testing.T, bypassAuth bool, opts ...setupOpts) *HTTPServer {
 	fileSystem := fileSystem{path: "../config/test"}
-	config, err := config.NewLocalConfig(fileSystem, "../config/test")
+	config, err := config.NewLocalConfig(fileSystem)
 	if err != nil {
 		t.Fatal(err)
 	}
