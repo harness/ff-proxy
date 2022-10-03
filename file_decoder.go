@@ -43,7 +43,7 @@ type FileDecoder struct {
 // not close the opened file, for the file to be closed you have to call the Decode
 // method.
 func NewFileDecoder(fileSystem fs.FS, file string) (*FileDecoder, error) {
-	f, err := fileSystem.Open(filepath.Clean(file))
+	f, err := fileSystem.Open(file)
 	if err != nil {
 		return nil, err
 	}
