@@ -42,7 +42,7 @@ func NewLocalConfig(fs fs.FS, dir string) (LocalConfig, error) {
 // loadConfig reads the directory of the filesystem and walks the file tree
 // decoding any config files that it finds
 func (f LocalConfig) loadConfig(fileSystem fs.FS, dir string) error {
-	if err := fs.WalkDir(fileSystem, dir, decodeConfigFiles(f.config)); err != nil {
+	if err := fs.WalkDir(fileSystem, dir, decodeConfigFiles(f.config, fileSystem)); err != nil {
 		return err
 	}
 	return nil
@@ -61,7 +61,7 @@ func getParentDirFromPath(path string) (string, error) {
 
 // decodeConfigFiles returns a WalkDirFunc that gets called on each file in the
 // config directory.
-func decodeConfigFiles(c map[string]config) fs.WalkDirFunc {
+func decodeConfigFiles(c map[string]config, fileSystem fs.FS) fs.WalkDirFunc {
 	return func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
@@ -96,7 +96,7 @@ func decodeConfigFiles(c map[string]config) fs.WalkDirFunc {
 
 		if i.Name() == "feature_config.json" {
 			config := c[env]
-			if err := ffproxy.DecodeFile(path, &config.FeatureFlags); err != nil {
+			if err := ffproxy.DecodeFile(fileSystem, path, &config.FeatureFlags); err != nil {
 				return err
 			}
 			c[env] = config
@@ -105,7 +105,7 @@ func decodeConfigFiles(c map[string]config) fs.WalkDirFunc {
 
 		if i.Name() == "targets.json" {
 			config := c[env]
-			if err := ffproxy.DecodeFile(path, &config.Targets); err != nil {
+			if err := ffproxy.DecodeFile(fileSystem, path, &config.Targets); err != nil {
 				return err
 			}
 			c[env] = config
@@ -114,7 +114,7 @@ func decodeConfigFiles(c map[string]config) fs.WalkDirFunc {
 
 		if i.Name() == "segments.json" {
 			config := c[env]
-			if err := ffproxy.DecodeFile(path, &config.Segments); err != nil {
+			if err := ffproxy.DecodeFile(fileSystem, path, &config.Segments); err != nil {
 				return err
 			}
 			c[env] = config
@@ -123,7 +123,7 @@ func decodeConfigFiles(c map[string]config) fs.WalkDirFunc {
 
 		if i.Name() == "auth_config.json" {
 			config := c[env]
-			if err := ffproxy.DecodeFile(path, &config.Auth); err != nil {
+			if err := ffproxy.DecodeFile(fileSystem, path, &config.Auth); err != nil {
 				return err
 			}
 			c[env] = config
