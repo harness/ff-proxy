@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"os"
+	"io/fs"
 	"path/filepath"
 
 	"gopkg.in/yaml.v2"
@@ -18,8 +18,8 @@ const (
 )
 
 // DecodeFile is a convienence function that creates a FileDecoder and calls Decode
-func DecodeFile(path string, v interface{}) error {
-	dec, err := NewFileDecoder(path)
+func DecodeFile(fileSystem fs.FS, path string, v interface{}) error {
+	dec, err := NewFileDecoder(fileSystem, path)
 	if err != nil {
 		return err
 	}
@@ -42,13 +42,13 @@ type FileDecoder struct {
 // If the file extension is not supported it returns an error. NewFileDecoder does
 // not close the opened file, for the file to be closed you have to call the Decode
 // method.
-func NewFileDecoder(file string) (*FileDecoder, error) {
-	f, err := os.Open(filepath.Clean(file))
+func NewFileDecoder(fileSystem fs.FS, file string) (*FileDecoder, error) {
+	f, err := fileSystem.Open(filepath.Clean(file))
 	if err != nil {
 		return nil, err
 	}
 
-	ext := filepath.Ext(f.Name())
+	ext := filepath.Ext(file)
 	var dec decoder
 
 	switch ext {
