@@ -7,7 +7,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/fs"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -68,18 +67,6 @@ func (m *mockClientService) Targets() []domain.Target {
 
 func (m *mockMetricService) StoreMetrics(ctx context.Context, req domain.MetricsRequest) error {
 	return m.storeMetrics(ctx, req)
-}
-
-type fileSystem struct {
-	path string
-}
-
-func (f fileSystem) Open(name string) (fs.File, error) {
-	file, err := os.Open(name)
-	if err != nil {
-		return nil, err
-	}
-	return file, nil
 }
 
 const (
@@ -156,8 +143,8 @@ func setupWithCache(c cache.Cache) setupOpts {
 // setupHTTPServer is a helper that loads test config for populating the repos
 // and injects all the required dependencies into the proxy service and http server
 func setupHTTPServer(t *testing.T, bypassAuth bool, opts ...setupOpts) *HTTPServer {
-	fileSystem := fileSystem{path: "../config/test"}
-	config, err := config.NewLocalConfig(fileSystem, "../config/test")
+	fileSystem := os.DirFS("../config/test")
+	config, err := config.NewLocalConfig(fileSystem)
 	if err != nil {
 		t.Fatal(err)
 	}
