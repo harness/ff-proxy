@@ -65,7 +65,10 @@ func (s CheckpointingStream) setCheckpoints(ctx context.Context) {
 				}
 
 				s.log.Info("setting checkpoint", "key", c.key, "checkpoint", c.value)
-				s.checkpoint.SetKV(ctx, c.key, string(c.value))
+				err := s.checkpoint.SetKV(ctx, c.key, string(c.value))
+				if err != nil {
+					s.log.Error("error setting checkpoint", "err", err)
+				}
 			}
 		}
 	}()
