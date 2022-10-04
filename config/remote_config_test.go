@@ -431,10 +431,15 @@ func TestPollTargets(t *testing.T) {
 				close(ticker)
 			}
 
+			targetsCopy := map[string][]admingen.Target{}
+			for key, value := range targets{
+				targetsCopy[key] = value
+			}
+
 			adminClient := mockAdminClient{
 				projects:     projects,
 				environments: environments,
-				targets:      targets,
+				targets:      targetsCopy,
 				Mutex:        &sync.Mutex{},
 			}
 
@@ -444,7 +449,6 @@ func TestPollTargets(t *testing.T) {
 			}
 
 			if len(tc.targetsToAdd) > 0 {
-				t.Log("And I add Targets to the admin client")
 				key := string("FeatureFlagsDev-Dev")
 
 				adminClient.Lock()
