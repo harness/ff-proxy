@@ -14,7 +14,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/fanout/go-gripcontrol"
+	"github.com/conormurray95/go-gripcontrol"
 	"github.com/hashicorp/go-retryablehttp"
 
 	_ "net/http/pprof" //#nosec

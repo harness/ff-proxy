@@ -3,8 +3,8 @@ module github.com/harness/ff-proxy
 go 1.17
 
 require (
+	github.com/conormurray95/go-gripcontrol v0.0.0-20221004124357-41403afcaecc
 	github.com/deepmap/oapi-codegen v1.6.0
-	github.com/fanout/go-gripcontrol v0.0.0-20181114050548-adc1002dfd32
 	github.com/go-kit/kit v0.12.0
 	github.com/go-redis/redis/v8 v8.11.4
 	github.com/golang-jwt/jwt v3.2.2+incompatible
@@ -22,10 +22,9 @@ require (
 
 require (
 	github.com/cespare/xxhash/v2 v2.1.2 // indirect
+	github.com/conormurray95/go-pubcontrol v0.0.0-20221004123744-4d052349ceb5 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
-	github.com/dgrijalva/jwt-go v3.2.0+incompatible // indirect
 	github.com/dgryski/go-rendezvous v0.0.0-20200823014737-9f7001d12a5f // indirect
-	github.com/fanout/go-pubcontrol v0.0.0-20181114050323-6700863ff8fe // indirect
 	github.com/fsnotify/fsnotify v1.5.1 // indirect
 	github.com/getkin/kin-openapi v0.53.0 // indirect
 	github.com/ghodss/yaml v1.0.0 // indirect

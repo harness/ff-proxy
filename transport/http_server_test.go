@@ -15,7 +15,7 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/fanout/go-gripcontrol"
+	"github.com/conormurray95/go-gripcontrol"
 	"github.com/go-redis/redis/v8"
 	"github.com/harness/ff-golang-server-sdk/stream"
 	ffproxy "github.com/harness/ff-proxy"
