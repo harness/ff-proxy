@@ -60,6 +60,7 @@ func (m MetricService) StoreMetrics(ctx context.Context, req domain.MetricsReque
 	return nil
 }
 
+// SendMetrics forwards stored metrics to the SaaS platform
 func (m MetricService) SendMetrics(ctx context.Context, clusterIdentifier string) {
 	// copy metrics before sending so we don't hog the lock for network requests
 	m.metricsLock.Lock()

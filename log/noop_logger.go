@@ -26,11 +26,11 @@ func (n NoOpLogger) Warn(msg string, keyvals ...interface{}) {}
 // With does nothing on a NoOpLogger
 func (n NoOpLogger) With(keyvals ...interface{}) Logger { return NoOpLogger{} }
 
-// NoOpLogger is a type that implements the Logger interface but does nothing
+// NoOpContextualLogger is a type that implements the Logger interface but does nothing
 // when it's methods are called
 type NoOpContextualLogger struct{}
 
-// NewNoOpLogger returns a NoOpLogger
+// NewNoOpContextualLogger returns a NoOpContextualLogger
 func NewNoOpContextualLogger() NoOpContextualLogger {
 	return NoOpContextualLogger{}
 }

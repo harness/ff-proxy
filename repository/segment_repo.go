@@ -51,6 +51,7 @@ func (t SegmentRepo) Add(ctx context.Context, key domain.SegmentKey, values ...d
 	return nil
 }
 
+// Get gets all of the Segments for a given key
 func (t SegmentRepo) Get(ctx context.Context, key domain.SegmentKey) ([]domain.Segment, error) {
 	results, err := t.cache.GetAll(ctx, string(key))
 	if err != nil {

@@ -26,6 +26,7 @@ Number of Segments: %d
 Generated at: %s
 `
 
+// OfflineConfig is a struct containing all the offline config to be exported for an environment
 type OfflineConfig struct {
 	EnvironmentID string
 	APIKeys       []string
@@ -58,6 +59,7 @@ segmentRepo repository.SegmentRepo, authRepo repository.AuthRepo, authConfig map
 	}
 }
 
+// Persist saves all config to disk
 func (s Service) Persist(ctx context.Context) error {
 	configMap := map[string]OfflineConfig{}
 	for hashedKey, env := range s.authConfig {
