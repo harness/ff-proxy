@@ -5,8 +5,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/harness/ff-golang-server-sdk/rest"
+
 	"github.com/harness/ff-golang-server-sdk/dto"
-	"github.com/harness/ff-golang-server-sdk/evaluation"
 	"github.com/harness/ff-proxy/log"
 	"github.com/stretchr/testify/assert"
 )
@@ -18,17 +19,17 @@ func int64Ptr(i int64) *int64 { return &i }
 func memCachePtr(m MemCache) *MemCache { return &m }
 
 var (
-	evaluationSegmentFoo = evaluation.Segment{
+	evaluationSegmentFoo = rest.Segment{
 		Identifier:  "foo",
 		Name:        "fooSegment",
 		CreatedAt:   int64Ptr(123),
 		ModifiedAt:  int64Ptr(456),
 		Environment: strPtr("env"),
-		Excluded:    []string{"ecl1", "exlc2"},
-		Included:    []string{"incl1", "incl2"},
-		Rules:       []evaluation.Clause{{Attribute: "attr", ID: "id", Negate: false, Op: "contains", Value: []string{"val1", "val2"}}},
-		Tags:        []evaluation.Tag{{Name: "tagName", Value: strPtr("tagValue")}},
-		Version:     2,
+		Excluded:    &[]rest.Target{{Identifier: "exlc1"}, {Identifier: "exlc2"}},
+		Included:    &[]rest.Target{{Identifier: "incl1"}, {Identifier: "incl2"}},
+		Rules:       &[]rest.Clause{{Attribute: "attr", Id: "id", Negate: false, Op: "contains", Values: []string{"val1", "val2"}}},
+		Tags:        &[]rest.Tag{{Name: "tagName", Value: strPtr("tagValue")}},
+		Version:     int64Ptr(2),
 	}
 
 	segmentFooKey = dto.Key{
@@ -36,11 +37,11 @@ var (
 		Name: evaluationSegmentFoo.Identifier,
 	}
 
-	evaluationFeatureBar = evaluation.FeatureConfig{
-		DefaultServe: evaluation.Serve{
-			Distribution: &evaluation.Distribution{
+	evaluationFeatureBar = rest.FeatureConfig{
+		DefaultServe: rest.Serve{
+			Distribution: &rest.Distribution{
 				BucketBy:   "bucketfield",
-				Variations: []evaluation.WeightedVariation{{Variation: "var1", Weight: 30}, {Variation: "var2", Weight: 70}},
+				Variations: []rest.WeightedVariation{{Variation: "var1", Weight: 30}, {Variation: "var2", Weight: 70}},
 			},
 			Variation: strPtr("var2"),
 		},
@@ -48,29 +49,28 @@ var (
 		Feature:       "bar",
 		Kind:          "bool",
 		OffVariation:  "false",
-		Prerequisites: []evaluation.Prerequisite{{Feature: "feat1", Variations: []string{"true"}}},
+		Prerequisites: &[]rest.Prerequisite{{Feature: "feat1", Variations: []string{"true"}}},
 		Project:       "proj",
-		Rules: []evaluation.ServingRule{
+		Rules: &[]rest.ServingRule{
 			{
-				Clauses:  []evaluation.Clause{{Attribute: "attr", ID: "id", Negate: false, Op: "contains", Value: []string{"val1", "val2"}}},
+				Clauses:  []rest.Clause{{Attribute: "attr", Id: "id", Negate: false, Op: "contains", Values: []string{"val1", "val2"}}},
 				Priority: 1,
-				RuleID:   "ID",
-				Serve: evaluation.Serve{
+				RuleId:   "ID",
+				Serve: rest.Serve{
 					Distribution: nil,
 					Variation:    strPtr("str"),
 				},
 			},
 		},
 		State: "on",
-		VariationToTargetMap: []evaluation.VariationMap{
+		VariationToTargetMap: &[]rest.VariationMap{
 			{
-				TargetSegments: []string{"segment1", "segment2", "segment3"},
-				Targets:        []string{"target1", "target2", "target3"},
+				TargetSegments: &[]string{"segment1", "segment2", "segment3"},
+				Targets:        &[]rest.TargetMap{{strPtr("target1"), "target1"}, {strPtr("target2"), "target2"}, {strPtr("target3"), "target3"}},
 				Variation:      "var",
 			},
 		},
-		Variations: []evaluation.Variation{{Description: strPtr("desc"), Identifier: "id", Name: strPtr("name"), Value: "val"}},
-		Segments:   map[string]*evaluation.Segment(nil),
+		Variations: []rest.Variation{{Description: strPtr("desc"), Identifier: "id", Name: strPtr("name"), Value: "val"}},
 	}
 
 	featureBarKey = dto.Key{
