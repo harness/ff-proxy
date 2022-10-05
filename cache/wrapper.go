@@ -368,7 +368,7 @@ func convertToDTOKey(key interface{}) (dto.Key, error) {
 		return dtoKey, nil
 	}
 
-	keyArr := strings.Split(myKey, "/")
+	keyArr := strings.SplitN(myKey, "/", 2)
 	if len(keyArr) != 2 {
 		return dto.Key{}, fmt.Errorf("couldn't convert key to dto.Key: %s", key)
 	}
