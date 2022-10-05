@@ -4,7 +4,6 @@ import (
 	"context"
 	"flag"
 	"fmt"
-	"github.com/harness/ff-proxy/export"
 	"io"
 	stdlog "log"
 	"net/http"
@@ -13,6 +12,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/harness/ff-proxy/export"
 
 	"github.com/fanout/go-gripcontrol"
 	"github.com/hashicorp/go-retryablehttp"
@@ -83,84 +84,84 @@ const (
 )
 
 var (
-	debug              bool
-	bypassAuth         bool
-	offline            bool
-	accountIdentifier  string
-	orgIdentifier      string
-	adminService       string
-	adminServiceToken  string
-	clientService      string
-	metricService      string
-	authSecret         string
-	sdkBaseURL         string
-	sdkEventsURL       string
-	redisAddress       string
-	redisPassword      string
-	redisDB            int
-	apiKeys            keys
-	targetPollDuration int
-	metricPostDuration int
-	heartbeatInterval  int
-	sdkClients         *sdkClientMap
-	sdkCache           cache.Cache
-	pprofEnabled       bool
-	flagPollInterval   int
-	flagStreamEnabled  bool
-	generateOfflineConfig  bool
-	configDir          string
+	debug                 bool
+	bypassAuth            bool
+	offline               bool
+	accountIdentifier     string
+	orgIdentifier         string
+	adminService          string
+	adminServiceToken     string
+	clientService         string
+	metricService         string
+	authSecret            string
+	sdkBaseURL            string
+	sdkEventsURL          string
+	redisAddress          string
+	redisPassword         string
+	redisDB               int
+	apiKeys               keys
+	targetPollDuration    int
+	metricPostDuration    int
+	heartbeatInterval     int
+	sdkClients            *sdkClientMap
+	sdkCache              cache.Cache
+	pprofEnabled          bool
+	flagPollInterval      int
+	flagStreamEnabled     bool
+	generateOfflineConfig bool
+	configDir             string
 )
 
 const (
-	bypassAuthEnv         = "BYPASS_AUTH"
-	debugEnv              = "DEBUG"
-	offlineEnv            = "OFFLINE"
-	accountIdentifierEnv  = "ACCOUNT_IDENTIFIER"
-	orgIdentifierEnv      = "ORG_IDENTIFIER"
-	adminServiceEnv       = "ADMIN_SERVICE"
-	adminServiceTokenEnv  = "ADMIN_SERVICE_TOKEN"
-	clientServiceEnv      = "CLIENT_SERVICE"
-	metricServiceEnv      = "METRIC_SERVICE"
-	authSecretEnv         = "AUTH_SECRET"
-	sdkBaseURLEnv         = "SDK_BASE_URL"
-	sdkEventsURLEnv       = "SDK_EVENTS_URL"
-	redisAddrEnv          = "REDIS_ADDRESS"
-	redisPasswordEnv      = "REDIS_PASSWORD"
-	redisDBEnv            = "REDIS_DB"
-	apiKeysEnv            = "API_KEYS"
-	targetPollDurationEnv = "TARGET_POLL_DURATION"
-	metricPostDurationEnv = "METRIC_POST_DURATION"
-	heartbeatIntervalEnv  = "HEARTBEAT_INTERVAL"
-	flagPollIntervalEnv   = "FLAG_POLL_INTERVAL"
-	flagStreamEnabledEnv  = "FLAG_STREAM_ENABLED"
-	generateOfflineConfigEnv  = "GENERATE_OFFLINE_CONFIG"
-	configDirEnv          = "CONFIG_DIR"
-	pprofEnabledEnv       = "PPROF"
+	bypassAuthEnv            = "BYPASS_AUTH"
+	debugEnv                 = "DEBUG"
+	offlineEnv               = "OFFLINE"
+	accountIdentifierEnv     = "ACCOUNT_IDENTIFIER"
+	orgIdentifierEnv         = "ORG_IDENTIFIER"
+	adminServiceEnv          = "ADMIN_SERVICE"
+	adminServiceTokenEnv     = "ADMIN_SERVICE_TOKEN"
+	clientServiceEnv         = "CLIENT_SERVICE"
+	metricServiceEnv         = "METRIC_SERVICE"
+	authSecretEnv            = "AUTH_SECRET"
+	sdkBaseURLEnv            = "SDK_BASE_URL"
+	sdkEventsURLEnv          = "SDK_EVENTS_URL"
+	redisAddrEnv             = "REDIS_ADDRESS"
+	redisPasswordEnv         = "REDIS_PASSWORD"
+	redisDBEnv               = "REDIS_DB"
+	apiKeysEnv               = "API_KEYS"
+	targetPollDurationEnv    = "TARGET_POLL_DURATION"
+	metricPostDurationEnv    = "METRIC_POST_DURATION"
+	heartbeatIntervalEnv     = "HEARTBEAT_INTERVAL"
+	flagPollIntervalEnv      = "FLAG_POLL_INTERVAL"
+	flagStreamEnabledEnv     = "FLAG_STREAM_ENABLED"
+	generateOfflineConfigEnv = "GENERATE_OFFLINE_CONFIG"
+	configDirEnv             = "CONFIG_DIR"
+	pprofEnabledEnv          = "PPROF"
 
-	bypassAuthFlag         = "bypass-auth"
-	debugFlag              = "debug"
-	offlineFlag            = "offline"
-	accountIdentifierFlag  = "account-identifier"
-	orgIdentifierFlag      = "org-identifier"
-	adminServiceFlag       = "admin-service"
-	adminServiceTokenFlag  = "admin-service-token"
-	clientServiceFlag      = "client-service"
-	metricServiceFlag      = "metric-service"
-	authSecretFlag         = "auth-secret"
-	sdkBaseURLFlag         = "sdk-base-url"
-	sdkEventsURLFlag       = "sdk-events-url"
-	redisAddressFlag       = "redis-address"
-	redisPasswordFlag      = "redis-password"
-	redisDBFlag            = "redis-db"
-	apiKeysFlag            = "api-keys"
-	targetPollDurationFlag = "target-poll-duration"
-	metricPostDurationFlag = "metric-post-duration"
-	heartbeatIntervalFlag  = "heartbeat-interval"
-	pprofEnabledFlag       = "pprof"
-	flagStreamEnabledFlag  = "flag-stream-enabled"
-	generateOfflineConfigFlag  = "generate-offline-config"
-	configDirFlag              = "config-dir"
-	flagPollIntervalFlag   = "flag-poll-interval"
+	bypassAuthFlag            = "bypass-auth"
+	debugFlag                 = "debug"
+	offlineFlag               = "offline"
+	accountIdentifierFlag     = "account-identifier"
+	orgIdentifierFlag         = "org-identifier"
+	adminServiceFlag          = "admin-service"
+	adminServiceTokenFlag     = "admin-service-token"
+	clientServiceFlag         = "client-service"
+	metricServiceFlag         = "metric-service"
+	authSecretFlag            = "auth-secret"
+	sdkBaseURLFlag            = "sdk-base-url"
+	sdkEventsURLFlag          = "sdk-events-url"
+	redisAddressFlag          = "redis-address"
+	redisPasswordFlag         = "redis-password"
+	redisDBFlag               = "redis-db"
+	apiKeysFlag               = "api-keys"
+	targetPollDurationFlag    = "target-poll-duration"
+	metricPostDurationFlag    = "metric-post-duration"
+	heartbeatIntervalFlag     = "heartbeat-interval"
+	pprofEnabledFlag          = "pprof"
+	flagStreamEnabledFlag     = "flag-stream-enabled"
+	generateOfflineConfigFlag = "generate-offline-config"
+	configDirFlag             = "config-dir"
+	flagPollIntervalFlag      = "flag-poll-interval"
 )
 
 func init() {
@@ -192,30 +193,30 @@ func init() {
 	sdkClients = newSDKClientMap()
 
 	loadFlagsFromEnv(map[string]string{
-		bypassAuthEnv:         bypassAuthFlag,
-		debugEnv:              debugFlag,
-		offlineEnv:            offlineFlag,
-		accountIdentifierEnv:  accountIdentifierFlag,
-		orgIdentifierEnv:      orgIdentifierFlag,
-		adminServiceEnv:       adminServiceFlag,
-		adminServiceTokenEnv:  adminServiceTokenFlag,
-		clientServiceEnv:      clientServiceFlag,
-		metricServiceEnv:      metricServiceFlag,
-		authSecretEnv:         authSecretFlag,
-		sdkBaseURLEnv:         sdkBaseURLFlag,
-		sdkEventsURLEnv:       sdkEventsURLFlag,
-		redisAddrEnv:          redisAddressFlag,
-		redisPasswordEnv:      redisPasswordFlag,
-		redisDBEnv:            redisDBFlag,
-		apiKeysEnv:            apiKeysFlag,
-		targetPollDurationEnv: targetPollDurationFlag,
-		metricPostDurationEnv: metricPostDurationFlag,
-		heartbeatIntervalEnv:  heartbeatIntervalFlag,
-		pprofEnabledEnv:       pprofEnabledFlag,
-		flagStreamEnabledEnv:  flagStreamEnabledFlag,
-		generateOfflineConfigEnv:  generateOfflineConfigFlag,
-		configDirEnv:          configDirFlag,
-		flagPollIntervalEnv:   flagPollIntervalFlag,
+		bypassAuthEnv:            bypassAuthFlag,
+		debugEnv:                 debugFlag,
+		offlineEnv:               offlineFlag,
+		accountIdentifierEnv:     accountIdentifierFlag,
+		orgIdentifierEnv:         orgIdentifierFlag,
+		adminServiceEnv:          adminServiceFlag,
+		adminServiceTokenEnv:     adminServiceTokenFlag,
+		clientServiceEnv:         clientServiceFlag,
+		metricServiceEnv:         metricServiceFlag,
+		authSecretEnv:            authSecretFlag,
+		sdkBaseURLEnv:            sdkBaseURLFlag,
+		sdkEventsURLEnv:          sdkEventsURLFlag,
+		redisAddrEnv:             redisAddressFlag,
+		redisPasswordEnv:         redisPasswordFlag,
+		redisDBEnv:               redisDBFlag,
+		apiKeysEnv:               apiKeysFlag,
+		targetPollDurationEnv:    targetPollDurationFlag,
+		metricPostDurationEnv:    metricPostDurationFlag,
+		heartbeatIntervalEnv:     heartbeatIntervalFlag,
+		pprofEnabledEnv:          pprofEnabledFlag,
+		flagStreamEnabledEnv:     flagStreamEnabledFlag,
+		generateOfflineConfigEnv: generateOfflineConfigFlag,
+		configDirEnv:             configDirFlag,
+		flagPollIntervalEnv:      flagPollIntervalFlag,
 	})
 
 	flag.Parse()
@@ -264,6 +265,7 @@ func initFF(ctx context.Context, cache gosdkCache.Cache, baseURL, eventURL, envI
 func main() {
 	if pprofEnabled {
 		go func() {
+			// #nosec
 			if err := http.ListenAndServe(":6060", nil); err != nil {
 				stdlog.Printf("failed to start pprof server: %s \n", err)
 			}
@@ -682,7 +684,7 @@ func sdksInitialised() bool {
 	// wait for all specified sdks to be started
 	var sdksStarted bool
 	for i := 0; i < 20; i++ {
-		if len(apiKeys) == len(sdkClients.copy()){
+		if len(apiKeys) == len(sdkClients.copy()) {
 			sdksStarted = true
 			break
 		}

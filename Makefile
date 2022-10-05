@@ -12,6 +12,7 @@ endif
 
 tools = $(addprefix $(GOBIN)/, golangci-lint golint gosec goimports gocov gocov-html)
 deps = $(addprefix $(GOBIN)/, oapi-codegen)
+export formatlist = $(shell go list  ./... | sed 's/\github.com\/harness\/ff-proxy\///g' | sed 's/\github.com\/harness\/ff-proxy//g' | sed 's/\gen\/admin//g' | sed 's/\gen\/client//g')
 
 dep: $(deps) ## Install the deps required to generate code and build feature flags
 	@echo "Installing dependances"
@@ -104,8 +105,9 @@ lint: tools ## lint the golang code
 
 PHONY+= tools
 format: tools ## Format go code and error if any changes are made
-	@echo "Formating ..."
-	@goimports -w .
+	@echo "Formatting ..."
+	@goimports -l $$formatlist
+	@goimports -l -w $$formatlist | wc -m | xargs | grep -q 0
 	@echo "Formatting complete"
 
 PHONY+= sec

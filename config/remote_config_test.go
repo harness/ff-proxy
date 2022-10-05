@@ -432,7 +432,7 @@ func TestPollTargets(t *testing.T) {
 			}
 
 			targetsCopy := map[string][]admingen.Target{}
-			for key, value := range targets{
+			for key, value := range targets {
 				targetsCopy[key] = value
 			}
 
