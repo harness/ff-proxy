@@ -27,6 +27,11 @@ Number of Segments: %d
 Generated at: %s
 `
 
+const (
+	createFilePermissionLevel = 0644
+	createDirPermissionLevel  = 0755
+)
+
 // OfflineConfig is a struct containing all the offline config to be exported for an environment
 type OfflineConfig struct {
 	EnvironmentID string
@@ -88,7 +93,7 @@ func (s Service) Persist(ctx context.Context) error {
 	}
 
 	// make config directory
-	os.Mkdir("config", 0755)
+	os.Mkdir("config", createDirPermissionLevel)
 
 	for environment, config := range configMap {
 		dirName := fmt.Sprintf("config/env-%s", environment)
@@ -97,7 +102,7 @@ func (s Service) Persist(ctx context.Context) error {
 			continue
 		}
 
-		if err := os.MkdirAll(dirName, 0755); err != nil {
+		if err := os.MkdirAll(dirName, createDirPermissionLevel); err != nil {
 			return fmt.Errorf("failed to create directory %q: %s", dirName, err)
 		}
 
@@ -124,7 +129,7 @@ func (s Service) Persist(ctx context.Context) error {
 			return fmt.Errorf("failed to save segment config: %s", err)
 		}
 
-		readme, err := os.OpenFile(fmt.Sprintf("%s/README.md", dirName), os.O_CREATE|os.O_WRONLY, 0644)
+		readme, err := os.OpenFile(fmt.Sprintf("%s/README.md", dirName), os.O_CREATE|os.O_WRONLY, createFilePermissionLevel)
 		if err != nil {
 			readme.Close()
 			return fmt.Errorf("failed to open README: %s", err)
@@ -148,7 +153,6 @@ func (s Service) Persist(ctx context.Context) error {
 
 func saveConfig(filename string, v interface{}) error {
 	f, err := os.Create(filename)
-	defer f.Close()
 
 	if err != nil {
 		return fmt.Errorf("failed to open file: %s", err)
@@ -156,8 +160,9 @@ func saveConfig(filename string, v interface{}) error {
 
 	enc := json.NewEncoder(f)
 	if err := enc.Encode(v); err != nil {
+		f.Close()
 		return fmt.Errorf("failed to write to file: %s", err)
 	}
-	return nil
 
+	return f.Close()
 }
