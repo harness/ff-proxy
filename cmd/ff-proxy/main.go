@@ -265,6 +265,7 @@ func initFF(ctx context.Context, cache gosdkCache.Cache, baseURL, eventURL, envI
 func main() {
 	if pprofEnabled {
 		go func() {
+			// #nosec
 			if err := http.ListenAndServe(":6060", nil); err != nil {
 				stdlog.Printf("failed to start pprof server: %s \n", err)
 			}
