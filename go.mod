@@ -10,7 +10,7 @@ require (
 	github.com/golang-jwt/jwt v3.2.2+incompatible
 	github.com/golang-jwt/jwt/v4 v4.4.2
 	github.com/google/uuid v1.3.0
-	github.com/harness/ff-golang-server-sdk v0.1.2
+	github.com/harness/ff-golang-server-sdk v0.1.3
 	github.com/hashicorp/go-retryablehttp v0.6.8
 	github.com/labstack/echo/v4 v4.7.2
 	github.com/r3labs/sse v0.0.0-20201126193848-34e640891548
@@ -57,5 +57,3 @@ require (
 	gopkg.in/cenkalti/backoff.v1 v1.1.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
-
-replace github.com/harness/ff-golang-server-sdk => /Users/stephenmcconkey/github/ff-golang-server-sdk
