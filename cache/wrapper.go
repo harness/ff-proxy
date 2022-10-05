@@ -50,7 +50,7 @@ type Wrapper struct {
 	// we clear out old data for the given environment when we run the first Set instruction
 	// this is to verify the sdk has fetched the new data successfully before purging the old data
 	firstSet bool
-	m *sync.RWMutex
+	m        *sync.RWMutex
 }
 
 type cacheKey struct {
@@ -68,7 +68,7 @@ func NewWrapper(cache Cache, environment string, l log.Logger) *Wrapper {
 		environment: environment,
 		logger:      l,
 		firstSet:    true,
-		m: &sync.RWMutex{},
+		m:           &sync.RWMutex{},
 	}
 }
 

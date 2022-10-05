@@ -431,8 +431,8 @@ func TestHTTPServer_GetTargetSegments(t *testing.T) {
 			expectedStatusCode: http.StatusMethodNotAllowed,
 		},
 		"Given I make GET request for an environment that doesn't exist": {
-			method:             http.MethodGet,
-			url:                fmt.Sprintf("%s/client/env/abcd/target-segments", testServer.URL),
+			method: http.MethodGet,
+			url:    fmt.Sprintf("%s/client/env/abcd/target-segments", testServer.URL),
 			// we return an empty segment array for this right now because we can't tell the difference between
 			// an environment not existing at all and there just being no segments in it
 			// if we return not found server SDK's won't be able to initialise unless they have at least one target group for each environment

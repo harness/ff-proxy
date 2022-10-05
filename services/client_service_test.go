@@ -3,8 +3,9 @@ package services
 import (
 	"context"
 	"errors"
-	"github.com/harness/ff-proxy/log"
 	"testing"
+
+	"github.com/harness/ff-proxy/log"
 
 	"github.com/harness/ff-proxy/domain"
 	clientgen "github.com/harness/ff-proxy/gen/client"
@@ -15,7 +16,7 @@ var errNotFound = errors.New("errNotFound")
 
 type mockService struct {
 	clientgen.ClientWithResponsesInterface
-	authWithResp func() error
+	authWithResp        func() error
 	postMetricsWithResp func() error
 }
 

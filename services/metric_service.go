@@ -2,20 +2,21 @@ package services
 
 import (
 	"context"
+	"net/http"
+	"sync"
+
 	"github.com/harness/ff-proxy/domain"
 	clientgen "github.com/harness/ff-proxy/gen/client"
 	"github.com/harness/ff-proxy/log"
-	"net/http"
-	"sync"
 )
 
 // MetricService is a type for interacting with the Feature Flag Metric Service
 type MetricService struct {
-	log    log.Logger
-	accountID string
-	enabled bool
-	client clientgen.ClientWithResponsesInterface
-	metrics map[string]domain.MetricsRequest
+	log         log.Logger
+	accountID   string
+	enabled     bool
+	client      clientgen.ClientWithResponsesInterface
+	metrics     map[string]domain.MetricsRequest
 	metricsLock sync.Mutex
 }
 
@@ -25,7 +26,7 @@ func NewMetricService(l log.Logger, addr string, accountID string, serviceToken 
 	client, err := clientgen.NewClientWithResponses(
 		addr,
 		clientgen.WithHTTPClient(doer{c: http.DefaultClient, token: serviceToken}),
-		)
+	)
 	if err != nil {
 		return MetricService{}, err
 	}
@@ -41,7 +42,7 @@ func (m MetricService) StoreMetrics(ctx context.Context, req domain.MetricsReque
 	m.metricsLock.Lock()
 	defer m.metricsLock.Unlock()
 	// store metrics to send later
-	if _,ok := m.metrics[req.EnvironmentID]; ok {
+	if _, ok := m.metrics[req.EnvironmentID]; ok {
 		currentMetrics := m.metrics[req.EnvironmentID]
 		if req.MetricsData != nil {
 			newMetrics := append(*currentMetrics.MetricsData, *req.MetricsData...)
@@ -88,7 +89,7 @@ func (m MetricService) SendMetrics(ctx context.Context, clusterIdentifier string
 	}
 }
 
-func (m MetricService) addAccountQueryParam (ctx context.Context, req *http.Request) error {
+func (m MetricService) addAccountQueryParam(ctx context.Context, req *http.Request) error {
 	queryParams := req.URL.Query()
 	queryParams.Add("accountIdentifier", m.accountID)
 	req.URL.RawQuery = queryParams.Encode()

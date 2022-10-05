@@ -67,7 +67,7 @@ func apiEnvMapToAuthConfig(config map[domain.AuthAPIKey]string) []domain.AuthCon
 	authConfig := []domain.AuthConfig{}
 	for key, env := range config {
 		authConfig = append(authConfig, domain.AuthConfig{
-			APIKey:  key,
+			APIKey:        key,
 			EnvironmentID: domain.EnvironmentID(env),
 		})
 	}

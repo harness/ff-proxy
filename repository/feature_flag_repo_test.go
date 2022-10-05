@@ -152,7 +152,7 @@ func TestFeatureFlagRepo_Add(t *testing.T) {
 	testCases := map[string]struct {
 		cache      cache.Cache
 		repoConfig map[domain.FeatureFlagKey][]domain.FeatureFlag
-		flags    []domain.FeatureFlag
+		flags      []domain.FeatureFlag
 		key        domain.FeatureFlagKey
 		shouldErr  bool
 		expected   []domain.FeatureFlag
@@ -161,7 +161,7 @@ func TestFeatureFlagRepo_Add(t *testing.T) {
 		"Given I have an empty repo and I add a FeatureFlag to it": {
 			cache:      cache.NewMemCache(),
 			repoConfig: emptyConfig,
-			flags:    []domain.FeatureFlag{featureFlagFoo},
+			flags:      []domain.FeatureFlag{featureFlagFoo},
 			key:        key123,
 			shouldErr:  false,
 			expected:   []domain.FeatureFlag{featureFlagFoo},
@@ -179,7 +179,7 @@ func TestFeatureFlagRepo_Add(t *testing.T) {
 		"Given I have a repo with a FeatureFlag in it and I add a new FeatureFlag under the same key": {
 			cache:      cache.NewMemCache(),
 			repoConfig: populatedConfig,
-			flags:    []domain.FeatureFlag{featureFlagBar},
+			flags:      []domain.FeatureFlag{featureFlagBar},
 			key:        key123,
 			shouldErr:  false,
 			expected:   []domain.FeatureFlag{featureFlagFoo, featureFlagBar},
@@ -191,7 +191,7 @@ func TestFeatureFlagRepo_Add(t *testing.T) {
 				getAll: func() (map[string][]byte, error) { return map[string][]byte{}, nil },
 			},
 			repoConfig: nil,
-			flags:    []domain.FeatureFlag{featureFlagBar},
+			flags:      []domain.FeatureFlag{featureFlagBar},
 			key:        key123,
 			shouldErr:  true,
 			expected:   []domain.FeatureFlag{},

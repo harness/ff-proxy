@@ -2,8 +2,9 @@ package repository
 
 import (
 	"context"
-	"github.com/harness/ff-proxy/cache"
 	"testing"
+
+	"github.com/harness/ff-proxy/cache"
 
 	"github.com/harness/ff-proxy/domain"
 	"github.com/stretchr/testify/assert"

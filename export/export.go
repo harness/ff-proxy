@@ -4,12 +4,13 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/harness/ff-proxy/domain"
-	"github.com/harness/ff-proxy/log"
-	"github.com/harness/ff-proxy/repository"
 	"io"
 	"os"
 	"time"
+
+	"github.com/harness/ff-proxy/domain"
+	"github.com/harness/ff-proxy/log"
+	"github.com/harness/ff-proxy/repository"
 )
 
 var readmeTemplate = `
@@ -37,25 +38,25 @@ type OfflineConfig struct {
 
 // Service is the export service implementation
 type Service struct {
-	logger           log.Logger
-	featureRepo      repository.FeatureFlagRepo
-	targetRepo       repository.TargetRepo
-	segmentRepo      repository.SegmentRepo
-	authRepo         repository.AuthRepo
-	authConfig       map[domain.AuthAPIKey]string
+	logger      log.Logger
+	featureRepo repository.FeatureFlagRepo
+	targetRepo  repository.TargetRepo
+	segmentRepo repository.SegmentRepo
+	authRepo    repository.AuthRepo
+	authConfig  map[domain.AuthAPIKey]string
 }
 
 // NewService creates and returns an ExportService
 func NewService(logger log.StructuredLogger, featureRepo repository.FeatureFlagRepo, targetRepo repository.TargetRepo,
-segmentRepo repository.SegmentRepo, authRepo repository.AuthRepo, authConfig map[domain.AuthAPIKey]string) Service {
+	segmentRepo repository.SegmentRepo, authRepo repository.AuthRepo, authConfig map[domain.AuthAPIKey]string) Service {
 	l := logger.With("component", "ExportService")
 	return Service{
-		logger:           l,
-		featureRepo:      featureRepo,
-		targetRepo:       targetRepo,
-		segmentRepo:      segmentRepo,
-		authRepo:         authRepo,
-		authConfig:       authConfig,
+		logger:      l,
+		featureRepo: featureRepo,
+		targetRepo:  targetRepo,
+		segmentRepo: segmentRepo,
+		authRepo:    authRepo,
+		authConfig:  authConfig,
 	}
 }
 
@@ -92,7 +93,7 @@ func (s Service) Persist(ctx context.Context) error {
 	for environment, config := range configMap {
 		dirName := fmt.Sprintf("config/env-%s", environment)
 
-		if len(config.APIKeys) == 0  {
+		if len(config.APIKeys) == 0 {
 			continue
 		}
 

@@ -293,4 +293,3 @@ type AuthenticateJSONRequestBody AuthenticateJSONBody
 
 // PostMetricsJSONRequestBody defines body for PostMetrics for application/json ContentType.
 type PostMetricsJSONRequestBody PostMetricsJSONBody
-
