@@ -2,10 +2,11 @@ package services
 
 import (
 	"context"
-	admingen "github.com/harness/ff-proxy/gen/admin"
-	"github.com/harness/ff-proxy/log"
 	"net/http"
 	"testing"
+
+	admingen "github.com/harness/ff-proxy/gen/admin"
+	"github.com/harness/ff-proxy/log"
 
 	"github.com/stretchr/testify/assert"
 )

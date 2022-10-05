@@ -3,8 +3,9 @@ package repository
 import (
 	"context"
 	"fmt"
-	"github.com/harness/ff-proxy/gen/client"
 	"time"
+
+	"github.com/harness/ff-proxy/gen/client"
 
 	"github.com/harness/ff-proxy/cache"
 

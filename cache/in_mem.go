@@ -18,14 +18,38 @@ type MemCache struct {
 	data map[string]map[string][]byte
 }
 
+// GetByte gets the value of a field for a given key
 func (m MemCache) GetByte(ctx context.Context, key string, field string) ([]byte, error) {
-	//TODO implement me
-	panic("implement me")
+	m.RLock()
+	defer m.RUnlock()
+
+	fields, ok := m.data[key]
+	if !ok {
+		return nil, fmt.Errorf("%w: key %q doesn't exist in memcache", domain.ErrCacheNotFound, key)
+	}
+
+	value, ok := fields[field]
+	if !ok {
+		return nil, fmt.Errorf("%w: field %q doesn't exist in memcache for key: %q", domain.ErrCacheNotFound, field, key)
+	}
+
+	return value, nil
 }
 
+// SetByte sets a value in bytes in the cache for a given key and field
 func (m MemCache) SetByte(ctx context.Context, key string, field string, value []byte) error {
-	//TODO implement me
-	panic("implement me")
+	m.Lock()
+	defer m.Unlock()
+
+	if v, ok := m.data[key]; ok {
+		v[field] = value
+		return nil
+	}
+
+	m.data[key] = map[string][]byte{
+		field: value,
+	}
+	return nil
 }
 
 // NewMemCache creates an initialised MemCache

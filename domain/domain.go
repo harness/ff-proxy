@@ -115,7 +115,7 @@ func (t Token) Claims() Claims {
 
 // Claims are custom jwt claims used by the proxy for generating a jwt token
 type Claims struct {
-	Environment string `json:"environment"`
+	Environment       string `json:"environment"`
 	ClusterIdentifier string `json:"clusterIdentifier"`
 	jwt.StandardClaims
 }

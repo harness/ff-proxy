@@ -3,9 +3,10 @@ package services
 import (
 	"context"
 	"fmt"
+	"net/http"
+
 	admingen "github.com/harness/ff-proxy/gen/admin"
 	"github.com/harness/ff-proxy/log"
-	"net/http"
 )
 
 // doer is a simple http client that gets passed to the generated admin client

@@ -63,6 +63,6 @@ type StreamResponse struct {
 
 // MetricsRequest contains the fields sent in a POST /metrics request
 type MetricsRequest struct {
-	EnvironmentID string        `json:"environment_id"`
+	EnvironmentID string `json:"environment_id"`
 	clientgen.Metrics
 }

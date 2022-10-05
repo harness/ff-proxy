@@ -14,7 +14,9 @@ import (
 
 type mockCache struct {
 	set       func() error
+	setByte   func() error
 	get       func() error
+	getByte   func() ([]byte, error)
 	getAll    func() (map[string][]byte, error)
 	removeAll func()
 	remove    func()
@@ -29,9 +31,19 @@ func (m *mockCache) Set(ctx context.Context, key string, field string, value enc
 	return m.set()
 }
 
+// SetByte sets a value in the cache for a given key and field
+func (m *mockCache) SetByte(ctx context.Context, key string, field string, value []byte) error {
+	return m.setByte()
+}
+
 // Get gets the value of a field for a given key
 func (m *mockCache) Get(ctx context.Context, key string, field string, v encoding.BinaryUnmarshaler) error {
 	return m.get()
+}
+
+// GetByte gets the value of a field for a given key
+func (m *mockCache) GetByte(ctx context.Context, key string, field string) ([]byte, error) {
+	return m.getByte()
 }
 
 // GetAll gets all of the fiels and their values for a given key
