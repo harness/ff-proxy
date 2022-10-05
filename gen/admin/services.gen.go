@@ -10729,3 +10729,4 @@ func ParseGetTargetSegmentsResponse(rsp *http.Response) (*GetTargetSegmentsRespo
 
 	return response, nil
 }
+
