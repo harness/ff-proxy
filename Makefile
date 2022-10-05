@@ -105,7 +105,8 @@ lint: tools ## lint the golang code
 PHONY+= tools
 format: tools ## Format go code and error if any changes are made
 	@echo "Formating ..."
-	@goimports -w .
+	@goimports -l .
+	@goimports -l -w . | wc -m | grep -q "       0"
 	@echo "Formatting complete"
 
 PHONY+= sec
