@@ -49,11 +49,12 @@ type Service struct {
 	segmentRepo repository.SegmentRepo
 	authRepo    repository.AuthRepo
 	authConfig  map[domain.AuthAPIKey]string
+	configDir   string
 }
 
 // NewService creates and returns an ExportService
 func NewService(logger log.StructuredLogger, featureRepo repository.FeatureFlagRepo, targetRepo repository.TargetRepo,
-	segmentRepo repository.SegmentRepo, authRepo repository.AuthRepo, authConfig map[domain.AuthAPIKey]string) Service {
+	segmentRepo repository.SegmentRepo, authRepo repository.AuthRepo, authConfig map[domain.AuthAPIKey]string, configDir string) Service {
 	l := logger.With("component", "ExportService")
 	return Service{
 		logger:      l,
@@ -62,6 +63,7 @@ func NewService(logger log.StructuredLogger, featureRepo repository.FeatureFlagR
 		segmentRepo: segmentRepo,
 		authRepo:    authRepo,
 		authConfig:  authConfig,
+		configDir:   configDir,
 	}
 }
 
@@ -93,10 +95,10 @@ func (s Service) Persist(ctx context.Context) error {
 	}
 
 	// make config directory
-	os.Mkdir("config", createDirPermissionLevel)
+	os.Mkdir(s.configDir, createDirPermissionLevel)
 
 	for environment, config := range configMap {
-		dirName := fmt.Sprintf("config/env-%s", environment)
+		dirName := fmt.Sprintf("%s/env-%s", s.configDir, environment)
 
 		if len(config.APIKeys) == 0 {
 			continue
