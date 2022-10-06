@@ -12,7 +12,7 @@ require (
 	github.com/google/uuid v1.3.0
 	github.com/harness/ff-golang-server-sdk v0.1.3
 	github.com/hashicorp/go-retryablehttp v0.6.8
-	github.com/labstack/echo/v4 v4.7.2
+	github.com/labstack/echo/v4 v4.9.0
 	github.com/r3labs/sse v0.0.0-20201126193848-34e640891548
 	github.com/sirupsen/logrus v1.8.1
 	github.com/stretchr/testify v1.7.1
