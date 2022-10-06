@@ -27,6 +27,14 @@ func (r *RedisCache) Set(ctx context.Context, key string, field string, value en
 	return nil
 }
 
+// SetByte sets a value in the cache for a given key and field
+func (r *RedisCache) SetByte(ctx context.Context, key string, field string, value []byte) error {
+	if err := r.client.HSet(ctx, key, field, value).Err(); err != nil {
+		return err
+	}
+	return nil
+}
+
 // SetKV sets a key and value
 func (r *RedisCache) SetKV(ctx context.Context, key string, value string) error {
 	return r.client.Set(ctx, key, value, 0).Err()
@@ -60,9 +68,21 @@ func (r *RedisCache) Get(ctx context.Context, key string, field string, v encodi
 	}
 
 	if err := v.UnmarshalBinary(b); err != nil {
-		return fmt.Errorf("%w: failed to unmarshal value to %T for key: %q, field: %q", v, key, field, domain.ErrCacheInternal)
+		return fmt.Errorf("%v: failed to unmarshal value to %T for key: %q, field: %q", v, key, field, domain.ErrCacheInternal)
 	}
 	return nil
+}
+
+// GetByte gets the value of a field for a given key
+func (r *RedisCache) GetByte(ctx context.Context, key string, field string) ([]byte, error) {
+	b, err := r.client.HGet(ctx, key, field).Bytes()
+	if err != nil {
+		if err == redis.Nil {
+			return nil, fmt.Errorf("%w: field %s doesn't exist in redis for key: %s", domain.ErrCacheNotFound, field, key)
+		}
+		return nil, err
+	}
+	return b, nil
 }
 
 // GetKV gets the value for a given key

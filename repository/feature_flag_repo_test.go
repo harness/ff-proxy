@@ -28,7 +28,7 @@ var (
 					Clauses: []clientgen.Clause{
 						{
 							Attribute: "name",
-							Id:        "79f5bca0-17ca-42c2-8934-5cee840fe2e0",
+							Id:        strPtr("79f5bca0-17ca-42c2-8934-5cee840fe2e0"),
 							Negate:    false,
 							Op:        "equal",
 							Values: []string{
@@ -37,13 +37,13 @@ var (
 						},
 					},
 					Priority: 1,
-					RuleId:   "8756c207-abf8-4202-83fd-dedf5d27e2c2",
+					RuleId:   strPtr("8756c207-abf8-4202-83fd-dedf5d27e2c2"),
 					Serve: clientgen.Serve{
 						Variation: strPtr("false"),
 					},
 				},
 			},
-			State: clientgen.FeatureState_on,
+			State: clientgen.On,
 			VariationToTargetMap: &[]clientgen.VariationMap{
 				{
 					TargetSegments: &[]string{
@@ -51,7 +51,7 @@ var (
 					},
 					Targets: &[]clientgen.TargetMap{
 						{
-							Identifier: strPtr("davej"),
+							Identifier: "davej",
 							Name:       "Dave Johnston",
 						},
 					},
@@ -92,7 +92,7 @@ var (
 					Clauses: []clientgen.Clause{
 						{
 							Attribute: "name",
-							Id:        "79f5bca0-17ca-42c2-8934-5cee840fe2e0",
+							Id:        strPtr("79f5bca0-17ca-42c2-8934-5cee840fe2e0"),
 							Negate:    false,
 							Op:        "equal",
 							Values: []string{
@@ -101,13 +101,13 @@ var (
 						},
 					},
 					Priority: 1,
-					RuleId:   "8756c207-abf8-4202-83fd-dedf5d27e2c2",
+					RuleId:   strPtr("8756c207-abf8-4202-83fd-dedf5d27e2c2"),
 					Serve: clientgen.Serve{
 						Variation: strPtr("false"),
 					},
 				},
 			},
-			State: clientgen.FeatureState_on,
+			State: clientgen.On,
 			VariationToTargetMap: &[]clientgen.VariationMap{
 				{
 					TargetSegments: &[]string{
@@ -115,7 +115,7 @@ var (
 					},
 					Targets: &[]clientgen.TargetMap{
 						{
-							Identifier: strPtr("davej"),
+							Identifier: "davej",
 							Name:       "Dave Johnston",
 						},
 					},

@@ -3,12 +3,15 @@ package cache
 import (
 	"context"
 	"encoding"
+	"encoding/json"
 	"fmt"
+	"strings"
 	"sync"
 	"time"
 
+	"github.com/harness/ff-golang-server-sdk/rest"
+
 	"github.com/harness/ff-golang-server-sdk/dto"
-	"github.com/harness/ff-golang-server-sdk/evaluation"
 	"github.com/harness/ff-golang-server-sdk/logger"
 	"github.com/harness/ff-proxy/domain"
 	"github.com/harness/ff-proxy/log"
@@ -25,8 +28,12 @@ import (
 type Cache interface {
 	// Set sets a value in the cache for a given key and field
 	Set(ctx context.Context, key string, field string, value encoding.BinaryMarshaler) error
+	// SetByte sets a value in the cache for a given key and field
+	SetByte(ctx context.Context, key string, field string, value []byte) error
 	// Get gets the value of a field for a given key
 	Get(ctx context.Context, key string, field string, v encoding.BinaryUnmarshaler) error
+	// GetByte gets the value of a field for a given key
+	GetByte(ctx context.Context, key string, field string) ([]byte, error)
 	// GetAll gets all of the fiels and their values for a given key
 	GetAll(ctx context.Context, key string) (map[string][]byte, error)
 	// RemoveAll removes all the fields and their values for a given key
@@ -93,13 +100,36 @@ func (wrapper *Wrapper) Set(key interface{}, value interface{}) (evicted bool) {
 		return
 	}
 
-	domainValue, err := wrapper.convertEvaluationToDomain(cacheKey.kind, value)
-	if err != nil {
-		wrapper.logger.Error("failed to convert Evaluation object to Domain object", "err", err)
+	var val []byte
+	switch cacheKey.kind {
+	case dto.KeySegment:
+		segmentConfig, ok := value.(rest.Segment)
+		if !ok {
+			wrapper.logger.Error("failed to cast value in cache to rest.Segment")
+			return
+		}
+		val, err = json.Marshal(segmentConfig)
+		if err != nil {
+			wrapper.logger.Error("failed to marshal segmentConfig", "err", err)
+			return
+		}
+	case dto.KeyFeature:
+		featureConfig, ok := value.(rest.FeatureConfig)
+		if !ok {
+			wrapper.logger.Error("failed to cast value in cache to rest.FeatureConfig")
+			return
+		}
+		val, err = json.Marshal(featureConfig)
+		if err != nil {
+			wrapper.logger.Error("failed to marshal featureConfig", "err", err)
+			return
+		}
+	default:
+		wrapper.logger.Error("unexpected type trying to be set")
 		return
 	}
 
-	err = wrapper.cache.Set(context.Background(), cacheKey.name, cacheKey.field, domainValue)
+	err = wrapper.cache.SetByte(context.Background(), cacheKey.name, cacheKey.field, val)
 	if err != nil {
 		wrapper.logger.Warn("failed to set key to wrapper cache", "err", err)
 		return
@@ -214,9 +244,9 @@ func (wrapper *Wrapper) Resize(size int) (evicted int) {
  */
 
 func (wrapper *Wrapper) decodeDTOKey(key interface{}) (cacheKey, error) {
-	// decode key
-	dtoKey, ok := key.(dto.Key)
-	if !ok {
+
+	dtoKey, err := convertToDTOKey(key)
+	if err != nil {
 		return cacheKey{}, fmt.Errorf("couldn't convert key to dto.Key: %s", key)
 	}
 
@@ -241,27 +271,6 @@ func (wrapper *Wrapper) generateKeyName(keyType string) (string, error) {
 		return string(domain.NewSegmentKey(wrapper.environment)), nil
 	default:
 		return "", fmt.Errorf("key type not recognised: %s", keyType)
-	}
-}
-
-// convertEvaluationToDomain converts the data being cached by the sdk to it's appropriate internal type i.e. domain.FeatureFlag
-func (wrapper *Wrapper) convertEvaluationToDomain(keyType string, value interface{}) (encoding.BinaryMarshaler, error) {
-	switch keyType {
-	case dto.KeyFeature:
-		featureConfig, ok := value.(evaluation.FeatureConfig)
-		if !ok {
-			return &domain.FeatureFlag{}, fmt.Errorf("couldn't convert to evaluation.FeatureFlag")
-		}
-
-		return domain.ConvertEvaluationFeatureConfig(featureConfig), nil
-	case dto.KeySegment:
-		segmentConfig, ok := value.(evaluation.Segment)
-		if !ok {
-			return &domain.Segment{}, fmt.Errorf("couldn't convert to evaluation.Segment")
-		}
-		return domain.ConvertEvaluationSegment(segmentConfig), nil
-	default:
-		return nil, fmt.Errorf("key type not recognised: %s", keyType)
 	}
 }
 
@@ -317,33 +326,55 @@ func (wrapper *Wrapper) get(key cacheKey) (interface{}, error) {
 }
 
 func (wrapper *Wrapper) getFeatureConfig(key cacheKey) (interface{}, error) {
-	var val encoding.BinaryUnmarshaler = &domain.FeatureConfig{}
-	// get FeatureFlag in domain.FeatureFlag format
-	err := wrapper.cache.Get(context.Background(), key.name, key.field, val)
+	// get FeatureFlag in rest.FeatureConfig format
+	var featureConfig = rest.FeatureConfig{}
+	val, err := wrapper.cache.GetByte(context.Background(), key.name, key.field)
 	if err != nil {
 		return nil, err
 	}
-	featureConfig, ok := val.(*domain.FeatureConfig)
-	if !ok {
-		return nil, fmt.Errorf("couldn't cast cached value to domain.FeatureFlag: %s", val)
-	}
 
-	// return to sdk in evaluation.FeatureFlag format
-	return *domain.ConvertDomainFeatureConfig(*featureConfig), nil
+	err = json.Unmarshal(val, &featureConfig)
+	if err != nil {
+		return nil, fmt.Errorf("couldn't cast cached value to rest.FeatureConfig: %s", val)
+	}
+	// return to sdk in rest.FeatureConfig format
+	return featureConfig, nil
 }
 
 func (wrapper *Wrapper) getSegment(key cacheKey) (interface{}, error) {
-	var val encoding.BinaryUnmarshaler = &domain.Segment{}
+	var segment = rest.Segment{}
 	// get Segment in domain.Segment format
-	err := wrapper.cache.Get(context.Background(), key.name, key.field, val)
+	val, err := wrapper.cache.GetByte(context.Background(), key.name, key.field)
 	if err != nil {
 		return nil, err
 	}
-	segment, ok := val.(*domain.Segment)
-	if !ok {
-		return nil, fmt.Errorf("couldn't cast cached value to domain.Segment: %s", val)
+
+	err = json.Unmarshal(val, &segment)
+	if err != nil {
+		return nil, fmt.Errorf("couldn't cast cached value to rest.Segment: %s", val)
 	}
 
 	// return to sdk in evaluation.Segment format
-	return domain.ConvertDomainSegment(*segment), nil
+	return segment, nil
+}
+
+func convertToDTOKey(key interface{}) (dto.Key, error) {
+	myKey, ok := key.(string)
+	if !ok {
+		dtoKey, ok := key.(dto.Key)
+		if !ok {
+			return dto.Key{}, fmt.Errorf("couldn't convert key to dto.Key: %s", key)
+		}
+		return dtoKey, nil
+	}
+
+	keyArr := strings.SplitN(myKey, "/", 2)
+	if len(keyArr) != 2 {
+		return dto.Key{}, fmt.Errorf("couldn't convert key to dto.Key: %s", key)
+	}
+	dtoKey := dto.Key{
+		Type: keyArr[0],
+		Name: keyArr[1],
+	}
+	return dtoKey, nil
 }

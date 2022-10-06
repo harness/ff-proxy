@@ -25,14 +25,14 @@ all: dep generate build ## Pulls down required deps, runs required code generat
 
 # Install oapi-codegen to generate ff server code from the apis
 $(GOBIN)/oapi-codegen:
-	go install github.com/deepmap/oapi-codegen/cmd/oapi-codegen@v1.6.0
+	go install github.com/deepmap/oapi-codegen/cmd/oapi-codegen@v1.11.0
 
 PHONY+= generate
 generate: ## Generates the client for the ff-servers client service
-	oapi-codegen -generate client -package=client ./ff-api/docs/release/client-v1.yaml > gen/client/services.gen.go
-	oapi-codegen -generate types -package=client ./ff-api/docs/release/client-v1.yaml > gen/client/types.gen.go
-	oapi-codegen -generate client -package=admin  ./ff-api/docs/release/admin-v1.yaml > gen/admin/services.gen.go
-	oapi-codegen -generate types -package=admin ./ff-api/docs/release/admin-v1.yaml > gen/admin/types.gen.go
+	oapi-codegen --config ./ff-api/config/ff-proxy/client-client.yaml ./ff-api/docs/release/client-v1.yaml > gen/client/services.gen.go
+	oapi-codegen --config ./ff-api/config/ff-proxy/client-types.yaml ./ff-api/docs/release/client-v1.yaml > gen/client/types.gen.go
+	oapi-codegen --config ./ff-api/config/ff-proxy/admin-client.yaml  ./ff-api/docs/release/admin-v1.yaml > gen/admin/services.gen.go
+	oapi-codegen --config ./ff-api/config/ff-proxy/admin-types.yaml ./ff-api/docs/release/admin-v1.yaml > gen/admin/types.gen.go
 
 PHONY+= build
 build: ## Builds the ff-proxy service binary
