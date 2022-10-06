@@ -433,7 +433,7 @@ func main() {
 
 	if generateOfflineConfig {
 		if sdksInitialised() {
-			exportService := export.NewService(logger, fcr, tr, sr, authRepo, authConfig)
+			exportService := export.NewService(logger, fcr, tr, sr, authRepo, authConfig, configDir)
 			err = exportService.Persist(ctx)
 			if err != nil {
 				logger.Error("offline config export failed err: %s", err)
