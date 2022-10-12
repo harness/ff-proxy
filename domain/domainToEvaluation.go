@@ -74,9 +74,17 @@ func convertGenPrerequisite(p clientgen.Prerequisite) *evaluation.Prerequisite {
 
 //convert converts variation map to evaluation object
 func convertGenVariationMap(v clientgen.VariationMap) *evaluation.VariationMap {
+	var segments []string
+	var targets []clientgen.TargetMap
+	if v.TargetSegments != nil {
+		segments = *v.TargetSegments
+	}
+	if v.Targets != nil {
+		targets = *v.Targets
+	}
 	return &evaluation.VariationMap{
-		TargetSegments: *v.TargetSegments,
-		Targets:        convertTargetToIdentifier(*v.Targets),
+		TargetSegments: segments,
+		Targets:        convertTargetToIdentifier(targets),
 		Variation:      v.Variation,
 	}
 }
