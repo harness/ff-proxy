@@ -14,13 +14,17 @@ services:
       - AUTH_SECRET=${AUTH_SECRET}
       - SDK_BASE_URL=${SDK_BASE_URL}
       - SDK_EVENTS_URL=${SDK_EVENTS_URL}
-      - REDIS_ADDRESS=redis:6379
+      - REDIS_ADDRESS=${REDIS_ADDRESS}
       - REDIS_PASSWORD=${REDIS_PASSWORD}
       - REDIS_DB=${REDIS_DB}
       - API_KEYS=${API_KEYS}
       - TARGET_POLL_DURATION=${TARGET_POLL_DURATION}
+      - GENERATE_OFFLINE_CONFIG=${GENERATE_OFFLINE_CONFIG}
+    build:
+      context: ./
+      dockerfile: ./Dockerfile
     volumes:
-      - ./config:/config
+      - ${CONFIG_VOLUME:-./config:/config}
     ports:
       - "7000:7000"
 
