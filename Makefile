@@ -42,11 +42,7 @@ PHONY+= build-race
 build-race: generate ## Builds the ff-proxy service binary with the race detector enabled
 	CGO_ENABLED=1 go build -race -o ff-proxy ./cmd/ff-proxy/main.go
 
-pushpin-image: ## Builds a pushpin docker image called harness/proxy-pushpin:latest
-	@echo "Building Proxy Pushpin Image"
-	@docker build -t harness/proxy-pushpin:latest -f ./docker-pushpin/Dockerfile ./docker-pushpin
-
-image: pushpin-image ## Builds a docker image for the proxy called ff-proxy:latest
+image: ## Builds a docker image for the proxy called ff-proxy:latest
 	@echo "Building Feature Flag Proxy Image"
 	@docker build -t harness/ff-proxy:latest -f ./Dockerfile .
 
