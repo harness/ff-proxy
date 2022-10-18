@@ -14,7 +14,7 @@ WORKDIR /app
 COPY go.mod .
 COPY go.sum .
 COPY Makefile .
-RUN make dep 
+RUN make dep
 COPY . .
 
 # Generate Code and Build
