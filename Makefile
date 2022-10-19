@@ -94,6 +94,7 @@ e2e-online-redis: ## brings up proxy in online in redis mode and runs e2e sdk te
 	docker-compose --env-file .env.online_redis -f ./docker-compose.yml up -d --remove-orphans proxy redis
 	sleep 5 ## TODO replace with a check for the proxy and all envs being healthy
 	go test -coverprofile=e2e-online-redis.cov -p 1 -v ./tests/... -env=".env.online" | tee /dev/stderr | go-junit-report -set-exit-code > online-redis.xml
+	gocov convert ./e2e-online-redis.cov | gocov-html > ./e2e_online_redis_coverage.html
 
 e2e-generate-offline-config: ## brings up proxy to generate offline config then runs in offline mode
 	CONFIG_VOLUME=./testconfig:/config docker-compose --env-file .env.generate_offline -f ./docker-compose.yml up -d --remove-orphans proxy
