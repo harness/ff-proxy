@@ -81,17 +81,17 @@ offline-test-env: ## Brings up proxy service in offline mode for tests
 	OFFLINE=true AUTH_SECRET=my_secret CONFIG_VOLUME=./tests/e2e/testdata/config:/config docker-compose -f ./docker-compose.yml up -d --remove-orphans proxy
 
 e2e-offline: offline-test-env ## brings up offline proxy and runs e2e sdk tests aginst it
-	go test -p 1 -v ./tests/... -env=".env.offline" | tee /dev/stderr | go-junit-report -set-exit-code > report.xml
+	go test -coverprofile=e2e-offline.cov -p 1 -v ./tests/... -env=".env.offline" | tee /dev/stderr | go-junit-report -set-exit-code > report.xml
 
 e2e-online-in-mem: ## brings up proxy in online in memory mode and runs e2e sdk tests aginst it
 	docker-compose --env-file .env.online_in_mem -f ./docker-compose.yml up -d --remove-orphans proxy
 	sleep 5 ## TODO replace with a check for the proxy and all envs being healthy
-	go test -p 1 -v ./tests/... -env=".env.online" | tee /dev/stderr | go-junit-report -set-exit-code > online-in-memory.xml
+	go test -coverprofile=e2e-online-in-mem.cov -p 1 -v ./tests/... -env=".env.online" | tee /dev/stderr | go-junit-report -set-exit-code > online-in-memory.xml
 
 e2e-online-redis: ## brings up proxy in online in redis mode and runs e2e sdk tests aginst it
 	docker-compose --env-file .env.online_redis -f ./docker-compose.yml up -d --remove-orphans proxy redis
 	sleep 5 ## TODO replace with a check for the proxy and all envs being healthy
-	go test -p 1 -v ./tests/... -env=".env.online" | tee /dev/stderr | go-junit-report -set-exit-code > online-redis.xml
+	go test -coverprofile=e2e-online-redis.cov -p 1 -v ./tests/... -env=".env.online" | tee /dev/stderr | go-junit-report -set-exit-code > online-redis.xml
 
 e2e-generate-offline-config: ## brings up proxy to generate offline config then runs in offline mode
 	CONFIG_VOLUME=./testconfig:/config docker-compose --env-file .env.generate_offline -f ./docker-compose.yml up -d --remove-orphans proxy
