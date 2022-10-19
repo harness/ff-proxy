@@ -82,6 +82,7 @@ offline-test-env: ## Brings up proxy service in offline mode for tests
 
 e2e-offline: offline-test-env ## brings up offline proxy and runs e2e sdk tests aginst it
 	go test -coverprofile=e2e-offline.cov -p 1 -v ./tests/... -env=".env.offline" | tee /dev/stderr | go-junit-report -set-exit-code > report.xml
+	gocov convert ./offline.cov | gocov-html > ./e2e_offline_coverage.html
 
 e2e-online-in-mem: ## brings up proxy in online in memory mode and runs e2e sdk tests aginst it
 	docker-compose --env-file .env.online_in_mem -f ./docker-compose.yml up -d --remove-orphans proxy
