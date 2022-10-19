@@ -154,6 +154,7 @@ func (s Service) Persist(ctx context.Context) error {
 }
 
 func saveConfig(filename string, v interface{}) error {
+	// #nosec
 	f, err := os.Create(filename)
 
 	if err != nil {
