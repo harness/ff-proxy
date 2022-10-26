@@ -10,3 +10,7 @@ To read more about use cases and advantages of the Relay Proxy see the [Why use 
 
 You can also read more about the use cases, architecture and more in [our blog post](https://harness.io/blog/in-depth-feature-flags-relay-proxy).
 
+## Contributing
+See the [contribution guide](CONTRIBUTING.md)
+
+
