@@ -67,10 +67,18 @@ Populate the [testhelpers .env.setup file](/tests/e2e/testhelpers/setup/.env.set
 **2. Populate test data**
 
 This will create the test project and flag on Saas as well as generating .env files with the correct configuration to run all the e2e test modes. These will be saved in the root directory as ```.env.generate_offline```, ``.env.online_in_mem``, ``.env.online_redis``
-
+```
+make generate-e2e-env-files
+```
 **3. Run tests**
 
-You can run each of the tests using the specified make commands, ``make e2e-online-in-mem``, ``make e2e-online-redis``, ``make e2e-generate-offline-config``
+You can run each of the tests using the specified make commands, 
+```
+make e2e-online-in-mem
+make e2e-online-redis
+make e2e-generate-offline-config
+```
+
 
 ### Generating test coverage report
 You can generate a test report by running ```make test-report```. This will output a html test coverage report in the base directory.
