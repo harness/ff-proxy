@@ -365,13 +365,14 @@ func (s Service) EvaluationsByFeature(ctx context.Context, req domain.Evaluation
 		return clientgen.Evaluation{}, ErrInternal
 	}
 
-	// fetch segment
+	// fetch segments
 	segments, err := s.segmentRepo.GetAsMap(ctx, segmentKey)
 	if err != nil {
-		if errors.Is(err, domain.ErrCacheNotFound) {
-			return clientgen.Evaluation{}, fmt.Errorf("%w: %s", ErrNotFound, err)
+		if !errors.Is(err, domain.ErrCacheNotFound) {
+			return clientgen.Evaluation{}, fmt.Errorf("%w: %s", ErrInternal, err)
 		}
-		return clientgen.Evaluation{}, fmt.Errorf("%w: %s", ErrInternal, err)
+		// segments aren't required so just log and continue here
+		s.logger.Info(ctx, "target segments not found in cache: ", "err", err.Error())
 	}
 
 	// fetch target
