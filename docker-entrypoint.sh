@@ -31,4 +31,16 @@ if [ -v target ]; then
 	echo "* ${target},over_http" > /etc/pushpin/routes
 fi
 
+# Update routes file to use $PORT if set
+if [ -w /etc/pushpin/routes ]; then
+  if [ -n "${PORT}" ]; then
+    echo "Setting internal relay proxy port to ${PORT}"
+    sed -i \
+		-e "s/8000/${PORT}/g" \
+		/etc/pushpin/routes
+  fi
+else
+	echo "docker-entrypoint.sh: unable to write to /etc/pushpin/routes, readonly"
+fi
+
 exec "$@"
