@@ -20,6 +20,7 @@ services:
       - API_KEYS=${API_KEYS}
       - TARGET_POLL_DURATION=${TARGET_POLL_DURATION}
       - GENERATE_OFFLINE_CONFIG=${GENERATE_OFFLINE_CONFIG}
+      - PORT=${PORT}
     build:
       context: ./
       dockerfile: ./Dockerfile

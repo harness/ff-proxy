@@ -79,10 +79,6 @@ func (i *keys) Set(value string) error {
 	return nil
 }
 
-const (
-	port = 8000
-)
-
 var (
 	debug                 bool
 	bypassAuth            bool
@@ -110,6 +106,7 @@ var (
 	flagStreamEnabled     bool
 	generateOfflineConfig bool
 	configDir             string
+	port                  int
 )
 
 const (
@@ -137,6 +134,7 @@ const (
 	generateOfflineConfigEnv = "GENERATE_OFFLINE_CONFIG"
 	configDirEnv             = "CONFIG_DIR"
 	pprofEnabledEnv          = "PPROF"
+	portEnv                  = "PORT"
 
 	bypassAuthFlag            = "bypass-auth"
 	debugFlag                 = "debug"
@@ -162,6 +160,7 @@ const (
 	generateOfflineConfigFlag = "generate-offline-config"
 	configDirFlag             = "config-dir"
 	flagPollIntervalFlag      = "flag-poll-interval"
+	portFlag                  = "port"
 )
 
 func init() {
@@ -190,6 +189,7 @@ func init() {
 	flag.BoolVar(&flagStreamEnabled, flagStreamEnabledFlag, true, "should the proxy connect to Harness in streaming mode to get flag changes")
 	flag.BoolVar(&generateOfflineConfig, generateOfflineConfigFlag, false, "if true the proxy will produce offline config in the /config directory then terminate")
 	flag.StringVar(&configDir, configDirFlag, "/config", "specify a custom path to search for the offline config directory. Defaults to /config")
+	flag.IntVar(&port, portFlag, 8000, "port the relay proxy service is exposed on, default's to 8000")
 	sdkClients = newSDKClientMap()
 
 	loadFlagsFromEnv(map[string]string{
@@ -217,6 +217,7 @@ func init() {
 		generateOfflineConfigEnv: generateOfflineConfigFlag,
 		configDirEnv:             configDirFlag,
 		flagPollIntervalEnv:      flagPollIntervalFlag,
+		portEnv:                  portFlag,
 	})
 
 	flag.Parse()
