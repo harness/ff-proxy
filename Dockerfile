@@ -54,18 +54,6 @@ RUN chmod +x /usr/local/bin/docker-entrypoint.sh
 ENTRYPOINT ["docker-entrypoint.sh"]
 CMD ["pushpin", "--merge-output"]
 
-# Expose ports.
-# - 7999: HTTP port to forward on to the app
-# - 5560: ZMQ PULL for receiving messages
-# - 5561: HTTP port for receiving messages and commands
-# - 5562: ZMQ SUB for receiving messages
-# - 5563: ZMQ REP for receiving commands
-EXPOSE 7999
-EXPOSE 5560
-EXPOSE 5561
-EXPOSE 5562
-EXPOSE 5563
-
 
 ############################
 # STEP 3 add relay proxy build to pushpin image
@@ -86,5 +74,6 @@ RUN chown -R 65534:65534 /app/ff-proxy /log /pushpin /usr/lib/pushpin /etc/pushp
 # Setting this to 65534 which hould be the nodbody user
 USER 65534
 
+# Expose default port pushpin listens on
 EXPOSE 7000
 CMD ["./start.sh"]
