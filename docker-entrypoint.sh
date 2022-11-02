@@ -20,7 +20,6 @@ if [ -w /etc/pushpin/pushpin.conf ]; then
 		-e 's/push_in_http_addr=.*/push_in_http_addr=0.0.0.0/' \
 		-e 's/push_in_sub_specs=.*/push_in_sub_spec=tcp:\/\/\*:5562/' \
 		-e 's/command_spec=.*/command_spec=tcp:\/\/\*:5563/' \
-		-e 's/^http_port=.*/http_port=7999/' \
 		/etc/pushpin/pushpin.conf
 else
 	echo "docker-entrypoint.sh: unable to write to /etc/pushpin/pushpin.conf, readonly"
@@ -31,16 +30,17 @@ if [ -v target ]; then
 	echo "* ${target},over_http" > /etc/pushpin/routes
 fi
 
-# Update routes file to use $PORT if set
-if [ -w /etc/pushpin/routes ]; then
+# Update pushpin.conf file to use $PORT for http_port
+if [ -w /etc/pushpin/pushpin.conf ]; then
   if [ -n "${PORT}" ]; then
-    echo "Setting internal relay proxy port to ${PORT}"
+    echo "Listening for requests on port ${PORT}"
     sed -i \
-		-e "s/8000/${PORT}/g" \
-		/etc/pushpin/routes
+		-e "s/http_port=7000/http_port=${PORT}/" \
+		/etc/pushpin/pushpin.conf
+		export PORT=
   fi
 else
-	echo "docker-entrypoint.sh: unable to write to /etc/pushpin/routes, readonly"
+	echo "docker-entrypoint.sh: unable to write to /etc/pushpin/pushpin.conf, readonly"
 fi
 
 exec "$@"
