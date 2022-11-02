@@ -171,7 +171,7 @@ $(GOBIN)/gocov:
 # Install gocov-html to generate a code coverage html file
 $(GOBIN)/gocov-html:
 	@echo "🔘 Installing gocov-html ... (`date '+%H:%M:%S'`)"
-	@go install github.com/matm/gocov-html@latest
+	@go install github.com/matm/gocov-html/cmd/gocov-html@latest
 
 # Install gosec for security scans
 $(GOBIN)/gosec:
