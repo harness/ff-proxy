@@ -160,6 +160,9 @@ func TestEvaluations(t *testing.T) {
 	}
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
+			if tt.args.APIKey == "" {
+				t.Skipf("api key not provided for test %s, skipping", t.Name())
+			}
 			token, claims, err := testhelpers.AuthenticateSDKClient(tt.args.APIKey, GetStreamURL(), &clientTarget)
 			if err != nil {
 				t.Error(err)

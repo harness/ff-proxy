@@ -200,10 +200,12 @@ func (s Service) FeatureConfig(ctx context.Context, req domain.FeatureConfigRequ
 	// fetch flags
 	flags, err := s.featureRepo.Get(ctx, flagKey)
 	if err != nil {
-		if errors.Is(err, domain.ErrCacheNotFound) {
-			return []domain.FeatureConfig{}, fmt.Errorf("%w: %s", ErrNotFound, err)
+		if !errors.Is(err, domain.ErrCacheNotFound) {
+			return []domain.FeatureConfig{}, fmt.Errorf("%w: %s", ErrInternal, err)
 		}
-		return []domain.FeatureConfig{}, fmt.Errorf("%w: %s", ErrInternal, err)
+		// we don't return not found because we can't currently tell the difference between no features existing
+		// and the environment itself not existing
+		s.logger.Info(ctx, "flags not found in cache: ", "err", err.Error())
 	}
 
 	// fetch segments
@@ -308,10 +310,10 @@ func (s Service) Evaluations(ctx context.Context, req domain.EvaluationsRequest)
 	// fetch flags
 	flags, err := s.featureRepo.Get(ctx, flagKey)
 	if err != nil {
-		if errors.Is(err, domain.ErrCacheNotFound) {
-			return nil, ErrNotFound
+		if !errors.Is(err, domain.ErrCacheNotFound) {
+			return nil, fmt.Errorf("%w: %s", ErrInternal, err)
 		}
-		return nil, fmt.Errorf("%w: %s", ErrInternal, err)
+		s.logger.Info(ctx, "flags not found in cache: ", "err", err.Error())
 	}
 
 	// fetch segments

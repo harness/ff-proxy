@@ -44,7 +44,9 @@ func TestGetFeatureConfig(t *testing.T) {
 
 	emptyProjToken, emptyProjClaims, err := testhelpers.AuthenticateSDKClient(GetEmptyProjectServerAPIKey(), GetStreamURL(), nil)
 	if err != nil {
-		t.Error(err)
+		if GetEmptyProjectServerAPIKey() != "" {
+			t.Error(err)
+		}
 	}
 
 	type args struct {
@@ -94,7 +96,10 @@ func TestGetFeatureConfig(t *testing.T) {
 	}
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
-			// Execute the Add API Request
+			if tt.args.Token == "" {
+				t.Skipf("token not provided for test %s, skipping", t.Name())
+			}
+
 			got, err := getAllFeatureConfigs(tt.args.Env, tt.args.Token)
 
 			// Assert the client did not error
