@@ -49,6 +49,11 @@ func GetServerAPIKey() string {
 	return os.Getenv("SERVER_API_KEY")
 }
 
+// GetEmptyProjectServerAPIKey ...
+func GetEmptyProjectServerAPIKey() string {
+	return os.Getenv("EMPTY_PROJECT_API_KEY")
+}
+
 // GetStreamURL ...
 func GetStreamURL() string {
 	return os.Getenv("STREAM_URL")

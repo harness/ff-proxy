@@ -251,6 +251,9 @@ func setupHTTPServer(t *testing.T, bypassAuth bool, opts ...setupOpts) *HTTPServ
 var featureConfigWithSegments = []byte(`[{"defaultServe":{"variation":"true"},"environment":"featureflagsqa","feature":"harnessappdemodarkmode","kind":"boolean","offVariation":"false","prerequisites":[],"project":"FeatureFlagsQADemo","rules":[{"clauses":[{"attribute":"age","id":"79f5bca0-17ca-42c2-8934-5cee840fe2e0","negate":false,"op":"equal","values":["55"]}],"priority":1,"ruleId":"8756c207-abf8-4202-83fd-dedf5d27e2c2","serve":{"variation":"false"}}],"state":"on","variationToTargetMap":[{"targetSegments":["flagsTeam"],"targets":[{"identifier":"davej","name":"Dave Johnston"}],"variation":"false"}],"variations":[{"identifier":"true","name":"True","value":"true"},{"identifier":"false","name":"False","value":"false"}],"version":568,"segments":{"flagsTeam":{"createdAt":123,"environment":"featureflagsqa","excluded":[],"identifier":"flagsTeam","included":[],"modifiedAt":456,"name":"flagsTeam","rules":[{"attribute":"ip","id":"31c18ee7-8051-44cc-8507-b44580467ee5","negate":false,"op":"equal","values":["2a00:23c5:b672:2401:158:f2a6:67a0:6a79"]}],"version":1}}},{"defaultServe":{"variation":"1"},"environment":"featureflagsqa","feature":"yet_another_flag","kind":"string","offVariation":"2","prerequisites":[],"project":"FeatureFlagsQADemo","rules":[],"state":"on","variations":[{"identifier":"1","name":"1","value":"1"},{"identifier":"2","name":"2","value":"2"}],"variationToTargetMap":[],"version":6,"segments":{"flagsTeam":{"createdAt":123,"environment":"featureflagsqa","excluded":[],"identifier":"flagsTeam","included":[],"modifiedAt":456,"name":"flagsTeam","rules":[{"attribute":"ip","id":"31c18ee7-8051-44cc-8507-b44580467ee5","negate":false,"op":"equal","values":["2a00:23c5:b672:2401:158:f2a6:67a0:6a79"]}],"version":1}}}]
 `)
 
+var emptyFeatureConfig = []byte(`[]
+`)
+
 // TestHTTPServer_GetFeatureConfig sets up an service with repositories populated
 // from config/test, injects it into the HTTPServer and makes HTTP requests
 // to the /client/env/{environmentUUID}/feature-configs endpoint
@@ -272,9 +275,12 @@ func TestHTTPServer_GetFeatureConfig(t *testing.T) {
 			expectedStatusCode: http.StatusMethodNotAllowed,
 		},
 		"Given I make GET request for an environment that doesn't exist": {
-			method:             http.MethodGet,
-			url:                fmt.Sprintf("%s/client/env/abcd/feature-configs", testServer.URL),
-			expectedStatusCode: http.StatusNotFound,
+			method:               http.MethodGet,
+			url:                  fmt.Sprintf("%s/client/env/abcd/feature-configs", testServer.URL),
+			expectedStatusCode:   http.StatusOK,
+			expectedResponseBody: emptyFeatureConfig,
+			// we return an empty feature array for this right now because we can't tell the difference between
+			// an environment not existing at all and there just being no features in it
 		},
 		"Given I make GET request for an environment that does exist": {
 			method:               http.MethodGet,
