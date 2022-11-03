@@ -27,7 +27,7 @@ services:
     volumes:
       - ${CONFIG_VOLUME:-./config:/config}
     ports:
-      - "7000:7000"
+      - 7000:${PORT:-7000}
 
   redis:
     image: "redis:latest"
