@@ -1,5 +1,5 @@
 #!/bin/bash
 { ./app/ff-proxy; } &
-{ pushpin --port localhost:7000; } &
+{ pushpin; } &
 wait -n
 pkill -P $$
