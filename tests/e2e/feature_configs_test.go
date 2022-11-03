@@ -42,6 +42,11 @@ func TestGetFeatureConfig(t *testing.T) {
 		t.Error(err)
 	}
 
+	emptyProjToken, emptyProjClaims, err := testhelpers.AuthenticateSDKClient(GetEmptyProjectServerAPIKey(), GetStreamURL(), nil)
+	if err != nil {
+		t.Error(err)
+	}
+
 	type args struct {
 		Token string
 		Env   string
@@ -54,6 +59,7 @@ func TestGetFeatureConfig(t *testing.T) {
 		"Test GetFeatureConfigs succeeds for valid request": {
 			args{Token: token, Env: claims.Environment},
 			featureConfigsResponse{
+				Flags:      expectedFlags,
 				StatusCode: 200,
 			},
 			false,
@@ -65,6 +71,14 @@ func TestGetFeatureConfig(t *testing.T) {
 			featureConfigsResponse{
 				StatusCode: 401,
 				//Error:      &client.Error{Code: "401", Message: "invalid or expired jwt"},
+			},
+			false,
+		},
+		"Test GetFeatureConfigs succeeds for valid request for empty project": {
+			args{Token: emptyProjToken, Env: emptyProjClaims.Environment},
+			featureConfigsResponse{
+				Flags:      map[string]client.FeatureConfig{},
+				StatusCode: 200,
 			},
 			false,
 		},
@@ -94,7 +108,7 @@ func TestGetFeatureConfig(t *testing.T) {
 			if got.StatusCode() == 200 {
 				assert.Nil(t, tt.want.Error)
 				assert.NotNil(t, got.JSON200)
-				assert.Equal(t, 2, len(*got.JSON200))
+				assert.Equal(t, len(tt.want.Flags), len(*got.JSON200))
 
 				// check data matches the flags we expect
 				for _, flag := range *got.JSON200 {
@@ -123,6 +137,7 @@ Helper functions and structs to support the tests above
 // featureConfigsResponse captures the fields we could get back in a auth request
 type featureConfigsResponse struct {
 	StatusCode int
+	Flags      map[string]client.FeatureConfig
 	*client.Error
 }
 

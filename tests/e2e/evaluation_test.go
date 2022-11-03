@@ -111,18 +111,14 @@ func TestEvaluations(t *testing.T) {
 		Identifier: "target",
 		Name:       "target",
 	}
-	token, claims, err := testhelpers.AuthenticateSDKClient(GetServerAPIKey(), GetStreamURL(), &clientTarget)
-	if err != nil {
-		t.Error(err)
-	}
-	envID := claims.Environment
 
 	type args struct {
+		APIKey     string
 		TargetName string
 	}
 	type result struct {
 		StatusCode int
-		Value      string
+		Results    map[string]client.Evaluation
 	}
 	tests := map[string]struct {
 		args    args
@@ -131,16 +127,18 @@ func TestEvaluations(t *testing.T) {
 	}{
 		"Valid target gets correct results": {
 			args: args{
+				APIKey:     GetServerAPIKey(),
 				TargetName: clientTarget.Identifier,
 			},
 			want: result{
 				StatusCode: 200,
-				Value:      "true",
+				Results:    expectedEvaluations,
 			},
 			wantErr: false,
 		},
 		"Target that doesnt exist returns 404": {
 			args: args{
+				APIKey:     GetServerAPIKey(),
 				TargetName: "doesntexist",
 			},
 			want: result{
@@ -148,9 +146,25 @@ func TestEvaluations(t *testing.T) {
 			},
 			wantErr: true,
 		},
+		"Valid target gets empty results for empty project": {
+			args: args{
+				APIKey:     GetEmptyProjectServerAPIKey(),
+				TargetName: clientTarget.Identifier,
+			},
+			want: result{
+				StatusCode: 200,
+				Results:    map[string]client.Evaluation{},
+			},
+			wantErr: false,
+		},
 	}
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
+			token, claims, err := testhelpers.AuthenticateSDKClient(tt.args.APIKey, GetStreamURL(), &clientTarget)
+			if err != nil {
+				t.Error(err)
+			}
+			envID := claims.Environment
 			resp, err := evaluateFlags(envID, tt.args.TargetName, token)
 
 			assert.NoError(t, err)
@@ -162,7 +176,7 @@ func TestEvaluations(t *testing.T) {
 					t.Error("couldn't parse client response")
 				}
 
-				assert.Equal(t, 2, len(evals))
+				assert.Equal(t, len(tt.want.Results), len(evals))
 				for _, eval := range evals {
 					expected := expectedEvaluations[eval.Flag]
 					assert.Equal(t, expected.Flag, eval.Flag)
