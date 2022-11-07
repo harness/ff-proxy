@@ -23,6 +23,8 @@ const (
 	DefaultProjectIdentifier = "CF_SystemTest"
 	DefaultProjectDesc       = "CF System Test project"
 	DefaultProjectName       = "CF System Test"
+	DefaultSegment           = "group"
+	DefaultSegmentName       = "groupName"
 )
 
 // TestProject represents a project that we will create during tests
@@ -101,6 +103,13 @@ func SetupTestProject() (TestProject, error) {
 		if err != nil {
 			return TestProject{}, err
 		}
+	}
+
+	// create target group
+	_, err = CreateSegment(GetSegmentRequestBody(projectIdentifier, GetDefaultEnvironment(), DefaultSegment, DefaultSegmentName, nil,
+		nil, nil, nil))
+	if err != nil {
+		return TestProject{}, err
 	}
 
 	return TestProject{
