@@ -1,1 +1,1 @@
-[{"environment":"default","excluded":[],"identifier":"default","included":[{"account":"","environment":"","identifier":"default","name":"default","org":"","project":""}],"name":"default","version":1}]
+[{"environment":"default","excluded":[],"identifier":"group","included":[{"account":"","environment":"","identifier":"default","name":"default","org":"","project":""}],"name":"groupName","version":1}]
