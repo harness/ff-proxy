@@ -205,7 +205,7 @@ func (s Service) FeatureConfig(ctx context.Context, req domain.FeatureConfigRequ
 		}
 		// we don't return not found because we can't currently tell the difference between no features existing
 		// and the environment itself not existing
-		s.logger.Info(ctx, "flags not found in cache: ", "err", err.Error())
+		s.logger.Debug(ctx, "flags not found in cache: ", "err", err.Error())
 	}
 
 	// fetch segments
@@ -215,7 +215,7 @@ func (s Service) FeatureConfig(ctx context.Context, req domain.FeatureConfigRequ
 			return []domain.FeatureConfig{}, fmt.Errorf("%w: %s", ErrInternal, err)
 		}
 		// segments aren't required so just log and continue here
-		s.logger.Info(ctx, "target segments not found in cache: ", "err", err.Error())
+		s.logger.Debug(ctx, "target segments not found in cache: ", "err", err.Error())
 	}
 
 	// build FeatureConfig
@@ -252,7 +252,7 @@ func (s Service) FeatureConfigByIdentifier(ctx context.Context, req domain.Featu
 			return domain.FeatureConfig{}, fmt.Errorf("%w: %s", ErrInternal, err)
 		}
 		// segments aren't required so just log and continue here
-		s.logger.Info(ctx, "target segments not found in cache: ", "err", err.Error())
+		s.logger.Debug(ctx, "target segments not found in cache: ", "err", err.Error())
 	}
 
 	// build FeatureConfig
@@ -275,7 +275,7 @@ func (s Service) TargetSegments(ctx context.Context, req domain.TargetSegmentsRe
 		}
 		// we don't return not found because we can't currently tell the difference between no segments existing
 		// and the environment itself not existing
-		s.logger.Info(ctx, "target segments not found in cache: ", "err", err.Error())
+		s.logger.Debug(ctx, "target segments not found in cache: ", "err", err.Error())
 	}
 
 	return segments, nil
@@ -313,7 +313,7 @@ func (s Service) Evaluations(ctx context.Context, req domain.EvaluationsRequest)
 		if !errors.Is(err, domain.ErrCacheNotFound) {
 			return nil, fmt.Errorf("%w: %s", ErrInternal, err)
 		}
-		s.logger.Info(ctx, "flags not found in cache: ", "err", err.Error())
+		s.logger.Debug(ctx, "flags not found in cache: ", "err", err.Error())
 	}
 
 	// fetch segments
@@ -322,7 +322,7 @@ func (s Service) Evaluations(ctx context.Context, req domain.EvaluationsRequest)
 		if !errors.Is(err, domain.ErrCacheNotFound) {
 			return nil, fmt.Errorf("%w: %s", ErrInternal, err)
 		}
-		s.logger.Info(ctx, "segments not found in cache: ", "err", err.Error())
+		s.logger.Debug(ctx, "segments not found in cache: ", "err", err.Error())
 	}
 
 	// build FeatureConfig
@@ -376,7 +376,7 @@ func (s Service) EvaluationsByFeature(ctx context.Context, req domain.Evaluation
 			return clientgen.Evaluation{}, fmt.Errorf("%w: %s", ErrInternal, err)
 		}
 		// segments aren't required so just log and continue here
-		s.logger.Info(ctx, "target segments not found in cache: ", "err", err.Error())
+		s.logger.Debug(ctx, "target segments not found in cache: ", "err", err.Error())
 	}
 
 	// fetch target
