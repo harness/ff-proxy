@@ -1,4 +1,4 @@
-package ffproxy
+package stream
 
 import (
 	"context"
@@ -8,7 +8,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/harness/ff-proxy/domain"
 	"github.com/harness/ff-proxy/log"
 	"github.com/stretchr/testify/assert"
 )
@@ -56,11 +55,11 @@ func (m *mockCheckpointer) GetKV(ctx context.Context, key string) (string, error
 	return cp, nil
 }
 
-var testEvents = []domain.StreamEvent{
-	{Checkpoint: "1-0", Values: map[domain.StreamEventValue]string{}},
-	{Checkpoint: "2-0", Values: map[domain.StreamEventValue]string{}},
-	{Checkpoint: "3-1", Values: map[domain.StreamEventValue]string{}},
-	{Checkpoint: "3-2", Values: map[domain.StreamEventValue]string{}},
+var testEvents = []StreamEvent{
+	{Checkpoint: "1-0", Values: map[StreamEventValue]string{}},
+	{Checkpoint: "2-0", Values: map[StreamEventValue]string{}},
+	{Checkpoint: "3-1", Values: map[StreamEventValue]string{}},
+	{Checkpoint: "3-2", Values: map[StreamEventValue]string{}},
 }
 
 func TestStreamCheckpointer_Sub(t *testing.T) {
@@ -71,7 +70,7 @@ func TestStreamCheckpointer_Sub(t *testing.T) {
 		checkpointer *mockCheckpointer
 		checkpoint   string
 		shouldErr    bool
-		expected     []domain.StreamEvent
+		expected     []StreamEvent
 	}{
 		"Given I call Sub with a stream that errors": {
 			stream:       newMockStream(errors.New("error"), topic, testEvents...),
@@ -103,8 +102,8 @@ func TestStreamCheckpointer_Sub(t *testing.T) {
 
 			cs := NewCheckpointingStream(ctx, tc.stream, tc.checkpointer, log.NewNoOpLogger())
 
-			actual := []domain.StreamEvent{}
-			err := cs.Sub(ctx, topic, tc.checkpoint, func(event domain.StreamEvent) {
+			actual := []StreamEvent{}
+			err := cs.Sub(ctx, topic, tc.checkpoint, func(event StreamEvent) {
 				actual = append(actual, event)
 			})
 
@@ -118,11 +117,11 @@ func TestStreamCheckpointer_Sub(t *testing.T) {
 }
 
 func TestCheckpointStream_SetCheckpoint(t *testing.T) {
-	outOfOrderTestEvents := []domain.StreamEvent{
-		{Checkpoint: "2-0", Values: map[domain.StreamEventValue]string{}},
-		{Checkpoint: "3-2", Values: map[domain.StreamEventValue]string{}},
-		{Checkpoint: "3-1", Values: map[domain.StreamEventValue]string{}},
-		{Checkpoint: "1-0", Values: map[domain.StreamEventValue]string{}},
+	outOfOrderTestEvents := []StreamEvent{
+		{Checkpoint: "2-0", Values: map[StreamEventValue]string{}},
+		{Checkpoint: "3-2", Values: map[StreamEventValue]string{}},
+		{Checkpoint: "3-1", Values: map[StreamEventValue]string{}},
+		{Checkpoint: "1-0", Values: map[StreamEventValue]string{}},
 	}
 
 	topic := "test-topic"
@@ -130,7 +129,7 @@ func TestCheckpointStream_SetCheckpoint(t *testing.T) {
 	testCases := map[string]struct {
 		expectedCheckpoint string
 		checkpointer       *mockCheckpointer
-		events             []domain.StreamEvent
+		events             []StreamEvent
 		shouldErr          bool
 		sets               int
 	}{
@@ -160,7 +159,7 @@ func TestCheckpointStream_SetCheckpoint(t *testing.T) {
 
 			i := 0
 			newCtx, cancel := context.WithCancel(ctx)
-			err := cs.Sub(newCtx, topic, "", func(e domain.StreamEvent) {
+			err := cs.Sub(newCtx, topic, "", func(e StreamEvent) {
 				if i == len(tc.events) {
 					cancel()
 				}

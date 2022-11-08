@@ -5,6 +5,8 @@ import (
 	"encoding"
 	"fmt"
 
+	"github.com/harness/ff-proxy/stream"
+
 	"github.com/go-redis/redis/v8"
 	"github.com/harness/ff-proxy/domain"
 )
@@ -117,10 +119,10 @@ func (r *RedisCache) HealthCheck(ctx context.Context) error {
 
 // Pub publishes the passed values to a topic. If the topic doesn't exist Pub
 // will create it as well as publishing the values to it.
-func (r *RedisCache) Pub(ctx context.Context, topic string, event domain.StreamEvent) error {
+func (r *RedisCache) Pub(ctx context.Context, topic string, event stream.StreamEvent) error {
 	values := map[string]interface{}{
-		domain.StreamEventValueAPIKey.String(): event.Values[domain.StreamEventValueAPIKey],
-		domain.StreamEventValueData.String():   event.Values[domain.StreamEventValueData],
+		stream.StreamEventValueAPIKey.String(): event.Values[stream.StreamEventValueAPIKey],
+		stream.StreamEventValueData.String():   event.Values[stream.StreamEventValueData],
 	}
 
 	err := r.client.XAdd(ctx, &redis.XAddArgs{
@@ -140,8 +142,8 @@ func (r *RedisCache) Pub(ctx context.Context, topic string, event domain.StreamE
 // and will only exit if there is an error receiving on the redis stream or if
 // the context is canceled. If the checkpoint is empty the default behaviour is to
 // start listening for the next event on the stream.
-func (r *RedisCache) Sub(ctx context.Context, topic string, checkpoint string, onReceive func(event domain.StreamEvent)) error {
-	stream := fmt.Sprintf("stream-%s", topic)
+func (r *RedisCache) Sub(ctx context.Context, topic string, checkpoint string, onReceive func(event stream.StreamEvent)) error {
+	streamID := fmt.Sprintf("stream-%s", topic)
 
 	if checkpoint == "" {
 		checkpoint = "$"
@@ -153,23 +155,23 @@ func (r *RedisCache) Sub(ctx context.Context, topic string, checkpoint string, o
 			return ctx.Err()
 		default:
 			xstreams, err := r.client.XRead(ctx, &redis.XReadArgs{
-				Streams: []string{stream, checkpoint},
+				Streams: []string{streamID, checkpoint},
 				Block:   0,
 			}).Result()
 			if err != nil {
 				return err
 			}
 
-			for _, stream := range xstreams {
-				for _, msg := range stream.Messages {
+			for _, xstream := range xstreams {
+				for _, msg := range xstream.Messages {
 					checkpoint = msg.ID
 
-					event, err := domain.NewStreamEventFromMap(msg.Values)
+					event, err := stream.NewStreamEventFromMap(msg.Values)
 					if err != nil {
 						return err
 					}
 
-					event.Checkpoint, err = domain.NewCheckpoint(msg.ID)
+					event.Checkpoint, err = stream.NewCheckpoint(msg.ID)
 					if err != nil {
 						return err
 					}
