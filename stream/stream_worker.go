@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"time"
 
 	"github.com/harness/ff-golang-server-sdk/stream"
 
@@ -13,7 +12,7 @@ import (
 
 // GripStream is the interface for publishing events to a grip channel
 type GripStream interface {
-	// Publish an HTTP stream format message to all of the configured PubControlClients
+	// PublishHttpStream publishes an HTTP stream format message to all of the configured PubControlClients
 	// with a specified channel, message, and optional ID, previous ID, and callback.
 	// Note that the 'http_stream' parameter can be provided as either an HttpStreamFormat
 	// instance or a string / byte array (in which case an HttpStreamFormat instance will
@@ -23,7 +22,7 @@ type GripStream interface {
 
 type streamEvent struct {
 	channel string // channel is the grip channel that we want to forward the event to
-	content string // content is the data that we want to publish to the channle
+	content string // content is the data that we want to publish to the channel
 	err     error
 }
 
@@ -59,8 +58,6 @@ func (s StreamWorker) Pub(ctx context.Context, event stream.Event) error {
 		err:     nil,
 	}); err != nil {
 		s.log.Error("stream worker failed", "topic", topic)
-		// We hit an error, sleep and try subscribing again
-		time.Sleep(10 * time.Second)
 	}
 
 	return nil
