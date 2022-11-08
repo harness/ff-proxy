@@ -365,14 +365,8 @@ func main() {
 			},
 		})
 
-		t := []string{}
-		for top := range topics {
-			t = append(t, top)
-		}
-
 		logger.Info("starting stream worker...")
-		//sc := stream.NewCheckpointingStream(ctx, rc, rc, logger)
-		streamWorker := stream.NewStreamWorker(logger, gpc, nil, t...)
+		streamWorker := stream.NewStreamWorker(logger, gpc)
 
 		logger.Info("retrieving config from ff-server...")
 		remoteConfig, err = config.NewRemoteConfig(
@@ -489,7 +483,7 @@ func main() {
 		MetricService:    metricService,
 		Offline:          offline,
 		Hasher:           apiKeyHasher,
-		StreamingEnabled: true,
+		StreamingEnabled: true, // TODO - handle this - should check if pushpin is available etc first or it might cause issues for direct linux/windows builds
 	})
 
 	// Configure endpoints and server

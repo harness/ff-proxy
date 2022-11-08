@@ -5,8 +5,6 @@ import (
 	"encoding"
 	"fmt"
 
-	"github.com/harness/ff-proxy/stream"
-
 	"github.com/go-redis/redis/v8"
 	"github.com/harness/ff-proxy/domain"
 )
@@ -115,69 +113,4 @@ func (r *RedisCache) HealthCheck(ctx context.Context) error {
 		return fmt.Errorf("redis failed to respond")
 	}
 	return nil
-}
-
-// Pub publishes the passed values to a topic. If the topic doesn't exist Pub
-// will create it as well as publishing the values to it.
-func (r *RedisCache) Pub(ctx context.Context, topic string, event stream.StreamEvent) error {
-	values := map[string]interface{}{
-		stream.StreamEventValueAPIKey.String(): event.Values[stream.StreamEventValueAPIKey],
-		stream.StreamEventValueData.String():   event.Values[stream.StreamEventValueData],
-	}
-
-	err := r.client.XAdd(ctx, &redis.XAddArgs{
-		Stream: fmt.Sprintf("stream-%s", topic),
-		ID:     "*",
-		Values: values,
-		MaxLen: 100,
-	}).Err()
-	if err != nil {
-		return fmt.Errorf("failed to publish event to redis stream %q: %s", topic, err)
-	}
-	return nil
-}
-
-// Sub subscribes to a topic and continually listens for new messages and as new
-// messages come in it passes them to the callback. Sub is a blocking function
-// and will only exit if there is an error receiving on the redis stream or if
-// the context is canceled. If the checkpoint is empty the default behaviour is to
-// start listening for the next event on the stream.
-func (r *RedisCache) Sub(ctx context.Context, topic string, checkpoint string, onReceive func(event stream.StreamEvent)) error {
-	streamID := fmt.Sprintf("stream-%s", topic)
-
-	if checkpoint == "" {
-		checkpoint = "$"
-	}
-
-	for {
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		default:
-			xstreams, err := r.client.XRead(ctx, &redis.XReadArgs{
-				Streams: []string{streamID, checkpoint},
-				Block:   0,
-			}).Result()
-			if err != nil {
-				return err
-			}
-
-			for _, xstream := range xstreams {
-				for _, msg := range xstream.Messages {
-					checkpoint = msg.ID
-
-					event, err := stream.NewStreamEventFromMap(msg.Values)
-					if err != nil {
-						return err
-					}
-
-					event.Checkpoint, err = stream.NewCheckpoint(msg.ID)
-					if err != nil {
-						return err
-					}
-					onReceive(event)
-				}
-			}
-		}
-	}
 }
