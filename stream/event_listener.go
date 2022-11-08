@@ -48,6 +48,7 @@ func (e EventListener) Pub(ctx context.Context, event stream.Event) error {
 		e.log.Error("failed to publish event to stream", "err", err)
 		return err
 	}
+	// TODO - WE PUBLISH ONCE FROM HERE TO THE REDIS STREAM
 	e.log.Debug("successfully published event to stream", "topic", topic, "content", content)
 	return nil
 }

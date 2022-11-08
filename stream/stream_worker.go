@@ -2,7 +2,11 @@ package stream
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"time"
+
+	"github.com/harness/ff-golang-server-sdk/stream"
 
 	"github.com/harness/ff-proxy/log"
 )
@@ -75,6 +79,29 @@ func (s StreamWorker) Run(ctx context.Context) {
 	}
 }
 
+// Pub makes StreamWorker implement the golang sdks stream.EventStreamListener
+// interface.
+func (s StreamWorker) Pub(ctx context.Context, event stream.Event) error {
+	if event.SSEEvent == nil {
+		return errors.New("can't publish event with nil SSEEvent")
+	}
+
+	topic := event.Environment
+	content := fmt.Sprintf("event: *\ndata: %s\n\n", event.SSEEvent.Data)
+
+	if err := s.publish(ctx, streamEvent{
+		channel: topic,
+		content: content,
+		err:     nil,
+	}); err != nil {
+		s.log.Error("stream worker failed", "topic", topic)
+		// We hit an error, sleep and try subscribing again
+		time.Sleep(10 * time.Second)
+	}
+
+	return nil
+}
+
 // processTopic performs the logic of listening for events on a Stream for
 // a topic and forwarding them on to the GripStream for that topic
 func (s StreamWorker) processTopic(ctx context.Context, topic string) error {
@@ -99,7 +126,7 @@ func (s StreamWorker) processTopic(ctx context.Context, topic string) error {
 			if err := s.publish(ctx, e); err != nil {
 				return err
 			}
-			s.log.Debug("succesfully published event to pushpin", "topic", topic, "channel", e.channel, "content", e.content)
+			s.log.Debug("successfully published event to pushpin", "topic", topic, "channel", e.channel, "content", e.content)
 		}
 	}
 }
