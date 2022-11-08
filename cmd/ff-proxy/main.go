@@ -372,7 +372,7 @@ func main() {
 
 		logger.Info("starting stream worker...")
 		//sc := stream.NewCheckpointingStream(ctx, rc, rc, logger)
-		streamWorker := stream.NewStreamWorker(logger, gpc, nil, t...)
+		streamWorker := stream.NewStreamWorker(logger, gpc)
 
 		logger.Info("retrieving config from ff-server...")
 		remoteConfig, err = config.NewRemoteConfig(
