@@ -26,8 +26,10 @@ func NewTargetRepo(c cache.Cache, config map[domain.TargetKey][]domain.Target) (
 
 	for key, cfg := range config {
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-		// cleanup all current keys before we add new ones to make sure keys that have been deleted remotely are removed
-		tr.cache.RemoveAll(ctx, string(key))
+		// don't cleanup all current targets on startup - not all may have been synced to Saas and removing them can lead to 404s for connected sdks fetching updates
+		// this is an issue when we horizontally scale the proxy and a second proxy starts up wiping targets registered from the first that didn't make it to SaaS
+		// unused targets won't cause any issues so it's safe to err on the side of leaving old deleted ones in the cache for now
+		// tr.cache.RemoveAll(ctx, string(key))
 		if err := tr.Add(ctx, key, cfg...); err != nil {
 			cancel()
 			return TargetRepo{}, fmt.Errorf("failed to add config: %s", err)
