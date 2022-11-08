@@ -1,10 +1,9 @@
-package ffproxy
+package stream
 
 import (
 	"context"
 	"time"
 
-	"github.com/harness/ff-proxy/domain"
 	"github.com/harness/ff-proxy/log"
 )
 
@@ -29,12 +28,12 @@ type streamEvent struct {
 type StreamWorker struct {
 	log    log.Logger
 	gpc    GripStream
-	stream domain.Stream
+	stream Stream
 	topics []string
 }
 
 // NewStreamWorker creates a StreamWorker
-func NewStreamWorker(l log.Logger, gpc GripStream, stream domain.Stream, topics ...string) StreamWorker {
+func NewStreamWorker(l log.Logger, gpc GripStream, stream Stream, topics ...string) StreamWorker {
 	l = l.With("component", "StreamWorker")
 	return StreamWorker{
 		log:    l,
@@ -114,9 +113,9 @@ func (s StreamWorker) subscribe(ctx context.Context, topic string) <-chan stream
 			close(out)
 		}()
 
-		err := s.stream.Sub(ctx, topic, "", func(event domain.StreamEvent) {
-			apiKey := event.Values[domain.StreamEventValueAPIKey]
-			content := event.Values[domain.StreamEventValueData]
+		err := s.stream.Sub(ctx, topic, "", func(event StreamEvent) {
+			apiKey := event.Values[StreamEventValueAPIKey]
+			content := event.Values[StreamEventValueData]
 
 			select {
 			case <-ctx.Done():

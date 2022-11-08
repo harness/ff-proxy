@@ -14,10 +14,13 @@ import (
 	"reflect"
 	"testing"
 
+	"github.com/harness/ff-proxy/token"
+
+	"github.com/harness/ff-proxy/stream"
+
 	"github.com/fanout/go-gripcontrol"
 	"github.com/go-redis/redis/v8"
-	"github.com/harness/ff-golang-server-sdk/stream"
-	ffproxy "github.com/harness/ff-proxy"
+	sdkstream "github.com/harness/ff-golang-server-sdk/stream"
 	"github.com/harness/ff-proxy/cache"
 	"github.com/harness/ff-proxy/config"
 	"github.com/harness/ff-proxy/domain"
@@ -84,8 +87,8 @@ type setupConfig struct {
 	cacheHealthFn proxyservice.CacheHealthFn
 	envHealthFn   proxyservice.EnvHealthFn
 	clientService *mockClientService
-	streamWorker  ffproxy.StreamWorker
-	eventListener stream.EventStreamListener
+	streamWorker  stream.StreamWorker
+	eventListener sdkstream.EventStreamListener
 	cache         cache.Cache
 	metricService *mockMetricService
 }
@@ -220,7 +223,7 @@ func setupHTTPServer(t *testing.T, bypassAuth bool, opts ...setupOpts) *HTTPServ
 
 	logger := log.NoOpLogger{}
 
-	tokenSource := ffproxy.NewTokenSource(logger, setupConfig.authRepo, hash.NewSha256(), []byte(`secret`))
+	tokenSource := token.NewTokenSource(logger, setupConfig.authRepo, hash.NewSha256(), []byte(`secret`))
 
 	var service proxyservice.ProxyService
 	service = proxyservice.NewService(proxyservice.Config{
@@ -1311,7 +1314,7 @@ func TestHTTPServer_StreamIntegration(t *testing.T) {
 	hasher := hash.NewSha256()
 	logger := log.NewNoOpLogger()
 
-	sdkEvents := []stream.Event{
+	sdkEvents := []sdkstream.Event{
 		{
 			Environment: envID,
 			SSEEvent: &sse.Event{
@@ -1363,7 +1366,7 @@ func TestHTTPServer_StreamIntegration(t *testing.T) {
 		apiKeys            []string
 		topics             []string
 		numClients         int
-		sdkEvents          []stream.Event
+		sdkEvents          []sdkstream.Event
 		expectedEvents     []*sse.Event
 		expectedStatusCode int
 	}{
@@ -1405,9 +1408,9 @@ func TestHTTPServer_StreamIntegration(t *testing.T) {
 				},
 			})
 
-			eventListener := ffproxy.NewEventListener(log.NewNoOpLogger(), cache, hasher)
-			checkpointingStream := ffproxy.NewCheckpointingStream(ctx, cache, cache, logger)
-			streamWorker := ffproxy.NewStreamWorker(logger, gpc, checkpointingStream, tc.topics...)
+			eventListener := stream.NewEventListener(log.NewNoOpLogger(), cache, hasher)
+			checkpointingStream := stream.NewCheckpointingStream(ctx, cache, cache, logger)
+			streamWorker := stream.NewStreamWorker(logger, gpc, checkpointingStream, tc.topics...)
 			streamWorker.Run(ctx)
 
 			requests := []*http.Request{}
