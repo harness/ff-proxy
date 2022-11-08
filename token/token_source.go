@@ -1,4 +1,4 @@
-package ffproxy
+package token
 
 import (
 	"context"
