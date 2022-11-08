@@ -359,6 +359,21 @@ func main() {
 
 		logger.Info("retrieved offline config")
 	} else {
+		gpc := gripcontrol.NewGripPubControl([]map[string]interface{}{
+			{
+				"control_uri": "http://localhost:5561",
+			},
+		})
+
+		t := []string{}
+		for top := range topics {
+			t = append(t, top)
+		}
+
+		logger.Info("starting stream worker...")
+		//sc := stream.NewCheckpointingStream(ctx, rc, rc, logger)
+		streamWorker := stream.NewStreamWorker(logger, gpc, nil, t...)
+
 		logger.Info("retrieving config from ff-server...")
 		remoteConfig, err = config.NewRemoteConfig(
 			ctx,
@@ -397,16 +412,8 @@ func main() {
 
 			projEnvInfo := envIDToProjectEnvironmentInfo[authConfig[domain.AuthAPIKey(apiKeyHash)]]
 
-			// Start an event listener for each embedded SDK
-			var eventListener sdkStream.EventStreamListener
-			if rc, ok := sdkCache.(*cache.RedisCache); ok {
-				eventListener = stream.NewEventListener(logger, rc, apiKeyHasher)
-			} else {
-				logger.Info("proxy is not configured with a redis cache, therefore streaming will not be enabled")
-			}
-
 			cacheWrapper := cache.NewWrapper(sdkCache, envID, logger)
-			go initFF(ctx, cacheWrapper, sdkBaseURL, sdkEventsURL, envID, projEnvInfo.EnvironmentIdentifier, projEnvInfo.ProjectIdentifier, apiKey, logger, eventListener)
+			go initFF(ctx, cacheWrapper, sdkBaseURL, sdkEventsURL, envID, projEnvInfo.EnvironmentIdentifier, projEnvInfo.ProjectIdentifier, apiKey, logger, streamWorker)
 		}
 	}
 
@@ -450,29 +457,6 @@ func main() {
 		}
 	}
 
-	gpc := gripcontrol.NewGripPubControl([]map[string]interface{}{
-		{
-			"control_uri": "http://localhost:5561",
-		},
-	})
-
-	t := []string{}
-	for top := range topics {
-		t = append(t, top)
-	}
-
-	streamingEnabled := false
-
-	if rc, ok := sdkCache.(*cache.RedisCache); ok {
-		logger.Info("starting stream worker...")
-		sc := stream.NewCheckpointingStream(ctx, rc, rc, logger)
-		streamWorker := stream.NewStreamWorker(logger, gpc, sc, t...)
-		streamWorker.Run(ctx)
-		streamingEnabled = true
-	} else {
-		logger.Info("the proxy isn't configured with redis so the streamworker will not be started ")
-	}
-
 	tokenSource := token.NewTokenSource(logger, authRepo, apiKeyHasher, []byte(authSecret))
 
 	featureEvaluator := proxyservice.NewFeatureEvaluator()
@@ -505,7 +489,7 @@ func main() {
 		MetricService:    metricService,
 		Offline:          offline,
 		Hasher:           apiKeyHasher,
-		StreamingEnabled: streamingEnabled,
+		StreamingEnabled: true,
 	})
 
 	// Configure endpoints and server
