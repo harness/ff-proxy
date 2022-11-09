@@ -21,7 +21,7 @@ RUN make build
 # TODO - this will rarely change - publish as an image we can consume
 ############################
 # Pull the base image
-FROM ubuntu:20.04 as pushpin
+FROM ubuntu:18.04 as pushpin
 
 # Add private APT repository
 RUN \
