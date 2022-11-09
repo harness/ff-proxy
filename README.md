@@ -10,7 +10,23 @@ To read more about use cases and advantages of the Relay Proxy see the [Why use 
 
 You can also read more about the use cases, architecture and more in [our blog post](https://harness.io/blog/in-depth-feature-flags-relay-proxy).
 
+
+## Configuration
+To view the many configuration options available read [Configuration](./docs/configuration.md).
+
+## TLS
+To view how to securely connect sdks to the Relay Proxy with HTTPS enabled see [TLS](./docs/tls.md).
+
+## Redis Cache
+By default the Relay Proxy runs with an [In Memory Cache](./docs/in_memory_cache.md).
+
+To run with persistent storage in redis read [Redis](./docs/redis_cache.md).
+
+## Offline mode
+If you'd like to run the Relay Proxy in airgapped environments or locations with poor internet reliability you can generate offline flag configuration and run the Relay Proxy in a fully offline mode. To learn more read [Offline Mode](./docs/offline.md).
+
+## Windows
+If you'd like to build and run the Relay Proxy on Windows see [Windows](./docs/windows.md)
+
 ## Contributing
-See the [contribution guide](CONTRIBUTING.md)
-
-
+See the [contribution guide](CONTRIBUTING.md).
