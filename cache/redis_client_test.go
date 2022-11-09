@@ -5,8 +5,9 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/harness/ff-proxy/stream"
+
 	"github.com/go-redis/redis/v8"
-	"github.com/harness/ff-proxy/domain"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -56,9 +57,9 @@ func TestRedisCache_Pub(t *testing.T) {
 		t.Run(desc, func(t *testing.T) {
 
 			rc := RedisCache{client: tc.mockRedis}
-			event := domain.StreamEvent{
-				Values: map[domain.StreamEventValue]string{
-					domain.StreamEventValueData: "hello world",
+			event := stream.StreamEvent{
+				Values: map[stream.StreamEventValue]string{
+					stream.StreamEventValueData: "hello world",
 				},
 			}
 
@@ -103,33 +104,33 @@ func TestRedisCache_Sub(t *testing.T) {
 	testCases := map[string]struct {
 		mockRedis mockRedis
 		shouldErr bool
-		expected  []domain.StreamEvent
+		expected  []stream.StreamEvent
 	}{
 		"Given I have a redis client that errors reading from a stream": {
 			mockRedis: mockRedis{
 				xread: xreadError,
 			},
 			shouldErr: true,
-			expected:  []domain.StreamEvent{},
+			expected:  []stream.StreamEvent{},
 		},
 		"Given I have a redis client that reads from a stream successfully": {
 			mockRedis: mockRedis{
 				xread: xreadSuccess,
 			},
 			shouldErr: false,
-			expected: []domain.StreamEvent{
+			expected: []stream.StreamEvent{
 				{
-					Checkpoint: domain.Checkpoint("1642764292396-0"),
-					Values: map[domain.StreamEventValue]string{
-						domain.StreamEventValueAPIKey: "123",
-						domain.StreamEventValueData:   "hello world",
+					Checkpoint: stream.Checkpoint("1642764292396-0"),
+					Values: map[stream.StreamEventValue]string{
+						stream.StreamEventValueAPIKey: "123",
+						stream.StreamEventValueData:   "hello world",
 					},
 				},
 				{
-					Checkpoint: domain.Checkpoint("1642764292396-0"),
-					Values: map[domain.StreamEventValue]string{
-						domain.StreamEventValueAPIKey: "123",
-						domain.StreamEventValueData:   "foo bar",
+					Checkpoint: stream.Checkpoint("1642764292396-0"),
+					Values: map[stream.StreamEventValue]string{
+						stream.StreamEventValueAPIKey: "123",
+						stream.StreamEventValueData:   "foo bar",
 					},
 				},
 			},
@@ -142,11 +143,11 @@ func TestRedisCache_Sub(t *testing.T) {
 
 			rc := NewRedisCache(tc.mockRedis)
 
-			actual := []domain.StreamEvent{}
+			actual := []stream.StreamEvent{}
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
 
-			err := rc.Sub(ctx, "foo", "", func(event domain.StreamEvent) {
+			err := rc.Sub(ctx, "foo", "", func(event stream.StreamEvent) {
 				actual = append(actual, event)
 				if len(actual) == 2 {
 					cancel()

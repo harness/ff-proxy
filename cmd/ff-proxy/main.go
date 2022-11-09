@@ -13,6 +13,10 @@ import (
 	"sync"
 	"time"
 
+	"github.com/harness/ff-proxy/token"
+
+	"github.com/harness/ff-proxy/stream"
+
 	"github.com/harness/ff-proxy/export"
 
 	"github.com/fanout/go-gripcontrol"
@@ -25,8 +29,7 @@ import (
 	gosdkCache "github.com/harness/ff-golang-server-sdk/cache"
 	harness "github.com/harness/ff-golang-server-sdk/client"
 	"github.com/harness/ff-golang-server-sdk/logger"
-	"github.com/harness/ff-golang-server-sdk/stream"
-	ffproxy "github.com/harness/ff-proxy"
+	sdkStream "github.com/harness/ff-golang-server-sdk/stream"
 	"github.com/harness/ff-proxy/cache"
 	"github.com/harness/ff-proxy/config"
 	"github.com/harness/ff-proxy/domain"
@@ -223,7 +226,7 @@ func init() {
 	flag.Parse()
 }
 
-func initFF(ctx context.Context, cache gosdkCache.Cache, baseURL, eventURL, envID, envIdent, projectIdent, sdkKey string, l log.Logger, eventListener stream.EventStreamListener) {
+func initFF(ctx context.Context, cache gosdkCache.Cache, baseURL, eventURL, envID, envIdent, projectIdent, sdkKey string, l log.Logger, eventListener sdkStream.EventStreamListener) {
 
 	retryClient := retryablehttp.NewClient()
 	retryClient.RetryMax = 5
@@ -395,9 +398,9 @@ func main() {
 			projEnvInfo := envIDToProjectEnvironmentInfo[authConfig[domain.AuthAPIKey(apiKeyHash)]]
 
 			// Start an event listener for each embedded SDK
-			var eventListener stream.EventStreamListener
+			var eventListener sdkStream.EventStreamListener
 			if rc, ok := sdkCache.(*cache.RedisCache); ok {
-				eventListener = ffproxy.NewEventListener(logger, rc, apiKeyHasher)
+				eventListener = stream.NewEventListener(logger, rc, apiKeyHasher)
 			} else {
 				logger.Info("proxy is not configured with a redis cache, therefore streaming will not be enabled")
 			}
@@ -462,15 +465,15 @@ func main() {
 
 	if rc, ok := sdkCache.(*cache.RedisCache); ok {
 		logger.Info("starting stream worker...")
-		sc := ffproxy.NewCheckpointingStream(ctx, rc, rc, logger)
-		streamWorker := ffproxy.NewStreamWorker(logger, gpc, sc, t...)
+		sc := stream.NewCheckpointingStream(ctx, rc, rc, logger)
+		streamWorker := stream.NewStreamWorker(logger, gpc, sc, t...)
 		streamWorker.Run(ctx)
 		streamingEnabled = true
 	} else {
 		logger.Info("the proxy isn't configured with redis so the streamworker will not be started ")
 	}
 
-	tokenSource := ffproxy.NewTokenSource(logger, authRepo, apiKeyHasher, []byte(authSecret))
+	tokenSource := token.NewTokenSource(logger, authRepo, apiKeyHasher, []byte(authSecret))
 
 	featureEvaluator := proxyservice.NewFeatureEvaluator()
 

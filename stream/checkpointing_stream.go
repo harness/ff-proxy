@@ -1,10 +1,9 @@
-package ffproxy
+package stream
 
 import (
 	"context"
 	"fmt"
 
-	"github.com/harness/ff-proxy/domain"
 	"github.com/harness/ff-proxy/log"
 )
 
@@ -16,10 +15,10 @@ type Checkpointer interface {
 
 type checkpoint struct {
 	key   string
-	value domain.Checkpoint
+	value Checkpoint
 }
 
-func newCheckpoint(key string, value domain.Checkpoint) checkpoint {
+func newCheckpoint(key string, value Checkpoint) checkpoint {
 	return checkpoint{key: key, value: value}
 }
 
@@ -28,7 +27,7 @@ type checkpoints chan checkpoint
 // CheckpointingStream is a stream that stores checkpoints of the last event
 // processed so it can resume from this point in the event of a failure.
 type CheckpointingStream struct {
-	stream      domain.Stream
+	stream      Stream
 	checkpoint  Checkpointer
 	log         log.Logger
 	checkpoints checkpoints
@@ -36,7 +35,7 @@ type CheckpointingStream struct {
 
 // NewCheckpointingStream creates a CheckpointingStream and starts a process
 // that listens for checkpoints
-func NewCheckpointingStream(ctx context.Context, s domain.Stream, c Checkpointer, l log.Logger) CheckpointingStream {
+func NewCheckpointingStream(ctx context.Context, s Stream, c Checkpointer, l log.Logger) CheckpointingStream {
 	l = l.With("component", "StreamWorker")
 	sc := CheckpointingStream{stream: s, checkpoint: c, log: l, checkpoints: make(checkpoints)}
 	sc.setCheckpoints(ctx)
@@ -60,7 +59,7 @@ func (s CheckpointingStream) setCheckpoints(ctx context.Context) {
 				}
 
 				oldCheckpoint := s.fetchCheckpoint(ctx, c.key)
-				if c.value.IsOlder(domain.Checkpoint(oldCheckpoint)) {
+				if c.value.IsOlder(Checkpoint(oldCheckpoint)) {
 					continue
 				}
 
@@ -75,7 +74,7 @@ func (s CheckpointingStream) setCheckpoints(ctx context.Context) {
 }
 
 // Pub makes CheckpointingStream implement the Stream interface.
-func (s CheckpointingStream) Pub(ctx context.Context, topic string, values domain.StreamEvent) error {
+func (s CheckpointingStream) Pub(ctx context.Context, topic string, values StreamEvent) error {
 	return s.stream.Pub(ctx, topic, values)
 }
 
@@ -85,14 +84,14 @@ func (s CheckpointingStream) Pub(ctx context.Context, topic string, values domai
 // checkpoint then the point at which it begins subscribing to the stream is determined
 // by the implementation of the underlying Stream that the CheckpointingStream
 // uses.
-func (s CheckpointingStream) Sub(ctx context.Context, topic string, checkpoint string, onReceive func(domain.StreamEvent)) error {
+func (s CheckpointingStream) Sub(ctx context.Context, topic string, checkpoint string, onReceive func(StreamEvent)) error {
 	key := fmt.Sprintf("checkpoint-%s", topic)
 
 	if checkpoint == "" {
 		checkpoint = s.fetchCheckpoint(ctx, topic)
 	}
 
-	err := s.stream.Sub(ctx, topic, checkpoint, func(e domain.StreamEvent) {
+	err := s.stream.Sub(ctx, topic, checkpoint, func(e StreamEvent) {
 		onReceive(e)
 
 		select {

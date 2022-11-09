@@ -1,4 +1,4 @@
-package ffproxy
+package stream
 
 import (
 	"context"
@@ -6,7 +6,6 @@ import (
 	"fmt"
 
 	"github.com/harness/ff-golang-server-sdk/stream"
-	"github.com/harness/ff-proxy/domain"
 	"github.com/harness/ff-proxy/hash"
 	"github.com/harness/ff-proxy/log"
 )
@@ -16,12 +15,12 @@ import (
 // it by the FeatureFlag server.
 type EventListener struct {
 	log    log.Logger
-	stream domain.Stream
+	stream Stream
 	hasher hash.Hasher
 }
 
 // NewEventListener creates an EventListener
-func NewEventListener(l log.Logger, s domain.Stream, h hash.Hasher) EventListener {
+func NewEventListener(l log.Logger, s Stream, h hash.Hasher) EventListener {
 	l = l.With("component", "EventListener")
 	return EventListener{
 		log:    l,
@@ -40,12 +39,12 @@ func (e EventListener) Pub(ctx context.Context, event stream.Event) error {
 	topic := event.Environment
 	content := fmt.Sprintf("event: *\ndata: %s\n\n", event.SSEEvent.Data)
 
-	values := map[domain.StreamEventValue]string{
-		domain.StreamEventValueAPIKey: topic,
-		domain.StreamEventValueData:   content,
+	values := map[StreamEventValue]string{
+		StreamEventValueAPIKey: topic,
+		StreamEventValueData:   content,
 	}
 
-	if err := e.stream.Pub(ctx, topic, domain.NewStreamEvent(values)); err != nil {
+	if err := e.stream.Pub(ctx, topic, NewStreamEvent(values)); err != nil {
 		e.log.Error("failed to publish event to stream", "err", err)
 		return err
 	}
