@@ -122,7 +122,7 @@ func TestAuthRepo_GetAll(t *testing.T) {
 			if tc.fn != nil {
 				tc.fn(repo)
 			}
-			actual, ok := repo.GetAll(context.Background())
+			actual, ok := repo.getAll(context.Background())
 
 			assert.Equal(t, tc.expected.boolVal, ok)
 			assert.Equal(t, tc.expected.keys, actual)
@@ -194,7 +194,7 @@ func TestAuthRepo_Setup(t *testing.T) {
 				t.Fatalf("(%s): error = %v", desc, err)
 			}
 
-			actual, _ := repo.GetAll(context.Background())
+			actual, _ := repo.getAll(context.Background())
 
 			assert.Equal(t, tc.expected.keys, actual)
 		})

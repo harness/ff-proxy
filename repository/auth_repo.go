@@ -45,7 +45,7 @@ func NewAuthRepo(c cache.Cache, config map[domain.AuthAPIKey]string) (AuthRepo, 
 // wipe anyone else's data
 func (a AuthRepo) clearCachedKeys(ctx context.Context, newConfig map[domain.AuthAPIKey]string) {
 	// get all auth keys
-	currentConfig, ok := a.GetAll(ctx)
+	currentConfig, ok := a.getAll(ctx)
 	if !ok {
 		// no keys exist so we can safely return
 		return
@@ -93,8 +93,8 @@ func (a AuthRepo) Get(ctx context.Context, key domain.AuthAPIKey) (string, bool)
 	return string(environment), true
 }
 
-// GetAll gets all values from auth repo
-func (a AuthRepo) GetAll(ctx context.Context) (map[domain.AuthAPIKey]string, bool) {
+// getAll gets all values from auth repo
+func (a AuthRepo) getAll(ctx context.Context) (map[domain.AuthAPIKey]string, bool) {
 
 	results, err := a.cache.GetAll(ctx, AuthKey)
 	if err != nil {
