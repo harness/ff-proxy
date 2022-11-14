@@ -23,7 +23,14 @@ const (
 )
 
 var onlineTestTemplate = `SERVER_API_KEY=%s
-STREAM_URL=http://localhost:7000`
+STREAM_URL=http://localhost:7000
+ONLINE=true
+REMOTE_URL=%s
+ACCOUNT_IDENTIFIER=%s
+ORG_IDENTIFIER=%s
+PROJECT_IDENTIFIER=%s
+ENVIRONMENT_IDENTIFIER=%s
+USER_ACCESS_TOKEN=%s`
 
 var onlineProxyInMemTemplate = `ACCOUNT_IDENTIFIER=%s
 ORG_IDENTIFIER=%s
@@ -81,7 +88,7 @@ func main() {
 		log.Fatalf("failed to open %s: %s", onlineTestFileName, err)
 	}
 
-	_, err = io.WriteString(onlineTestFile, fmt.Sprintf(onlineTestTemplate, project.Environment.Keys[0].ApiKey))
+	_, err = io.WriteString(onlineTestFile, fmt.Sprintf(onlineTestTemplate, project.Environment.Keys[0].ApiKey, testhelpers.GetClientURL(), project.Account, project.Organization, project.ProjectIdentifier, project.Environment.Identifier, testhelpers.GetUserAccessToken()))
 	if err != nil {
 		log.Fatalf("failed to write to %s: %s", onlineTestFileName, err)
 	}

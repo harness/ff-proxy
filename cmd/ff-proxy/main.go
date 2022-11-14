@@ -13,13 +13,14 @@ import (
 	"sync"
 	"time"
 
-	"github.com/harness/ff-proxy/token"
-
 	"github.com/harness/ff-proxy/stream"
+
+	"github.com/harness/ff-proxy/token"
 
 	"github.com/harness/ff-proxy/export"
 
 	"github.com/fanout/go-gripcontrol"
+	"github.com/hashicorp/go-multierror"
 	"github.com/hashicorp/go-retryablehttp"
 
 	_ "net/http/pprof" //#nosec
@@ -342,7 +343,8 @@ func main() {
 	)
 
 	var remoteConfig config.RemoteConfig
-	topics := map[string]struct{}{}
+
+	var streamEnabled bool
 
 	// Load either local config from files or remote config from ff-server
 	if offline && !generateOfflineConfig {
@@ -359,6 +361,23 @@ func main() {
 
 		logger.Info("retrieved offline config")
 	} else {
+		gpc := gripcontrol.NewGripPubControl([]map[string]interface{}{
+			{
+				"control_uri": "http://localhost:5561",
+			},
+		})
+
+		var eventListener sdkStream.EventStreamListener
+		// attempt to connect to pushpin stream - if we can't streaming will be disabled
+		err = streamHealthCheck()
+		if err != nil {
+			logger.Error("failed to connect to pushpin streaming service - streaming mode not available for sdks connecting to Relay Proxy", "err", err)
+		} else {
+			streamEnabled = true
+			logger.Info("starting stream service...")
+			eventListener = stream.NewStreamWorker(logger, gpc)
+		}
+
 		logger.Info("retrieving config from ff-server...")
 		remoteConfig, err = config.NewRemoteConfig(
 			ctx,
@@ -392,18 +411,7 @@ func main() {
 				continue
 			}
 
-			// Build up a map of topics to pass to the stream worker
-			topics[envID] = struct{}{}
-
 			projEnvInfo := envIDToProjectEnvironmentInfo[authConfig[domain.AuthAPIKey(apiKeyHash)]]
-
-			// Start an event listener for each embedded SDK
-			var eventListener sdkStream.EventStreamListener
-			if rc, ok := sdkCache.(*cache.RedisCache); ok {
-				eventListener = stream.NewEventListener(logger, rc, apiKeyHasher)
-			} else {
-				logger.Info("proxy is not configured with a redis cache, therefore streaming will not be enabled")
-			}
 
 			cacheWrapper := cache.NewWrapper(sdkCache, envID, logger)
 			go initFF(ctx, cacheWrapper, sdkBaseURL, sdkEventsURL, envID, projEnvInfo.EnvironmentIdentifier, projEnvInfo.ProjectIdentifier, apiKey, logger, eventListener)
@@ -450,29 +458,6 @@ func main() {
 		}
 	}
 
-	gpc := gripcontrol.NewGripPubControl([]map[string]interface{}{
-		{
-			"control_uri": "http://localhost:5561",
-		},
-	})
-
-	t := []string{}
-	for top := range topics {
-		t = append(t, top)
-	}
-
-	streamingEnabled := false
-
-	if rc, ok := sdkCache.(*cache.RedisCache); ok {
-		logger.Info("starting stream worker...")
-		sc := stream.NewCheckpointingStream(ctx, rc, rc, logger)
-		streamWorker := stream.NewStreamWorker(logger, gpc, sc, t...)
-		streamWorker.Run(ctx)
-		streamingEnabled = true
-	} else {
-		logger.Info("the proxy isn't configured with redis so the streamworker will not be started ")
-	}
-
 	tokenSource := token.NewTokenSource(logger, authRepo, apiKeyHasher, []byte(authSecret))
 
 	featureEvaluator := proxyservice.NewFeatureEvaluator()
@@ -505,7 +490,7 @@ func main() {
 		MetricService:    metricService,
 		Offline:          offline,
 		Hasher:           apiKeyHasher,
-		StreamingEnabled: streamingEnabled,
+		StreamingEnabled: streamEnabled,
 	})
 
 	// Configure endpoints and server
@@ -643,6 +628,25 @@ func envHealthCheck(ctx context.Context) map[string]error {
 		envHealth[env] = err
 	}
 	return envHealth
+}
+
+// streamHealthCheck checks if the GripControl stream is available - this is required to enable streaming mode
+func streamHealthCheck() error {
+	var multiErr error
+
+	for i := 0; i < 2; i++ {
+		resp, err := http.Get(fmt.Sprintf("http://localhost:5561"))
+		if err != nil || resp == nil {
+			multiErr = multierror.Append(fmt.Errorf("gpc request failed streaming will be disabled: %s", err), multiErr)
+		} else if resp != nil && resp.StatusCode != http.StatusOK {
+			multiErr = multierror.Append(fmt.Errorf("gpc request failed streaming will be disabled: %d", resp.StatusCode), multiErr)
+		} else {
+			return nil
+		}
+		time.Sleep(2 * time.Second)
+	}
+
+	return multiErr
 }
 
 func loadFlagsFromEnv(envToFlag map[string]string) {

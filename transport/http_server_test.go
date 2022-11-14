@@ -1311,7 +1311,6 @@ func TestHTTPServer_StreamIntegration(t *testing.T) {
 	testServer.Start()
 	defer testServer.Close()
 
-	hasher := hash.NewSha256()
 	logger := log.NewNoOpLogger()
 
 	sdkEvents := []sdkstream.Event{
@@ -1408,10 +1407,7 @@ func TestHTTPServer_StreamIntegration(t *testing.T) {
 				},
 			})
 
-			eventListener := stream.NewEventListener(log.NewNoOpLogger(), cache, hasher)
-			checkpointingStream := stream.NewCheckpointingStream(ctx, cache, cache, logger)
-			streamWorker := stream.NewStreamWorker(logger, gpc, checkpointingStream, tc.topics...)
-			streamWorker.Run(ctx)
+			streamWorker := stream.NewStreamWorker(logger, gpc)
 
 			requests := []*http.Request{}
 			for _, apiKey := range tc.apiKeys {
@@ -1447,7 +1443,7 @@ func TestHTTPServer_StreamIntegration(t *testing.T) {
 			for _, apiKey := range tc.apiKeys {
 				for _, sdkEvent := range tc.sdkEvents {
 					sdkEvent.APIKey = apiKey
-					if err := eventListener.Pub(ctx, sdkEvent); err != nil {
+					if err := streamWorker.Pub(ctx, sdkEvent); err != nil {
 						t.Errorf("(%s) eventListener failed to publish mocked sse event from sdk: %s", desc, err)
 					}
 				}
