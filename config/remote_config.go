@@ -31,6 +31,13 @@ func WithLogger(l log.Logger) RemoteOption {
 	}
 }
 
+// WithFetchTargets specifies if the RemoteConfig instance should fetch targets or not
+func WithFetchTargets(fetchTargets bool) RemoteOption {
+	return func(r *RemoteConfig) {
+		r.fetchTargets = fetchTargets
+	}
+}
+
 type adminClient interface {
 	PageProjects(ctx context.Context, input services.PageProjectsInput) (services.PageProjectsResult, error)
 	PageTargets(ctx context.Context, input services.PageTargetsInput) (services.PageTargetsResult, error)
@@ -50,7 +57,8 @@ type RemoteConfig struct {
 	// we store project and environment info after the initial load so that the
 	// PollTargets functioncan use it and not have to make GetProjects and
 	// GetEnvironments requests every time
-	projEnvInfo map[string]configPipeline
+	projEnvInfo  map[string]configPipeline
+	fetchTargets bool
 }
 
 // NewRemoteConfig creates a RemoteConfig and retrieves the configuration for
@@ -68,6 +76,7 @@ func NewRemoteConfig(ctx context.Context, accountIdentifer string, orgIdentifier
 		accountIdentifer: accountIdentifer,
 		orgIdentifier:    orgIdentifier,
 		allowedAPIKeys:   allowedAPIKeys,
+		fetchTargets:     true,
 	}
 
 	for _, opt := range opts {
@@ -446,6 +455,11 @@ func (r RemoteConfig) addTargetConfig(ctx context.Context, inputs <-chan configP
 		defer close(out)
 
 		for input := range inputs {
+			// if we don't watch to fetch targets just skip
+			if !r.fetchTargets {
+				sendOrDone(ctx, out, input)
+				continue
+			}
 			// If an earlier stage in the pipeline has failed there's no point
 			// trying to execute this stage. We still pass the event on so the
 			// caller can get the original error
