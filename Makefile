@@ -101,7 +101,7 @@ e2e-generate-offline-config: ## brings up proxy to generate offline config then 
 	CONFIG_VOLUME=./testconfig:/config docker-compose --env-file .env.generate_offline -f ./docker-compose.yml up -d --remove-orphans proxy
 	sleep 5 ## TODO replace with a check that ./testconfig has been populated with data
 	CONFIG_VOLUME=./testconfig:/config docker-compose --env-file .env.offline -f ./docker-compose.yml up -d --remove-orphans proxy
-	go test -p 1 -v ./tests/... -env=".env.online" | tee /dev/stderr | go-junit-report -set-exit-code > generate-offline-redis.xml
+	ONLINE=false go test -p 1 -v ./tests/... -env=".env.online" | tee /dev/stderr | go-junit-report -set-exit-code > generate-offline-redis.xml
 
 PHONY+= run
 run: ## Runs the proxy and redis

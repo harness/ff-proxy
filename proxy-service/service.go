@@ -415,7 +415,7 @@ func (s Service) EvaluationsByFeature(ctx context.Context, req domain.Evaluation
 func (s Service) Stream(ctx context.Context, req domain.StreamRequest) (domain.StreamResponse, error) {
 	s.logger = s.logger.With("method", "Stream")
 	if !s.streamingEnabled {
-		return domain.StreamResponse{}, fmt.Errorf("%w: streaming will only work if the Proxy is configured with redis, ", ErrNotImplemented)
+		return domain.StreamResponse{}, fmt.Errorf("%w: streaming will only work if the Proxy is running with pushpin", ErrNotImplemented)
 	}
 
 	hashedAPIKey := s.hasher.Hash(req.APIKey)

@@ -4,6 +4,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"strconv"
 	"testing"
 
 	"github.com/joho/godotenv"
@@ -57,4 +58,43 @@ func GetEmptyProjectServerAPIKey() string {
 // GetStreamURL ...
 func GetStreamURL() string {
 	return os.Getenv("STREAM_URL")
+}
+
+// GetUserAccessToken ...
+func GetUserAccessToken() string {
+	return os.Getenv("USER_ACCESS_TOKEN")
+}
+
+// IsOnline ...
+func IsOnline() bool {
+	online, err := strconv.ParseBool(os.Getenv("ONLINE"))
+	if err != nil {
+		log.Warn("Couldn't parse ONLINE environment variable as bool")
+	}
+	return online
+}
+
+// GetRemoteURL ...
+func GetRemoteURL() string {
+	return os.Getenv("REMOTE_URL")
+}
+
+// GetAccountIdentifier ...
+func GetAccountIdentifier() string {
+	return os.Getenv("ACCOUNT_IDENTIFIER")
+}
+
+// GetOrgIdentifier ...
+func GetOrgIdentifier() string {
+	return os.Getenv("ORG_IDENTIFIER")
+}
+
+// GetProjectIdentifier ...
+func GetProjectIdentifier() string {
+	return os.Getenv("PROJECT_IDENTIFIER")
+}
+
+// GetEnvironmentIdentifier ...
+func GetEnvironmentIdentifier() string {
+	return os.Getenv("ENVIRONMENT_IDENTIFIER")
 }
