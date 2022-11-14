@@ -185,7 +185,7 @@ func init() {
 	flag.StringVar(&redisPassword, redisPasswordFlag, "", "Optional. Redis password")
 	flag.IntVar(&redisDB, redisDBFlag, 0, "Database to be selected after connecting to the server.")
 	flag.Var(&apiKeys, apiKeysFlag, "API keys to connect with ff-server for each environment")
-	flag.IntVar(&targetPollDuration, targetPollDurationFlag, 60, "How often in seconds the proxy polls feature flags for Target changes")
+	flag.IntVar(&targetPollDuration, targetPollDurationFlag, 60, "How often in seconds the proxy polls feature flags for Target changes. Set to 0 to disable.")
 	flag.IntVar(&metricPostDuration, metricPostDurationFlag, 60, "How often in seconds the proxy posts metrics to Harness. Set to 0 to disable.")
 	flag.IntVar(&heartbeatInterval, heartbeatIntervalFlag, 60, "How often in seconds the proxy polls pings it's health function")
 	flag.BoolVar(&pprofEnabled, pprofEnabledFlag, false, "enables pprof on port 6060")
@@ -388,6 +388,7 @@ func main() {
 			adminService,
 			config.WithLogger(logger),
 			config.WithConcurrency(20),
+			config.WithFetchTargets(targetPollDuration != 0), // don't fetch targets if poll duration is 0
 		)
 		if err != nil {
 			logger.Error("error(s) encountered fetching config from FeatureFlags, startup will continue but the Proxy may be missing required config", "errors", err)
@@ -514,17 +515,20 @@ func main() {
 
 	if !offline {
 		// start target polling ticker
-		go func() {
-			ticker := time.NewTicker(time.Duration(targetPollDuration) * time.Second)
-			defer ticker.Stop()
+		// don't poll for targets if duration is 0
+		if targetPollDuration != 0 {
+			go func() {
+				ticker := time.NewTicker(time.Duration(targetPollDuration) * time.Second)
+				defer ticker.Stop()
 
-			logger.Info(fmt.Sprintf("polling for new targets every %d seconds", targetPollDuration))
-			for targetConfig := range remoteConfig.PollTargets(ctx, ticker.C) {
-				for key, values := range targetConfig {
-					tr.DeltaAdd(ctx, key, values...)
+				logger.Info(fmt.Sprintf("polling for new targets every %d seconds", targetPollDuration))
+				for targetConfig := range remoteConfig.PollTargets(ctx, ticker.C) {
+					for key, values := range targetConfig {
+						tr.DeltaAdd(ctx, key, values...)
+					}
 				}
-			}
-		}()
+			}()
+		}
 
 		// start metric sending ticker
 		if metricPostDuration != 0 {

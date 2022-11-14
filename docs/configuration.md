@@ -75,12 +75,11 @@ Some corporate networks may be highly restrictive on allowing sse connections. I
 ### Adjust timings
 Adjust how often certain actions are performed.
 
-| Environment Variable | Flag                 | Description                                                                                                                                                                                                                          | Type    | Default |
-|----------------------|----------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|---------|---------|
-| TARGET_POLL_DURATION | target-poll-duration | How often in seconds the proxy polls feature flags for Target changes                                                                                                                                                                | int     | 60      |
-| METRIC_POST_DURATION | metric-post-duration | How often in seconds the proxy posts metrics to Harness. Set to 0 to disable.                                                                                                                                                        | int     | 60      |
-| HEARTBEAT_INTERVAL   | heartbeat-interval   | How often in seconds the proxy polls pings it's health function                                                                                                                                                                      | int     | 60      |
-
+| Environment Variable | Flag                 | Description                                                                                 | Type | Default |
+|----------------------|----------------------|---------------------------------------------------------------------------------------------|------|---------|
+| TARGET_POLL_DURATION | target-poll-duration | How often in seconds the proxy polls feature flags for Target changes. Set to 0 to disable. | int  | 60      |
+| METRIC_POST_DURATION | metric-post-duration | How often in seconds the proxy posts metrics to Harness. Set to 0 to disable.               | int  | 60      |
+| HEARTBEAT_INTERVAL   | heartbeat-interval   | How often in seconds the proxy polls pings it's health function                             | int  | 60      |
 
 ### Harness URLs
 You may need to adjust these if you pass all your traffic through a filter or proxy rather than sending the requests directly. 
