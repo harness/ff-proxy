@@ -277,17 +277,13 @@ func main() {
 		}()
 	}
 
+	// we currently don't require any config to run in offline mode
 	requiredFlags := map[string]interface{}{}
-	if offline {
-		requiredFlags = map[string]interface{}{
-			authSecretEnv: authSecret,
-		}
-	} else {
+	if !offline {
 		requiredFlags = map[string]interface{}{
 			accountIdentifierEnv: accountIdentifier,
 			orgIdentifierEnv:     orgIdentifier,
 			adminServiceTokenEnv: adminServiceToken,
-			authSecretEnv:        authSecret,
 			apiKeysEnv:           apiKeys,
 		}
 	}
