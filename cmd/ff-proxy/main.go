@@ -178,7 +178,7 @@ func init() {
 	flag.StringVar(&adminServiceToken, adminServiceTokenFlag, "", "token to use with the ff service")
 	flag.StringVar(&clientService, clientServiceFlag, "https://config.ff.harness.io/api/1.0", "the url of the ff client service")
 	flag.StringVar(&metricService, metricServiceFlag, "https://events.ff.harness.io/api/1.0", "the url of the ff metric service")
-	flag.StringVar(&authSecret, authSecretFlag, "", "the secret used for signing auth tokens")
+	flag.StringVar(&authSecret, authSecretFlag, "secret", "the secret used for signing auth tokens")
 	flag.StringVar(&sdkBaseURL, sdkBaseURLFlag, "https://config.ff.harness.io/api/1.0", "url for the sdk to connect to")
 	flag.StringVar(&sdkEventsURL, sdkEventsURLFlag, "https://events.ff.harness.io/api/1.0", "url for the sdk to send metrics to")
 	flag.StringVar(&redisAddress, redisAddressFlag, "", "Redis host:port address")
@@ -277,17 +277,13 @@ func main() {
 		}()
 	}
 
+	// we currently don't require any config to run in offline mode
 	requiredFlags := map[string]interface{}{}
-	if offline {
-		requiredFlags = map[string]interface{}{
-			authSecretEnv: authSecret,
-		}
-	} else {
+	if !offline {
 		requiredFlags = map[string]interface{}{
 			accountIdentifierEnv: accountIdentifier,
 			orgIdentifierEnv:     orgIdentifier,
 			adminServiceTokenEnv: adminServiceToken,
-			authSecretEnv:        authSecret,
 			apiKeysEnv:           apiKeys,
 		}
 	}

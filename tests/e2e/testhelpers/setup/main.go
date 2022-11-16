@@ -35,8 +35,7 @@ USER_ACCESS_TOKEN=%s`
 var onlineProxyInMemTemplate = `ACCOUNT_IDENTIFIER=%s
 ORG_IDENTIFIER=%s
 ADMIN_SERVICE_TOKEN=%s
-API_KEYS=%s
-AUTH_SECRET=my_secret`
+API_KEYS=%s`
 
 var onlineProxyRedisTemplate = `ACCOUNT_IDENTIFIER=%s
 ORG_IDENTIFIER=%s
@@ -54,8 +53,7 @@ API_KEYS=%s
 AUTH_SECRET=my_secret
 GENERATE_OFFLINE_CONFIG=true`
 
-var offlineConfigTemplate = `AUTH_SECRET=my_secret
-OFFLINE=true`
+var offlineConfigTemplate = `OFFLINE=true`
 
 func main() {
 	// setup
