@@ -13,258 +13,16 @@ import (
 
 type mockAdminService struct {
 	admingen.ClientWithResponsesInterface
-	getEnvsWithResp     func() (*admingen.GetAllEnvironmentsResponse, error)
-	getProjectsWithResp func() (*admingen.GetAllProjectsResponse, error)
-	getTargetsWithResp  func() (*admingen.GetAllTargetsResponse, error)
-}
-
-func (m mockAdminService) GetAllEnvironmentsWithResponse(ctx context.Context, params *admingen.GetAllEnvironmentsParams, reqEditors ...admingen.RequestEditorFn) (*admingen.GetAllEnvironmentsResponse, error) {
-	return m.getEnvsWithResp()
-}
-
-func (m mockAdminService) GetAllProjectsWithResponse(ctx context.Context, params *admingen.GetAllProjectsParams, reqEditors ...admingen.RequestEditorFn) (*admingen.GetAllProjectsResponse, error) {
-	return m.getProjectsWithResp()
+	getTargetsWithResp func() (*admingen.GetAllTargetsResponse, error)
+	getApiKeysWithResp func() (*admingen.GetAllAPIKeysResponse, error)
 }
 
 func (m mockAdminService) GetAllTargetsWithResponse(ctx context.Context, params *admingen.GetAllTargetsParams, reqEditors ...admingen.RequestEditorFn) (*admingen.GetAllTargetsResponse, error) {
 	return m.getTargetsWithResp()
 }
 
-func TestAdminService_PageEnvironments(t *testing.T) {
-	pageEnvironmentsInput := PageEnvironmentsInput{
-		AccountIdentifier: "account",
-		OrgIdentifier:     "org",
-		ProjectIdentifier: "proj",
-		PageNumber:        0,
-		PageSize:          2,
-	}
-	envID := "envID"
-	environment := admingen.Environment{
-		Id:         &envID,
-		Identifier: "envIdentifier",
-		Name:       "env",
-		Project:    "proj",
-	}
-
-	testCases := map[string]struct {
-		mockService mockAdminService
-		input       PageEnvironmentsInput
-		shouldErr   bool
-		expected    PageEnvironmentsResult
-	}{
-		"Given PageEnvironments returns error": {
-			mockService: mockAdminService{
-				getEnvsWithResp: func() (*admingen.GetAllEnvironmentsResponse, error) {
-					return nil, errNotFound
-				},
-			},
-			shouldErr: true,
-			input:     pageEnvironmentsInput,
-			expected: PageEnvironmentsResult{
-				Finished: true,
-			},
-		},
-		"Given PageEnvironments returns non 200 response": {
-			mockService: mockAdminService{
-				getEnvsWithResp: func() (*admingen.GetAllEnvironmentsResponse, error) {
-					return &admingen.GetAllEnvironmentsResponse{
-						Body:         nil,
-						HTTPResponse: &http.Response{StatusCode: http.StatusUnauthorized},
-						JSON401: &admingen.Error{
-							Code:    "401",
-							Message: "Unauthorized",
-						},
-					}, nil
-				},
-			},
-			shouldErr: true,
-			input:     pageEnvironmentsInput,
-			expected: PageEnvironmentsResult{
-				Finished: true,
-			},
-		},
-		"Given PageEnvironments returns 200 with no Environments": {
-			mockService: mockAdminService{
-				getEnvsWithResp: func() (*admingen.GetAllEnvironmentsResponse, error) {
-					return &admingen.GetAllEnvironmentsResponse{
-						Body:         nil,
-						HTTPResponse: &http.Response{StatusCode: http.StatusOK},
-						JSON200: &struct {
-							CorrelationId string                  `json:"correlationId"`
-							Data          admingen.Environments   `json:"data"`
-							MetaData      *map[string]interface{} `json:"metaData,omitempty"`
-							Status        admingen.Status         `json:"status"`
-						}{
-							Data: admingen.Environments{Environments: &[]admingen.Environment{}},
-						},
-					}, nil
-				},
-			},
-			shouldErr: false,
-			input:     pageEnvironmentsInput,
-			expected: PageEnvironmentsResult{
-				Finished: true,
-			},
-		},
-		"Given PageEnvironments returns 200 with Environments": {
-			mockService: mockAdminService{
-				getEnvsWithResp: func() (*admingen.GetAllEnvironmentsResponse, error) {
-					return &admingen.GetAllEnvironmentsResponse{
-						Body:         nil,
-						HTTPResponse: &http.Response{StatusCode: http.StatusOK},
-						JSON200: &struct {
-							CorrelationId string                  `json:"correlationId"`
-							Data          admingen.Environments   `json:"data"`
-							MetaData      *map[string]interface{} `json:"metaData,omitempty"`
-							Status        admingen.Status         `json:"status"`
-						}{
-							Data: admingen.Environments{Environments: &[]admingen.Environment{environment}},
-						},
-					}, nil
-				},
-			},
-			shouldErr: false,
-			input:     pageEnvironmentsInput,
-			expected: PageEnvironmentsResult{
-				Finished:     false,
-				Environments: []admingen.Environment{environment},
-			},
-		},
-	}
-
-	for desc, tc := range testCases {
-		tc := tc
-		t.Run(desc, func(t *testing.T) {
-			logger, _ := log.NewStructuredLogger(true)
-			adminService, _ := NewAdminService(logger, "localhost:8000", "svc-token")
-			adminService.client = tc.mockService
-
-			actual, err := adminService.PageEnvironments(context.Background(), tc.input)
-			if (err != nil) != tc.shouldErr {
-				t.Errorf("(%s): error = %v, shouldErr = %v", desc, err, tc.shouldErr)
-			}
-
-			assert.Equal(t, tc.expected, actual)
-
-		})
-	}
-}
-
-func TestAdminService_PageProjects(t *testing.T) {
-	pageProjectsInput := PageProjectsInput{
-		AccountIdentifier: "account",
-		OrgIdentifier:     "org",
-		PageNumber:        0,
-		PageSize:          2,
-	}
-	project := admingen.Project{
-		Description: nil,
-		Identifier:  "project",
-		Name:        "project",
-	}
-
-	testCases := map[string]struct {
-		mockService mockAdminService
-		input       PageProjectsInput
-		shouldErr   bool
-		expected    PageProjectsResult
-	}{
-		"Given PageProjects returns error": {
-			mockService: mockAdminService{
-				getProjectsWithResp: func() (*admingen.GetAllProjectsResponse, error) {
-					return nil, errNotFound
-				},
-			},
-			shouldErr: true,
-			input:     pageProjectsInput,
-			expected: PageProjectsResult{
-				Finished: true,
-			},
-		},
-		"Given PageProjects returns non 200 response": {
-			mockService: mockAdminService{
-				getProjectsWithResp: func() (*admingen.GetAllProjectsResponse, error) {
-					return &admingen.GetAllProjectsResponse{
-						Body:         nil,
-						HTTPResponse: &http.Response{StatusCode: http.StatusUnauthorized},
-						JSON401: &admingen.Error{
-							Code:    "401",
-							Message: "Unauthorized",
-						},
-					}, nil
-				},
-			},
-			shouldErr: true,
-			input:     pageProjectsInput,
-			expected: PageProjectsResult{
-				Finished: true,
-			},
-		},
-		"Given PageProjects returns 200 with no Projects": {
-			mockService: mockAdminService{
-				getProjectsWithResp: func() (*admingen.GetAllProjectsResponse, error) {
-					return &admingen.GetAllProjectsResponse{
-						Body:         nil,
-						HTTPResponse: &http.Response{StatusCode: http.StatusOK},
-						JSON200: &struct {
-							CorrelationId *string                 `json:"correlationId,omitempty"`
-							Data          *admingen.Projects      `json:"data,omitempty"`
-							MetaData      *map[string]interface{} `json:"metaData,omitempty"`
-							Status        *admingen.Status        `json:"status,omitempty"`
-						}{
-							Data: &admingen.Projects{Projects: &[]admingen.Project{}},
-						},
-					}, nil
-				},
-			},
-			shouldErr: false,
-			input:     pageProjectsInput,
-			expected: PageProjectsResult{
-				Finished: true,
-			},
-		},
-		"Given PageProjects returns 200 with Project": {
-			mockService: mockAdminService{
-				getProjectsWithResp: func() (*admingen.GetAllProjectsResponse, error) {
-					return &admingen.GetAllProjectsResponse{
-						Body:         nil,
-						HTTPResponse: &http.Response{StatusCode: http.StatusOK},
-						JSON200: &struct {
-							CorrelationId *string                 `json:"correlationId,omitempty"`
-							Data          *admingen.Projects      `json:"data,omitempty"`
-							MetaData      *map[string]interface{} `json:"metaData,omitempty"`
-							Status        *admingen.Status        `json:"status,omitempty"`
-						}{
-							Data: &admingen.Projects{Projects: &[]admingen.Project{project}},
-						},
-					}, nil
-				},
-			},
-			shouldErr: false,
-			input:     pageProjectsInput,
-			expected: PageProjectsResult{
-				Finished: false,
-				Projects: []admingen.Project{project},
-			},
-		},
-	}
-
-	for desc, tc := range testCases {
-		tc := tc
-		t.Run(desc, func(t *testing.T) {
-			logger, _ := log.NewStructuredLogger(true)
-			adminService, _ := NewAdminService(logger, "localhost:8000", "svc-token")
-			adminService.client = tc.mockService
-
-			actual, err := adminService.PageProjects(context.Background(), tc.input)
-			if (err != nil) != tc.shouldErr {
-				t.Errorf("(%s): error = %v, shouldErr = %v", desc, err, tc.shouldErr)
-			}
-
-			assert.Equal(t, tc.expected, actual)
-
-		})
-	}
+func (m mockAdminService) GetAllAPIKeysWithResponse(ctx context.Context, params *admingen.GetAllAPIKeysParams, reqEditors ...admingen.RequestEditorFn) (*admingen.GetAllAPIKeysResponse, error) {
+	return m.getApiKeysWithResp()
 }
 
 func TestAdminService_PageTargets(t *testing.T) {
@@ -340,7 +98,7 @@ func TestAdminService_PageTargets(t *testing.T) {
 				Finished: true,
 			},
 		},
-		"Given PageTargets returns 200 with Environments": {
+		"Given PageTargets returns 200 with Targets": {
 			mockService: mockAdminService{
 				getTargetsWithResp: func() (*admingen.GetAllTargetsResponse, error) {
 					return &admingen.GetAllTargetsResponse{
@@ -369,6 +127,116 @@ func TestAdminService_PageTargets(t *testing.T) {
 			adminService.client = tc.mockService
 
 			actual, err := adminService.PageTargets(context.Background(), tc.input)
+			if (err != nil) != tc.shouldErr {
+				t.Errorf("(%s): error = %v, shouldErr = %v", desc, err, tc.shouldErr)
+			}
+
+			assert.Equal(t, tc.expected, actual)
+
+		})
+	}
+}
+
+func TestAdminService_GetAPIKeys(t *testing.T) {
+	pageAPIKeysInput := GetAPIKeysInput{
+		AccountIdentifier:     "account",
+		OrgIdentifier:         "org",
+		ProjectIdentifier:     "proj",
+		EnvironmentIdentifier: "env",
+	}
+	hashedKey := "1234"
+	apiKey := admingen.ApiKey{
+		ApiKey:     "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+		Identifier: "mykey",
+		Key:        &hashedKey,
+		Name:       "mykey",
+		Type:       "Server",
+	}
+
+	testCases := map[string]struct {
+		mockService mockAdminService
+		input       GetAPIKeysInput
+		shouldErr   bool
+		expected    PageAPIKeysResult
+	}{
+		"Given PageAPIKeys returns error": {
+			mockService: mockAdminService{
+				getApiKeysWithResp: func() (*admingen.GetAllAPIKeysResponse, error) {
+					return nil, errNotFound
+				},
+			},
+			shouldErr: true,
+			input:     pageAPIKeysInput,
+			expected: PageAPIKeysResult{
+				Finished: true,
+			},
+		},
+		"Given PageAPIKeys returns non 200 response": {
+			mockService: mockAdminService{
+				getApiKeysWithResp: func() (*admingen.GetAllAPIKeysResponse, error) {
+					return &admingen.GetAllAPIKeysResponse{
+						Body:         nil,
+						HTTPResponse: &http.Response{StatusCode: http.StatusUnauthorized},
+						JSON401: &admingen.Error{
+							Code:    "401",
+							Message: "Unauthorized",
+						},
+					}, nil
+				},
+			},
+			shouldErr: true,
+			input:     pageAPIKeysInput,
+			expected: PageAPIKeysResult{
+				Finished: true,
+			},
+		},
+		"Given PageAPIKeys returns 200 with no Keys": {
+			mockService: mockAdminService{
+				getApiKeysWithResp: func() (*admingen.GetAllAPIKeysResponse, error) {
+					return &admingen.GetAllAPIKeysResponse{
+						Body:         nil,
+						HTTPResponse: &http.Response{StatusCode: http.StatusOK},
+						JSON200: &admingen.ApiKeys{
+							ApiKeys: &[]admingen.ApiKey{},
+						},
+					}, nil
+				},
+			},
+			shouldErr: false,
+			input:     pageAPIKeysInput,
+			expected: PageAPIKeysResult{
+				Finished: true,
+			},
+		},
+		"Given PageAPIKeys returns 200 with API Keys": {
+			mockService: mockAdminService{
+				getApiKeysWithResp: func() (*admingen.GetAllAPIKeysResponse, error) {
+					return &admingen.GetAllAPIKeysResponse{
+						Body:         nil,
+						HTTPResponse: &http.Response{StatusCode: http.StatusUnauthorized},
+						JSON200: &admingen.ApiKeys{
+							ApiKeys: &[]admingen.ApiKey{apiKey},
+						},
+					}, nil
+				},
+			},
+			shouldErr: false,
+			input:     pageAPIKeysInput,
+			expected: PageAPIKeysResult{
+				Finished: false,
+				APIKeys:  []admingen.ApiKey{apiKey},
+			},
+		},
+	}
+
+	for desc, tc := range testCases {
+		tc := tc
+		t.Run(desc, func(t *testing.T) {
+			logger, _ := log.NewStructuredLogger(true)
+			adminService, _ := NewAdminService(logger, "localhost:8000", "svc-token")
+			adminService.client = tc.mockService
+
+			actual, err := adminService.PageAPIKeys(context.Background(), tc.input)
 			if (err != nil) != tc.shouldErr {
 				t.Errorf("(%s): error = %v, shouldErr = %v", desc, err, tc.shouldErr)
 			}

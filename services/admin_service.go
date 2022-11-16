@@ -43,104 +43,58 @@ func NewAdminService(l log.Logger, addr string, serviceToken string) (AdminServi
 	return AdminService{log: l, client: c}, nil
 }
 
-// PageEnvironmentsInput contains the paramters required to make a PageEnvironments
+// GetAPIKeysInput contains the paramters required to make a GetEnvironments
 // request
-type PageEnvironmentsInput struct {
-	AccountIdentifier string
-	OrgIdentifier     string
-	ProjectIdentifier string
-	PageNumber        int
-	PageSize          int
+type GetAPIKeysInput struct {
+	AccountIdentifier     string
+	OrgIdentifier         string
+	ProjectIdentifier     string
+	EnvironmentIdentifier string
+	PageNumber            int
+	PageSize              int
 }
 
-// PageEnvironmentsResult is the result of a PageEnvironments request
-type PageEnvironmentsResult struct {
-	Environments []admingen.Environment
-	Finished     bool
-}
-
-// PageEnvironments is used for synchronously paging over environments by making
-// request to the admin services /admin/environments endpoint
-func (r AdminService) PageEnvironments(ctx context.Context, input PageEnvironmentsInput) (PageEnvironmentsResult, error) {
-	r.log = r.log.With("method", "PageEnvironments")
-
-	pageNumber := admingen.PageNumber(input.PageNumber)
-	pageSize := admingen.PageSize(input.PageSize)
-
-	r.log.Debug("getting environments", "projectIdentifier", input.ProjectIdentifier, "pageSize", input.PageSize, "pageNumber", input.PageNumber)
-	resp, err := r.client.GetAllEnvironmentsWithResponse(ctx, &admingen.GetAllEnvironmentsParams{
-		AccountIdentifier: admingen.AccountQueryParam(input.AccountIdentifier),
-		OrgIdentifier:     admingen.OrgQueryParam(input.OrgIdentifier),
-		ProjectIdentifier: admingen.ProjectQueryParam(input.ProjectIdentifier),
-		PageNumber:        &pageNumber,
-		PageSize:          &pageSize,
-	})
-	if err != nil {
-		return PageEnvironmentsResult{Finished: true}, err
-	}
-
-	// TODO: Could make this better and add some retry logic in but for
-	// now just error out
-	if resp.JSON200 == nil {
-		return PageEnvironmentsResult{Finished: true}, fmt.Errorf("got non 200 response, status: %s, body: %s", resp.Status(), string(resp.Body))
-	}
-
-	// If there are no environments in the response then there are either none
-	// to retrieve or we've paged over them all so we're done
-	if resp.JSON200.Data.Environments != nil && len(*resp.JSON200.Data.Environments) == 0 {
-		return PageEnvironmentsResult{Finished: true}, nil
-	}
-
-	return PageEnvironmentsResult{Environments: *resp.JSON200.Data.Environments, Finished: false}, nil
-}
-
-// PageProjectsInput contains the paramters required to make a PageProjects
+// PageAPIKeysResult contains the parameters required to make a PageAPIKeys
 // request
-type PageProjectsInput struct {
-	AccountIdentifier string
-	OrgIdentifier     string
-	PageNumber        int
-	PageSize          int
-}
-
-// PageProjectsResult is the result of a PageProjects request
-type PageProjectsResult struct {
-	Projects []admingen.Project
+type PageAPIKeysResult struct {
+	APIKeys  []admingen.ApiKey
 	Finished bool
 }
 
-// PageProjects is used for synchronously paging over projects by making requests
-// to the admin services /admin/projects endpoint
-func (r AdminService) PageProjects(ctx context.Context, input PageProjectsInput) (PageProjectsResult, error) {
-	r.log = r.log.With("method", "PageProjects")
+// PageAPIKeys is used to fetch environment info from the
+// admin services /admin/apikey endpoint
+func (r AdminService) PageAPIKeys(ctx context.Context, input GetAPIKeysInput) (PageAPIKeysResult, error) {
+	r.log = r.log.With("method", "PageAPIKeys")
 
-	pageNumber := admingen.PageNumber(input.PageNumber)
-	pageSize := admingen.PageSize(input.PageSize)
-
-	r.log.Debug("getting projects", "pageSize", input.PageSize, "pageNumber", input.PageNumber)
-	resp, err := r.client.GetAllProjectsWithResponse(ctx, &admingen.GetAllProjectsParams{
-		AccountIdentifier: admingen.AccountQueryParam(input.AccountIdentifier),
-		OrgIdentifier:     admingen.OrgQueryParam(input.OrgIdentifier),
-		PageNumber:        &pageNumber,
-		PageSize:          &pageSize,
+	r.log.Debug("getting api keys", "projectIdentifier", input.ProjectIdentifier, "accountIdentifier", input.AccountIdentifier, "orgIdentifier", input.OrgIdentifier, "environmentIdentifier", input.EnvironmentIdentifier, "pageSize", input.PageSize, "pageNumber", input.PageNumber)
+	resp, err := r.client.GetAllAPIKeysWithResponse(ctx, &admingen.GetAllAPIKeysParams{
+		AccountIdentifier:     input.AccountIdentifier,
+		OrgIdentifier:         input.OrgIdentifier,
+		ProjectIdentifier:     input.ProjectIdentifier,
+		EnvironmentIdentifier: input.EnvironmentIdentifier,
+		PageNumber:            &input.PageNumber,
+		PageSize:              &input.PageSize,
 	})
 	if err != nil {
-		return PageProjectsResult{Finished: true}, err
+		return PageAPIKeysResult{Finished: true}, err
 	}
 
 	// TODO: Could make this better and add some retry logic in but for
 	// now just error out
 	if resp.JSON200 == nil {
-		return PageProjectsResult{Finished: true}, fmt.Errorf("got non 200 response, status: %s, body: %s", resp.Status(), string(resp.Body))
+		return PageAPIKeysResult{Finished: true}, fmt.Errorf("got non 200 response, status: %s, body: %s", resp.Status(), string(resp.Body))
 	}
 
-	// If there are no projects in the response then there are either none
+	// If there are no api keys in the response then there are either none
 	// to retrieve or we've paged over them all so we're done
-	if resp.JSON200.Data.Projects != nil && len(*resp.JSON200.Data.Projects) == 0 {
-		return PageProjectsResult{Finished: true}, nil
+	if resp.JSON200.ApiKeys == nil || len(*resp.JSON200.ApiKeys) == 0 {
+		return PageAPIKeysResult{Finished: true}, nil
 	}
 
-	return PageProjectsResult{Projects: *resp.JSON200.Data.Projects, Finished: false}, nil
+	return PageAPIKeysResult{
+		APIKeys:  *resp.JSON200.ApiKeys,
+		Finished: false,
+	}, nil
 }
 
 // PageTargetsInput contains the paramters required to make a PageTargets
@@ -166,15 +120,15 @@ type PageTargetsResult struct {
 func (r AdminService) PageTargets(ctx context.Context, input PageTargetsInput) (PageTargetsResult, error) {
 	r.log = r.log.With("method", "PageTargets")
 
-	pageNumber := admingen.PageNumber(input.PageNumber)
-	pageSize := admingen.PageSize(input.PageSize)
+	pageNumber := input.PageNumber
+	pageSize := input.PageSize
 
 	r.log.Debug("getting targets", "project_identifier", input.ProjectIdentifier, "environment_identifier", input.EnvironmentIdentifier, "pageSize", input.PageSize, "pageNumber", input.PageNumber)
 	resp, err := r.client.GetAllTargetsWithResponse(ctx, &admingen.GetAllTargetsParams{
-		AccountIdentifier:     admingen.AccountQueryParam(input.AccountIdentifier),
-		OrgIdentifier:         admingen.OrgQueryParam(input.OrgIdentifier),
-		ProjectIdentifier:     admingen.ProjectQueryParam(input.ProjectIdentifier),
-		EnvironmentIdentifier: admingen.EnvironmentQueryParam(input.EnvironmentIdentifier),
+		AccountIdentifier:     input.AccountIdentifier,
+		OrgIdentifier:         input.OrgIdentifier,
+		ProjectIdentifier:     input.ProjectIdentifier,
+		EnvironmentIdentifier: input.EnvironmentIdentifier,
 		PageNumber:            &pageNumber,
 		PageSize:              &pageSize,
 	})
@@ -188,7 +142,7 @@ func (r AdminService) PageTargets(ctx context.Context, input PageTargetsInput) (
 		return PageTargetsResult{Finished: true}, fmt.Errorf("got non 200 response, status: %s, body: %s", resp.Status(), string(resp.Body))
 	}
 
-	// If there are no projects in the response then there are either none
+	// If there are no targets in the response then there are either none
 	// to retrieve or we've paged over them all so we're done
 	if resp.JSON200.Targets != nil && len(*resp.JSON200.Targets) == 0 {
 		return PageTargetsResult{Finished: true}, nil
