@@ -1,0 +1,41 @@
+version: "3.9"
+services:
+  proxy:
+    image: "harness/ff-proxy:latest"
+    environment:
+      - DEBUG=${DEBUG}
+      - OFFLINE=${OFFLINE}
+      - BYPASS_AUTH=${BYPASS_AUTH}
+      - ACCOUNT_IDENTIFIER=${ACCOUNT_IDENTIFIER}
+      - ORG_IDENTIFIER=${ORG_IDENTIFIER}
+      - ADMIN_SERVICE=${ADMIN_SERVICE}
+      - ADMIN_SERVICE_TOKEN=${ADMIN_SERVICE_TOKEN}
+      - CLIENT_SERVICE=${CLIENT_SERVICE_TOKEN}
+      - AUTH_SECRET=${AUTH_SECRET}
+      - SDK_BASE_URL=${SDK_BASE_URL}
+      - SDK_EVENTS_URL=${SDK_EVENTS_URL}
+      - REDIS_ADDRESS=${REDIS_ADDRESS}
+      - REDIS_PASSWORD=${REDIS_PASSWORD}
+      - REDIS_DB=${REDIS_DB}
+      - API_KEYS=${API_KEYS}
+      - TARGET_POLL_DURATION=${TARGET_POLL_DURATION}
+      - GENERATE_OFFLINE_CONFIG=${GENERATE_OFFLINE_CONFIG}
+    build:
+      context: ./
+      dockerfile: ./Dockerfile
+    volumes:
+      - ${CONFIG_VOLUME:-./config:/config}
+  nginx:
+    image: "nginx:latest"
+    volumes:
+      - ./config:/etc/nginx/conf.d/
+      - ./certs/cert.crt:/etc/nginx/cert.crt
+      - ./certs/cert.key:/etc/nginx/cert.pem
+    ports:
+      - "8000:8000"
+  redis:
+    image: "redis:latest"
+    ports:
+      - "6379:6379"
+
+

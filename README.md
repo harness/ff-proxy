@@ -22,11 +22,17 @@ By default the Relay Proxy runs with an [In Memory Cache](./docs/in_memory_cache
 
 To run with persistent storage in redis read [Redis](./docs/redis_cache.md).
 
-## Offline mode
+## Offline Mode
 If you'd like to run the Relay Proxy in airgapped environments or locations with poor internet reliability you can generate offline flag configuration and run the Relay Proxy in a fully offline mode. To learn more read [Offline Mode](./docs/offline.md).
 
+## Load Balancing
+For info on horizontal scaling Relay Proxies and a working example see [Load Balancing](./docs/load_balancing.md).
+
 ## Windows
-If you'd like to build and run the Relay Proxy on Windows see [Windows](./docs/windows.md)
+If you'd like to build and run the Relay Proxy on Windows see [Windows](./docs/windows.md).
+
+## Endpoints
+For info on the external Harness SaaS endpoints the Relay Proxy communicates with see [Endpoints](./docs/endpoints.md).
 
 ## Contributing
 See the [contribution guide](CONTRIBUTING.md).
