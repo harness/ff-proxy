@@ -2,6 +2,7 @@
 
 You can optionally configure the Relay Proxy to store flag data in redis. See [configuration](./configuration.md) for details on setting this up.
 
+The Relay Proxy does not currently support clustered Redis or Redis Sentinel.
 
 
 ### What happens if network connection is lost?

@@ -324,6 +324,11 @@ func main() {
 		})
 		logger.Info("connecting to redis", "address", redisAddress)
 		sdkCache = cache.NewRedisCache(client)
+		err := sdkCache.HealthCheck(ctx)
+		if err != nil {
+			logger.Error("failed to connect to redis", "err", err)
+			os.Exit(1)
+		}
 	} else {
 		logger.Info("initialising default memcache")
 		sdkCache = cache.NewMemCache()
