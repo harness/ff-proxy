@@ -111,6 +111,9 @@ var (
 	generateOfflineConfig bool
 	configDir             string
 	port                  int
+	tlsEnabled            bool
+	tlsCert               string
+	tlsKey                string
 )
 
 const (
@@ -139,6 +142,9 @@ const (
 	configDirEnv             = "CONFIG_DIR"
 	pprofEnabledEnv          = "PPROF"
 	portEnv                  = "PORT"
+	tlsEnabledEnv            = "TLS_ENABLED"
+	tlsCertEnv               = "TLS_CERT"
+	tlsKeyEnv                = "TLS_KEY"
 
 	bypassAuthFlag            = "bypass-auth"
 	debugFlag                 = "debug"
@@ -165,6 +171,9 @@ const (
 	configDirFlag             = "config-dir"
 	flagPollIntervalFlag      = "flag-poll-interval"
 	portFlag                  = "port"
+	tlsEnabledFlag            = "tls-enabled"
+	tlsCertFlag               = "tls-cert"
+	tlsKeyFlag                = "tls-key"
 )
 
 func init() {
@@ -194,6 +203,10 @@ func init() {
 	flag.BoolVar(&generateOfflineConfig, generateOfflineConfigFlag, false, "if true the proxy will produce offline config in the /config directory then terminate")
 	flag.StringVar(&configDir, configDirFlag, "/config", "specify a custom path to search for the offline config directory. Defaults to /config")
 	flag.IntVar(&port, portFlag, 8000, "port the relay proxy service is exposed on, default's to 8000")
+	flag.BoolVar(&tlsEnabled, tlsEnabledFlag, false, "if true the proxy will use the tlsCert and tlsKey to run with https enabled")
+	flag.StringVar(&tlsCert, tlsCertFlag, "", "Path to tls cert file. Required if tls enabled is true.")
+	flag.StringVar(&tlsKey, tlsKeyFlag, "", "Path to tls key file. Required if tls enabled is true.")
+
 	sdkClients = newSDKClientMap()
 
 	loadFlagsFromEnv(map[string]string{
@@ -222,6 +235,9 @@ func init() {
 		configDirEnv:             configDirFlag,
 		flagPollIntervalEnv:      flagPollIntervalFlag,
 		portEnv:                  portFlag,
+		tlsEnabledEnv:            tlsEnabledFlag,
+		tlsCertEnv:               tlsCertFlag,
+		tlsKeyEnv:                tlsKeyFlag,
 	})
 
 	flag.Parse()
@@ -305,7 +321,7 @@ func main() {
 		cancel()
 	}()
 
-	logger.Info("service config", "pprof", pprofEnabled, "debug", debug, "bypass-auth", bypassAuth, "offline", offline, "port", port, "admin-service", adminService, "account-identifier", accountIdentifier, "org-identifier", orgIdentifier, "sdk-base-url", sdkBaseURL, "sdk-events-url", sdkEventsURL, "redis-addr", redisAddress, "redis-db", redisDB, "api-keys", fmt.Sprintf("%v", apiKeys), "target-poll-duration", fmt.Sprintf("%ds", targetPollDuration), "heartbeat-interval", fmt.Sprintf("%ds", heartbeatInterval), "flag-stream-enabled", flagStreamEnabled, "flag-poll-interval", fmt.Sprintf("%ds", flagPollInterval), "config-dir", configDir)
+	logger.Info("service config", "pprof", pprofEnabled, "debug", debug, "bypass-auth", bypassAuth, "offline", offline, "port", port, "admin-service", adminService, "account-identifier", accountIdentifier, "org-identifier", orgIdentifier, "sdk-base-url", sdkBaseURL, "sdk-events-url", sdkEventsURL, "redis-addr", redisAddress, "redis-db", redisDB, "api-keys", fmt.Sprintf("%v", apiKeys), "target-poll-duration", fmt.Sprintf("%ds", targetPollDuration), "heartbeat-interval", fmt.Sprintf("%ds", heartbeatInterval), "flag-stream-enabled", flagStreamEnabled, "flag-poll-interval", fmt.Sprintf("%dm", flagPollInterval), "config-dir", configDir, "tls-enabled", tlsEnabled, "tls-cert", tlsCert, "tls-key", tlsKey)
 
 	adminService, err := services.NewAdminService(logger, adminService, adminServiceToken)
 	if err != nil {
@@ -505,7 +521,7 @@ func main() {
 
 	// Configure endpoints and server
 	endpoints := transport.NewEndpoints(service)
-	server := transport.NewHTTPServer(port, endpoints, logger)
+	server := transport.NewHTTPServer(port, endpoints, logger, tlsEnabled, tlsCert, tlsKey)
 	server.Use(
 		middleware.NewEchoRequestIDMiddleware(),
 		middleware.NewEchoLoggingMiddleware(),
@@ -572,7 +588,12 @@ func main() {
 	go func() {
 		ticker := time.NewTicker(time.Duration(heartbeatInterval) * time.Second)
 		logger.Info(fmt.Sprintf("polling heartbeat every %d seconds", heartbeatInterval))
-		heartbeat(ctx, ticker.C, fmt.Sprintf("http://localhost:%d", port), logger)
+		protocol := "http"
+		if tlsEnabled {
+			protocol = "https"
+		}
+
+		heartbeat(ctx, ticker.C, fmt.Sprintf("%s://localhost:%d", protocol, port), logger)
 	}()
 
 	if err := server.Serve(); err != nil {
@@ -597,7 +618,11 @@ func heartbeat(ctx context.Context, tick <-chan time.Time, listenAddr string, lo
 			case <-tick:
 				resp, err := http.Get(fmt.Sprintf("%s/health", listenAddr))
 				if err != nil {
-					logger.Error(fmt.Sprintf("heartbeat request failed: %d", resp.StatusCode))
+					logger.Error(fmt.Sprintf("heartbeat request failed: %s", err))
+				}
+
+				if resp == nil {
+					continue
 				}
 
 				if resp.StatusCode == http.StatusOK {
@@ -648,6 +673,7 @@ func streamHealthCheck() error {
 	var multiErr error
 
 	for i := 0; i < 2; i++ {
+		// TODO does this need to be changed when we enable https on pushpin?
 		resp, err := http.Get(fmt.Sprintf("http://localhost:5561"))
 		if err != nil || resp == nil {
 			multiErr = multierror.Append(fmt.Errorf("gpc request failed streaming will be disabled: %s", err), multiErr)

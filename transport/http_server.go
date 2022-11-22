@@ -12,14 +12,17 @@ import (
 
 // HTTPServer is an http server that handles http requests
 type HTTPServer struct {
-	router *echo.Echo
-	server *http.Server
-	log    log.Logger
+	router     *echo.Echo
+	server     *http.Server
+	log        log.Logger
+	tlsEnabled bool
+	tlsCert    string
+	tlsKey     string
 }
 
 // NewHTTPServer registers the passed endpoints against routes and returns an
 // HTTPServer that's ready to use
-func NewHTTPServer(port int, e *Endpoints, l log.Logger) *HTTPServer {
+func NewHTTPServer(port int, e *Endpoints, l log.Logger, tlsEnabled bool, tlsCert string, tlsKey string) *HTTPServer {
 	l = l.With("component", "HTTPServer")
 
 	router := echo.New()
@@ -33,9 +36,12 @@ func NewHTTPServer(port int, e *Endpoints, l log.Logger) *HTTPServer {
 	}
 
 	h := &HTTPServer{
-		router: router,
-		server: server,
-		log:    l,
+		router:     router,
+		server:     server,
+		log:        l,
+		tlsEnabled: tlsEnabled,
+		tlsCert:    tlsCert,
+		tlsKey:     tlsKey,
 	}
 	h.registerEndpoints(e)
 	return h
@@ -48,6 +54,10 @@ func (h *HTTPServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 // Serve listens on the HTTPServers addr and handles requests
 func (h *HTTPServer) Serve() error {
+	if h.tlsEnabled {
+		h.log.Info("starting https server", "addr", h.server.Addr, "tlsCert", h.tlsCert, "tlsKey", h.tlsKey)
+		return h.server.ListenAndServeTLS(h.tlsCert, h.tlsKey)
+	}
 	h.log.Info("starting http server", "addr", h.server.Addr)
 	return h.server.ListenAndServe()
 }
