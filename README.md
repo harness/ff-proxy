@@ -34,5 +34,8 @@ If you'd like to build and run the Relay Proxy on Windows see [Windows](./docs/w
 ## Endpoints
 For info on the external Harness SaaS endpoints the Relay Proxy communicates with see [Endpoints](./docs/endpoints.md).
 
+## Debugging
+For help on debugging your Relay Proxy install see [Debugging](./docs/debugging.md).
+
 ## Contributing
 See the [contribution guide](CONTRIBUTING.md).
