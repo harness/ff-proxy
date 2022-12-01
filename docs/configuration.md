@@ -66,10 +66,10 @@ Adjust the port the relay proxy runs on.
 ### Connection mode between Relay Proxy and Harness SaaS
 Some corporate networks may be highly restrictive on allowing sse connections. If you find that the Relay Proxy starts successfully but fails to receive any updates you may want to use these settings to force the Relay Proxy to poll for changes instead of streaming them.
 
-| Environment Variable | Flag                 | Description                                                                                                                                                                                                                          | Type    | Default |
-|----------------------|----------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|---------|---------|
-| FLAG_STREAM_ENABLED  | flag-stream-enabled  | Should the proxy connect to Harness in streaming mode to get flag changes. Set to false if your network absorbs sse events.  | boolean | true    |
-| FLAG_POLL_INTERVAL   | flag-poll-interval   | How often in minutes the proxy should poll for flag updates (if stream not connected)                                                                                                                                                | int     | 1       |
+| Environment Variable | Flag                 | Description                                                                                                                 | Type    | Default |
+|----------------------|----------------------|-----------------------------------------------------------------------------------------------------------------------------|---------|---------|
+| FLAG_STREAM_ENABLED  | flag-stream-enabled  | Should the proxy connect to Harness in streaming mode to get flag changes. Set to false if your network absorbs sse events. | boolean | true    |
+| FLAG_POLL_INTERVAL   | flag-poll-interval   | How often in seconds the proxy should poll for flag updates (if stream not connected)                                       | int     | 1       |
 
 ### Adjust timings
 Adjust how often certain actions are performed.
