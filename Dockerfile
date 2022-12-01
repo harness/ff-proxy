@@ -37,7 +37,7 @@ ENV PUSHPIN_VERSION 1.33.1-1~bionic1
 # Install Pushpin
 RUN \
   apt-get update && \
-  apt-get install -y pushpin=$PUSHPIN_VERSION
+  apt-get install -y pushpin=$PUSHPIN_VERSION curl
 
 # Cleanup
 RUN \
