@@ -189,7 +189,7 @@ func init() {
 	flag.IntVar(&metricPostDuration, metricPostDurationFlag, 60, "How often in seconds the proxy posts metrics to Harness. Set to 0 to disable.")
 	flag.IntVar(&heartbeatInterval, heartbeatIntervalFlag, 60, "How often in seconds the proxy polls pings it's health function")
 	flag.BoolVar(&pprofEnabled, pprofEnabledFlag, false, "enables pprof on port 6060")
-	flag.IntVar(&flagPollInterval, flagPollIntervalFlag, 1, "how often in minutes the proxy should poll for flag updates (if stream not connected)")
+	flag.IntVar(&flagPollInterval, flagPollIntervalFlag, 60, "how often in seconds the proxy should poll for flag updates (if stream not connected)")
 	flag.BoolVar(&flagStreamEnabled, flagStreamEnabledFlag, true, "should the proxy connect to Harness in streaming mode to get flag changes")
 	flag.BoolVar(&generateOfflineConfig, generateOfflineConfigFlag, false, "if true the proxy will produce offline config in the /config directory then terminate")
 	flag.StringVar(&configDir, configDirFlag, "/config", "specify a custom path to search for the offline config directory. Defaults to /config")
@@ -305,7 +305,7 @@ func main() {
 		cancel()
 	}()
 
-	logger.Info("service config", "pprof", pprofEnabled, "debug", debug, "bypass-auth", bypassAuth, "offline", offline, "port", port, "admin-service", adminService, "account-identifier", accountIdentifier, "org-identifier", orgIdentifier, "sdk-base-url", sdkBaseURL, "sdk-events-url", sdkEventsURL, "redis-addr", redisAddress, "redis-db", redisDB, "api-keys", fmt.Sprintf("%v", apiKeys), "target-poll-duration", fmt.Sprintf("%ds", targetPollDuration), "heartbeat-interval", fmt.Sprintf("%ds", heartbeatInterval), "flag-stream-enabled", flagStreamEnabled, "flag-poll-interval", fmt.Sprintf("%dm", flagPollInterval), "config-dir", configDir)
+	logger.Info("service config", "pprof", pprofEnabled, "debug", debug, "bypass-auth", bypassAuth, "offline", offline, "port", port, "admin-service", adminService, "account-identifier", accountIdentifier, "org-identifier", orgIdentifier, "sdk-base-url", sdkBaseURL, "sdk-events-url", sdkEventsURL, "redis-addr", redisAddress, "redis-db", redisDB, "api-keys", fmt.Sprintf("%v", apiKeys), "target-poll-duration", fmt.Sprintf("%ds", targetPollDuration), "heartbeat-interval", fmt.Sprintf("%ds", heartbeatInterval), "flag-stream-enabled", flagStreamEnabled, "flag-poll-interval", fmt.Sprintf("%ds", flagPollInterval), "config-dir", configDir)
 
 	adminService, err := services.NewAdminService(logger, adminService, adminServiceToken)
 	if err != nil {
@@ -369,14 +369,22 @@ func main() {
 		})
 
 		var eventListener sdkStream.EventStreamListener
-		// attempt to connect to pushpin stream - if we can't streaming will be disabled
-		err = streamHealthCheck()
-		if err != nil {
-			logger.Error("failed to connect to pushpin streaming service - streaming mode not available for sdks connecting to Relay Proxy", "err", err)
+
+		// if we're not connecting to get streaming updates we shouldn't allow downstream sdks to connect to us in streaming mode
+		// because we won't receive any to forward on. This will force sdks to poll the proxy to get their updates
+		if flagStreamEnabled {
+			// attempt to connect to pushpin stream - if we can't streaming will be disabled
+			err = streamHealthCheck()
+			if err != nil {
+				logger.Error("failed to connect to pushpin streaming service - streaming mode not available for sdks connecting to Relay Proxy", "err", err)
+			} else {
+				streamEnabled = true
+				logger.Info("starting stream service...")
+				eventListener = stream.NewStreamWorker(logger, gpc)
+			}
 		} else {
-			streamEnabled = true
-			logger.Info("starting stream service...")
-			eventListener = stream.NewStreamWorker(logger, gpc)
+			logger.Info("starting sdks in polling mode. streaming disabled for connected sdks")
+			streamEnabled = false
 		}
 
 		logger.Info("retrieving config from ff-server...")

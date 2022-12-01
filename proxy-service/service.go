@@ -14,7 +14,7 @@ import (
 	"github.com/harness/ff-proxy/repository"
 )
 
-//ProxyService is the interface for the ProxyService
+// ProxyService is the interface for the ProxyService
 type ProxyService interface {
 	// Authenticate performs authentication
 	Authenticate(ctx context.Context, req domain.AuthRequest) (domain.AuthResponse, error)
@@ -415,7 +415,7 @@ func (s Service) EvaluationsByFeature(ctx context.Context, req domain.Evaluation
 func (s Service) Stream(ctx context.Context, req domain.StreamRequest) (domain.StreamResponse, error) {
 	s.logger = s.logger.With("method", "Stream")
 	if !s.streamingEnabled {
-		return domain.StreamResponse{}, fmt.Errorf("%w: streaming will only work if the Proxy is running with pushpin", ErrNotImplemented)
+		return domain.StreamResponse{}, fmt.Errorf("%w: streaming endpoint disabled", ErrNotImplemented)
 	}
 
 	hashedAPIKey := s.hasher.Hash(req.APIKey)
