@@ -80,7 +80,7 @@ Adjust how often certain actions are performed.
 | METRIC_POST_DURATION | metric-post-duration | How often in seconds the proxy posts metrics to Harness. Set to 0 to disable.               | int  | 60      |
 | HEARTBEAT_INTERVAL   | heartbeat-interval   | How often in seconds the proxy polls pings it's health function                             | int  | 60      |
 
-### TLS
+### TLS (beta)
 | Environment Variable | Flag        | Description                                                                 | Type   | Default |
 |----------------------|-------------|-----------------------------------------------------------------------------|--------|---------|
 | TLS_ENABLED          | tls-enabled | If true the proxy will use the tlsCert and tlsKey to run with https enabled | bool   | false   |

@@ -673,7 +673,6 @@ func streamHealthCheck() error {
 	var multiErr error
 
 	for i := 0; i < 2; i++ {
-		// TODO does this need to be changed when we enable https on pushpin?
 		resp, err := http.Get(fmt.Sprintf("http://localhost:5561"))
 		if err != nil || resp == nil {
 			multiErr = multierror.Append(fmt.Errorf("gpc request failed streaming will be disabled: %s", err), multiErr)
