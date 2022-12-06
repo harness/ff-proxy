@@ -32,15 +32,48 @@ fi
 
 # Update pushpin.conf file to use $PORT for http_port
 if [ -w /etc/pushpin/pushpin.conf ]; then
+  PROTOCOL="http_port"
+  PUSHPIN_PORT=7000
   if [ -n "${PORT}" ]; then
-    echo "Listening for requests on port ${PORT}"
-    sed -i \
-		-e "s/http_port=7000/http_port=${PORT}/" \
-		/etc/pushpin/pushpin.conf
-		export PORT=
+      PUSHPIN_PORT=${PORT}
   fi
+
+  if [ "${TLS_ENABLED}" = true ] ; then
+    echo "https configured"
+    PROTOCOL="https_ports"
+
+    # write ca cert to pushpin certs directory if exists
+    if [ -n "${TLS_CERT}" ]; then
+      echo "copying tls cert from ${TLS_CERT} to etc/pushpin/runner/certs/default_${PUSHPIN_PORT}.crt"
+      cp ${TLS_CERT} etc/pushpin/runner/certs/default_${PUSHPIN_PORT}.crt
+    fi
+
+    # write ca key to pushpin certs directory if exists
+    if [ -n "${TLS_KEY}" ]; then
+      echo "copying tls key from ${TLS_CERT} to etc/pushpin/runner/certs/default_${PUSHPIN_PORT}.key"
+      cp ${TLS_KEY} etc/pushpin/runner/certs/default_${PUSHPIN_PORT}.key
+    fi
+  fi
+
+  # set port and protocol for pushpin to listen on e.g. listen for https connections on port 6000
+  echo "Listening for requests on port ${PUSHPIN_PORT}"
+  sed -i \
+  -e "s/http_port=7000/${PROTOCOL}=${PUSHPIN_PORT}/" \
+  /etc/pushpin/pushpin.conf
+  export PORT=
 else
 	echo "docker-entrypoint.sh: unable to write to /etc/pushpin/pushpin.conf, readonly"
+fi
+
+# Update routes file to forward traffic using ssl if tls_enabled is true
+if [ -w /etc/pushpin/routes ]; then
+  if [ "${TLS_ENABLED}" = true ] ; then
+    sed -i \
+      -e "s/localhost:8000/localhost:8000,ssl,insecure/" \
+      /etc/pushpin/routes
+  fi
+else
+	echo "docker-entrypoint.sh: unable to write to /etc/pushpin/routes, readonly"
 fi
 
 exec "$@"

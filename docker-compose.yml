@@ -21,6 +21,9 @@ services:
       - TARGET_POLL_DURATION=${TARGET_POLL_DURATION}
       - GENERATE_OFFLINE_CONFIG=${GENERATE_OFFLINE_CONFIG}
       - PORT=${PORT}
+      - TLS_ENABLED=${TLS_ENABLED}
+      - TLS_CERT=${TLS_CERT}
+      - TLS_KEY=${TLS_KEY}
     build:
       context: ./
       dockerfile: ./Dockerfile

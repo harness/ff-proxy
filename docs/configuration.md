@@ -80,6 +80,13 @@ Adjust how often certain actions are performed.
 | METRIC_POST_DURATION | metric-post-duration | How often in seconds the proxy posts metrics to Harness. Set to 0 to disable.               | int  | 60      |
 | HEARTBEAT_INTERVAL   | heartbeat-interval   | How often in seconds the proxy polls pings it's health function                             | int  | 60      |
 
+### TLS (beta)
+| Environment Variable | Flag        | Description                                                                 | Type   | Default |
+|----------------------|-------------|-----------------------------------------------------------------------------|--------|---------|
+| TLS_ENABLED          | tls-enabled | If true the proxy will use the tlsCert and tlsKey to run with https enabled | bool   | false   |
+| TLS_CERT             | tls-cert    | Path to tls cert file. Required if tls enabled is true.                     | string |         |
+| TLS_KEY              | tls-key     | Path to tls key file. Required if tls enabled is true.                      | string |         |
+
 ### Harness URLs
 You may need to adjust these if you pass all your traffic through a filter or proxy rather than sending the requests directly. 
 

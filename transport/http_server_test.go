@@ -244,7 +244,7 @@ func setupHTTPServer(t *testing.T, bypassAuth bool, opts ...setupOpts) *HTTPServ
 	})
 	endpoints := NewEndpoints(service)
 
-	server := NewHTTPServer(8000, endpoints, logger)
+	server := NewHTTPServer(8000, endpoints, logger, false, "", "")
 	server.Use(middleware.NewEchoAuthMiddleware([]byte(`secret`), bypassAuth))
 	return server
 }
