@@ -29,6 +29,7 @@ services:
       dockerfile: ./Dockerfile
     volumes:
       - ${CONFIG_VOLUME:-./config:/config}
+      - ./tests/e2e/certs:/certs
     ports:
       - 7000:${PORT:-7000}
 
@@ -45,4 +46,4 @@ services:
       - "5555:5555"
     volumes:
       - ./config/pushpin:/etc/pushpin
-    command: "pushpin --port 7000 --merge-output"
+    command: "pushpin --merge-output"

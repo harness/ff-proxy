@@ -35,7 +35,10 @@ USER_ACCESS_TOKEN=%s`
 var onlineProxyInMemTemplate = `ACCOUNT_IDENTIFIER=%s
 ORG_IDENTIFIER=%s
 ADMIN_SERVICE_TOKEN=%s
-API_KEYS=%s`
+API_KEYS=%s
+TLS_ENABLED=true
+TLS_CERT=certs/cert.crt
+TLS_KEY=certs/cert.key`
 
 var onlineProxyRedisTemplate = `ACCOUNT_IDENTIFIER=%s
 ORG_IDENTIFIER=%s

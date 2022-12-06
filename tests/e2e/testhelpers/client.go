@@ -2,14 +2,23 @@ package testhelpers
 
 import (
 	"context"
+	"crypto/tls"
+	"crypto/x509"
 	"encoding/json"
 	"fmt"
+	"io/ioutil"
+	"net/http"
+	"strings"
 
 	log "github.com/sirupsen/logrus"
 
 	"github.com/golang-jwt/jwt"
 	"github.com/harness/ff-proxy/domain"
 	"github.com/harness/ff-proxy/gen/client"
+)
+
+const (
+	localCertFile = "./certs/cert.crt"
 )
 
 // AuthenticateSDKClient performs an auth request and returns the token and environment to use
@@ -40,10 +49,47 @@ func Authenticate(apiKey string, url string, target *client.Target) (*client.Aut
 func DefaultEvaluationClient(url string) *client.Client {
 	log.Infof("Connecting client to %s", url)
 	c, err := client.NewClient(url)
+	// if we're connecting in https mode we should trust the self-signed certs used by the tests
+	if strings.Contains(url, "https") {
+		c.Client = GetCertClient()
+	}
 	if err != nil {
 		return nil
 	}
 	return c
+}
+
+// GetCertClient returns a custom http client which defines a certificate authority and trusts our certs from the /cert folder
+// this avoids any errors when run locally and doesn't require the certs to be manually trusted on your machine
+func GetCertClient() *http.Client {
+	// Get the SystemCertPool, continue with an empty pool on error
+	rootCAs, _ := x509.SystemCertPool()
+	if rootCAs == nil {
+		rootCAs = x509.NewCertPool()
+	}
+
+	// Read in the cert file
+	certs, err := ioutil.ReadFile(localCertFile)
+	if err != nil {
+		log.Fatalf("Failed to append %q to RootCAs: %v", localCertFile, err)
+	}
+
+	// Append our cert to the system pool
+	if ok := rootCAs.AppendCertsFromPEM(certs); !ok {
+		log.Println("No certs appended, using system certs only")
+	}
+
+	// Trust the augmented cert pool in our client
+	config := &tls.Config{
+		RootCAs:    rootCAs,
+		MinVersion: tls.VersionTLS12,
+	}
+
+	tr := &http.Transport{TLSClientConfig: config}
+
+	client := &http.Client{Transport: tr}
+
+	return client
 }
 
 // DecodeClaims ...
