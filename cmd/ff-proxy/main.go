@@ -418,7 +418,7 @@ func main() {
 		if err != nil {
 			logger.Error("error(s) encountered fetching config from FeatureFlags, startup will continue but the Proxy may be missing required config", "errors", err)
 		} else {
-			logger.Info("successfully retrieved config from FeatureFlags")
+			logger.Info("successfully retrieved config from FeatureFlags noop change")
 		}
 
 		authConfig = remoteConfig.AuthConfig()
