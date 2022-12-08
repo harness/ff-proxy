@@ -3,6 +3,8 @@ package e2e
 import (
 	"testing"
 
+	"github.com/harness/ff-proxy/tests/e2e/testhelpers"
+
 	harness "github.com/harness/ff-golang-server-sdk/client"
 	"github.com/harness/ff-golang-server-sdk/evaluation"
 	"github.com/stretchr/testify/assert"
@@ -46,6 +48,7 @@ func TestServerSDK(t *testing.T) {
 				harness.WithEventsURL(GetStreamURL()),
 				harness.WithStreamEnabled(false),
 				harness.WithTarget(tt.args.Target),
+				harness.WithHTTPClient(testhelpers.GetCertClient()),
 			)
 			if err != nil {
 				t.Fatalf("Couldn't create sdk err %s", err)

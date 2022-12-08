@@ -8,6 +8,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/harness/ff-proxy/tests/e2e/testhelpers"
+
 	"github.com/harness/ff-proxy/gen/admin"
 
 	harness "github.com/harness/ff-golang-server-sdk/client"
@@ -80,9 +82,13 @@ func TestEvent(t *testing.T) {
 			eventChan := make(chan stream.Message, 10)
 
 			eventListener := EventListener{eventChan}
+			// if running locally with https enabled using the self-signed certs in /certs folder you need to add the cert
+			// to your trusted list like we do in the e2e test pipeline - this is because
+			// the go sdk sse client creates it's own http client which doesn't use the trusted certs we load in GetCertClient
 			client, err := harness.NewCfClient(tt.args.Key,
 				harness.WithURL(GetStreamURL()),
 				harness.WithEventStreamListener(eventListener),
+				harness.WithHTTPClient(testhelpers.GetCertClient()),
 			)
 			if err != nil {
 				t.Error("Couldn't create sdk")
@@ -172,6 +178,7 @@ func AddAuthToken(ctx context.Context, req *http.Request) error {
 // DefaultClient returns the default admin client
 func DefaultClient() *admin.Client {
 	client, err := admin.NewClient(GetRemoteURL())
+	client.Client = testhelpers.GetCertClient()
 
 	if err != nil {
 		return nil
