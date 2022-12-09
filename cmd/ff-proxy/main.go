@@ -416,7 +416,6 @@ func main() {
 			adminService,
 			clientService,
 			config.WithLogger(logger),
-			config.WithConcurrency(20),
 			config.WithFetchTargets(targetPollDuration != 0), // don't fetch targets if poll duration is 0
 		)
 		if err != nil {

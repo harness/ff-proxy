@@ -12,21 +12,17 @@ import (
 	"github.com/harness/ff-proxy/services"
 )
 
-type adminClient interface {
+type adminService interface {
 	PageTargets(ctx context.Context, input services.PageTargetsInput) (services.PageTargetsResult, error)
 	PageAPIKeys(ctx context.Context, input services.GetAPIKeysInput) (services.PageAPIKeysResult, error)
 }
 
+type clientService interface {
+	Authenticate(ctx context.Context, apiKey string, target domain.Target) (string, error)
+}
+
 // RemoteOption is type for passing optional parameters to a RemoteConfig
 type RemoteOption func(r *RemoteConfig)
-
-// WithConcurrency sets the maximum amount of concurrent requests that the
-// RemoteOption can make. It's default value is 10.
-func WithConcurrency(i int) RemoteOption {
-	return func(r *RemoteConfig) {
-		r.concurrency = i
-	}
-}
 
 // WithLogger can be used to pass a logger to the RemoteConfig, its default logger
 // is one that logs to stderr and has debug logging disabled
@@ -45,10 +41,9 @@ func WithFetchTargets(fetchTargets bool) RemoteOption {
 
 // RemoteConfig is a type that retrieves config from the Feature Flags Service
 type RemoteConfig struct {
-	adminService      adminClient
-	clientService     services.ClientService
+	adminService      adminService
+	clientService     clientService
 	log               log.Logger
-	concurrency       int
 	accountIdentifier string
 	orgIdentifier     string
 	projEnvInfo       map[string]environmentDetails
@@ -76,14 +71,14 @@ func (r RemoteConfig) AuthConfig() map[domain.AuthAPIKey]string {
 	return authConfig
 }
 
-// EnvInfo returns the AuthConfig that was retrieved from the Feature Flags Service
+// EnvInfo returns the environmentDetails that was retrieved from the Feature Flags Service
 func (r RemoteConfig) EnvInfo() map[string]environmentDetails {
 	return r.projEnvInfo
 }
 
 // NewRemoteConfig creates a RemoteConfig and retrieves the configuration for
 // the given Account, Org and APIKeys from the Feature Flags Service
-func NewRemoteConfig(ctx context.Context, accountIdentifier string, orgIdentifier string, apiKeys []string, adminService adminClient, clientService services.ClientService, opts ...RemoteOption) (RemoteConfig, error) {
+func NewRemoteConfig(ctx context.Context, accountIdentifier string, orgIdentifier string, apiKeys []string, adminService adminService, clientService clientService, opts ...RemoteOption) (RemoteConfig, error) {
 
 	rc := &RemoteConfig{
 		adminService:      adminService,
@@ -101,9 +96,6 @@ func NewRemoteConfig(ctx context.Context, accountIdentifier string, orgIdentifie
 		rc.log = log.NoOpLogger{}
 	}
 
-	if rc.concurrency == 0 {
-		rc.concurrency = 10
-	}
 	rc.log = rc.log.With("component", "RemoteConfig", "account_identifier", accountIdentifier, "org_identifier", orgIdentifier)
 
 	envInfos := map[string]environmentDetails{}
@@ -133,10 +125,10 @@ type environmentDetails struct {
 }
 
 func (r RemoteConfig) getConfigForKey(ctx context.Context, apiKey string) (environmentDetails, error) {
-	// auth key
+	// authenticate key and get env/project identifiers
 	projectIdentifier, environmentIdentifier, environmentID, err := getEnvironmentInfo(ctx, apiKey, r.clientService)
 	if err != nil {
-		return environmentDetails{}, err
+		return environmentDetails{}, fmt.Errorf("failed to fetch environment details for key %s: %s", apiKey, err)
 	}
 	envInfo := environmentDetails{
 		EnvironmentIdentifier: environmentIdentifier,
@@ -167,7 +159,7 @@ func (r RemoteConfig) getConfigForKey(ctx context.Context, apiKey string) (envir
 	return envInfo, nil
 }
 
-func getTargets(ctx context.Context, accountIdentifier, orgIdentifier, projectIdentifier, environmentIdentifier string, adminService adminClient) ([]domain.Target, error) {
+func getTargets(ctx context.Context, accountIdentifier, orgIdentifier, projectIdentifier, environmentIdentifier string, adminService adminService) ([]domain.Target, error) {
 
 	targetInput := services.PageTargetsInput{
 		AccountIdentifier:     accountIdentifier,
@@ -184,7 +176,7 @@ func getTargets(ctx context.Context, accountIdentifier, orgIdentifier, projectId
 		result, err := adminService.PageTargets(ctx, targetInput)
 		done = result.Finished
 		if err != nil {
-			return []domain.Target{}, fmt.Errorf("failed to page targets: %s", err)
+			return []domain.Target{}, fmt.Errorf("failed to get targets: %s", err)
 		}
 
 		for _, t := range result.Targets {
@@ -197,7 +189,7 @@ func getTargets(ctx context.Context, accountIdentifier, orgIdentifier, projectId
 	return targets, nil
 }
 
-func getAPIKeys(ctx context.Context, accountIdentifier, orgIdentifier, projectIdentifier, environmentIdentifier string, adminService adminClient) ([]string, error) {
+func getAPIKeys(ctx context.Context, accountIdentifier, orgIdentifier, projectIdentifier, environmentIdentifier string, adminService adminService) ([]string, error) {
 	apiKeysInput := services.GetAPIKeysInput{
 		AccountIdentifier:     accountIdentifier,
 		OrgIdentifier:         orgIdentifier,
@@ -227,13 +219,18 @@ func getAPIKeys(ctx context.Context, accountIdentifier, orgIdentifier, projectId
 	return apiKeys, nil
 }
 
-func getEnvironmentInfo(ctx context.Context, apiKey string, clientService services.ClientService) (projectIdentifier, environmentIdentifier, environmentID string, err error) {
+func getEnvironmentInfo(ctx context.Context, apiKey string, clientService clientService) (projectIdentifier, environmentIdentifier, environmentID string, err error) {
 	// get bearer token
 	result, err := clientService.Authenticate(ctx, apiKey, domain.Target{})
 	if err != nil {
-		return
+		return "", "", "", fmt.Errorf("error sending client authentication request: %s", err)
 	}
+
+	// get payload data
 	payloadIndex := 1
+	if len(strings.Split(result, ".")) < 2 {
+		return "", "", "", fmt.Errorf("invalid jwt received %s", result)
+	}
 	payload := strings.Split(result, ".")[payloadIndex]
 	payloadData, err := jwt.DecodeSegment(payload)
 	if err != nil {
@@ -243,7 +240,7 @@ func getEnvironmentInfo(ctx context.Context, apiKey string, clientService servic
 	// extract projectIdentifier, environmentIdentifier, environmentID from token claims
 	var claims map[string]interface{}
 	if err = json.Unmarshal(payloadData, &claims); err != nil {
-		return "", "", "", fmt.Errorf("failed to unmarhal token claims for key %s: %s", apiKey, err)
+		return "", "", "", fmt.Errorf("failed to unmarshal token claims for key %s: %s", apiKey, err)
 	}
 
 	var ok bool
