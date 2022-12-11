@@ -365,6 +365,7 @@ func main() {
 		authConfig    map[domain.AuthAPIKey]string
 	)
 
+	var remoteConfig config.RemoteConfig
 	var streamEnabled bool
 
 	// Load either local config from files or remote config from ff-server
@@ -407,8 +408,8 @@ func main() {
 			streamEnabled = false
 		}
 
-		logger.Info("retrieving new config from ff-server...")
-		newConfig, err := config.NewRemoteConfig(
+		logger.Info("retrieving config from ff-server...")
+		remoteConfig, err = config.NewRemoteConfig(
 			ctx,
 			accountIdentifier,
 			orgIdentifier,
@@ -423,12 +424,11 @@ func main() {
 		} else {
 			logger.Info("successfully retrieved config from FeatureFlags")
 		}
-		logger.Info("new config", "config", fmt.Sprintf("%v", newConfig))
 
-		authConfig = newConfig.AuthConfig()
-		targetConfig = newConfig.TargetConfig()
-		envInfo := newConfig.EnvInfo()
-
+		authConfig = remoteConfig.AuthConfig()
+		targetConfig = remoteConfig.TargetConfig()
+		envInfo := remoteConfig.EnvInfo()
+		logger.Info(fmt.Sprintf("successfully fetched config for %d environment(s)", len(envInfo)))
 		// start an sdk instance for each valid api key
 		for _, env := range envInfo {
 			cacheWrapper := cache.NewWrapper(sdkCache, env.EnvironmentID, logger)
@@ -533,12 +533,29 @@ func main() {
 				defer ticker.Stop()
 
 				logger.Info(fmt.Sprintf("polling for new targets every %d seconds", targetPollDuration))
-				// TODO - add back target polling
-				//for targetConfig := range remoteConfig.PollTargets(ctx, ticker.C) {
-				//	for key, values := range targetConfig {
-				//		tr.DeltaAdd(ctx, key, values...)
-				//	}
-				//}
+
+				for {
+					select {
+					case <-ctx.Done():
+						logger.Info("stopping poll targets ticker")
+						return
+					case <-ticker.C:
+						// poll for all targets for each configured environment
+						pollTargetConfig := make(map[domain.TargetKey][]domain.Target)
+						for _, env := range remoteConfig.EnvInfo() {
+							targets, err := config.GetTargets(ctx, accountIdentifier, orgIdentifier, env.ProjectIdentifier, env.EnvironmentIdentifier, adminService)
+							if err != nil {
+								logger.Error("failed to poll targets for environment %s: %s", env.EnvironmentID, err)
+							}
+							targetKey := domain.NewTargetKey(env.EnvironmentID)
+							pollTargetConfig[targetKey] = targets
+						}
+
+						for key, values := range pollTargetConfig {
+							tr.DeltaAdd(ctx, key, values...)
+						}
+					}
+				}
 			}()
 		}
 

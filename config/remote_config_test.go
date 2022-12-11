@@ -602,7 +602,7 @@ func TestRemoteConfig_getTargets(t *testing.T) {
 	for desc, tc := range testCases {
 		tc := tc
 		t.Run(desc, func(t *testing.T) {
-			actualTargets, err := getTargets(context.Background(), tc.input.accountIdentifier, tc.input.orgIdentifier, tc.input.projectIdentifier, tc.input.environmentIdentifier, tc.input.adminService)
+			actualTargets, err := GetTargets(context.Background(), tc.input.accountIdentifier, tc.input.orgIdentifier, tc.input.projectIdentifier, tc.input.environmentIdentifier, tc.input.adminService)
 
 			if (err != nil) != tc.shouldErr {
 				t.Errorf("(%s): error = %v, shouldErr = %v", desc, err, tc.shouldErr)
@@ -668,7 +668,7 @@ func TestRemoteConfig_getConfigForKey(t *testing.T) {
 				err:                fmt.Errorf("failed to get api keys: request failed"),
 			},
 		},
-		"Given getTargets returns err empty EnvironmentDetails is returned": {
+		"Given GetTargets returns err empty EnvironmentDetails is returned": {
 			shouldErr: true,
 			input: GetConfigForKeyInput{
 				accountIdentifier:     account,
@@ -702,7 +702,7 @@ func TestRemoteConfig_getConfigForKey(t *testing.T) {
 				err:                nil,
 			},
 		},
-		"getTargets is skipped if fetchTargets is false": {
+		"GetTargets is skipped if fetchTargets is false": {
 			shouldErr: false,
 			input: GetConfigForKeyInput{
 				accountIdentifier:     account,

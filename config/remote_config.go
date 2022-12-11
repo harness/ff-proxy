@@ -101,13 +101,16 @@ func NewRemoteConfig(ctx context.Context, accountIdentifier string, orgIdentifie
 	envInfos := map[string]EnvironmentDetails{}
 
 	for _, key := range apiKeys {
-		newConfig, err := rc.getConfigForKey(ctx, key)
+		envConfig, err := rc.getConfigForKey(ctx, key)
 		if err != nil {
-			rc.log.Error("couldn't fetch info for key, skipping", "api key", key)
+			rc.log.Error("couldn't fetch info for key, skipping", "api key", key, "err", err)
 			continue
 		}
-		envInfos[newConfig.EnvironmentID] = newConfig
-		rc.log.Error("config for key", "api key", key, "config", fmt.Sprintf("%v", newConfig))
+		// warn if data has already been set for this environment - this means a user has added 2 keys for the same env
+		if _, ok := envInfos[envConfig.EnvironmentID]; ok {
+			rc.log.Warn("environment already configured, have you added multiple keys for the same environment?", "environmentID", envConfig.EnvironmentID, "environment identifier", envConfig.EnvironmentIdentifier, "projectID", envConfig.ProjectIdentifier)
+		}
+		envInfos[envConfig.EnvironmentID] = envConfig
 	}
 
 	rc.projEnvInfo = envInfos
@@ -140,17 +143,17 @@ func (r RemoteConfig) getConfigForKey(ctx context.Context, apiKey string) (Envir
 		Targets:               nil,
 	}
 
-	// get api keys
+	// get hashed api keys for environment
 	apiKeys, err := getAPIKeys(ctx, r.accountIdentifier, r.orgIdentifier, projectIdentifier, environmentIdentifier, r.adminService)
 	if err != nil {
 		return EnvironmentDetails{}, err
 	}
 	envInfo.HashedAPIKeys = apiKeys
 
-	// get targets
+	// get targets for environment
 	var targets []domain.Target
 	if r.fetchTargets {
-		targets, err = getTargets(ctx, r.accountIdentifier, r.orgIdentifier, projectIdentifier, environmentIdentifier, r.adminService)
+		targets, err = GetTargets(ctx, r.accountIdentifier, r.orgIdentifier, projectIdentifier, environmentIdentifier, r.adminService)
 		if err != nil {
 			return EnvironmentDetails{}, err
 		}
@@ -160,7 +163,8 @@ func (r RemoteConfig) getConfigForKey(ctx context.Context, apiKey string) (Envir
 	return envInfo, nil
 }
 
-func getTargets(ctx context.Context, accountIdentifier, orgIdentifier, projectIdentifier, environmentIdentifier string, adminService adminService) ([]domain.Target, error) {
+// GetTargets retrieves all targets for a given environment
+func GetTargets(ctx context.Context, accountIdentifier, orgIdentifier, projectIdentifier, environmentIdentifier string, adminService adminService) ([]domain.Target, error) {
 
 	targetInput := services.PageTargetsInput{
 		AccountIdentifier:     accountIdentifier,
@@ -190,6 +194,7 @@ func getTargets(ctx context.Context, accountIdentifier, orgIdentifier, projectId
 	return targets, nil
 }
 
+// getAPIKeys retrieves the hashed api keys for an environment
 func getAPIKeys(ctx context.Context, accountIdentifier, orgIdentifier, projectIdentifier, environmentIdentifier string, adminService adminService) ([]string, error) {
 	apiKeysInput := services.PageAPIKeysInput{
 		AccountIdentifier:     accountIdentifier,
@@ -220,6 +225,7 @@ func getAPIKeys(ctx context.Context, accountIdentifier, orgIdentifier, projectId
 	return apiKeys, nil
 }
 
+// getEnvironmentInfo authenticates an api key and retrieves the project identifier, environment identifier and environment ID from it
 func getEnvironmentInfo(ctx context.Context, apiKey string, clientService clientService) (projectIdentifier, environmentIdentifier, environmentID string, err error) {
 	// get bearer token
 	result, err := clientService.Authenticate(ctx, apiKey, domain.Target{})
