@@ -43,9 +43,9 @@ func NewAdminService(l log.Logger, addr string, serviceToken string) (AdminServi
 	return AdminService{log: l, client: c}, nil
 }
 
-// GetAPIKeysInput contains the paramters required to make a GetEnvironments
+// PageAPIKeysInput contains the paramters required to make a GetEnvironments
 // request
-type GetAPIKeysInput struct {
+type PageAPIKeysInput struct {
 	AccountIdentifier     string
 	OrgIdentifier         string
 	ProjectIdentifier     string
@@ -63,7 +63,7 @@ type PageAPIKeysResult struct {
 
 // PageAPIKeys is used to fetch environment info from the
 // admin services /admin/apikey endpoint
-func (r AdminService) PageAPIKeys(ctx context.Context, input GetAPIKeysInput) (PageAPIKeysResult, error) {
+func (r AdminService) PageAPIKeys(ctx context.Context, input PageAPIKeysInput) (PageAPIKeysResult, error) {
 	r.log = r.log.With("method", "PageAPIKeys")
 
 	r.log.Debug("getting api keys", "projectIdentifier", input.ProjectIdentifier, "accountIdentifier", input.AccountIdentifier, "orgIdentifier", input.OrgIdentifier, "environmentIdentifier", input.EnvironmentIdentifier, "pageSize", input.PageSize, "pageNumber", input.PageNumber)

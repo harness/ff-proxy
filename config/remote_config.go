@@ -14,7 +14,7 @@ import (
 
 type adminService interface {
 	PageTargets(ctx context.Context, input services.PageTargetsInput) (services.PageTargetsResult, error)
-	PageAPIKeys(ctx context.Context, input services.GetAPIKeysInput) (services.PageAPIKeysResult, error)
+	PageAPIKeys(ctx context.Context, input services.PageAPIKeysInput) (services.PageAPIKeysResult, error)
 }
 
 type clientService interface {
@@ -46,7 +46,7 @@ type RemoteConfig struct {
 	log               log.Logger
 	accountIdentifier string
 	orgIdentifier     string
-	projEnvInfo       map[string]environmentDetails
+	projEnvInfo       map[string]EnvironmentDetails
 	fetchTargets      bool
 }
 
@@ -54,7 +54,7 @@ type RemoteConfig struct {
 func (r RemoteConfig) TargetConfig() map[domain.TargetKey][]domain.Target {
 	targetConfig := make(map[domain.TargetKey][]domain.Target)
 	for _, env := range r.projEnvInfo {
-		targetKey := domain.NewTargetKey(env.EnvironmentId)
+		targetKey := domain.NewTargetKey(env.EnvironmentID)
 		targetConfig[targetKey] = env.Targets
 	}
 	return targetConfig
@@ -65,14 +65,14 @@ func (r RemoteConfig) AuthConfig() map[domain.AuthAPIKey]string {
 	authConfig := make(map[domain.AuthAPIKey]string)
 	for _, env := range r.projEnvInfo {
 		for _, hashedKey := range env.HashedAPIKeys {
-			authConfig[domain.AuthAPIKey(hashedKey)] = env.EnvironmentId
+			authConfig[domain.AuthAPIKey(hashedKey)] = env.EnvironmentID
 		}
 	}
 	return authConfig
 }
 
-// EnvInfo returns the environmentDetails that was retrieved from the Feature Flags Service
-func (r RemoteConfig) EnvInfo() map[string]environmentDetails {
+// EnvInfo returns the EnvironmentDetails that was retrieved from the Feature Flags Service
+func (r RemoteConfig) EnvInfo() map[string]EnvironmentDetails {
 	return r.projEnvInfo
 }
 
@@ -98,7 +98,7 @@ func NewRemoteConfig(ctx context.Context, accountIdentifier string, orgIdentifie
 
 	rc.log = rc.log.With("component", "RemoteConfig", "account_identifier", accountIdentifier, "org_identifier", orgIdentifier)
 
-	envInfos := map[string]environmentDetails{}
+	envInfos := map[string]EnvironmentDetails{}
 
 	for _, key := range apiKeys {
 		newConfig, err := rc.getConfigForKey(ctx, key)
@@ -106,7 +106,7 @@ func NewRemoteConfig(ctx context.Context, accountIdentifier string, orgIdentifie
 			rc.log.Error("couldn't fetch info for key, skipping", "api key", key)
 			continue
 		}
-		envInfos[newConfig.EnvironmentId] = newConfig
+		envInfos[newConfig.EnvironmentID] = newConfig
 		rc.log.Error("config for key", "api key", key, "config", fmt.Sprintf("%v", newConfig))
 	}
 
@@ -115,24 +115,25 @@ func NewRemoteConfig(ctx context.Context, accountIdentifier string, orgIdentifie
 	return *rc, nil
 }
 
-type environmentDetails struct {
+// EnvironmentDetails contains details about a configured environment
+type EnvironmentDetails struct {
 	EnvironmentIdentifier string
-	EnvironmentId         string
+	EnvironmentID         string
 	ProjectIdentifier     string
 	HashedAPIKeys         []string
 	APIKey                string
 	Targets               []domain.Target
 }
 
-func (r RemoteConfig) getConfigForKey(ctx context.Context, apiKey string) (environmentDetails, error) {
+func (r RemoteConfig) getConfigForKey(ctx context.Context, apiKey string) (EnvironmentDetails, error) {
 	// authenticate key and get env/project identifiers
 	projectIdentifier, environmentIdentifier, environmentID, err := getEnvironmentInfo(ctx, apiKey, r.clientService)
 	if err != nil {
-		return environmentDetails{}, fmt.Errorf("failed to fetch environment details for key %s: %s", apiKey, err)
+		return EnvironmentDetails{}, fmt.Errorf("failed to fetch environment details for key %s: %s", apiKey, err)
 	}
-	envInfo := environmentDetails{
+	envInfo := EnvironmentDetails{
 		EnvironmentIdentifier: environmentIdentifier,
-		EnvironmentId:         environmentID,
+		EnvironmentID:         environmentID,
 		ProjectIdentifier:     projectIdentifier,
 		APIKey:                apiKey,
 		HashedAPIKeys:         nil,
@@ -142,7 +143,7 @@ func (r RemoteConfig) getConfigForKey(ctx context.Context, apiKey string) (envir
 	// get api keys
 	apiKeys, err := getAPIKeys(ctx, r.accountIdentifier, r.orgIdentifier, projectIdentifier, environmentIdentifier, r.adminService)
 	if err != nil {
-		return environmentDetails{}, err
+		return EnvironmentDetails{}, err
 	}
 	envInfo.HashedAPIKeys = apiKeys
 
@@ -151,7 +152,7 @@ func (r RemoteConfig) getConfigForKey(ctx context.Context, apiKey string) (envir
 	if r.fetchTargets {
 		targets, err = getTargets(ctx, r.accountIdentifier, r.orgIdentifier, projectIdentifier, environmentIdentifier, r.adminService)
 		if err != nil {
-			return environmentDetails{}, err
+			return EnvironmentDetails{}, err
 		}
 	}
 	envInfo.Targets = targets
@@ -190,7 +191,7 @@ func getTargets(ctx context.Context, accountIdentifier, orgIdentifier, projectId
 }
 
 func getAPIKeys(ctx context.Context, accountIdentifier, orgIdentifier, projectIdentifier, environmentIdentifier string, adminService adminService) ([]string, error) {
-	apiKeysInput := services.GetAPIKeysInput{
+	apiKeysInput := services.PageAPIKeysInput{
 		AccountIdentifier:     accountIdentifier,
 		OrgIdentifier:         orgIdentifier,
 		ProjectIdentifier:     projectIdentifier,

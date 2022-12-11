@@ -14,23 +14,74 @@ import (
 )
 
 const (
-	account     = "account"
-	org         = "org"
-	project     = "project"
-	environment = "environment"
+	account               = "account"
+	org                   = "org"
+	project               = "project"
+	environmentIdentifier = "env"
+	defaultAPIKey         = "key1"
+	defaultEnvironmentID  = "0000-0000-0000-0000-0000"
+	// this jwt base64 encodes the defaultEnvironmentID, environmentIdentifier and project
+	validJWT = "header.eyJlbnZpcm9ubWVudCI6IjAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMCIsImVudmlyb25tZW50SWRlbnRpZmllciI6ImVudiIsInByb2plY3RJZGVudGlmaWVyIjoicHJvamVjdCIsImNsdXN0ZXJJZGVudGlmaWVyIjoiMiJ9.signature"
+	validKey = "valid_key"
+)
+
+var (
+	pageTargetsSuccess = func(input services.PageTargetsInput) (services.PageTargetsResult, error) {
+		return services.PageTargetsResult{
+			Targets:  []admin.Target{target1},
+			Finished: true,
+		}, nil
+	}
+
+	pageTargetsFail = func(input services.PageTargetsInput) (services.PageTargetsResult, error) {
+		return services.PageTargetsResult{}, fmt.Errorf("request failed")
+	}
+
+	pageAPIKeysSuccess = func(input services.PageAPIKeysInput) (services.PageAPIKeysResult, error) {
+		return services.PageAPIKeysResult{
+			APIKeys: []admin.ApiKey{{
+				Key: strPtr(defaultAPIKey),
+			}},
+			Finished: true,
+		}, nil
+	}
+
+	pageAPIKeysFail = func(input services.PageAPIKeysInput) (services.PageAPIKeysResult, error) {
+		return services.PageAPIKeysResult{}, fmt.Errorf("request failed")
+	}
+
+	authenticateSuccess = func(apiKey string) (string, error) {
+		return validJWT, nil
+	}
+
+	authenticateFail = func(apiKey string) (string, error) {
+		return "", fmt.Errorf("request failed")
+	}
+
+	defaultEnvDetails = EnvironmentDetails{EnvironmentIdentifier: environmentIdentifier,
+		EnvironmentID:     defaultEnvironmentID,
+		ProjectIdentifier: project,
+		HashedAPIKeys:     []string{defaultAPIKey},
+		APIKey:            validKey,
+		Targets:           []domain.Target{{target1}},
+	}
+
+	target1 = admin.Target{
+		Identifier: "target1",
+	}
 )
 
 type mockAdminService struct {
 	pageTargets func(input services.PageTargetsInput) (services.PageTargetsResult, error)
-	pageApiKeys func(input services.GetAPIKeysInput) (services.PageAPIKeysResult, error)
+	pageAPIKeys func(input services.PageAPIKeysInput) (services.PageAPIKeysResult, error)
 }
 
 func (m mockAdminService) PageTargets(ctx context.Context, input services.PageTargetsInput) (services.PageTargetsResult, error) {
 	return m.pageTargets(input)
 }
 
-func (m mockAdminService) PageAPIKeys(ctx context.Context, input services.GetAPIKeysInput) (services.PageAPIKeysResult, error) {
-	return m.pageApiKeys(input)
+func (m mockAdminService) PageAPIKeys(ctx context.Context, input services.PageAPIKeysInput) (services.PageAPIKeysResult, error) {
+	return m.pageAPIKeys(input)
 }
 
 type mockClientService struct {
@@ -42,7 +93,6 @@ func (m mockClientService) Authenticate(ctx context.Context, apiKey string, targ
 }
 
 func TestRemoteConfig_NewRemoteConfig(t *testing.T) {
-	validKey := "valid_key"
 	validKeyEnv2 := "valid_key_env2"
 	invalidKey := "invalid_key"
 	type NewRemoteConfigInput struct {
@@ -55,7 +105,7 @@ func TestRemoteConfig_NewRemoteConfig(t *testing.T) {
 	type NewRemoteConfigOutput struct {
 		accountIdentifier string
 		orgIdentifier     string
-		projEnvInfo       map[string]environmentDetails
+		projEnvInfo       map[string]EnvironmentDetails
 		authConfig        map[domain.AuthAPIKey]string
 		targetConfig      map[domain.TargetKey][]domain.Target
 	}
@@ -77,7 +127,7 @@ func TestRemoteConfig_NewRemoteConfig(t *testing.T) {
 			expected: NewRemoteConfigOutput{
 				accountIdentifier: account,
 				orgIdentifier:     org,
-				projEnvInfo:       map[string]environmentDetails{},
+				projEnvInfo:       map[string]EnvironmentDetails{},
 				authConfig:        map[domain.AuthAPIKey]string{},
 				targetConfig:      map[domain.TargetKey][]domain.Target{},
 			},
@@ -88,42 +138,15 @@ func TestRemoteConfig_NewRemoteConfig(t *testing.T) {
 				accountIdentifier: account,
 				orgIdentifier:     org,
 				apiKeys:           []string{validKey},
-				clientService: mockClientService{authenticate: func(apiKey string) (string, error) {
-					return "header.eyJlbnZpcm9ubWVudCI6IjAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMCIsImVudmlyb25tZW50SWRlbnRpZmllciI6ImVudiIsInByb2plY3RJZGVudGlmaWVyIjoicHJvamVjdCIsImNsdXN0ZXJJZGVudGlmaWVyIjoiMiJ9.signature", nil
-				}},
-				adminService: mockAdminService{pageApiKeys: func(input services.GetAPIKeysInput) (services.PageAPIKeysResult, error) {
-					return services.PageAPIKeysResult{
-						APIKeys: []admin.ApiKey{{
-							Key: strPtr("key1"),
-						}},
-						Finished: true,
-					}, nil
-				}, pageTargets: func(input services.PageTargetsInput) (services.PageTargetsResult, error) {
-					return services.PageTargetsResult{
-						Targets: []admin.Target{{
-							Identifier: "target1",
-						}},
-						Finished: true,
-					}, nil
-				}},
+				clientService:     mockClientService{authenticate: authenticateSuccess},
+				adminService:      mockAdminService{pageAPIKeys: pageAPIKeysSuccess, pageTargets: pageTargetsSuccess},
 			},
 			expected: NewRemoteConfigOutput{
 				accountIdentifier: account,
 				orgIdentifier:     org,
-				projEnvInfo: map[string]environmentDetails{"0000-0000-0000-0000-0000": {
-					EnvironmentIdentifier: "env",
-					EnvironmentId:         "0000-0000-0000-0000-0000",
-					ProjectIdentifier:     "project",
-					HashedAPIKeys:         []string{"key1"},
-					APIKey:                validKey,
-					Targets: []domain.Target{{admin.Target{
-						Identifier: "target1",
-					}}},
-				}},
-				authConfig: map[domain.AuthAPIKey]string{"key1": "0000-0000-0000-0000-0000"},
-				targetConfig: map[domain.TargetKey][]domain.Target{"env-0000-0000-0000-0000-0000-target-config": {{admin.Target{
-					Identifier: "target1",
-				}}}},
+				projEnvInfo:       map[string]EnvironmentDetails{defaultEnvironmentID: defaultEnvDetails},
+				authConfig:        map[domain.AuthAPIKey]string{defaultAPIKey: defaultEnvironmentID},
+				targetConfig:      map[domain.TargetKey][]domain.Target{"env-0000-0000-0000-0000-0000-target-config": {{target1}}},
 			},
 		},
 		"NewRemoteConfig returns one set of data if given two keys for same environment": {
@@ -132,42 +155,15 @@ func TestRemoteConfig_NewRemoteConfig(t *testing.T) {
 				accountIdentifier: account,
 				orgIdentifier:     org,
 				apiKeys:           []string{"valid_key_same_env", validKey},
-				clientService: mockClientService{authenticate: func(apiKey string) (string, error) {
-					return "header.eyJlbnZpcm9ubWVudCI6IjAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMCIsImVudmlyb25tZW50SWRlbnRpZmllciI6ImVudiIsInByb2plY3RJZGVudGlmaWVyIjoicHJvamVjdCIsImNsdXN0ZXJJZGVudGlmaWVyIjoiMiJ9.signature", nil
-				}},
-				adminService: mockAdminService{pageApiKeys: func(input services.GetAPIKeysInput) (services.PageAPIKeysResult, error) {
-					return services.PageAPIKeysResult{
-						APIKeys: []admin.ApiKey{{
-							Key: strPtr("key1"),
-						}},
-						Finished: true,
-					}, nil
-				}, pageTargets: func(input services.PageTargetsInput) (services.PageTargetsResult, error) {
-					return services.PageTargetsResult{
-						Targets: []admin.Target{{
-							Identifier: "target1",
-						}},
-						Finished: true,
-					}, nil
-				}},
+				clientService:     mockClientService{authenticate: authenticateSuccess},
+				adminService:      mockAdminService{pageAPIKeys: pageAPIKeysSuccess, pageTargets: pageTargetsSuccess},
 			},
 			expected: NewRemoteConfigOutput{
 				accountIdentifier: account,
 				orgIdentifier:     org,
-				projEnvInfo: map[string]environmentDetails{"0000-0000-0000-0000-0000": {
-					EnvironmentIdentifier: "env",
-					EnvironmentId:         "0000-0000-0000-0000-0000",
-					ProjectIdentifier:     "project",
-					HashedAPIKeys:         []string{"key1"},
-					APIKey:                validKey,
-					Targets: []domain.Target{{admin.Target{
-						Identifier: "target1",
-					}}},
-				}},
-				authConfig: map[domain.AuthAPIKey]string{"key1": "0000-0000-0000-0000-0000"},
-				targetConfig: map[domain.TargetKey][]domain.Target{"env-0000-0000-0000-0000-0000-target-config": {{admin.Target{
-					Identifier: "target1",
-				}}}},
+				projEnvInfo:       map[string]EnvironmentDetails{defaultEnvironmentID: defaultEnvDetails},
+				authConfig:        map[domain.AuthAPIKey]string{defaultAPIKey: defaultEnvironmentID},
+				targetConfig:      map[domain.TargetKey][]domain.Target{"env-0000-0000-0000-0000-0000-target-config": {{target1}}},
 			},
 		},
 		"NewRemoteConfig returns one set of data if one key fails": {
@@ -180,41 +176,16 @@ func TestRemoteConfig_NewRemoteConfig(t *testing.T) {
 					if apiKey == invalidKey {
 						return "", fmt.Errorf("request failed")
 					}
-					return "header.eyJlbnZpcm9ubWVudCI6IjAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMCIsImVudmlyb25tZW50SWRlbnRpZmllciI6ImVudiIsInByb2plY3RJZGVudGlmaWVyIjoicHJvamVjdCIsImNsdXN0ZXJJZGVudGlmaWVyIjoiMiJ9.signature", nil
+					return validJWT, nil
 				}},
-				adminService: mockAdminService{pageApiKeys: func(input services.GetAPIKeysInput) (services.PageAPIKeysResult, error) {
-					return services.PageAPIKeysResult{
-						APIKeys: []admin.ApiKey{{
-							Key: strPtr("key1"),
-						}},
-						Finished: true,
-					}, nil
-				}, pageTargets: func(input services.PageTargetsInput) (services.PageTargetsResult, error) {
-					return services.PageTargetsResult{
-						Targets: []admin.Target{{
-							Identifier: "target1",
-						}},
-						Finished: true,
-					}, nil
-				}},
+				adminService: mockAdminService{pageAPIKeys: pageAPIKeysSuccess, pageTargets: pageTargetsSuccess},
 			},
 			expected: NewRemoteConfigOutput{
 				accountIdentifier: account,
 				orgIdentifier:     org,
-				projEnvInfo: map[string]environmentDetails{"0000-0000-0000-0000-0000": {
-					EnvironmentIdentifier: "env",
-					EnvironmentId:         "0000-0000-0000-0000-0000",
-					ProjectIdentifier:     "project",
-					HashedAPIKeys:         []string{"key1"},
-					APIKey:                validKey,
-					Targets: []domain.Target{{admin.Target{
-						Identifier: "target1",
-					}}},
-				}},
-				authConfig: map[domain.AuthAPIKey]string{"key1": "0000-0000-0000-0000-0000"},
-				targetConfig: map[domain.TargetKey][]domain.Target{"env-0000-0000-0000-0000-0000-target-config": {{admin.Target{
-					Identifier: "target1",
-				}}}},
+				projEnvInfo:       map[string]EnvironmentDetails{defaultEnvironmentID: defaultEnvDetails},
+				authConfig:        map[domain.AuthAPIKey]string{defaultAPIKey: defaultEnvironmentID},
+				targetConfig:      map[domain.TargetKey][]domain.Target{"env-0000-0000-0000-0000-0000-target-config": {{target1}}},
 			},
 		},
 		"NewRemoteConfig returns data for multiple envs": {
@@ -227,9 +198,9 @@ func TestRemoteConfig_NewRemoteConfig(t *testing.T) {
 					if apiKey == validKeyEnv2 {
 						return "header.eyJlbnZpcm9ubWVudCI6IjExMTEtMTExMS0xMTExLTExMTEtMTExMSIsImVudmlyb25tZW50SWRlbnRpZmllciI6ImVudjIiLCJwcm9qZWN0SWRlbnRpZmllciI6InByb2plY3QyIiwiY2x1c3RlcklkZW50aWZpZXIiOiIyIn0.signature", nil
 					}
-					return "header.eyJlbnZpcm9ubWVudCI6IjAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMCIsImVudmlyb25tZW50SWRlbnRpZmllciI6ImVudiIsInByb2plY3RJZGVudGlmaWVyIjoicHJvamVjdCIsImNsdXN0ZXJJZGVudGlmaWVyIjoiMiJ9.signature", nil
+					return validJWT, nil
 				}},
-				adminService: mockAdminService{pageApiKeys: func(input services.GetAPIKeysInput) (services.PageAPIKeysResult, error) {
+				adminService: mockAdminService{pageAPIKeys: func(input services.PageAPIKeysInput) (services.PageAPIKeysResult, error) {
 					if input.EnvironmentIdentifier == "env2" {
 						return services.PageAPIKeysResult{
 							APIKeys: []admin.ApiKey{{
@@ -240,47 +211,25 @@ func TestRemoteConfig_NewRemoteConfig(t *testing.T) {
 					}
 					return services.PageAPIKeysResult{
 						APIKeys: []admin.ApiKey{{
-							Key: strPtr("key1"),
+							Key: strPtr(defaultAPIKey),
 						}},
 						Finished: true,
 					}, nil
-				}, pageTargets: func(input services.PageTargetsInput) (services.PageTargetsResult, error) {
-					return services.PageTargetsResult{
-						Targets: []admin.Target{{
-							Identifier: "target1",
-						}},
-						Finished: true,
-					}, nil
-				}},
+				}, pageTargets: pageTargetsSuccess},
 			},
 			expected: NewRemoteConfigOutput{
 				accountIdentifier: account,
 				orgIdentifier:     org,
-				projEnvInfo: map[string]environmentDetails{"0000-0000-0000-0000-0000": {
-					EnvironmentIdentifier: "env",
-					EnvironmentId:         "0000-0000-0000-0000-0000",
-					ProjectIdentifier:     "project",
-					HashedAPIKeys:         []string{"key1"},
-					APIKey:                validKey,
-					Targets: []domain.Target{{admin.Target{
-						Identifier: "target1",
-					}}},
-				}, "1111-1111-1111-1111-1111": {
+				projEnvInfo: map[string]EnvironmentDetails{defaultEnvironmentID: defaultEnvDetails, "1111-1111-1111-1111-1111": {
 					EnvironmentIdentifier: "env2",
-					EnvironmentId:         "1111-1111-1111-1111-1111",
+					EnvironmentID:         "1111-1111-1111-1111-1111",
 					ProjectIdentifier:     "project2",
 					HashedAPIKeys:         []string{"key2"},
 					APIKey:                validKeyEnv2,
-					Targets: []domain.Target{{admin.Target{
-						Identifier: "target1",
-					}}},
+					Targets:               []domain.Target{{target1}},
 				}},
-				authConfig: map[domain.AuthAPIKey]string{"key1": "0000-0000-0000-0000-0000", "key2": "1111-1111-1111-1111-1111"},
-				targetConfig: map[domain.TargetKey][]domain.Target{"env-0000-0000-0000-0000-0000-target-config": {{admin.Target{
-					Identifier: "target1",
-				}}}, "env-1111-1111-1111-1111-1111-target-config": {{admin.Target{
-					Identifier: "target1",
-				}}}},
+				authConfig:   map[domain.AuthAPIKey]string{defaultAPIKey: defaultEnvironmentID, "key2": "1111-1111-1111-1111-1111"},
+				targetConfig: map[domain.TargetKey][]domain.Target{"env-0000-0000-0000-0000-0000-target-config": {{target1}}, "env-1111-1111-1111-1111-1111-target-config": {{target1}}},
 			},
 		},
 	}
@@ -307,7 +256,6 @@ func TestRemoteConfig_NewRemoteConfig(t *testing.T) {
 }
 
 func TestRemoteConfig_getEnvironmentInfo(t *testing.T) {
-	validKey := "valid_key"
 	type GetEnvironmentInput struct {
 		apiKey        string
 		clientService mockClientService
@@ -328,10 +276,8 @@ func TestRemoteConfig_getEnvironmentInfo(t *testing.T) {
 		"Given clientService.Authenticate returns err": {
 			shouldErr: true,
 			input: GetEnvironmentInput{
-				apiKey: validKey,
-				clientService: mockClientService{authenticate: func(apiKey string) (string, error) {
-					return "", fmt.Errorf("request failed")
-				}},
+				apiKey:        validKey,
+				clientService: mockClientService{authenticateFail},
 			},
 			expected: GetEnvironmentResp{
 				projectIdentifier:     "",
@@ -433,15 +379,13 @@ func TestRemoteConfig_getEnvironmentInfo(t *testing.T) {
 		"Given valid payload returned": {
 			shouldErr: false,
 			input: GetEnvironmentInput{
-				apiKey: validKey,
-				clientService: mockClientService{authenticate: func(apiKey string) (string, error) {
-					return "header.eyJlbnZpcm9ubWVudCI6IjAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMCIsImVudmlyb25tZW50SWRlbnRpZmllciI6ImVudiIsInByb2plY3RJZGVudGlmaWVyIjoicHJvamVjdCIsImNsdXN0ZXJJZGVudGlmaWVyIjoiMiJ9.signature", nil
-				}},
+				apiKey:        validKey,
+				clientService: mockClientService{authenticate: authenticateSuccess},
 			},
 			expected: GetEnvironmentResp{
-				projectIdentifier:     "project",
-				environmentIdentifier: "env",
-				environmentID:         "0000-0000-0000-0000-0000",
+				projectIdentifier:     project,
+				environmentIdentifier: environmentIdentifier,
+				environmentID:         defaultEnvironmentID,
 				err:                   nil,
 			},
 		},
@@ -466,7 +410,7 @@ func TestRemoteConfig_getEnvironmentInfo(t *testing.T) {
 }
 
 func TestRemoteConfig_getApiKeys(t *testing.T) {
-	type GetApiKeysInput struct {
+	type GetAPIKeysInput struct {
 		accountIdentifier     string
 		orgIdentifier         string
 		projectIdentifier     string
@@ -474,66 +418,57 @@ func TestRemoteConfig_getApiKeys(t *testing.T) {
 		adminService          mockAdminService
 	}
 
-	type GetApiKeysResp struct {
-		hashedApiKeys []string
+	type GetAPIKeysResp struct {
+		hashedAPIKeys []string
 		err           error
 	}
 
 	testCases := map[string]struct {
-		input     GetApiKeysInput
+		input     GetAPIKeysInput
 		shouldErr bool
-		expected  GetApiKeysResp
+		expected  GetAPIKeysResp
 	}{
 		"Given adminService.PageAPIKeys returns err": {
 			shouldErr: true,
-			input: GetApiKeysInput{
+			input: GetAPIKeysInput{
 				accountIdentifier:     account,
 				orgIdentifier:         org,
 				projectIdentifier:     project,
-				environmentIdentifier: environment,
-				adminService: mockAdminService{pageApiKeys: func(input services.GetAPIKeysInput) (services.PageAPIKeysResult, error) {
-					return services.PageAPIKeysResult{}, fmt.Errorf("request failed")
-				}},
+				environmentIdentifier: environmentIdentifier,
+				adminService:          mockAdminService{pageAPIKeys: pageAPIKeysFail},
 			},
-			expected: GetApiKeysResp{
-				hashedApiKeys: []string{},
+			expected: GetAPIKeysResp{
+				hashedAPIKeys: []string{},
 				err:           fmt.Errorf("failed to get api keys: request failed"),
 			},
 		},
 		"Given adminService.PageAPIKeys returns one page of results": {
 			shouldErr: false,
-			input: GetApiKeysInput{
+			input: GetAPIKeysInput{
 				accountIdentifier:     account,
 				orgIdentifier:         org,
 				projectIdentifier:     project,
-				environmentIdentifier: environment,
-				adminService: mockAdminService{pageApiKeys: func(input services.GetAPIKeysInput) (services.PageAPIKeysResult, error) {
-					return services.PageAPIKeysResult{
-						APIKeys: []admin.ApiKey{{
-							Key: strPtr("key1"),
-						}},
-						Finished: true,
-					}, nil
-				}},
+				environmentIdentifier: environmentIdentifier,
+				adminService:          mockAdminService{pageAPIKeys: pageAPIKeysSuccess},
 			},
-			expected: GetApiKeysResp{
-				hashedApiKeys: []string{"key1"},
+			expected: GetAPIKeysResp{
+				hashedAPIKeys: []string{defaultAPIKey},
 				err:           nil,
 			},
 		},
 		"Given adminService.PageAPIKeys returns two pages of results": {
 			shouldErr: false,
-			input: GetApiKeysInput{
+			input: GetAPIKeysInput{
 				accountIdentifier:     account,
 				orgIdentifier:         org,
 				projectIdentifier:     project,
-				environmentIdentifier: environment,
-				adminService: mockAdminService{pageApiKeys: func(input services.GetAPIKeysInput) (services.PageAPIKeysResult, error) {
+				environmentIdentifier: environmentIdentifier,
+				adminService: mockAdminService{pageAPIKeys: func(input services.PageAPIKeysInput) (services.PageAPIKeysResult, error) {
 					// first page results
 					if input.PageNumber == 0 {
 						return services.PageAPIKeysResult{
 							APIKeys: []admin.ApiKey{{
-								Key: strPtr("key1"),
+								Key: strPtr(defaultAPIKey),
 							}},
 							Finished: false,
 						}, nil
@@ -552,8 +487,8 @@ func TestRemoteConfig_getApiKeys(t *testing.T) {
 					return services.PageAPIKeysResult{}, fmt.Errorf("this won't be hit")
 				}},
 			},
-			expected: GetApiKeysResp{
-				hashedApiKeys: []string{"key1", "key2"},
+			expected: GetAPIKeysResp{
+				hashedAPIKeys: []string{defaultAPIKey, "key2"},
 				err:           nil,
 			},
 		},
@@ -570,7 +505,7 @@ func TestRemoteConfig_getApiKeys(t *testing.T) {
 
 			// check results
 			assert.Equal(t, tc.expected.err, err)
-			assert.Equal(t, tc.expected.hashedApiKeys, actualKeys)
+			assert.Equal(t, tc.expected.hashedAPIKeys, actualKeys)
 		})
 	}
 }
@@ -600,10 +535,8 @@ func TestRemoteConfig_getTargets(t *testing.T) {
 				accountIdentifier:     account,
 				orgIdentifier:         org,
 				projectIdentifier:     project,
-				environmentIdentifier: environment,
-				adminService: mockAdminService{pageTargets: func(input services.PageTargetsInput) (services.PageTargetsResult, error) {
-					return services.PageTargetsResult{}, fmt.Errorf("request failed")
-				}},
+				environmentIdentifier: environmentIdentifier,
+				adminService:          mockAdminService{pageTargets: pageTargetsFail},
 			},
 			expected: GetTargetsResp{
 				targets: []domain.Target{},
@@ -616,21 +549,12 @@ func TestRemoteConfig_getTargets(t *testing.T) {
 				accountIdentifier:     account,
 				orgIdentifier:         org,
 				projectIdentifier:     project,
-				environmentIdentifier: environment,
-				adminService: mockAdminService{pageTargets: func(input services.PageTargetsInput) (services.PageTargetsResult, error) {
-					return services.PageTargetsResult{
-						Targets: []admin.Target{{
-							Identifier: "target1",
-						}},
-						Finished: true,
-					}, nil
-				}},
+				environmentIdentifier: environmentIdentifier,
+				adminService:          mockAdminService{pageTargets: pageTargetsSuccess},
 			},
 			expected: GetTargetsResp{
-				targets: []domain.Target{{admin.Target{
-					Identifier: "target1",
-				}}},
-				err: nil,
+				targets: []domain.Target{{target1}},
+				err:     nil,
 			},
 		},
 		"Given adminService.PageTargets returns two pages of results": {
@@ -639,14 +563,12 @@ func TestRemoteConfig_getTargets(t *testing.T) {
 				accountIdentifier:     account,
 				orgIdentifier:         org,
 				projectIdentifier:     project,
-				environmentIdentifier: environment,
+				environmentIdentifier: environmentIdentifier,
 				adminService: mockAdminService{pageTargets: func(input services.PageTargetsInput) (services.PageTargetsResult, error) {
 					// first page
 					if input.PageNumber == 0 {
 						return services.PageTargetsResult{
-							Targets: []admin.Target{{
-								Identifier: "target1",
-							}},
+							Targets:  []admin.Target{target1},
 							Finished: false,
 						}, nil
 					}
@@ -669,9 +591,7 @@ func TestRemoteConfig_getTargets(t *testing.T) {
 				}},
 			},
 			expected: GetTargetsResp{
-				targets: []domain.Target{{admin.Target{
-					Identifier: "target1",
-				}}, {admin.Target{
+				targets: []domain.Target{{target1}, {admin.Target{
 					Identifier: "target2",
 				}}},
 				err: nil,
@@ -696,7 +616,6 @@ func TestRemoteConfig_getTargets(t *testing.T) {
 }
 
 func TestRemoteConfig_getConfigForKey(t *testing.T) {
-	validKey := "valid_key"
 	type GetConfigForKeyInput struct {
 		accountIdentifier     string
 		orgIdentifier         string
@@ -709,7 +628,7 @@ func TestRemoteConfig_getConfigForKey(t *testing.T) {
 	}
 
 	type GetConfigForKeyResp struct {
-		environmentDetails environmentDetails
+		environmentDetails EnvironmentDetails
 		err                error
 	}
 
@@ -718,111 +637,69 @@ func TestRemoteConfig_getConfigForKey(t *testing.T) {
 		shouldErr bool
 		expected  GetConfigForKeyResp
 	}{
-		"Given getEnvironmentInfo returns err empty environmentDetails is returned": {
+		"Given getEnvironmentInfo returns err empty EnvironmentDetails is returned": {
 			shouldErr: true,
 			input: GetConfigForKeyInput{
 				accountIdentifier:     account,
 				orgIdentifier:         org,
 				projectIdentifier:     project,
-				environmentIdentifier: environment,
+				environmentIdentifier: environmentIdentifier,
 				apiKey:                validKey,
-				clientService: mockClientService{authenticate: func(apiKey string) (string, error) {
-					return "", fmt.Errorf("request failed")
-				}},
+				clientService:         mockClientService{authenticateFail},
 			},
 			expected: GetConfigForKeyResp{
-				environmentDetails: environmentDetails{},
+				environmentDetails: EnvironmentDetails{},
 				err:                fmt.Errorf("failed to fetch environment details for key valid_key: error sending client authentication request: request failed"),
 			},
 		},
-		"Given getAPIKeys returns err empty environmentDetails is returned": {
+		"Given getAPIKeys returns err empty EnvironmentDetails is returned": {
 			shouldErr: true,
 			input: GetConfigForKeyInput{
 				accountIdentifier:     account,
 				orgIdentifier:         org,
 				projectIdentifier:     project,
-				environmentIdentifier: environment,
+				environmentIdentifier: environmentIdentifier,
 				apiKey:                validKey,
-				clientService: mockClientService{authenticate: func(apiKey string) (string, error) {
-					return "header.eyJlbnZpcm9ubWVudCI6IjAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMCIsImVudmlyb25tZW50SWRlbnRpZmllciI6ImVudiIsInByb2plY3RJZGVudGlmaWVyIjoicHJvamVjdCIsImNsdXN0ZXJJZGVudGlmaWVyIjoiMiJ9.signature", nil
-				}},
-				adminService: mockAdminService{pageApiKeys: func(input services.GetAPIKeysInput) (services.PageAPIKeysResult, error) {
-					return services.PageAPIKeysResult{}, fmt.Errorf("request failed")
-				}},
+				clientService:         mockClientService{authenticate: authenticateSuccess},
+				adminService:          mockAdminService{pageAPIKeys: pageAPIKeysFail},
 			},
 			expected: GetConfigForKeyResp{
-				environmentDetails: environmentDetails{},
+				environmentDetails: EnvironmentDetails{},
 				err:                fmt.Errorf("failed to get api keys: request failed"),
 			},
 		},
-		"Given getTargets returns err empty environmentDetails is returned": {
+		"Given getTargets returns err empty EnvironmentDetails is returned": {
 			shouldErr: true,
 			input: GetConfigForKeyInput{
 				accountIdentifier:     account,
 				orgIdentifier:         org,
 				projectIdentifier:     project,
-				environmentIdentifier: environment,
+				environmentIdentifier: environmentIdentifier,
 				apiKey:                validKey,
 				fetchTargets:          true,
-				clientService: mockClientService{authenticate: func(apiKey string) (string, error) {
-					return "header.eyJlbnZpcm9ubWVudCI6IjAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMCIsImVudmlyb25tZW50SWRlbnRpZmllciI6ImVudiIsInByb2plY3RJZGVudGlmaWVyIjoicHJvamVjdCIsImNsdXN0ZXJJZGVudGlmaWVyIjoiMiJ9.signature", nil
-				}},
-				adminService: mockAdminService{pageApiKeys: func(input services.GetAPIKeysInput) (services.PageAPIKeysResult, error) {
-					return services.PageAPIKeysResult{
-						APIKeys: []admin.ApiKey{{
-							Key: strPtr("key1"),
-						}},
-						Finished: true,
-					}, nil
-				}, pageTargets: func(input services.PageTargetsInput) (services.PageTargetsResult, error) {
-					return services.PageTargetsResult{}, fmt.Errorf("request failed")
-				}},
+				clientService:         mockClientService{authenticate: authenticateSuccess},
+				adminService:          mockAdminService{pageAPIKeys: pageAPIKeysSuccess, pageTargets: pageTargetsFail},
 			},
 			expected: GetConfigForKeyResp{
-				environmentDetails: environmentDetails{},
+				environmentDetails: EnvironmentDetails{},
 				err:                fmt.Errorf("failed to get targets: request failed"),
 			},
 		},
-		"Given all requests succeed valid environmentDetails is returned": {
+		"Given all requests succeed valid EnvironmentDetails is returned": {
 			shouldErr: false,
 			input: GetConfigForKeyInput{
 				accountIdentifier:     account,
 				orgIdentifier:         org,
 				projectIdentifier:     project,
-				environmentIdentifier: environment,
+				environmentIdentifier: environmentIdentifier,
 				apiKey:                validKey,
 				fetchTargets:          true,
-				clientService: mockClientService{authenticate: func(apiKey string) (string, error) {
-					return "header.eyJlbnZpcm9ubWVudCI6IjAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMCIsImVudmlyb25tZW50SWRlbnRpZmllciI6ImVudiIsInByb2plY3RJZGVudGlmaWVyIjoicHJvamVjdCIsImNsdXN0ZXJJZGVudGlmaWVyIjoiMiJ9.signature", nil
-				}},
-				adminService: mockAdminService{pageApiKeys: func(input services.GetAPIKeysInput) (services.PageAPIKeysResult, error) {
-					return services.PageAPIKeysResult{
-						APIKeys: []admin.ApiKey{{
-							Key: strPtr("key1"),
-						}},
-						Finished: true,
-					}, nil
-				}, pageTargets: func(input services.PageTargetsInput) (services.PageTargetsResult, error) {
-					return services.PageTargetsResult{
-						Targets: []admin.Target{{
-							Identifier: "target1",
-						}},
-						Finished: true,
-					}, nil
-				}},
+				clientService:         mockClientService{authenticate: authenticateSuccess},
+				adminService:          mockAdminService{pageAPIKeys: pageAPIKeysSuccess, pageTargets: pageTargetsSuccess},
 			},
 			expected: GetConfigForKeyResp{
-				environmentDetails: environmentDetails{
-					EnvironmentIdentifier: "env",
-					EnvironmentId:         "0000-0000-0000-0000-0000",
-					ProjectIdentifier:     "project",
-					HashedAPIKeys:         []string{"key1"},
-					APIKey:                validKey,
-					Targets: []domain.Target{{admin.Target{
-						Identifier: "target1",
-					}}},
-				},
-				err: nil,
+				environmentDetails: defaultEnvDetails,
+				err:                nil,
 			},
 		},
 		"getTargets is skipped if fetchTargets is false": {
@@ -831,29 +708,18 @@ func TestRemoteConfig_getConfigForKey(t *testing.T) {
 				accountIdentifier:     account,
 				orgIdentifier:         org,
 				projectIdentifier:     project,
-				environmentIdentifier: environment,
+				environmentIdentifier: environmentIdentifier,
 				apiKey:                validKey,
 				fetchTargets:          false,
-				clientService: mockClientService{authenticate: func(apiKey string) (string, error) {
-					return "header.eyJlbnZpcm9ubWVudCI6IjAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMCIsImVudmlyb25tZW50SWRlbnRpZmllciI6ImVudiIsInByb2plY3RJZGVudGlmaWVyIjoicHJvamVjdCIsImNsdXN0ZXJJZGVudGlmaWVyIjoiMiJ9.signature", nil
-				}},
-				adminService: mockAdminService{pageApiKeys: func(input services.GetAPIKeysInput) (services.PageAPIKeysResult, error) {
-					return services.PageAPIKeysResult{
-						APIKeys: []admin.ApiKey{{
-							Key: strPtr("key1"),
-						}},
-						Finished: true,
-					}, nil
-				}, pageTargets: func(input services.PageTargetsInput) (services.PageTargetsResult, error) {
-					return services.PageTargetsResult{}, fmt.Errorf("request failed")
-				}},
+				clientService:         mockClientService{authenticate: authenticateSuccess},
+				adminService:          mockAdminService{pageAPIKeys: pageAPIKeysSuccess, pageTargets: pageTargetsFail},
 			},
 			expected: GetConfigForKeyResp{
-				environmentDetails: environmentDetails{
-					EnvironmentIdentifier: "env",
-					EnvironmentId:         "0000-0000-0000-0000-0000",
-					ProjectIdentifier:     "project",
-					HashedAPIKeys:         []string{"key1"},
+				environmentDetails: EnvironmentDetails{
+					EnvironmentIdentifier: environmentIdentifier,
+					EnvironmentID:         defaultEnvironmentID,
+					ProjectIdentifier:     project,
+					HashedAPIKeys:         []string{defaultAPIKey},
 					APIKey:                validKey,
 					Targets:               []domain.Target(nil),
 				},

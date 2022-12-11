@@ -431,8 +431,8 @@ func main() {
 
 		// start an sdk instance for each valid api key
 		for _, env := range envInfo {
-			cacheWrapper := cache.NewWrapper(sdkCache, env.EnvironmentId, logger)
-			go initFF(ctx, cacheWrapper, sdkBaseURL, sdkEventsURL, env.EnvironmentId, env.EnvironmentIdentifier, env.ProjectIdentifier, env.APIKey, logger, eventListener)
+			cacheWrapper := cache.NewWrapper(sdkCache, env.EnvironmentID, logger)
+			go initFF(ctx, cacheWrapper, sdkBaseURL, sdkEventsURL, env.EnvironmentID, env.EnvironmentIdentifier, env.ProjectIdentifier, env.APIKey, logger, eventListener)
 		}
 	}
 

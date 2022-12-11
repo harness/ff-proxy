@@ -14,7 +14,7 @@ import (
 type mockAdminService struct {
 	admingen.ClientWithResponsesInterface
 	getTargetsWithResp func() (*admingen.GetAllTargetsResponse, error)
-	getApiKeysWithResp func() (*admingen.GetAllAPIKeysResponse, error)
+	getAPIKeysWithResp func() (*admingen.GetAllAPIKeysResponse, error)
 }
 
 func (m mockAdminService) GetAllTargetsWithResponse(ctx context.Context, params *admingen.GetAllTargetsParams, reqEditors ...admingen.RequestEditorFn) (*admingen.GetAllTargetsResponse, error) {
@@ -22,7 +22,7 @@ func (m mockAdminService) GetAllTargetsWithResponse(ctx context.Context, params 
 }
 
 func (m mockAdminService) GetAllAPIKeysWithResponse(ctx context.Context, params *admingen.GetAllAPIKeysParams, reqEditors ...admingen.RequestEditorFn) (*admingen.GetAllAPIKeysResponse, error) {
-	return m.getApiKeysWithResp()
+	return m.getAPIKeysWithResp()
 }
 
 func TestAdminService_PageTargets(t *testing.T) {
@@ -138,7 +138,7 @@ func TestAdminService_PageTargets(t *testing.T) {
 }
 
 func TestAdminService_GetAPIKeys(t *testing.T) {
-	pageAPIKeysInput := GetAPIKeysInput{
+	pageAPIKeysInput := PageAPIKeysInput{
 		AccountIdentifier:     "account",
 		OrgIdentifier:         "org",
 		ProjectIdentifier:     "proj",
@@ -155,13 +155,13 @@ func TestAdminService_GetAPIKeys(t *testing.T) {
 
 	testCases := map[string]struct {
 		mockService mockAdminService
-		input       GetAPIKeysInput
+		input       PageAPIKeysInput
 		shouldErr   bool
 		expected    PageAPIKeysResult
 	}{
 		"Given PageAPIKeys returns error": {
 			mockService: mockAdminService{
-				getApiKeysWithResp: func() (*admingen.GetAllAPIKeysResponse, error) {
+				getAPIKeysWithResp: func() (*admingen.GetAllAPIKeysResponse, error) {
 					return nil, errNotFound
 				},
 			},
@@ -173,7 +173,7 @@ func TestAdminService_GetAPIKeys(t *testing.T) {
 		},
 		"Given PageAPIKeys returns non 200 response": {
 			mockService: mockAdminService{
-				getApiKeysWithResp: func() (*admingen.GetAllAPIKeysResponse, error) {
+				getAPIKeysWithResp: func() (*admingen.GetAllAPIKeysResponse, error) {
 					return &admingen.GetAllAPIKeysResponse{
 						Body:         nil,
 						HTTPResponse: &http.Response{StatusCode: http.StatusUnauthorized},
@@ -192,7 +192,7 @@ func TestAdminService_GetAPIKeys(t *testing.T) {
 		},
 		"Given PageAPIKeys returns 200 with no Keys": {
 			mockService: mockAdminService{
-				getApiKeysWithResp: func() (*admingen.GetAllAPIKeysResponse, error) {
+				getAPIKeysWithResp: func() (*admingen.GetAllAPIKeysResponse, error) {
 					return &admingen.GetAllAPIKeysResponse{
 						Body:         nil,
 						HTTPResponse: &http.Response{StatusCode: http.StatusOK},
@@ -210,7 +210,7 @@ func TestAdminService_GetAPIKeys(t *testing.T) {
 		},
 		"Given PageAPIKeys returns 200 with API Keys": {
 			mockService: mockAdminService{
-				getApiKeysWithResp: func() (*admingen.GetAllAPIKeysResponse, error) {
+				getAPIKeysWithResp: func() (*admingen.GetAllAPIKeysResponse, error) {
 					return &admingen.GetAllAPIKeysResponse{
 						Body:         nil,
 						HTTPResponse: &http.Response{StatusCode: http.StatusUnauthorized},
