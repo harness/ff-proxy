@@ -2,465 +2,751 @@ package config
 
 import (
 	"context"
-	"errors"
 	"fmt"
-	"reflect"
-	"sync"
 	"testing"
-	"time"
+
+	"github.com/harness/ff-proxy/gen/admin"
 
 	"github.com/harness/ff-proxy/domain"
-	admingen "github.com/harness/ff-proxy/gen/admin"
-	"github.com/harness/ff-proxy/log"
 	"github.com/harness/ff-proxy/services"
+
 	"github.com/stretchr/testify/assert"
 )
 
-type mockHasher struct {
-}
-
-func (m mockHasher) Hash(s string) string {
-	return s
-}
-
-// projects is a map of account-org identifiers to projects
-var projects = map[string][]admingen.Project{
-	"account1-org1": []admingen.Project{
-		{
-			Identifier: "FeatureFlagsQA",
-		},
-		{
-			Identifier: "FeatureFlagsDev",
-		},
-	},
-}
-
-// Environments is a map of ProjectIdentifiers to environments
-var environments = map[string][]admingen.Environment{
-	"FeatureFlagsQA": []admingen.Environment{
-		{
-			Id:         strPtr("123"),
-			Identifier: "QA",
-			ApiKeys: admingen.ApiKeys{
-				ApiKeys: &[]admingen.ApiKey{
-					{
-						Key: strPtr("1"),
-					},
-					{
-						Key: strPtr("2"),
-					},
-					{
-						Key: strPtr("3"),
-					},
-				},
-			},
-		},
-	},
-	"FeatureFlagsDev": []admingen.Environment{
-		{
-			Id:         strPtr("456"),
-			Identifier: "Dev",
-			ApiKeys: admingen.ApiKeys{
-				ApiKeys: &[]admingen.ApiKey{
-					{
-						Key: strPtr("4"),
-					},
-				},
-			},
-		},
-	},
-}
-
-// targets is a map of Project-EnvIdentifiers to targets
-var targets = map[string][]admingen.Target{
-	"FeatureFlagsQA-QA": []admingen.Target{
-		{
-			Identifier: "QA-Target-1",
-		},
-		{
-			Identifier: "QA-Target-2",
-		},
-	},
-	"FeatureFlagsDev-Dev": []admingen.Target{
-		{
-			Identifier: "Dev-Target-1",
-		},
-		{
-			Identifier: "Dev-Target-2",
-		},
-	},
-}
-
-type mockAdminClient struct {
-	projects     map[string][]admingen.Project
-	environments map[string][]admingen.Environment
-	targets      map[string][]admingen.Target
-	hit          int
-	*sync.Mutex
-}
-
-func (m mockAdminClient) PageProjects(ctx context.Context, input services.PageProjectsInput) (services.PageProjectsResult, error) {
-	m.Lock()
-	defer m.Unlock()
-
-	key := fmt.Sprintf("%s-%s", input.AccountIdentifier, input.OrgIdentifier)
-
-	projects, ok := m.projects[key]
-	if !ok {
-		return services.PageProjectsResult{Projects: []admingen.Project{}, Finished: true}, errors.New("project not found")
-	}
-
-	return services.PageProjectsResult{Projects: projects, Finished: true}, nil
-}
-
-func (m mockAdminClient) PageEnvironments(ctx context.Context, input services.PageEnvironmentsInput) (services.PageEnvironmentsResult, error) {
-	m.Lock()
-	defer m.Unlock()
-
-	defer func() {
-		m.hit++
-	}()
-
-	environments, ok := m.environments[input.ProjectIdentifier]
-	if !ok {
-		return services.PageEnvironmentsResult{Environments: []admingen.Environment{}, Finished: true}, errors.New("environment not found")
-	}
-
-	return services.PageEnvironmentsResult{Environments: environments, Finished: true}, nil
-}
-
-func (m mockAdminClient) PageTargets(ctx context.Context, input services.PageTargetsInput) (services.PageTargetsResult, error) {
-	m.Lock()
-	defer m.Unlock()
-
-	key := fmt.Sprintf("%s-%s", input.ProjectIdentifier, input.EnvironmentIdentifier)
-
-	targets, ok := m.targets[key]
-	if !ok {
-		return services.PageTargetsResult{Targets: []admingen.Target{}, Finished: true}, errors.New("target not found")
-	}
-
-	return services.PageTargetsResult{Targets: targets, Finished: true}, nil
-}
-
 const (
-	accountIdentifer = "account1"
-	orgIdentifier    = "org1"
+	account               = "account"
+	org                   = "org"
+	project               = "project"
+	environmentIdentifier = "env"
+	defaultAPIKey         = "key1"
+	defaultEnvironmentID  = "0000-0000-0000-0000-0000"
+	// this jwt base64 encodes the defaultEnvironmentID, environmentIdentifier and project
+	validJWT = "header.eyJlbnZpcm9ubWVudCI6IjAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMCIsImVudmlyb25tZW50SWRlbnRpZmllciI6ImVudiIsInByb2plY3RJZGVudGlmaWVyIjoicHJvamVjdCIsImNsdXN0ZXJJZGVudGlmaWVyIjoiMiJ9.signature"
+	validKey = "valid_key"
 )
 
 var (
-	allowAllAPIKeys  = []string{"1", "2", "3", "4"}
-	allowSomeAPIKeys = []string{"1", "2", "3"}
-
-	allowAllAPIKeysMap = map[string]struct{}{
-		"1": struct{}{},
-		"2": struct{}{},
-		"3": struct{}{},
-		"4": struct{}{},
+	pageTargetsSuccess = func(input services.PageTargetsInput) (services.PageTargetsResult, error) {
+		return services.PageTargetsResult{
+			Targets:  []admin.Target{target1},
+			Finished: true,
+		}, nil
 	}
 
-	expectedAuthConfigAllAPIKeys = map[domain.AuthAPIKey]string{
-		domain.AuthAPIKey("1"): "123",
-		domain.AuthAPIKey("2"): "123",
-		domain.AuthAPIKey("3"): "123",
-		domain.AuthAPIKey("4"): "456",
+	pageTargetsFail = func(input services.PageTargetsInput) (services.PageTargetsResult, error) {
+		return services.PageTargetsResult{}, fmt.Errorf("request failed")
 	}
 
-	expectedAuthConfigSomeAPIKeys = map[domain.AuthAPIKey]string{
-		domain.AuthAPIKey("1"): "123",
-		domain.AuthAPIKey("2"): "123",
-		domain.AuthAPIKey("3"): "123",
+	pageAPIKeysSuccess = func(input services.PageAPIKeysInput) (services.PageAPIKeysResult, error) {
+		return services.PageAPIKeysResult{
+			APIKeys: []admin.ApiKey{{
+				Key: strPtr(defaultAPIKey),
+			}},
+			Finished: true,
+		}, nil
 	}
 
-	expectedTargetConfigAllAPIKeys = map[domain.TargetKey][]domain.Target{
-		domain.NewTargetKey("123"): []domain.Target{
-			{
-				Target: admingen.Target{Identifier: "QA-Target-1"},
-			},
-			{
-				Target: admingen.Target{Identifier: "QA-Target-2"},
-			},
-		},
-		domain.NewTargetKey("456"): []domain.Target{
-			{
-				Target: admingen.Target{Identifier: "Dev-Target-1"},
-			},
-			{
-				Target: admingen.Target{Identifier: "Dev-Target-2"},
-			},
-		},
+	pageAPIKeysFail = func(input services.PageAPIKeysInput) (services.PageAPIKeysResult, error) {
+		return services.PageAPIKeysResult{}, fmt.Errorf("request failed")
 	}
 
-	expectedTargetConfigSomeAPIKeys = map[domain.TargetKey][]domain.Target{
-		domain.NewTargetKey("123"): []domain.Target{
-			{
-				Target: admingen.Target{Identifier: "QA-Target-1"},
-			},
-			{
-				Target: admingen.Target{Identifier: "QA-Target-2"},
-			},
-		},
+	authenticateSuccess = func(apiKey string) (string, error) {
+		return validJWT, nil
+	}
+
+	authenticateFail = func(apiKey string) (string, error) {
+		return "", fmt.Errorf("request failed")
+	}
+
+	defaultEnvDetails = EnvironmentDetails{EnvironmentIdentifier: environmentIdentifier,
+		EnvironmentID:     defaultEnvironmentID,
+		ProjectIdentifier: project,
+		HashedAPIKeys:     []string{defaultAPIKey},
+		APIKey:            validKey,
+		Targets:           []domain.Target{{target1}},
+	}
+
+	target1 = admin.Target{
+		Identifier: "target1",
 	}
 )
 
-func TestRemoteConfig(t *testing.T) {
+type mockAdminService struct {
+	pageTargets func(input services.PageTargetsInput) (services.PageTargetsResult, error)
+	pageAPIKeys func(input services.PageAPIKeysInput) (services.PageAPIKeysResult, error)
+}
+
+func (m mockAdminService) PageTargets(ctx context.Context, input services.PageTargetsInput) (services.PageTargetsResult, error) {
+	return m.pageTargets(input)
+}
+
+func (m mockAdminService) PageAPIKeys(ctx context.Context, input services.PageAPIKeysInput) (services.PageAPIKeysResult, error) {
+	return m.pageAPIKeys(input)
+}
+
+type mockClientService struct {
+	authenticate func(apiKey string) (string, error)
+}
+
+func (m mockClientService) Authenticate(ctx context.Context, apiKey string, target domain.Target) (string, error) {
+	return m.authenticate(apiKey)
+}
+
+func TestRemoteConfig_NewRemoteConfig(t *testing.T) {
+	validKeyEnv2 := "valid_key_env2"
+	invalidKey := "invalid_key"
+	type NewRemoteConfigInput struct {
+		accountIdentifier string
+		orgIdentifier     string
+		apiKeys           []string
+		adminService      adminService
+		clientService     mockClientService
+	}
+	type NewRemoteConfigOutput struct {
+		accountIdentifier string
+		orgIdentifier     string
+		projEnvInfo       map[string]EnvironmentDetails
+		authConfig        map[domain.AuthAPIKey]string
+		targetConfig      map[domain.TargetKey][]domain.Target
+	}
+
 	testCases := map[string]struct {
-		accountIdentifier    string
-		orgIdentifier        string
-		allowedAPIKeys       []string
-		cancel               bool
-		shouldErr            bool
-		expectedAuthConfig   map[domain.AuthAPIKey]string
-		expectedTargetConfig map[domain.TargetKey][]domain.Target
+		input     NewRemoteConfigInput
+		shouldErr bool
+		expected  NewRemoteConfigOutput
 	}{
-		"Given I try to load config for an account and org that exist and I allow all the possible APIKeys": {
-			accountIdentifier:    accountIdentifer,
-			orgIdentifier:        orgIdentifier,
-			allowedAPIKeys:       allowAllAPIKeys,
-			shouldErr:            false,
-			expectedAuthConfig:   expectedAuthConfigAllAPIKeys,
-			expectedTargetConfig: expectedTargetConfigAllAPIKeys,
+		"NewRemoteConfig returns empty with no api keys": {
+			shouldErr: false,
+			input: NewRemoteConfigInput{
+				accountIdentifier: account,
+				orgIdentifier:     org,
+				apiKeys:           []string{},
+				adminService:      nil,
+				clientService:     mockClientService{},
+			},
+			expected: NewRemoteConfigOutput{
+				accountIdentifier: account,
+				orgIdentifier:     org,
+				projEnvInfo:       map[string]EnvironmentDetails{},
+				authConfig:        map[domain.AuthAPIKey]string{},
+				targetConfig:      map[domain.TargetKey][]domain.Target{},
+			},
 		},
-		"Given I try to load config for an account and org that exist and I only allow APIKeys 1, 2 and 3": {
-			accountIdentifier:    accountIdentifer,
-			orgIdentifier:        orgIdentifier,
-			allowedAPIKeys:       allowSomeAPIKeys,
-			shouldErr:            false,
-			expectedAuthConfig:   expectedAuthConfigSomeAPIKeys,
-			expectedTargetConfig: expectedTargetConfigSomeAPIKeys,
+		"NewRemoteConfig returns valid data for one key": {
+			shouldErr: false,
+			input: NewRemoteConfigInput{
+				accountIdentifier: account,
+				orgIdentifier:     org,
+				apiKeys:           []string{validKey},
+				clientService:     mockClientService{authenticate: authenticateSuccess},
+				adminService:      mockAdminService{pageAPIKeys: pageAPIKeysSuccess, pageTargets: pageTargetsSuccess},
+			},
+			expected: NewRemoteConfigOutput{
+				accountIdentifier: account,
+				orgIdentifier:     org,
+				projEnvInfo:       map[string]EnvironmentDetails{defaultEnvironmentID: defaultEnvDetails},
+				authConfig:        map[domain.AuthAPIKey]string{defaultAPIKey: defaultEnvironmentID},
+				targetConfig:      map[domain.TargetKey][]domain.Target{"env-0000-0000-0000-0000-0000-target-config": {{target1}}},
+			},
 		},
-		"Given I try to load config for an account and org that don't exist": {
-			accountIdentifier:    "foo",
-			orgIdentifier:        "bar",
-			shouldErr:            true,
-			expectedAuthConfig:   map[domain.AuthAPIKey]string{},
-			expectedTargetConfig: map[domain.TargetKey][]domain.Target{},
+		"NewRemoteConfig returns one set of data if given two keys for same environment": {
+			shouldErr: false,
+			input: NewRemoteConfigInput{
+				accountIdentifier: account,
+				orgIdentifier:     org,
+				apiKeys:           []string{"valid_key_same_env", validKey},
+				clientService:     mockClientService{authenticate: authenticateSuccess},
+				adminService:      mockAdminService{pageAPIKeys: pageAPIKeysSuccess, pageTargets: pageTargetsSuccess},
+			},
+			expected: NewRemoteConfigOutput{
+				accountIdentifier: account,
+				orgIdentifier:     org,
+				projEnvInfo:       map[string]EnvironmentDetails{defaultEnvironmentID: defaultEnvDetails},
+				authConfig:        map[domain.AuthAPIKey]string{defaultAPIKey: defaultEnvironmentID},
+				targetConfig:      map[domain.TargetKey][]domain.Target{"env-0000-0000-0000-0000-0000-target-config": {{target1}}},
+			},
 		},
-		"Given the context is canceled immediately": {
-			accountIdentifier:    "account1",
-			orgIdentifier:        "org1",
-			cancel:               true,
-			shouldErr:            false,
-			expectedAuthConfig:   map[domain.AuthAPIKey]string{},
-			expectedTargetConfig: map[domain.TargetKey][]domain.Target{},
+		"NewRemoteConfig returns one set of data if one key fails": {
+			shouldErr: false,
+			input: NewRemoteConfigInput{
+				accountIdentifier: account,
+				orgIdentifier:     org,
+				apiKeys:           []string{invalidKey, validKey},
+				clientService: mockClientService{authenticate: func(apiKey string) (string, error) {
+					if apiKey == invalidKey {
+						return "", fmt.Errorf("request failed")
+					}
+					return validJWT, nil
+				}},
+				adminService: mockAdminService{pageAPIKeys: pageAPIKeysSuccess, pageTargets: pageTargetsSuccess},
+			},
+			expected: NewRemoteConfigOutput{
+				accountIdentifier: account,
+				orgIdentifier:     org,
+				projEnvInfo:       map[string]EnvironmentDetails{defaultEnvironmentID: defaultEnvDetails},
+				authConfig:        map[domain.AuthAPIKey]string{defaultAPIKey: defaultEnvironmentID},
+				targetConfig:      map[domain.TargetKey][]domain.Target{"env-0000-0000-0000-0000-0000-target-config": {{target1}}},
+			},
+		},
+		"NewRemoteConfig returns data for multiple envs": {
+			shouldErr: false,
+			input: NewRemoteConfigInput{
+				accountIdentifier: account,
+				orgIdentifier:     org,
+				apiKeys:           []string{validKey, validKeyEnv2},
+				clientService: mockClientService{authenticate: func(apiKey string) (string, error) {
+					if apiKey == validKeyEnv2 {
+						return "header.eyJlbnZpcm9ubWVudCI6IjExMTEtMTExMS0xMTExLTExMTEtMTExMSIsImVudmlyb25tZW50SWRlbnRpZmllciI6ImVudjIiLCJwcm9qZWN0SWRlbnRpZmllciI6InByb2plY3QyIiwiY2x1c3RlcklkZW50aWZpZXIiOiIyIn0.signature", nil
+					}
+					return validJWT, nil
+				}},
+				adminService: mockAdminService{pageAPIKeys: func(input services.PageAPIKeysInput) (services.PageAPIKeysResult, error) {
+					if input.EnvironmentIdentifier == "env2" {
+						return services.PageAPIKeysResult{
+							APIKeys: []admin.ApiKey{{
+								Key: strPtr("key2"),
+							}},
+							Finished: true,
+						}, nil
+					}
+					return services.PageAPIKeysResult{
+						APIKeys: []admin.ApiKey{{
+							Key: strPtr(defaultAPIKey),
+						}},
+						Finished: true,
+					}, nil
+				}, pageTargets: pageTargetsSuccess},
+			},
+			expected: NewRemoteConfigOutput{
+				accountIdentifier: account,
+				orgIdentifier:     org,
+				projEnvInfo: map[string]EnvironmentDetails{defaultEnvironmentID: defaultEnvDetails, "1111-1111-1111-1111-1111": {
+					EnvironmentIdentifier: "env2",
+					EnvironmentID:         "1111-1111-1111-1111-1111",
+					ProjectIdentifier:     "project2",
+					HashedAPIKeys:         []string{"key2"},
+					APIKey:                validKeyEnv2,
+					Targets:               []domain.Target{{target1}},
+				}},
+				authConfig:   map[domain.AuthAPIKey]string{defaultAPIKey: defaultEnvironmentID, "key2": "1111-1111-1111-1111-1111"},
+				targetConfig: map[domain.TargetKey][]domain.Target{"env-0000-0000-0000-0000-0000-target-config": {{target1}}, "env-1111-1111-1111-1111-1111-target-config": {{target1}}},
+			},
 		},
 	}
 
 	for desc, tc := range testCases {
 		tc := tc
 		t.Run(desc, func(t *testing.T) {
-			ctx, cancel := context.WithCancel(context.Background())
-			defer cancel()
-			if tc.cancel {
-				cancel()
-			}
+			actual, err := NewRemoteConfig(context.Background(), tc.input.accountIdentifier, tc.input.orgIdentifier, tc.input.apiKeys, tc.input.adminService, tc.input.clientService, WithLogger(nil), WithFetchTargets(true))
 
-			adminClient := mockAdminClient{
-				projects:     projects,
-				environments: environments,
-				targets:      targets,
-				Mutex:        &sync.Mutex{},
-			}
-
-			rc, err := NewRemoteConfig(ctx, tc.accountIdentifier, tc.orgIdentifier, tc.allowedAPIKeys, mockHasher{}, adminClient, WithConcurrency(1), WithLogger(log.NoOpLogger{}))
 			if (err != nil) != tc.shouldErr {
 				t.Errorf("(%s): error = %v, shouldErr = %v", desc, err, tc.shouldErr)
 			}
 
-			actualAuthConfig := rc.AuthConfig()
-			actualTargetConfig := rc.TargetConfig()
+			// check remoteConfig results
+			assert.Equal(t, tc.expected.accountIdentifier, actual.accountIdentifier)
+			assert.Equal(t, tc.expected.orgIdentifier, actual.orgIdentifier)
+			assert.Equal(t, tc.expected.projEnvInfo, actual.EnvInfo())
 
-			assert.Equal(t, tc.expectedAuthConfig, actualAuthConfig)
-			assert.Equal(t, tc.expectedTargetConfig, actualTargetConfig)
+			// check AuthConfig and TargetConfig produced
+			assert.Equal(t, tc.expected.authConfig, actual.AuthConfig())
+			assert.Equal(t, tc.expected.targetConfig, actual.TargetConfig())
 		})
 	}
 }
 
-func TestMakeConfig(t *testing.T) {
-
-	target1 := domain.Target{
-		admingen.Target{
-			Name:        "Target-1",
-			Environment: "123",
-			Org:         "foo",
-			Project:     "Bar",
-		},
+func TestRemoteConfig_getEnvironmentInfo(t *testing.T) {
+	type GetEnvironmentInput struct {
+		apiKey        string
+		clientService mockClientService
 	}
 
-	target2 := domain.Target{
-		admingen.Target{
-			Name:        "Target-2",
-			Environment: "123",
-			Org:         "foo",
-			Project:     "Bar",
-		},
+	type GetEnvironmentResp struct {
+		projectIdentifier     string
+		environmentIdentifier string
+		environmentID         string
+		err                   error
 	}
-
-	target3 := domain.Target{
-		admingen.Target{
-			Name:        "Target-3",
-			Environment: "123",
-			Org:         "foo",
-			Project:     "Bar",
-		},
-	}
-
-	input := []configPipeline{
-		{
-			AccountIdentifier:     "account1",
-			OrgIdentifier:         "org1",
-			EnvironmentID:         "123",
-			EnvironmentIdentifier: "env1",
-			APIKeys:               []string{"1", "2", "3", "4", "5", "6"},
-			Targets:               []domain.Target{target1, target2},
-		},
-		{
-			AccountIdentifier:     "account1",
-			OrgIdentifier:         "org1",
-			EnvironmentID:         "123",
-			EnvironmentIdentifier: "env1",
-			APIKeys:               []string{},
-			Targets:               []domain.Target{target3},
-		},
-	}
-
-	results := make(chan configPipeline, len(input))
-	for _, i := range input {
-		results <- i
-	}
-	close(results)
-
-	expectedAuth := map[domain.AuthAPIKey]string{
-		domain.AuthAPIKey("1"): "123",
-		domain.AuthAPIKey("2"): "123",
-		domain.AuthAPIKey("3"): "123",
-		domain.AuthAPIKey("4"): "123",
-		domain.AuthAPIKey("5"): "123",
-		domain.AuthAPIKey("6"): "123",
-	}
-
-	expectedTargets := map[domain.TargetKey][]domain.Target{
-		domain.NewTargetKey("123"): []domain.Target{
-			target1, target2, target3,
-		},
-	}
-
-	expectedProjEnvInfo := map[string]configPipeline{
-		"123": {
-			AccountIdentifier:     "account1",
-			OrgIdentifier:         "org1",
-			EnvironmentID:         "123",
-			EnvironmentIdentifier: "env1",
-		},
-	}
-
-	config := makeConfigs(results)
-
-	assert.Equal(t, expectedAuth, config.auth)
-	assert.Equal(t, expectedTargets, config.targets)
-	assert.Equal(t, expectedProjEnvInfo, config.projectEnvironments)
-}
-
-func TestPollTargets(t *testing.T) {
-	admingenTarget1 := admingen.Target{
-		Identifier:  "target1",
-		Name:        "target1",
-		Environment: "123",
-	}
-
-	newTarget1 := domain.Target{
-		Target: admingenTarget1,
-	}
-
-	expectedNewTargets := map[domain.TargetKey][]domain.Target{}
-	for k, t := range expectedTargetConfigAllAPIKeys {
-		expectedNewTargets[k] = t
-	}
-	key456 := domain.NewTargetKey("456")
-	expectedNewTargets[key456] = append(expectedNewTargets[key456], newTarget1)
 
 	testCases := map[string]struct {
-		accountIdentifier string
-		orgIdentifier     string
-		allowedAPIKeys    []string
-		cancel            bool
-		shouldErr         bool
-		targetsToAdd      []admingen.Target
-		expectedTargets   map[domain.TargetKey][]domain.Target
+		input     GetEnvironmentInput
+		shouldErr bool
+		expected  GetEnvironmentResp
 	}{
-		"Given I have a RemoteConfig with Targets and I don't add new ones to the admin client": {
-			accountIdentifier: accountIdentifer,
-			orgIdentifier:     orgIdentifier,
-			allowedAPIKeys:    allowAllAPIKeys,
-			cancel:            false,
-			shouldErr:         false,
-			expectedTargets:   expectedTargetConfigAllAPIKeys,
+		"Given clientService.Authenticate returns err": {
+			shouldErr: true,
+			input: GetEnvironmentInput{
+				apiKey:        validKey,
+				clientService: mockClientService{authenticateFail},
+			},
+			expected: GetEnvironmentResp{
+				projectIdentifier:     "",
+				environmentIdentifier: "",
+				environmentID:         "",
+				err:                   fmt.Errorf("error sending client authentication request: request failed"),
+			},
 		},
-		"Given I have a RemoteConfig with Targets and I add a new Target to the admin client": {
-			accountIdentifier: accountIdentifer,
-			orgIdentifier:     orgIdentifier,
-			allowedAPIKeys:    allowAllAPIKeys,
-			cancel:            false,
-			shouldErr:         false,
-			targetsToAdd:      []admingen.Target{admingenTarget1},
-			expectedTargets:   expectedNewTargets,
+		"Given empty jwt returned": {
+			shouldErr: true,
+			input: GetEnvironmentInput{
+				apiKey: validKey,
+				clientService: mockClientService{authenticate: func(apiKey string) (string, error) {
+					return "", nil
+				}},
+			},
+			expected: GetEnvironmentResp{
+				projectIdentifier:     "",
+				environmentIdentifier: "",
+				environmentID:         "",
+				err:                   fmt.Errorf("invalid jwt received %s", ""),
+			},
 		},
-		"Given I have a RemoteConfig with Targets I poll but the context is canceled immediately": {
-			accountIdentifier: accountIdentifer,
-			orgIdentifier:     orgIdentifier,
-			allowedAPIKeys:    allowAllAPIKeys,
-			cancel:            true,
-			shouldErr:         false,
-			targetsToAdd:      []admingen.Target{admingenTarget1},
-			expectedTargets:   nil,
+		"Given invalid base64 jwt returned": {
+			shouldErr: true,
+			input: GetEnvironmentInput{
+				apiKey: validKey,
+				clientService: mockClientService{authenticate: func(apiKey string) (string, error) {
+					return "header.invalid_b@s£64.signature", nil
+				}},
+			},
+			expected: GetEnvironmentResp{
+				projectIdentifier:     "",
+				environmentIdentifier: "",
+				environmentID:         "",
+				err:                   fmt.Errorf("failed to parse token claims for key valid_key: illegal base64 data at input byte 9"),
+			},
+		},
+		"Given invalid non json jwt returned": {
+			shouldErr: true,
+			input: GetEnvironmentInput{
+				apiKey: validKey,
+				clientService: mockClientService{authenticate: func(apiKey string) (string, error) {
+					return "header.dGVzdA.signature", nil
+				}},
+			},
+			expected: GetEnvironmentResp{
+				projectIdentifier:     "",
+				environmentIdentifier: "",
+				environmentID:         "",
+				err:                   fmt.Errorf("failed to unmarshal token claims for key valid_key: invalid character 'e' in literal true (expecting 'r')"),
+			},
+		},
+		"Given payload without environmentIdentifier returned": {
+			shouldErr: true,
+			input: GetEnvironmentInput{
+				apiKey: validKey,
+				clientService: mockClientService{authenticate: func(apiKey string) (string, error) {
+					return "header.eyJlbnZpcm9ubWVudCI6IjAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMCIsInByb2plY3RJZGVudGlmaWVyIjoicHJvamVjdCIsImNsdXN0ZXJJZGVudGlmaWVyIjoiMiJ9.signature", nil
+				}},
+			},
+			expected: GetEnvironmentResp{
+				projectIdentifier:     "",
+				environmentIdentifier: "",
+				environmentID:         "",
+				err:                   fmt.Errorf("environment identifier not present in bearer token"),
+			},
+		},
+		"Given payload without environment returned": {
+			shouldErr: true,
+			input: GetEnvironmentInput{
+				apiKey: validKey,
+				clientService: mockClientService{authenticate: func(apiKey string) (string, error) {
+					return "header.eyJlbnZpcm9ubWVudElkZW50aWZpZXIiOiJlbnYiLCJwcm9qZWN0SWRlbnRpZmllciI6InByb2plY3QiLCJjbHVzdGVySWRlbnRpZmllciI6IjIifQ.signature", nil
+				}},
+			},
+			expected: GetEnvironmentResp{
+				projectIdentifier:     "",
+				environmentIdentifier: "",
+				environmentID:         "",
+				err:                   fmt.Errorf("environment id not present in bearer token"),
+			},
+		},
+		"Given payload without project returned": {
+			shouldErr: true,
+			input: GetEnvironmentInput{
+				apiKey: validKey,
+				clientService: mockClientService{authenticate: func(apiKey string) (string, error) {
+					return "header.eyJlbnZpcm9ubWVudCI6IjAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMCIsImVudmlyb25tZW50SWRlbnRpZmllciI6ImVudiIsImNsdXN0ZXJJZGVudGlmaWVyIjoiMiJ9.signature", nil
+				}},
+			},
+			expected: GetEnvironmentResp{
+				projectIdentifier:     "",
+				environmentIdentifier: "",
+				environmentID:         "",
+				err:                   fmt.Errorf("project identifier not present in bearer token"),
+			},
+		},
+		"Given valid payload returned": {
+			shouldErr: false,
+			input: GetEnvironmentInput{
+				apiKey:        validKey,
+				clientService: mockClientService{authenticate: authenticateSuccess},
+			},
+			expected: GetEnvironmentResp{
+				projectIdentifier:     project,
+				environmentIdentifier: environmentIdentifier,
+				environmentID:         defaultEnvironmentID,
+				err:                   nil,
+			},
 		},
 	}
 
 	for desc, tc := range testCases {
 		tc := tc
 		t.Run(desc, func(t *testing.T) {
-			ctx, cancel := context.WithCancel(context.Background())
-			defer cancel()
+			projectIdentifier, environmentIdentifier, environmentID, err := getEnvironmentInfo(context.Background(), tc.input.apiKey, tc.input.clientService)
 
-			ticker := make(chan time.Time)
-
-			if tc.cancel {
-				defer close(ticker)
-				cancel()
-			} else {
-				close(ticker)
-			}
-
-			targetsCopy := map[string][]admingen.Target{}
-			for key, value := range targets {
-				targetsCopy[key] = value
-			}
-
-			adminClient := mockAdminClient{
-				projects:     projects,
-				environments: environments,
-				targets:      targetsCopy,
-				Mutex:        &sync.Mutex{},
-			}
-
-			remoteConfig, err := NewRemoteConfig(ctx, tc.accountIdentifier, tc.orgIdentifier, tc.allowedAPIKeys, mockHasher{}, adminClient)
 			if (err != nil) != tc.shouldErr {
 				t.Errorf("(%s): error = %v, shouldErr = %v", desc, err, tc.shouldErr)
 			}
 
-			if len(tc.targetsToAdd) > 0 {
-				key := string("FeatureFlagsDev-Dev")
+			// check results
+			assert.Equal(t, tc.expected.err, err)
+			assert.Equal(t, tc.expected.projectIdentifier, projectIdentifier)
+			assert.Equal(t, tc.expected.environmentIdentifier, environmentIdentifier)
+			assert.Equal(t, tc.expected.environmentID, environmentID)
+		})
+	}
+}
 
-				adminClient.Lock()
-				adminClient.targets[key] = append(adminClient.targets[key], tc.targetsToAdd...)
-				adminClient.Unlock()
+func TestRemoteConfig_getApiKeys(t *testing.T) {
+	type GetAPIKeysInput struct {
+		accountIdentifier     string
+		orgIdentifier         string
+		projectIdentifier     string
+		environmentIdentifier string
+		adminService          mockAdminService
+	}
+
+	type GetAPIKeysResp struct {
+		hashedAPIKeys []string
+		err           error
+	}
+
+	testCases := map[string]struct {
+		input     GetAPIKeysInput
+		shouldErr bool
+		expected  GetAPIKeysResp
+	}{
+		"Given adminService.PageAPIKeys returns err": {
+			shouldErr: true,
+			input: GetAPIKeysInput{
+				accountIdentifier:     account,
+				orgIdentifier:         org,
+				projectIdentifier:     project,
+				environmentIdentifier: environmentIdentifier,
+				adminService:          mockAdminService{pageAPIKeys: pageAPIKeysFail},
+			},
+			expected: GetAPIKeysResp{
+				hashedAPIKeys: []string{},
+				err:           fmt.Errorf("failed to get api keys: request failed"),
+			},
+		},
+		"Given adminService.PageAPIKeys returns one page of results": {
+			shouldErr: false,
+			input: GetAPIKeysInput{
+				accountIdentifier:     account,
+				orgIdentifier:         org,
+				projectIdentifier:     project,
+				environmentIdentifier: environmentIdentifier,
+				adminService:          mockAdminService{pageAPIKeys: pageAPIKeysSuccess},
+			},
+			expected: GetAPIKeysResp{
+				hashedAPIKeys: []string{defaultAPIKey},
+				err:           nil,
+			},
+		},
+		"Given adminService.PageAPIKeys returns two pages of results": {
+			shouldErr: false,
+			input: GetAPIKeysInput{
+				accountIdentifier:     account,
+				orgIdentifier:         org,
+				projectIdentifier:     project,
+				environmentIdentifier: environmentIdentifier,
+				adminService: mockAdminService{pageAPIKeys: func(input services.PageAPIKeysInput) (services.PageAPIKeysResult, error) {
+					// first page results
+					if input.PageNumber == 0 {
+						return services.PageAPIKeysResult{
+							APIKeys: []admin.ApiKey{{
+								Key: strPtr(defaultAPIKey),
+							}},
+							Finished: false,
+						}, nil
+					}
+					// second page results
+					if input.PageNumber == 1 {
+						return services.PageAPIKeysResult{
+							APIKeys: []admin.ApiKey{{
+								Key: strPtr("key2"),
+							}},
+							Finished: true,
+						}, nil
+					}
+
+					// won't ever be hit
+					return services.PageAPIKeysResult{}, fmt.Errorf("this won't be hit")
+				}},
+			},
+			expected: GetAPIKeysResp{
+				hashedAPIKeys: []string{defaultAPIKey, "key2"},
+				err:           nil,
+			},
+		},
+	}
+
+	for desc, tc := range testCases {
+		tc := tc
+		t.Run(desc, func(t *testing.T) {
+			actualKeys, err := getAPIKeys(context.Background(), tc.input.accountIdentifier, tc.input.orgIdentifier, tc.input.projectIdentifier, tc.input.environmentIdentifier, tc.input.adminService)
+
+			if (err != nil) != tc.shouldErr {
+				t.Errorf("(%s): error = %v, shouldErr = %v", desc, err, tc.shouldErr)
 			}
 
-			// Only poll once for testing
-			actual := <-remoteConfig.PollTargets(ctx, ticker)
-			if !reflect.DeepEqual(tc.expectedTargets, actual) {
-				t.Errorf("(%s) expected: %v \n got: %v", desc, tc.expectedTargets, actual)
+			// check results
+			assert.Equal(t, tc.expected.err, err)
+			assert.Equal(t, tc.expected.hashedAPIKeys, actualKeys)
+		})
+	}
+}
+
+func TestRemoteConfig_getTargets(t *testing.T) {
+	type GetTargetsInput struct {
+		accountIdentifier     string
+		orgIdentifier         string
+		projectIdentifier     string
+		environmentIdentifier string
+		adminService          mockAdminService
+	}
+
+	type GetTargetsResp struct {
+		targets []domain.Target
+		err     error
+	}
+
+	testCases := map[string]struct {
+		input     GetTargetsInput
+		shouldErr bool
+		expected  GetTargetsResp
+	}{
+		"Given adminService.PageTargets returns err": {
+			shouldErr: true,
+			input: GetTargetsInput{
+				accountIdentifier:     account,
+				orgIdentifier:         org,
+				projectIdentifier:     project,
+				environmentIdentifier: environmentIdentifier,
+				adminService:          mockAdminService{pageTargets: pageTargetsFail},
+			},
+			expected: GetTargetsResp{
+				targets: []domain.Target{},
+				err:     fmt.Errorf("failed to get targets: request failed"),
+			},
+		},
+		"Given adminService.PageTargets returns one page of results": {
+			shouldErr: false,
+			input: GetTargetsInput{
+				accountIdentifier:     account,
+				orgIdentifier:         org,
+				projectIdentifier:     project,
+				environmentIdentifier: environmentIdentifier,
+				adminService:          mockAdminService{pageTargets: pageTargetsSuccess},
+			},
+			expected: GetTargetsResp{
+				targets: []domain.Target{{target1}},
+				err:     nil,
+			},
+		},
+		"Given adminService.PageTargets returns two pages of results": {
+			shouldErr: false,
+			input: GetTargetsInput{
+				accountIdentifier:     account,
+				orgIdentifier:         org,
+				projectIdentifier:     project,
+				environmentIdentifier: environmentIdentifier,
+				adminService: mockAdminService{pageTargets: func(input services.PageTargetsInput) (services.PageTargetsResult, error) {
+					// first page
+					if input.PageNumber == 0 {
+						return services.PageTargetsResult{
+							Targets:  []admin.Target{target1},
+							Finished: false,
+						}, nil
+					}
+
+					// second page
+					if input.PageNumber == 1 {
+						return services.PageTargetsResult{
+							Targets: []admin.Target{{
+								Identifier: "target2",
+							}},
+							Finished: true,
+						}, nil
+					}
+
+					// won't happen
+					return services.PageTargetsResult{
+						Finished: true,
+					}, fmt.Errorf("this won't be hit")
+
+				}},
+			},
+			expected: GetTargetsResp{
+				targets: []domain.Target{{target1}, {admin.Target{
+					Identifier: "target2",
+				}}},
+				err: nil,
+			},
+		},
+	}
+
+	for desc, tc := range testCases {
+		tc := tc
+		t.Run(desc, func(t *testing.T) {
+			actualTargets, err := GetTargets(context.Background(), tc.input.accountIdentifier, tc.input.orgIdentifier, tc.input.projectIdentifier, tc.input.environmentIdentifier, tc.input.adminService)
+
+			if (err != nil) != tc.shouldErr {
+				t.Errorf("(%s): error = %v, shouldErr = %v", desc, err, tc.shouldErr)
 			}
+
+			// check results
+			assert.Equal(t, tc.expected.err, err)
+			assert.Equal(t, tc.expected.targets, actualTargets)
+		})
+	}
+}
+
+func TestRemoteConfig_getConfigForKey(t *testing.T) {
+	type GetConfigForKeyInput struct {
+		accountIdentifier     string
+		orgIdentifier         string
+		projectIdentifier     string
+		environmentIdentifier string
+		apiKey                string
+		fetchTargets          bool
+		clientService         mockClientService
+		adminService          mockAdminService
+	}
+
+	type GetConfigForKeyResp struct {
+		environmentDetails EnvironmentDetails
+		err                error
+	}
+
+	testCases := map[string]struct {
+		input     GetConfigForKeyInput
+		shouldErr bool
+		expected  GetConfigForKeyResp
+	}{
+		"Given getEnvironmentInfo returns err empty EnvironmentDetails is returned": {
+			shouldErr: true,
+			input: GetConfigForKeyInput{
+				accountIdentifier:     account,
+				orgIdentifier:         org,
+				projectIdentifier:     project,
+				environmentIdentifier: environmentIdentifier,
+				apiKey:                validKey,
+				clientService:         mockClientService{authenticateFail},
+			},
+			expected: GetConfigForKeyResp{
+				environmentDetails: EnvironmentDetails{},
+				err:                fmt.Errorf("failed to fetch environment details for key valid_key: error sending client authentication request: request failed"),
+			},
+		},
+		"Given getAPIKeys returns err empty EnvironmentDetails is returned": {
+			shouldErr: true,
+			input: GetConfigForKeyInput{
+				accountIdentifier:     account,
+				orgIdentifier:         org,
+				projectIdentifier:     project,
+				environmentIdentifier: environmentIdentifier,
+				apiKey:                validKey,
+				clientService:         mockClientService{authenticate: authenticateSuccess},
+				adminService:          mockAdminService{pageAPIKeys: pageAPIKeysFail},
+			},
+			expected: GetConfigForKeyResp{
+				environmentDetails: EnvironmentDetails{},
+				err:                fmt.Errorf("failed to get api keys: request failed"),
+			},
+		},
+		"Given GetTargets returns err empty EnvironmentDetails is returned": {
+			shouldErr: true,
+			input: GetConfigForKeyInput{
+				accountIdentifier:     account,
+				orgIdentifier:         org,
+				projectIdentifier:     project,
+				environmentIdentifier: environmentIdentifier,
+				apiKey:                validKey,
+				fetchTargets:          true,
+				clientService:         mockClientService{authenticate: authenticateSuccess},
+				adminService:          mockAdminService{pageAPIKeys: pageAPIKeysSuccess, pageTargets: pageTargetsFail},
+			},
+			expected: GetConfigForKeyResp{
+				environmentDetails: EnvironmentDetails{},
+				err:                fmt.Errorf("failed to get targets: request failed"),
+			},
+		},
+		"Given all requests succeed valid EnvironmentDetails is returned": {
+			shouldErr: false,
+			input: GetConfigForKeyInput{
+				accountIdentifier:     account,
+				orgIdentifier:         org,
+				projectIdentifier:     project,
+				environmentIdentifier: environmentIdentifier,
+				apiKey:                validKey,
+				fetchTargets:          true,
+				clientService:         mockClientService{authenticate: authenticateSuccess},
+				adminService:          mockAdminService{pageAPIKeys: pageAPIKeysSuccess, pageTargets: pageTargetsSuccess},
+			},
+			expected: GetConfigForKeyResp{
+				environmentDetails: defaultEnvDetails,
+				err:                nil,
+			},
+		},
+		"GetTargets is skipped if fetchTargets is false": {
+			shouldErr: false,
+			input: GetConfigForKeyInput{
+				accountIdentifier:     account,
+				orgIdentifier:         org,
+				projectIdentifier:     project,
+				environmentIdentifier: environmentIdentifier,
+				apiKey:                validKey,
+				fetchTargets:          false,
+				clientService:         mockClientService{authenticate: authenticateSuccess},
+				adminService:          mockAdminService{pageAPIKeys: pageAPIKeysSuccess, pageTargets: pageTargetsFail},
+			},
+			expected: GetConfigForKeyResp{
+				environmentDetails: EnvironmentDetails{
+					EnvironmentIdentifier: environmentIdentifier,
+					EnvironmentID:         defaultEnvironmentID,
+					ProjectIdentifier:     project,
+					HashedAPIKeys:         []string{defaultAPIKey},
+					APIKey:                validKey,
+					Targets:               []domain.Target(nil),
+				},
+				err: nil,
+			},
+		},
+	}
+
+	for desc, tc := range testCases {
+		tc := tc
+		t.Run(desc, func(t *testing.T) {
+			rc := RemoteConfig{
+				clientService:     tc.input.clientService,
+				adminService:      tc.input.adminService,
+				accountIdentifier: tc.input.accountIdentifier,
+				orgIdentifier:     tc.input.orgIdentifier,
+				fetchTargets:      tc.input.fetchTargets,
+			}
+			actualEnvDetails, err := rc.getConfigForKey(context.Background(), tc.input.apiKey)
+
+			if (err != nil) != tc.shouldErr {
+				t.Errorf("(%s): error = %v, shouldErr = %v", desc, err, tc.shouldErr)
+			}
+
+			// check results
+			assert.Equal(t, tc.expected.err, err)
+			assert.Equal(t, tc.expected.environmentDetails, actualEnvDetails)
 		})
 	}
 }

@@ -329,6 +329,12 @@ func main() {
 		os.Exit(1)
 	}
 
+	clientService, err := services.NewClientService(logger, clientService)
+	if err != nil {
+		logger.Error("failed to create client for the feature flags client service", "err", err)
+		os.Exit(1)
+	}
+
 	// Create cache
 	// if we're just generating the offline config we should only use in memory mode for now
 	// when we move to a pattern of allowing periodic config dumps to disk we can remove this requirement
@@ -360,7 +366,6 @@ func main() {
 	)
 
 	var remoteConfig config.RemoteConfig
-
 	var streamEnabled bool
 
 	// Load either local config from files or remote config from ff-server
@@ -409,10 +414,9 @@ func main() {
 			accountIdentifier,
 			orgIdentifier,
 			apiKeys,
-			hash.NewSha256(),
 			adminService,
+			clientService,
 			config.WithLogger(logger),
-			config.WithConcurrency(20),
 			config.WithFetchTargets(targetPollDuration != 0), // don't fetch targets if poll duration is 0
 		)
 		if err != nil {
@@ -423,24 +427,12 @@ func main() {
 
 		authConfig = remoteConfig.AuthConfig()
 		targetConfig = remoteConfig.TargetConfig()
-
-		envIDToProjectEnvironmentInfo := remoteConfig.ProjectEnvironmentInfo()
-
-		// start an sdk instance for each api key
-		for _, apiKey := range apiKeys {
-			apiKeyHash := apiKeyHasher.Hash(apiKey)
-
-			// find corresponding environmentID for apiKey
-			envID, ok := authConfig[domain.AuthAPIKey(apiKeyHash)]
-			if !ok {
-				logger.Error("API key not found, skipping", "api-key", apiKey)
-				continue
-			}
-
-			projEnvInfo := envIDToProjectEnvironmentInfo[authConfig[domain.AuthAPIKey(apiKeyHash)]]
-
-			cacheWrapper := cache.NewWrapper(sdkCache, envID, logger)
-			go initFF(ctx, cacheWrapper, sdkBaseURL, sdkEventsURL, envID, projEnvInfo.EnvironmentIdentifier, projEnvInfo.ProjectIdentifier, apiKey, logger, eventListener)
+		envInfo := remoteConfig.EnvInfo()
+		logger.Info(fmt.Sprintf("successfully fetched config for %d environment(s)", len(envInfo)))
+		// start an sdk instance for each valid api key
+		for _, env := range envInfo {
+			cacheWrapper := cache.NewWrapper(sdkCache, env.EnvironmentID, logger)
+			go initFF(ctx, cacheWrapper, sdkBaseURL, sdkEventsURL, env.EnvironmentID, env.EnvironmentIdentifier, env.ProjectIdentifier, env.APIKey, logger, eventListener)
 		}
 	}
 
@@ -495,12 +487,6 @@ func main() {
 		os.Exit(1)
 	}
 
-	clientService, err := services.NewClientService(logger, clientService)
-	if err != nil {
-		logger.Error("failed to create client for the feature flags client service", "err", err)
-		os.Exit(1)
-	}
-
 	// Setup service and middleware
 	service := proxyservice.NewService(proxyservice.Config{
 		Logger:           log.NewContextualLogger(logger, log.ExtractRequestValuesFromContext),
@@ -547,9 +533,27 @@ func main() {
 				defer ticker.Stop()
 
 				logger.Info(fmt.Sprintf("polling for new targets every %d seconds", targetPollDuration))
-				for targetConfig := range remoteConfig.PollTargets(ctx, ticker.C) {
-					for key, values := range targetConfig {
-						tr.DeltaAdd(ctx, key, values...)
+
+				for {
+					select {
+					case <-ctx.Done():
+						logger.Info("stopping poll targets ticker")
+						return
+					case <-ticker.C:
+						// poll for all targets for each configured environment
+						pollTargetConfig := make(map[domain.TargetKey][]domain.Target)
+						for _, env := range remoteConfig.EnvInfo() {
+							targets, err := config.GetTargets(ctx, accountIdentifier, orgIdentifier, env.ProjectIdentifier, env.EnvironmentIdentifier, adminService)
+							if err != nil {
+								logger.Error("failed to poll targets for environment %s: %s", env.EnvironmentID, err)
+							}
+							targetKey := domain.NewTargetKey(env.EnvironmentID)
+							pollTargetConfig[targetKey] = targets
+						}
+
+						for key, values := range pollTargetConfig {
+							tr.DeltaAdd(ctx, key, values...)
+						}
 					}
 				}
 			}()
