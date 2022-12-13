@@ -5,6 +5,14 @@ You can optionally configure the Relay Proxy to store flag data in redis. See [c
 The Relay Proxy does not currently support clustered Redis or Redis Sentinel.
 
 
+
+## FAQs
+### Can the Relay Proxy be connected to an Elasticache redis instance?
+Yes. Relay Proxy can connect to Elasticache redis instances as long as cluster mode is disabled. 
+
+### Can I connect to Redis instances which have TLS enabled?
+Yes. To connect to a redis instance which has TLS enabled you just need to prepend the REDIS_ADDRESS location with `rediss://` e.g. `rediss://localhost:6379`.
+
 ### What happens if network connection is lost?
 If connection is lost to Harness servers the Relay Proxy will continue to serve the cached values to connected sdks.
 

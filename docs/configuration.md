@@ -35,9 +35,11 @@ Config required to connect to redis. Note only `REDIS_ADDRESS` is required to co
 
 | Environment Variable | Flag           | Description                                                        | Type   | Default |
 |----------------------|----------------|--------------------------------------------------------------------|--------|---------|
-| REDIS_ADDRESS        | redis-address  | Redis host:port address.                                           | string |         |
+| REDIS_ADDRESS        | redis-address  | Redis host:port address. See below for info on connecting via TLS  | string |         |
 | REDIS_PASSWORD       | redis-db       | (Optional) Database to be selected after connecting to the server. | string |         |
 | REDIS_DB             | redis-password | (Optional) Redis password.                                         | int    | 0       |
+
+**Connecting to Redis via TLS:** To connect to a redis instance which has TLS enabled you should prepend `rediss://` to the beginning of your REDIS_ADDRESS url e.g. `rediss://localhost:6379` 
 
 ### Debug
 Enable debug logging.
