@@ -110,7 +110,7 @@ func (r *RedisCache) Remove(ctx context.Context, key string, field string) {
 func (r *RedisCache) HealthCheck(ctx context.Context) error {
 	res := r.client.Ping(ctx)
 	if res.Err() != nil {
-		return fmt.Errorf("redis failed to respond")
+		return fmt.Errorf("redis failed to respond err: %s", res.Err())
 	}
 	return nil
 }

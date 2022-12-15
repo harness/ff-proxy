@@ -339,14 +339,32 @@ func main() {
 	// if we're just generating the offline config we should only use in memory mode for now
 	// when we move to a pattern of allowing periodic config dumps to disk we can remove this requirement
 	if redisAddress != "" && !generateOfflineConfig {
-		client := redis.NewClient(&redis.Options{
-			Addr:     redisAddress,
-			Password: redisPassword,
-			DB:       redisDB,
-		})
+		// if address does not start with redis:// or rediss:// then default to redis://
+		// if the connection string starts with rediss:// it means we'll connect with TLS enabled
+		redisConnectionString := redisAddress
+		if !strings.HasPrefix(redisAddress, "redis://") && !strings.HasPrefix(redisAddress, "rediss://") {
+			redisConnectionString = fmt.Sprintf("redis://%s", redisAddress)
+		}
+		parsed, err := redis.ParseURL(redisConnectionString)
+		if err != nil {
+			logger.Error("failed to parse redis address url", "connection string", redisConnectionString, "err", err)
+			os.Exit(1)
+		}
+		// TODO - going forward we can open up support for more of these query param connection string options e.g. max_retries etc
+		// we would first need to test the impact that these would have if unset vs current defaults
+		opts := redis.UniversalOptions{}
+		opts.DB = parsed.DB
+		opts.Addrs = []string{parsed.Addr}
+		opts.Username = parsed.Username
+		opts.Password = parsed.Password
+		opts.TLSConfig = parsed.TLSConfig
+		if redisPassword != "" {
+			opts.Password = redisPassword
+		}
+		client := redis.NewUniversalClient(&opts)
 		logger.Info("connecting to redis", "address", redisAddress)
 		sdkCache = cache.NewRedisCache(client)
-		err := sdkCache.HealthCheck(ctx)
+		err = sdkCache.HealthCheck(ctx)
 		if err != nil {
 			logger.Error("failed to connect to redis", "err", err)
 			os.Exit(1)

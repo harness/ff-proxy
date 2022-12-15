@@ -15,9 +15,13 @@ The response will look something like this:
 
 `{"cache":"healthy","env-0000-0000-0000-0000-0000":"healthy", "env-0000-0000-0000-0000-0002":"healthy"}`
 
+If you've configured a custom port using the PORT environment variable your healthcheck should point at that port instead e.g. for port 10000 it would be set to:
+
+`curl https://localhost:10000/health`
+
 If using a Redis cache the cache healthcheck will verify that we could successfully ping the Redis client.
 
-You will have a health entry for each environment you've configured the Relay Proxy with. This will display if your streaming connection for these environments is healthy. You can find which friendly environment identifier this UUID maps to by checking your proxy startup logs. 
+You will have a health entry for each environment you've configured the Relay Proxy with. This will display if your streaming connection for these environments is healthy. You can find which friendly environment identifier this UUID maps to by checking your proxy startup logs.
 
 
 ### Sample CURL Requests
