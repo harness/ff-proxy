@@ -94,11 +94,11 @@ You may need to adjust these if you pass all your traffic through a filter or pr
 
 | Environment Variable | Flag           | Description                                 | Type   | Default                              |
 |----------------------|----------------|---------------------------------------------|--------|--------------------------------------|
-| ADMIN_SERVICE        | admin-service  | URL of the ff admin service                 | string | https://harness.io/gateway/cf        |
-| CLIENT_SERVICE       | client-service | URL of the ff client service                | string | https://config.ff.harness.io/        |
+| ADMIN_SERVICE        | admin-service  | URL of the ff admin service                 | string | https://app.harness.io/gateway/cf    |
+| CLIENT_SERVICE       | client-service | URL of the ff client service                | string | https://config.ff.harness.io/api/1.0 |
 | METRIC_SERVICE       | metric-service | URL of the ff metric service                | string | https://events.ff.harness.io/api/1.0 |
-| SDK_BASE_URL         | sdk-base-url   | URL for the embedded SDK to connect to      | string | https://config.ff.harness.io/        |
-| SDK_EVENTS_URL       | sdk-events-url | URL for the embedded SDK to send metrics to | string | https://events.ff.harness.io/        |
+| SDK_BASE_URL         | sdk-base-url   | URL for the embedded SDK to connect to      | string | https://config.ff.harness.io/api/1.0 |
+| SDK_EVENTS_URL       | sdk-events-url | URL for the embedded SDK to send metrics to | string | https://events.ff.harness.io/api/1.0 |
 
 ### Auth
 | Environment Variable | Flag        | Description                                                                  | Type    | Default |
