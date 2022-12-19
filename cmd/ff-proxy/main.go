@@ -597,7 +597,7 @@ func main() {
 							clusterIdentifier = client.GetClusterIdentifier()
 							break
 						}
-						logger.Info("sending metrics")
+						logger.Debug("sending metrics")
 						metricService.SendMetrics(ctx, clusterIdentifier)
 					}
 				}
