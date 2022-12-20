@@ -196,7 +196,7 @@ func init() {
 	flag.Var(&apiKeys, apiKeysFlag, "API keys to connect with ff-server for each environment")
 	flag.IntVar(&targetPollDuration, targetPollDurationFlag, 60, "How often in seconds the proxy polls feature flags for Target changes. Set to 0 to disable.")
 	flag.IntVar(&metricPostDuration, metricPostDurationFlag, 60, "How often in seconds the proxy posts metrics to Harness. Set to 0 to disable.")
-	flag.IntVar(&heartbeatInterval, heartbeatIntervalFlag, 60, "How often in seconds the proxy polls pings it's health function")
+	flag.IntVar(&heartbeatInterval, heartbeatIntervalFlag, 60, "How often in seconds the proxy polls pings it's health function. Set to 0 to disable.")
 	flag.BoolVar(&pprofEnabled, pprofEnabledFlag, false, "enables pprof on port 6060")
 	flag.IntVar(&flagPollInterval, flagPollIntervalFlag, 60, "how often in seconds the proxy should poll for flag updates (if stream not connected)")
 	flag.BoolVar(&flagStreamEnabled, flagStreamEnabledFlag, true, "should the proxy connect to Harness in streaming mode to get flag changes")
@@ -534,7 +534,7 @@ func main() {
 
 	go func() {
 		<-ctx.Done()
-		logger.Info("recevied interrupt, shutting down server...")
+		logger.Info("received interrupt, shutting down server...")
 
 		if err := server.Shutdown(ctx); err != nil {
 			logger.Error("server error'd during shutdown", "err", err)
@@ -607,16 +607,18 @@ func main() {
 		}
 	}
 
-	go func() {
-		ticker := time.NewTicker(time.Duration(heartbeatInterval) * time.Second)
-		logger.Info(fmt.Sprintf("polling heartbeat every %d seconds", heartbeatInterval))
-		protocol := "http"
-		if tlsEnabled {
-			protocol = "https"
-		}
+	if heartbeatInterval != 0 {
+		go func() {
+			ticker := time.NewTicker(time.Duration(heartbeatInterval) * time.Second)
+			logger.Info(fmt.Sprintf("polling heartbeat every %d seconds", heartbeatInterval))
+			protocol := "http"
+			if tlsEnabled {
+				protocol = "https"
+			}
 
-		heartbeat(ctx, ticker.C, fmt.Sprintf("%s://localhost:%d", protocol, port), logger)
-	}()
+			heartbeat(ctx, ticker.C, fmt.Sprintf("%s://localhost:%d", protocol, port), logger)
+		}()
+	}
 
 	if err := server.Serve(); err != nil {
 		logger.Error("server stopped", "err", err)

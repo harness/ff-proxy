@@ -80,7 +80,7 @@ Adjust how often certain actions are performed.
 |----------------------|----------------------|---------------------------------------------------------------------------------------------|------|---------|
 | TARGET_POLL_DURATION | target-poll-duration | How often in seconds the proxy polls feature flags for Target changes. Set to 0 to disable. | int  | 60      |
 | METRIC_POST_DURATION | metric-post-duration | How often in seconds the proxy posts metrics to Harness. Set to 0 to disable.               | int  | 60      |
-| HEARTBEAT_INTERVAL   | heartbeat-interval   | How often in seconds the proxy polls pings it's health function                             | int  | 60      |
+| HEARTBEAT_INTERVAL   | heartbeat-interval   | How often in seconds the proxy polls pings it's health function. Set to 0 to disable.       | int  | 60      |
 
 ### TLS
 | Environment Variable | Flag        | Description                                                                 | Type   | Default |
