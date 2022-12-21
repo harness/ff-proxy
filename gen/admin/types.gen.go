@@ -1997,6 +1997,9 @@ type GetFeatureFlagParams struct {
 
 	// Environment
 	EnvironmentIdentifier *EnvironmentOptionalQueryParam `form:"environmentIdentifier,omitempty" json:"environmentIdentifier,omitempty"`
+
+	// Parameter to indicate if metrics data is requested in response
+	Metrics *MetricsOptionalParam `form:"metrics,omitempty" json:"metrics,omitempty"`
 }
 
 // PatchFeatureParams defines parameters for PatchFeature.

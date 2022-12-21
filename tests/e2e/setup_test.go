@@ -74,6 +74,15 @@ func IsOnline() bool {
 	return online
 }
 
+// RunMetricsTests ...
+func RunMetricsTests() bool {
+	runMetricsTests, err := strconv.ParseBool(os.Getenv("RUN_METRICS_TESTS"))
+	if err != nil {
+		log.Warn("Couldn't parse RUN_METRICS_TESTS environment variable as bool")
+	}
+	return runMetricsTests
+}
+
 // GetRemoteURL ...
 func GetRemoteURL() string {
 	return os.Getenv("REMOTE_URL")
