@@ -17,7 +17,7 @@ var errNotFound = errors.New("errNotFound")
 type mockService struct {
 	clientgen.ClientWithResponsesInterface
 	authWithResp        func() error
-	postMetricsWithResp func() error
+	postMetricsWithResp func(environment string) (*clientgen.PostMetricsResponse, error)
 }
 
 func (m mockService) AuthenticateWithResponse(ctx context.Context, req clientgen.AuthenticateJSONRequestBody, fns ...clientgen.RequestEditorFn) (*clientgen.AuthenticateResponse, error) {

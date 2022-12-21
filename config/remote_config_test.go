@@ -64,6 +64,7 @@ var (
 		HashedAPIKeys:     []string{defaultAPIKey},
 		APIKey:            validKey,
 		Targets:           []domain.Target{{target1}},
+		Token:             validJWT,
 	}
 
 	target1 = admin.Target{
@@ -108,6 +109,7 @@ func TestRemoteConfig_NewRemoteConfig(t *testing.T) {
 		projEnvInfo       map[string]EnvironmentDetails
 		authConfig        map[domain.AuthAPIKey]string
 		targetConfig      map[domain.TargetKey][]domain.Target
+		tokens            map[string]string
 	}
 
 	testCases := map[string]struct {
@@ -130,6 +132,7 @@ func TestRemoteConfig_NewRemoteConfig(t *testing.T) {
 				projEnvInfo:       map[string]EnvironmentDetails{},
 				authConfig:        map[domain.AuthAPIKey]string{},
 				targetConfig:      map[domain.TargetKey][]domain.Target{},
+				tokens:            map[string]string{},
 			},
 		},
 		"NewRemoteConfig returns valid data for one key": {
@@ -147,6 +150,7 @@ func TestRemoteConfig_NewRemoteConfig(t *testing.T) {
 				projEnvInfo:       map[string]EnvironmentDetails{defaultEnvironmentID: defaultEnvDetails},
 				authConfig:        map[domain.AuthAPIKey]string{defaultAPIKey: defaultEnvironmentID},
 				targetConfig:      map[domain.TargetKey][]domain.Target{"env-0000-0000-0000-0000-0000-target-config": {{target1}}},
+				tokens:            map[string]string{defaultEnvironmentID: validJWT},
 			},
 		},
 		"NewRemoteConfig returns one set of data if given two keys for same environment": {
@@ -164,6 +168,7 @@ func TestRemoteConfig_NewRemoteConfig(t *testing.T) {
 				projEnvInfo:       map[string]EnvironmentDetails{defaultEnvironmentID: defaultEnvDetails},
 				authConfig:        map[domain.AuthAPIKey]string{defaultAPIKey: defaultEnvironmentID},
 				targetConfig:      map[domain.TargetKey][]domain.Target{"env-0000-0000-0000-0000-0000-target-config": {{target1}}},
+				tokens:            map[string]string{defaultEnvironmentID: validJWT},
 			},
 		},
 		"NewRemoteConfig returns one set of data if one key fails": {
@@ -186,6 +191,7 @@ func TestRemoteConfig_NewRemoteConfig(t *testing.T) {
 				projEnvInfo:       map[string]EnvironmentDetails{defaultEnvironmentID: defaultEnvDetails},
 				authConfig:        map[domain.AuthAPIKey]string{defaultAPIKey: defaultEnvironmentID},
 				targetConfig:      map[domain.TargetKey][]domain.Target{"env-0000-0000-0000-0000-0000-target-config": {{target1}}},
+				tokens:            map[string]string{defaultEnvironmentID: validJWT},
 			},
 		},
 		"NewRemoteConfig returns data for multiple envs": {
@@ -226,10 +232,12 @@ func TestRemoteConfig_NewRemoteConfig(t *testing.T) {
 					ProjectIdentifier:     "project2",
 					HashedAPIKeys:         []string{"key2"},
 					APIKey:                validKeyEnv2,
+					Token:                 "header.eyJlbnZpcm9ubWVudCI6IjExMTEtMTExMS0xMTExLTExMTEtMTExMSIsImVudmlyb25tZW50SWRlbnRpZmllciI6ImVudjIiLCJwcm9qZWN0SWRlbnRpZmllciI6InByb2plY3QyIiwiY2x1c3RlcklkZW50aWZpZXIiOiIyIn0.signature",
 					Targets:               []domain.Target{{target1}},
 				}},
 				authConfig:   map[domain.AuthAPIKey]string{defaultAPIKey: defaultEnvironmentID, "key2": "1111-1111-1111-1111-1111"},
 				targetConfig: map[domain.TargetKey][]domain.Target{"env-0000-0000-0000-0000-0000-target-config": {{target1}}, "env-1111-1111-1111-1111-1111-target-config": {{target1}}},
+				tokens:       map[string]string{defaultEnvironmentID: validJWT, "1111-1111-1111-1111-1111": "header.eyJlbnZpcm9ubWVudCI6IjExMTEtMTExMS0xMTExLTExMTEtMTExMSIsImVudmlyb25tZW50SWRlbnRpZmllciI6ImVudjIiLCJwcm9qZWN0SWRlbnRpZmllciI6InByb2plY3QyIiwiY2x1c3RlcklkZW50aWZpZXIiOiIyIn0.signature"},
 			},
 		},
 	}
@@ -251,6 +259,7 @@ func TestRemoteConfig_NewRemoteConfig(t *testing.T) {
 			// check AuthConfig and TargetConfig produced
 			assert.Equal(t, tc.expected.authConfig, actual.AuthConfig())
 			assert.Equal(t, tc.expected.targetConfig, actual.TargetConfig())
+			assert.Equal(t, tc.expected.tokens, actual.Tokens())
 		})
 	}
 }
@@ -265,6 +274,7 @@ func TestRemoteConfig_getEnvironmentInfo(t *testing.T) {
 		projectIdentifier     string
 		environmentIdentifier string
 		environmentID         string
+		token                 string
 		err                   error
 	}
 
@@ -283,6 +293,7 @@ func TestRemoteConfig_getEnvironmentInfo(t *testing.T) {
 				projectIdentifier:     "",
 				environmentIdentifier: "",
 				environmentID:         "",
+				token:                 "",
 				err:                   fmt.Errorf("error sending client authentication request: request failed"),
 			},
 		},
@@ -298,6 +309,7 @@ func TestRemoteConfig_getEnvironmentInfo(t *testing.T) {
 				projectIdentifier:     "",
 				environmentIdentifier: "",
 				environmentID:         "",
+				token:                 "",
 				err:                   fmt.Errorf("invalid jwt received %s", ""),
 			},
 		},
@@ -313,6 +325,7 @@ func TestRemoteConfig_getEnvironmentInfo(t *testing.T) {
 				projectIdentifier:     "",
 				environmentIdentifier: "",
 				environmentID:         "",
+				token:                 "",
 				err:                   fmt.Errorf("failed to parse token claims for key valid_key: illegal base64 data at input byte 9"),
 			},
 		},
@@ -328,6 +341,7 @@ func TestRemoteConfig_getEnvironmentInfo(t *testing.T) {
 				projectIdentifier:     "",
 				environmentIdentifier: "",
 				environmentID:         "",
+				token:                 "",
 				err:                   fmt.Errorf("failed to unmarshal token claims for key valid_key: invalid character 'e' in literal true (expecting 'r')"),
 			},
 		},
@@ -343,6 +357,7 @@ func TestRemoteConfig_getEnvironmentInfo(t *testing.T) {
 				projectIdentifier:     "",
 				environmentIdentifier: "",
 				environmentID:         "",
+				token:                 "",
 				err:                   fmt.Errorf("environment identifier not present in bearer token"),
 			},
 		},
@@ -358,6 +373,7 @@ func TestRemoteConfig_getEnvironmentInfo(t *testing.T) {
 				projectIdentifier:     "",
 				environmentIdentifier: "",
 				environmentID:         "",
+				token:                 "",
 				err:                   fmt.Errorf("environment id not present in bearer token"),
 			},
 		},
@@ -373,6 +389,7 @@ func TestRemoteConfig_getEnvironmentInfo(t *testing.T) {
 				projectIdentifier:     "",
 				environmentIdentifier: "",
 				environmentID:         "",
+				token:                 "",
 				err:                   fmt.Errorf("project identifier not present in bearer token"),
 			},
 		},
@@ -386,6 +403,7 @@ func TestRemoteConfig_getEnvironmentInfo(t *testing.T) {
 				projectIdentifier:     project,
 				environmentIdentifier: environmentIdentifier,
 				environmentID:         defaultEnvironmentID,
+				token:                 validJWT,
 				err:                   nil,
 			},
 		},
@@ -394,7 +412,7 @@ func TestRemoteConfig_getEnvironmentInfo(t *testing.T) {
 	for desc, tc := range testCases {
 		tc := tc
 		t.Run(desc, func(t *testing.T) {
-			projectIdentifier, environmentIdentifier, environmentID, err := getEnvironmentInfo(context.Background(), tc.input.apiKey, tc.input.clientService)
+			projectIdentifier, environmentIdentifier, environmentID, token, err := getEnvironmentInfo(context.Background(), tc.input.apiKey, tc.input.clientService)
 
 			if (err != nil) != tc.shouldErr {
 				t.Errorf("(%s): error = %v, shouldErr = %v", desc, err, tc.shouldErr)
@@ -405,6 +423,7 @@ func TestRemoteConfig_getEnvironmentInfo(t *testing.T) {
 			assert.Equal(t, tc.expected.projectIdentifier, projectIdentifier)
 			assert.Equal(t, tc.expected.environmentIdentifier, environmentIdentifier)
 			assert.Equal(t, tc.expected.environmentID, environmentID)
+			assert.Equal(t, tc.expected.token, token)
 		})
 	}
 }
@@ -721,6 +740,7 @@ func TestRemoteConfig_getConfigForKey(t *testing.T) {
 					ProjectIdentifier:     project,
 					HashedAPIKeys:         []string{defaultAPIKey},
 					APIKey:                validKey,
+					Token:                 validJWT,
 					Targets:               []domain.Target(nil),
 				},
 				err: nil,

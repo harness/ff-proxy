@@ -71,6 +71,15 @@ func (r RemoteConfig) AuthConfig() map[domain.AuthAPIKey]string {
 	return authConfig
 }
 
+// Tokens returns the map of environment ids to auth tokens that was retrieved from the Feature Flags Service
+func (r RemoteConfig) Tokens() map[string]string {
+	tokens := make(map[string]string)
+	for _, env := range r.projEnvInfo {
+		tokens[env.EnvironmentID] = env.Token
+	}
+	return tokens
+}
+
 // EnvInfo returns the EnvironmentDetails that was retrieved from the Feature Flags Service
 func (r RemoteConfig) EnvInfo() map[string]EnvironmentDetails {
 	return r.projEnvInfo
@@ -125,12 +134,13 @@ type EnvironmentDetails struct {
 	ProjectIdentifier     string
 	HashedAPIKeys         []string
 	APIKey                string
+	Token                 string
 	Targets               []domain.Target
 }
 
 func (r RemoteConfig) getConfigForKey(ctx context.Context, apiKey string) (EnvironmentDetails, error) {
 	// authenticate key and get env/project identifiers
-	projectIdentifier, environmentIdentifier, environmentID, err := getEnvironmentInfo(ctx, apiKey, r.clientService)
+	projectIdentifier, environmentIdentifier, environmentID, token, err := getEnvironmentInfo(ctx, apiKey, r.clientService)
 	if err != nil {
 		return EnvironmentDetails{}, fmt.Errorf("failed to fetch environment details for key %s: %s", apiKey, err)
 	}
@@ -139,6 +149,7 @@ func (r RemoteConfig) getConfigForKey(ctx context.Context, apiKey string) (Envir
 		EnvironmentID:         environmentID,
 		ProjectIdentifier:     projectIdentifier,
 		APIKey:                apiKey,
+		Token:                 token,
 		HashedAPIKeys:         nil,
 		Targets:               nil,
 	}
@@ -226,45 +237,45 @@ func getAPIKeys(ctx context.Context, accountIdentifier, orgIdentifier, projectId
 }
 
 // getEnvironmentInfo authenticates an api key and retrieves the project identifier, environment identifier and environment ID from it
-func getEnvironmentInfo(ctx context.Context, apiKey string, clientService clientService) (projectIdentifier, environmentIdentifier, environmentID string, err error) {
+func getEnvironmentInfo(ctx context.Context, apiKey string, clientService clientService) (projectIdentifier, environmentIdentifier, environmentID, token string, err error) {
 	// get bearer token
 	result, err := clientService.Authenticate(ctx, apiKey, domain.Target{})
 	if err != nil {
-		return "", "", "", fmt.Errorf("error sending client authentication request: %s", err)
+		return "", "", "", "", fmt.Errorf("error sending client authentication request: %s", err)
 	}
 
 	// get payload data
 	payloadIndex := 1
 	if len(strings.Split(result, ".")) < 2 {
-		return "", "", "", fmt.Errorf("invalid jwt received %s", result)
+		return "", "", "", "", fmt.Errorf("invalid jwt received %s", result)
 	}
 	payload := strings.Split(result, ".")[payloadIndex]
 	payloadData, err := jwt.DecodeSegment(payload)
 	if err != nil {
-		return "", "", "", fmt.Errorf("failed to parse token claims for key %s: %s", apiKey, err)
+		return "", "", "", "", fmt.Errorf("failed to parse token claims for key %s: %s", apiKey, err)
 	}
 
 	// extract projectIdentifier, environmentIdentifier, environmentID from token claims
 	var claims map[string]interface{}
 	if err = json.Unmarshal(payloadData, &claims); err != nil {
-		return "", "", "", fmt.Errorf("failed to unmarshal token claims for key %s: %s", apiKey, err)
+		return "", "", "", "", fmt.Errorf("failed to unmarshal token claims for key %s: %s", apiKey, err)
 	}
 
 	var ok bool
 	environmentIdentifier, ok = claims["environmentIdentifier"].(string)
 	if !ok {
-		return "", "", "", fmt.Errorf("environment identifier not present in bearer token")
+		return "", "", "", "", fmt.Errorf("environment identifier not present in bearer token")
 	}
 
 	environmentID, ok = claims["environment"].(string)
 	if !ok {
-		return "", "", "", fmt.Errorf("environment id not present in bearer token")
+		return "", "", "", "", fmt.Errorf("environment id not present in bearer token")
 	}
 
 	projectIdentifier, ok = claims["projectIdentifier"].(string)
 	if !ok {
-		return "", "", "", fmt.Errorf("project identifier not present in bearer token")
+		return "", "", "", "", fmt.Errorf("project identifier not present in bearer token")
 	}
 
-	return projectIdentifier, environmentIdentifier, environmentID, nil
+	return projectIdentifier, environmentIdentifier, environmentID, result, nil
 }

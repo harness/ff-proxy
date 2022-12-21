@@ -499,7 +499,7 @@ func main() {
 	featureEvaluator := proxyservice.NewFeatureEvaluator()
 
 	metricsEnabled := metricPostDuration != 0 && !offline
-	metricService, err := services.NewMetricService(logger, metricService, accountIdentifier, adminServiceToken, metricsEnabled)
+	metricService, err := services.NewMetricService(logger, metricService, accountIdentifier, remoteConfig.Tokens(), metricsEnabled)
 	if err != nil {
 		logger.Error("failed to create client for the feature flags metric service", "err", err)
 		os.Exit(1)
