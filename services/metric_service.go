@@ -2,12 +2,17 @@ package services
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"sync"
 
 	"github.com/harness/ff-proxy/domain"
 	clientgen "github.com/harness/ff-proxy/gen/client"
 	"github.com/harness/ff-proxy/log"
+)
+
+const (
+	tokenKey = "token"
 )
 
 // MetricService is a type for interacting with the Feature Flag Metric Service
@@ -17,21 +22,22 @@ type MetricService struct {
 	enabled     bool
 	client      clientgen.ClientWithResponsesInterface
 	metrics     map[string]domain.MetricsRequest
+	tokens      map[string]string
 	metricsLock sync.Mutex
 }
 
 // NewMetricService creates a MetricService
-func NewMetricService(l log.Logger, addr string, accountID string, serviceToken string, enabled bool) (MetricService, error) {
+func NewMetricService(l log.Logger, addr string, accountID string, tokens map[string]string, enabled bool) (MetricService, error) {
 	l = l.With("component", "MetricServiceClient")
 	client, err := clientgen.NewClientWithResponses(
 		addr,
-		clientgen.WithHTTPClient(doer{c: http.DefaultClient, token: serviceToken}),
+		clientgen.WithHTTPClient(doer{c: http.DefaultClient}),
 	)
 	if err != nil {
 		return MetricService{}, err
 	}
 
-	return MetricService{log: l, accountID: accountID, client: client, enabled: enabled, metrics: map[string]domain.MetricsRequest{}, metricsLock: sync.Mutex{}}, nil
+	return MetricService{log: l, accountID: accountID, client: client, enabled: enabled, metrics: map[string]domain.MetricsRequest{}, tokens: tokens, metricsLock: sync.Mutex{}}, nil
 }
 
 // StoreMetrics aggregates and stores metrics
@@ -72,14 +78,18 @@ func (m MetricService) SendMetrics(ctx context.Context, clusterIdentifier string
 	}
 	m.metrics = make(map[string]domain.MetricsRequest)
 	m.metricsLock.Unlock()
-	clusterParam := clientgen.ClusterQueryOptionalParam(clusterIdentifier)
 
 	for envID, metric := range metricsCopy {
-
-		res, err := m.client.PostMetricsWithResponse(ctx, clientgen.EnvironmentPathParam(envID), &clientgen.PostMetricsParams{Cluster: &clusterParam}, clientgen.PostMetricsJSONRequestBody{
+		token, ok := m.tokens[envID]
+		if !ok {
+			m.log.Warn("No token found for environment. Skipping sending metrics for env.", "environment", envID)
+			continue
+		}
+		ctx = context.WithValue(ctx, tokenKey, token)
+		res, err := m.client.PostMetricsWithResponse(ctx, envID, &clientgen.PostMetricsParams{Cluster: &clusterIdentifier}, clientgen.PostMetricsJSONRequestBody{
 			MetricsData: metric.MetricsData,
 			TargetData:  metric.TargetData,
-		}, m.addAccountQueryParam)
+		}, addAuthToken)
 		if err != nil {
 			m.log.Error("sending metrics failed", "error", err)
 		}
@@ -89,9 +99,12 @@ func (m MetricService) SendMetrics(ctx context.Context, clusterIdentifier string
 	}
 }
 
-func (m MetricService) addAccountQueryParam(ctx context.Context, req *http.Request) error {
-	queryParams := req.URL.Query()
-	queryParams.Add("accountIdentifier", m.accountID)
-	req.URL.RawQuery = queryParams.Encode()
+func addAuthToken(ctx context.Context, req *http.Request) error {
+	token := ctx.Value(tokenKey)
+	if token == nil || token == "" {
+		return fmt.Errorf("no auth token exists in context")
+	}
+	req.Header.Add("Authorization", fmt.Sprintf("Bearer %s", token))
+
 	return nil
 }
