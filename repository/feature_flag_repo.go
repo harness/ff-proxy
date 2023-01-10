@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/harness/ff-proxy/gen/client"
+	"github.com/harness/ff-golang-server-sdk/rest"
 
 	"github.com/harness/ff-proxy/cache"
 
@@ -71,7 +71,7 @@ func (f FeatureFlagRepo) Get(ctx context.Context, key domain.FeatureFlagKey) ([]
 		// some sdks e.g. .NET don't cope well with being returned a null VariationToTargetMap so we send back an empty struct here for now
 		// to match ff-server behaviour
 		if featureFlag.VariationToTargetMap == nil {
-			emptyVariationMap := []client.VariationMap{}
+			emptyVariationMap := []rest.VariationMap{}
 			featureFlag.VariationToTargetMap = &emptyVariationMap
 		}
 		featureFlags[idx] = *featureFlag
@@ -89,7 +89,7 @@ func (f FeatureFlagRepo) GetByIdentifier(ctx context.Context, key domain.Feature
 	// some sdks e.g. .NET don't cope well with being returned a null VariationToTargetMap so we send back an empty struct here for now
 	// to match ff-server behaviour
 	if featureFlag.VariationToTargetMap == nil {
-		emptyVariationMap := []client.VariationMap{}
+		emptyVariationMap := []rest.VariationMap{}
 		featureFlag.VariationToTargetMap = &emptyVariationMap
 	}
 	return featureFlag, nil
