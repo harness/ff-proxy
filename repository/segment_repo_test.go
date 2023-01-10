@@ -5,41 +5,38 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/harness/ff-golang-server-sdk/rest"
+
 	"github.com/harness/ff-proxy/cache"
 	"github.com/harness/ff-proxy/domain"
-	clientgen "github.com/harness/ff-proxy/gen/client"
 	"github.com/stretchr/testify/assert"
 )
 
 var (
 	segmentFoo = domain.Segment{
-		Segment: clientgen.Segment{
-			CreatedAt:   int64Ptr(123),
-			Environment: strPtr("featureFlagsQA"),
-			Identifier:  "foo",
-			ModifiedAt:  int64Ptr(456),
-			Name:        "fooSegment",
-			Excluded:    &[]clientgen.Target{},
-			Included:    &[]clientgen.Target{},
-			Rules:       &[]clientgen.Clause{},
-			Tags:        &[]clientgen.Tag{},
-			Version:     int64Ptr(12),
-		},
+		CreatedAt:   int64Ptr(123),
+		Environment: strPtr("featureFlagsQA"),
+		Identifier:  "foo",
+		ModifiedAt:  int64Ptr(456),
+		Name:        "fooSegment",
+		Excluded:    &[]rest.Target{},
+		Included:    &[]rest.Target{},
+		Rules:       &[]rest.Clause{},
+		Tags:        &[]rest.Tag{},
+		Version:     int64Ptr(12),
 	}
 
 	segmentBar = domain.Segment{
-		Segment: clientgen.Segment{
-			CreatedAt:   int64Ptr(123),
-			Environment: strPtr("featureFlagsQA"),
-			Identifier:  "bar",
-			ModifiedAt:  int64Ptr(456),
-			Name:        "barSegment",
-			Excluded:    &[]clientgen.Target{},
-			Included:    &[]clientgen.Target{},
-			Rules:       &[]clientgen.Clause{},
-			Tags:        &[]clientgen.Tag{},
-			Version:     int64Ptr(12),
-		},
+		CreatedAt:   int64Ptr(123),
+		Environment: strPtr("featureFlagsQA"),
+		Identifier:  "bar",
+		ModifiedAt:  int64Ptr(456),
+		Name:        "barSegment",
+		Excluded:    &[]rest.Target{},
+		Included:    &[]rest.Target{},
+		Rules:       &[]rest.Clause{},
+		Tags:        &[]rest.Tag{},
+		Version:     int64Ptr(12),
 	}
 )
 
