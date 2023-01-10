@@ -76,6 +76,8 @@ github.com/google/uuid v1.3.0/go.mod h1:TIyPZe4MgqvfeYDBFedMoGGpEw/LqOeaOT+nhxU+
 github.com/gorilla/mux v1.8.0/go.mod h1:DVbg23sWSpFRCP0SfiEN6jmj59UnW/n46BH5rLB71So=
 github.com/harness/ff-golang-server-sdk v0.1.3 h1:z7bMMlDIIGCZ62EyFz/MPkxe02YUodIbfbrnB9V4uKI=
 github.com/harness/ff-golang-server-sdk v0.1.3/go.mod h1:wVdWTn+0nPjHf25cvyJ03UnSFKTId2JGUdVIliD/VnU=
+github.com/harness/ff-golang-server-sdk v0.1.5 h1:oBExNBrZoZgkBeRPNdrx2Ig21ZgYlwI5ygXTARrWWLg=
+github.com/harness/ff-golang-server-sdk v0.1.5/go.mod h1:wVdWTn+0nPjHf25cvyJ03UnSFKTId2JGUdVIliD/VnU=
 github.com/hashicorp/errwrap v1.0.0 h1:hLrqtEDnRye3+sgx6z4qVLNuviH3MR5aQ0ykNJa/UYA=
 github.com/hashicorp/errwrap v1.0.0/go.mod h1:YH+1FKiLXxHSkmPseP+kNlulaMuP3n2brvKWEqk/Jc4=
 github.com/hashicorp/go-cleanhttp v0.5.1/go.mod h1:JpRdi6/HCYpAwUzNwuwqhbovhLtngrth3wmdIIUrZ80=

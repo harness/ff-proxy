@@ -235,7 +235,6 @@ func setupHTTPServer(t *testing.T, bypassAuth bool, opts ...setupOpts) *HTTPServ
 		CacheHealthFn:    setupConfig.cacheHealthFn,
 		EnvHealthFn:      setupConfig.envHealthFn,
 		AuthFn:           tokenSource.GenerateToken,
-		Evaluator:        proxyservice.NewFeatureEvaluator(),
 		ClientService:    setupConfig.clientService,
 		MetricService:    setupConfig.metricService,
 		Offline:          false,
