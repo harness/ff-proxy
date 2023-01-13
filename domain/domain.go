@@ -4,9 +4,10 @@ import (
 	"encoding/json"
 	"fmt"
 
+	"github.com/harness/ff-golang-server-sdk/rest"
+
 	"github.com/golang-jwt/jwt/v4"
 	admingen "github.com/harness/ff-proxy/gen/admin"
-	clientgen "github.com/harness/ff-proxy/gen/client"
 )
 
 // FeatureFlagKey is the key that maps to a FeatureConfig
@@ -18,9 +19,7 @@ func NewFeatureConfigKey(envID string) FeatureFlagKey {
 }
 
 // FeatureFlag stores feature flag data
-type FeatureFlag struct {
-	clientgen.FeatureConfig
-}
+type FeatureFlag rest.FeatureConfig
 
 // FeatureConfig is the type containing FeatureConfig information and is what
 // we return from /GET client/env/<env>/feature-configs
@@ -73,10 +72,8 @@ func NewSegmentKey(envID string) SegmentKey {
 	return SegmentKey(fmt.Sprintf("env-%s-segment", envID))
 }
 
-// Segment is a clientgen.Segment that we can declare methods on
-type Segment struct {
-	clientgen.Segment
-}
+// Segment is a rest.Segment that we can declare methods on
+type Segment rest.Segment
 
 // MarshalBinary marshals a Segment to bytes. Currently it uses json marshaling
 // but if we want to optimise storage space we could use something more efficient

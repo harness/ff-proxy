@@ -2,10 +2,15 @@ package proxyservice
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"reflect"
 	"time"
+
+	"github.com/harness/ff-golang-server-sdk/evaluation"
+	"github.com/harness/ff-golang-server-sdk/logger"
+	"github.com/harness/ff-golang-server-sdk/rest"
 
 	"github.com/harness/ff-proxy/domain"
 	clientgen "github.com/harness/ff-proxy/gen/client"
@@ -98,7 +103,6 @@ type Config struct {
 	CacheHealthFn    CacheHealthFn
 	EnvHealthFn      EnvHealthFn
 	AuthFn           authTokenFn
-	Evaluator        evaluator
 	ClientService    clientService
 	MetricService    metricService
 	Offline          bool
@@ -116,7 +120,6 @@ type Service struct {
 	cacheHealthFn    CacheHealthFn
 	envHealthFn      EnvHealthFn
 	authFn           authTokenFn
-	evaluator        evaluator
 	clientService    clientService
 	metricService    metricService
 	offline          bool
@@ -136,7 +139,6 @@ func NewService(c Config) Service {
 		cacheHealthFn:    c.CacheHealthFn,
 		envHealthFn:      c.EnvHealthFn,
 		authFn:           c.AuthFn,
-		evaluator:        c.Evaluator,
 		clientService:    c.ClientService,
 		metricService:    c.MetricService,
 		offline:          c.Offline,
@@ -298,43 +300,15 @@ func (s Service) TargetSegmentsByIdentifier(ctx context.Context, req domain.Targ
 	return segment, nil
 }
 
-// Evaluations gets all of the evaluations in an environment for a target
+// Evaluations gets all the evaluations in an environment for a target
 func (s Service) Evaluations(ctx context.Context, req domain.EvaluationsRequest) ([]clientgen.Evaluation, error) {
 	s.logger = s.logger.With("method", "Evaluations")
 
-	configs := []domain.FeatureConfig{}
-	flagKey := domain.NewFeatureConfigKey(req.EnvironmentID)
+	var evaluations []clientgen.Evaluation
 	targetKey := domain.NewTargetKey(req.EnvironmentID)
-	segmentKey := domain.NewSegmentKey(req.EnvironmentID)
 
-	// fetch flags
-	flags, err := s.featureRepo.Get(ctx, flagKey)
-	if err != nil {
-		if !errors.Is(err, domain.ErrCacheNotFound) {
-			return nil, fmt.Errorf("%w: %s", ErrInternal, err)
-		}
-		s.logger.Debug(ctx, "flags not found in cache: ", "err", err.Error())
-	}
-
-	// fetch segments
-	segments, err := s.segmentRepo.GetAsMap(ctx, segmentKey)
-	if err != nil {
-		if !errors.Is(err, domain.ErrCacheNotFound) {
-			return nil, fmt.Errorf("%w: %s", ErrInternal, err)
-		}
-		s.logger.Debug(ctx, "segments not found in cache: ", "err", err.Error())
-	}
-
-	// build FeatureConfig
-	for _, flag := range flags {
-		configs = append(configs, domain.FeatureConfig{
-			FeatureFlag: flag,
-			Segments:    segments,
-		})
-	}
-
-	// fetch targets
-	target, err := s.targetRepo.GetByIdentifier(ctx, targetKey, req.TargetIdentifier)
+	// fetch target
+	t, err := s.targetRepo.GetByIdentifier(ctx, targetKey, req.TargetIdentifier)
 	if err != nil {
 		if errors.Is(err, domain.ErrCacheNotFound) {
 			s.logger.Error(ctx, "target not found in cache: ", "err", err.Error())
@@ -343,44 +317,39 @@ func (s Service) Evaluations(ctx context.Context, req domain.EvaluationsRequest)
 		s.logger.Error(ctx, "error fetching target: ", "err", err.Error())
 		return []clientgen.Evaluation{}, fmt.Errorf("%w: %s", ErrInternal, err)
 	}
+	target := domain.ConvertTarget(t)
+	query := s.GenerateQueryStore(ctx, req.EnvironmentID)
+	sdkEvaluator, _ := evaluation.NewEvaluator(query, nil, logger.NewNoOpLogger())
 
-	evaluations, err := s.evaluator.Evaluate(target, configs...)
+	flagVariations, err := sdkEvaluator.EvaluateAll(&target)
 	if err != nil {
-		return nil, fmt.Errorf("%w: %s", ErrInternal, err)
+		s.logger.Error(ctx, "ClientAPI.GetEvaluationByIdentifier() failed to perform evaluation", "environment", req.EnvironmentID, "target", target.Identifier, "err", err)
+		return nil, err
+	}
+	//package all into the evaluations
+	for i, fv := range flagVariations {
+
+		kind := string(fv.Kind)
+		eval := clientgen.Evaluation{
+			Flag:       fv.FlagIdentifier,
+			Value:      toString(fv.Variation, kind),
+			Kind:       kind,
+			Identifier: &flagVariations[i].Variation.Identifier,
+		}
+		evaluations = append(evaluations, eval)
 	}
 
 	return evaluations, nil
 }
 
-// EvaluationsByFeature gets all of the evaluations in an environment for a target for a particular feature
+// EvaluationsByFeature gets all the evaluations in an environment for a target for a particular feature
 func (s Service) EvaluationsByFeature(ctx context.Context, req domain.EvaluationsByFeatureRequest) (clientgen.Evaluation, error) {
 	s.logger = s.logger.With("method", "EvaluationsByFeature")
 
-	featureKey := domain.NewFeatureConfigKey(req.EnvironmentID)
-	segmentKey := domain.NewSegmentKey(req.EnvironmentID)
 	targetKey := domain.NewTargetKey(req.EnvironmentID)
 
-	// fetch feature
-	flag, err := s.featureRepo.GetByIdentifier(ctx, featureKey, req.FeatureIdentifier)
-	if err != nil {
-		if errors.Is(err, domain.ErrCacheNotFound) {
-			return clientgen.Evaluation{}, ErrNotFound
-		}
-		return clientgen.Evaluation{}, ErrInternal
-	}
-
-	// fetch segments
-	segments, err := s.segmentRepo.GetAsMap(ctx, segmentKey)
-	if err != nil {
-		if !errors.Is(err, domain.ErrCacheNotFound) {
-			return clientgen.Evaluation{}, fmt.Errorf("%w: %s", ErrInternal, err)
-		}
-		// segments aren't required so just log and continue here
-		s.logger.Debug(ctx, "target segments not found in cache: ", "err", err.Error())
-	}
-
 	// fetch target
-	target, err := s.targetRepo.GetByIdentifier(ctx, targetKey, req.TargetIdentifier)
+	t, err := s.targetRepo.GetByIdentifier(ctx, targetKey, req.TargetIdentifier)
 	if err != nil {
 		if errors.Is(err, domain.ErrCacheNotFound) {
 			s.logger.Error(ctx, "target not found in cache: ", "err", err.Error())
@@ -389,25 +358,23 @@ func (s Service) EvaluationsByFeature(ctx context.Context, req domain.Evaluation
 		s.logger.Error(ctx, "error fetching target: ", "err", err.Error())
 		return clientgen.Evaluation{}, fmt.Errorf("%w: %s", ErrInternal, err)
 	}
+	target := domain.ConvertTarget(t)
 
-	// build FeatureConfig
-	config := domain.FeatureConfig{
-		FeatureFlag: flag,
-		Segments:    segments,
-	}
+	query := s.GenerateQueryStore(ctx, req.EnvironmentID)
 
-	evaluations, err := s.evaluator.Evaluate(target, config)
+	sdkEvaluator, _ := evaluation.NewEvaluator(query, nil, logger.NewNoOpLogger())
+	flagVariation, err := sdkEvaluator.Evaluate(req.FeatureIdentifier, &target)
 	if err != nil {
-		return clientgen.Evaluation{}, fmt.Errorf("%w: %s", ErrInternal, err)
+		s.logger.Error(ctx, "ClientAPI.GetEvaluationByIdentifier() failed to perform evaluation", "environment", req.EnvironmentID, "feature", req.FeatureIdentifier, "target", target.Identifier, "err", err)
+		return clientgen.Evaluation{}, err
 	}
 
-	// This shouldn't happen
-	if len(evaluations) != 1 {
-		s.logger.Error(ctx, "evaluations should only have a length of one")
-		return clientgen.Evaluation{}, ErrInternal
-	}
-
-	return evaluations[0], nil
+	return clientgen.Evaluation{
+		Flag:       flagVariation.FlagIdentifier,
+		Value:      toString(flagVariation.Variation, string(flagVariation.Kind)),
+		Kind:       string(flagVariation.Kind),
+		Identifier: &flagVariation.Variation.Identifier,
+	}, nil
 }
 
 // Stream does a lookup for the environmentID for the APIKey in the StreamRequest
@@ -465,4 +432,17 @@ func boolToHealthString(healthy bool) string {
 		return "unhealthy"
 	}
 	return "healthy"
+}
+
+func toString(variation rest.Variation, kind string) string {
+	value := fmt.Sprintf("%v", variation.Value)
+	if kind == "json" {
+		data, err := json.Marshal(variation.Value)
+		if err != nil {
+			value = "{}"
+		} else {
+			value = string(data)
+		}
+	}
+	return value
 }

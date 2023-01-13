@@ -4,9 +4,9 @@ import (
 	"embed"
 	"testing"
 
+	"github.com/harness/ff-golang-server-sdk/rest"
 	"github.com/harness/ff-proxy/domain"
 	admingen "github.com/harness/ff-proxy/gen/admin"
-	clientgen "github.com/harness/ff-proxy/gen/client"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -29,120 +29,114 @@ func boolPtr(b bool) *bool { return &b }
 
 var (
 	harnessAppDemoDarkModeConfig = domain.FeatureFlag{
-		FeatureConfig: clientgen.FeatureConfig{
-			DefaultServe: clientgen.Serve{
-				Variation: strPtr("true"),
-			},
-			Environment:   "featureflagsqa",
-			Feature:       "harnessappdemodarkmode",
-			Kind:          "boolean",
-			OffVariation:  "false",
-			Prerequisites: &[]clientgen.Prerequisite{},
-			Project:       "FeatureFlagsQADemo",
-			Rules: &[]clientgen.ServingRule{
-				{
-					Clauses: []clientgen.Clause{
-						{
-							Attribute: "age",
-							Id:        strPtr("79f5bca0-17ca-42c2-8934-5cee840fe2e0"),
-							Negate:    false,
-							Op:        "equal",
-							Values: []string{
-								"55",
-							},
-						},
-					},
-					Priority: 1,
-					RuleId:   strPtr("8756c207-abf8-4202-83fd-dedf5d27e2c2"),
-					Serve: clientgen.Serve{
-						Variation: strPtr("false"),
-					},
-				},
-			},
-			State: "on",
-			VariationToTargetMap: &[]clientgen.VariationMap{
-				{
-					TargetSegments: &[]string{
-						"flagsTeam",
-					},
-					Targets: &[]clientgen.TargetMap{
-						{
-							Identifier: "davej",
-							Name:       "Dave Johnston",
-						},
-					},
-					Variation: "false",
-				},
-			},
-			Variations: []clientgen.Variation{
-				{
-					Description: nil,
-					Identifier:  "true",
-					Name:        strPtr("True"),
-					Value:       "true",
-				},
-				{
-					Description: nil,
-					Identifier:  "false",
-					Name:        strPtr("False"),
-					Value:       "false",
-				},
-			},
-			Version: int64Ptr(568),
+		DefaultServe: rest.Serve{
+			Variation: strPtr("true"),
 		},
+		Environment:   "featureflagsqa",
+		Feature:       "harnessappdemodarkmode",
+		Kind:          "boolean",
+		OffVariation:  "false",
+		Prerequisites: &[]rest.Prerequisite{},
+		Project:       "FeatureFlagsQADemo",
+		Rules: &[]rest.ServingRule{
+			{
+				Clauses: []rest.Clause{
+					{
+						Attribute: "age",
+						Id:        "79f5bca0-17ca-42c2-8934-5cee840fe2e0",
+						Negate:    false,
+						Op:        "equal",
+						Values: []string{
+							"55",
+						},
+					},
+				},
+				Priority: 1,
+				RuleId:   "8756c207-abf8-4202-83fd-dedf5d27e2c2",
+				Serve: rest.Serve{
+					Variation: strPtr("false"),
+				},
+			},
+		},
+		State: "on",
+		VariationToTargetMap: &[]rest.VariationMap{
+			{
+				TargetSegments: &[]string{
+					"flagsTeam",
+				},
+				Targets: &[]rest.TargetMap{
+					{
+						Identifier: strPtr("davej"),
+						Name:       "Dave Johnston",
+					},
+				},
+				Variation: "false",
+			},
+		},
+		Variations: []rest.Variation{
+			{
+				Description: nil,
+				Identifier:  "true",
+				Name:        strPtr("True"),
+				Value:       "true",
+			},
+			{
+				Description: nil,
+				Identifier:  "false",
+				Name:        strPtr("False"),
+				Value:       "false",
+			},
+		},
+		Version: int64Ptr(568),
 	}
 
 	yetAnotherFlagConfig = domain.FeatureFlag{
-		FeatureConfig: clientgen.FeatureConfig{
-			DefaultServe: clientgen.Serve{
-				Variation: strPtr("1"),
-			},
-			Environment:   "featureflagsqa",
-			Feature:       "yet_another_flag",
-			Kind:          "string",
-			OffVariation:  "2",
-			Prerequisites: &[]clientgen.Prerequisite{},
-			Project:       "FeatureFlagsQADemo",
-			Rules:         &[]clientgen.ServingRule{},
-			State:         "on",
-			Variations: []clientgen.Variation{
-				{
-					Description: nil,
-					Identifier:  "1",
-					Name:        strPtr("1"),
-					Value:       "1",
-				},
-				{
-					Description: nil,
-					Identifier:  "2",
-					Name:        strPtr("2"),
-					Value:       "2",
-				},
-			},
-			Version: int64Ptr(6),
+		DefaultServe: rest.Serve{
+			Variation: strPtr("1"),
 		},
+		Environment:   "featureflagsqa",
+		Feature:       "yet_another_flag",
+		Kind:          "string",
+		OffVariation:  "2",
+		Prerequisites: &[]rest.Prerequisite{},
+		Project:       "FeatureFlagsQADemo",
+		Rules:         &[]rest.ServingRule{},
+		State:         "on",
+		Variations: []rest.Variation{
+			{
+				Description: nil,
+				Identifier:  "1",
+				Name:        strPtr("1"),
+				Value:       "1",
+			},
+			{
+				Description: nil,
+				Identifier:  "2",
+				Name:        strPtr("2"),
+				Value:       "2",
+			},
+		},
+		Version: int64Ptr(6),
 	}
 
 	flagsTeamSegment = domain.Segment{
-		Segment: clientgen.Segment{
-			Environment: strPtr("featureflagsqa"),
-			Excluded:    &[]clientgen.Target{},
-			Identifier:  "flagsTeam",
-			Included:    &[]clientgen.Target{},
-			Name:        "flagsTeam",
-			Rules: &[]clientgen.Clause{
-				{
-					Attribute: "ip",
-					Id:        strPtr("31c18ee7-8051-44cc-8507-b44580467ee5"),
-					Negate:    false,
-					Op:        "equal",
-					Values:    []string{"2a00:23c5:b672:2401:158:f2a6:67a0:6a79"},
-				},
+		Environment: strPtr("featureflagsqa"),
+		Excluded:    &[]rest.Target{},
+		Identifier:  "flagsTeam",
+		Included:    &[]rest.Target{},
+		Name:        "flagsTeam",
+		Rules: &[]rest.Clause{
+			{
+				Attribute: "ip",
+				Id:        "31c18ee7-8051-44cc-8507-b44580467ee5",
+				Negate:    false,
+				Op:        "equal",
+				Values:    []string{"2a00:23c5:b672:2401:158:f2a6:67a0:6a79"},
 			},
-			Version:    int64Ptr(1),
-			CreatedAt:  int64Ptr(123),
-			ModifiedAt: int64Ptr(456),
 		},
+		Version:    int64Ptr(1),
+		CreatedAt:  int64Ptr(123),
+		ModifiedAt: int64Ptr(456),
 	}
 )
 

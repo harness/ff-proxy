@@ -5,139 +5,136 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/harness/ff-golang-server-sdk/rest"
+
 	"github.com/harness/ff-proxy/cache"
 	"github.com/harness/ff-proxy/domain"
-	clientgen "github.com/harness/ff-proxy/gen/client"
 	"github.com/stretchr/testify/assert"
 )
 
 var (
 	featureFlagFoo = domain.FeatureFlag{
-		FeatureConfig: clientgen.FeatureConfig{
-			DefaultServe: clientgen.Serve{
-				Variation: strPtr("true"),
-			},
-			Environment:   "foo",
-			Feature:       "foo",
-			Kind:          "boolean",
-			OffVariation:  "false",
-			Prerequisites: &[]clientgen.Prerequisite{},
-			Project:       "foo",
-			Rules: &[]clientgen.ServingRule{
-				{
-					Clauses: []clientgen.Clause{
-						{
-							Attribute: "name",
-							Id:        strPtr("79f5bca0-17ca-42c2-8934-5cee840fe2e0"),
-							Negate:    false,
-							Op:        "equal",
-							Values: []string{
-								"John",
-							},
-						},
-					},
-					Priority: 1,
-					RuleId:   strPtr("8756c207-abf8-4202-83fd-dedf5d27e2c2"),
-					Serve: clientgen.Serve{
-						Variation: strPtr("false"),
-					},
-				},
-			},
-			State: clientgen.On,
-			VariationToTargetMap: &[]clientgen.VariationMap{
-				{
-					TargetSegments: &[]string{
-						"flagsTeam",
-					},
-					Targets: &[]clientgen.TargetMap{
-						{
-							Identifier: "davej",
-							Name:       "Dave Johnston",
-						},
-					},
-					Variation: "false",
-				},
-			},
-			Variations: []clientgen.Variation{
-				{
-					Description: nil,
-					Identifier:  "true",
-					Name:        strPtr("True"),
-					Value:       "true",
-				},
-				{
-					Description: nil,
-					Identifier:  "false",
-					Name:        strPtr("False"),
-					Value:       "false",
-				},
-			},
-			Version: int64Ptr(568),
+		DefaultServe: rest.Serve{
+			Variation: strPtr("true"),
 		},
+		Environment:   "foo",
+		Feature:       "foo",
+		Kind:          "boolean",
+		OffVariation:  "false",
+		Prerequisites: &[]rest.Prerequisite{},
+		Project:       "foo",
+		Rules: &[]rest.ServingRule{
+			{
+				Clauses: []rest.Clause{
+					{
+						Attribute: "name",
+						Id:        "79f5bca0-17ca-42c2-8934-5cee840fe2e0",
+						Negate:    false,
+						Op:        "equal",
+						Values: []string{
+							"John",
+						},
+					},
+				},
+				Priority: 1,
+				RuleId:   "8756c207-abf8-4202-83fd-dedf5d27e2c2",
+				Serve: rest.Serve{
+					Variation: strPtr("false"),
+				},
+			},
+		},
+		State: rest.FeatureStateOn,
+		VariationToTargetMap: &[]rest.VariationMap{
+			{
+				TargetSegments: &[]string{
+					"flagsTeam",
+				},
+				Targets: &[]rest.TargetMap{
+					{
+						Identifier: strPtr("davej"),
+						Name:       "Dave Johnston",
+					},
+				},
+				Variation: "false",
+			},
+		},
+		Variations: []rest.Variation{
+			{
+				Description: nil,
+				Identifier:  "true",
+				Name:        strPtr("True"),
+				Value:       "true",
+			},
+			{
+				Description: nil,
+				Identifier:  "false",
+				Name:        strPtr("False"),
+				Value:       "false",
+			},
+		},
+		Version: int64Ptr(568),
 	}
 
 	featureFlagBar = domain.FeatureFlag{
-		FeatureConfig: clientgen.FeatureConfig{
-			DefaultServe: clientgen.Serve{
-				Variation: strPtr("true"),
-			},
-			Environment:   "bar",
-			Feature:       "bar",
-			Kind:          "boolean",
-			OffVariation:  "false",
-			Prerequisites: &[]clientgen.Prerequisite{},
-			Project:       "bar",
-			Rules: &[]clientgen.ServingRule{
-				{
-					Clauses: []clientgen.Clause{
-						{
-							Attribute: "name",
-							Id:        strPtr("79f5bca0-17ca-42c2-8934-5cee840fe2e0"),
-							Negate:    false,
-							Op:        "equal",
-							Values: []string{
-								"John",
-							},
-						},
-					},
-					Priority: 1,
-					RuleId:   strPtr("8756c207-abf8-4202-83fd-dedf5d27e2c2"),
-					Serve: clientgen.Serve{
-						Variation: strPtr("false"),
-					},
-				},
-			},
-			State: clientgen.On,
-			VariationToTargetMap: &[]clientgen.VariationMap{
-				{
-					TargetSegments: &[]string{
-						"flagsTeam",
-					},
-					Targets: &[]clientgen.TargetMap{
-						{
-							Identifier: "davej",
-							Name:       "Dave Johnston",
-						},
-					},
-					Variation: "false",
-				},
-			},
-			Variations: []clientgen.Variation{
-				{
-					Description: nil,
-					Identifier:  "true",
-					Name:        strPtr("True"),
-					Value:       "true",
-				},
-				{
-					Description: nil,
-					Identifier:  "false",
-					Name:        strPtr("False"),
-					Value:       "false",
-				},
-			},
-			Version: int64Ptr(568),
+		DefaultServe: rest.Serve{
+			Variation: strPtr("true"),
 		},
+		Environment:   "bar",
+		Feature:       "bar",
+		Kind:          "boolean",
+		OffVariation:  "false",
+		Prerequisites: &[]rest.Prerequisite{},
+		Project:       "bar",
+		Rules: &[]rest.ServingRule{
+			{
+				Clauses: []rest.Clause{
+					{
+						Attribute: "name",
+						Id:        "79f5bca0-17ca-42c2-8934-5cee840fe2e0",
+						Negate:    false,
+						Op:        "equal",
+						Values: []string{
+							"John",
+						},
+					},
+				},
+				Priority: 1,
+				RuleId:   "8756c207-abf8-4202-83fd-dedf5d27e2c2",
+				Serve: rest.Serve{
+					Variation: strPtr("false"),
+				},
+			},
+		},
+		State: rest.FeatureStateOn,
+		VariationToTargetMap: &[]rest.VariationMap{
+			{
+				TargetSegments: &[]string{
+					"flagsTeam",
+				},
+				Targets: &[]rest.TargetMap{
+					{
+						Identifier: strPtr("davej"),
+						Name:       "Dave Johnston",
+					},
+				},
+				Variation: "false",
+			},
+		},
+		Variations: []rest.Variation{
+			{
+				Description: nil,
+				Identifier:  "true",
+				Name:        strPtr("True"),
+				Value:       "true",
+			},
+			{
+				Description: nil,
+				Identifier:  "false",
+				Name:        strPtr("False"),
+				Value:       "false",
+			},
+		},
+		Version: int64Ptr(568),
 	}
 )
 

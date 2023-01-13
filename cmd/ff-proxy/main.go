@@ -496,8 +496,6 @@ func main() {
 
 	tokenSource := token.NewTokenSource(logger, authRepo, apiKeyHasher, []byte(authSecret))
 
-	featureEvaluator := proxyservice.NewFeatureEvaluator()
-
 	metricsEnabled := metricPostDuration != 0 && !offline
 	metricService, err := services.NewMetricService(logger, metricService, accountIdentifier, remoteConfig.Tokens(), metricsEnabled)
 	if err != nil {
@@ -515,7 +513,6 @@ func main() {
 		CacheHealthFn:    cacheHealthCheck,
 		EnvHealthFn:      envHealthCheck,
 		AuthFn:           tokenSource.GenerateToken,
-		Evaluator:        featureEvaluator,
 		ClientService:    clientService,
 		MetricService:    metricService,
 		Offline:          offline,

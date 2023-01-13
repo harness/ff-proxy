@@ -131,7 +131,6 @@ func setupService(cfg benchmarkConfig, b *testing.B) ProxyService {
 		CacheHealthFn: cacheHealthFn,
 		EnvHealthFn:   envHealthFn,
 		AuthFn:        authFn,
-		Evaluator:     NewFeatureEvaluator(),
 		Offline:       true,
 		Hasher:        hash.NewSha256(),
 	})
