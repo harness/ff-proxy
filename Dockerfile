@@ -27,17 +27,21 @@ FROM ubuntu:20.04 as pushpin
 RUN \
   apt-get update && \
   apt-get install -y apt-transport-https software-properties-common && \
-  echo deb https://fanout.jfrog.io/artifactory/debian fanout-bionic main \
+  echo deb https://fanout.jfrog.io/artifactory/debian fanout-focal main \
     | tee /etc/apt/sources.list.d/fanout.list && \
   apt-key adv --keyserver hkp://keyserver.ubuntu.com:80 --recv-keys \
     EA01C1E777F95324
 
-ENV PUSHPIN_VERSION 1.33.1-1~bionic1
+ENV PUSHPIN_VERSION 1.35.0-1~focal1
 
 # Install Pushpin
 RUN \
   apt-get update && \
-  apt-get install -y pushpin=$PUSHPIN_VERSION curl
+  apt-get install -y pushpin=$PUSHPIN_VERSION curl binutils
+
+# Required for the image to work on Centos7 with 3.10 kernel
+RUN \
+    strip --remove-section=.note.ABI-tag /usr/lib/x86_64-linux-gnu/libQt5Core.so.5
 
 # Cleanup
 RUN \
