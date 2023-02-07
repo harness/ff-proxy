@@ -65,6 +65,7 @@ func NewFileDecoder(fileSystem fs.FS, file string) (*FileDecoder, error) {
 
 // Decode decodes the contents of the file into v and closes it
 func (f *FileDecoder) Decode(v interface{}) error {
+	//#nosec G307
 	defer f.file.Close()
 	return f.dec.Decode(v)
 }
