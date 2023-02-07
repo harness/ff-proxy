@@ -29,7 +29,7 @@ make image
 ```
 
 ## Run the proxy
-You can run the proxy by executing the binary or running the docker image and configure it by passing various flag values listed in the docs [here](https://docs.harness.io/article/rae6uk12hk-deploy-relay-proxy#configure_the_relay_proxy). They can also be found in [main.go](https://github.com/harness/ff-proxy/blob/main/cmd/ff-proxy/main.go)
+You can run the proxy by executing the binary or running the docker image and configure it by passing various flag values listed in the docs [here](https://developer.harness.io/docs/feature-flags/ff-using-flags/relay-proxy/#configuration-variables). They can also be found in [main.go](https://github.com/harness/ff-proxy/blob/main/cmd/ff-proxy/main.go)
 
 ```
 ./ff-proxy -admin-service-token $SERVICE_TOKEN -auth-secret $AUTH_TOKEN -account-identifier $ACCOUNT_IDENTIFIER -org-identifier $ORG_IDENTIFIER -api-keys $API_KEYS

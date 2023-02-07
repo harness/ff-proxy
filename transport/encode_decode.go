@@ -104,6 +104,7 @@ func codeFrom(err error) int {
 // that can be passed to the service. It returns a wrapped bad request error if
 // the request body is empty or if the apiKey is empty
 func decodeAuthRequest(c echo.Context) (interface{}, error) {
+	//#nosec G307
 	defer c.Request().Body.Close()
 
 	req := domain.AuthRequest{}
@@ -248,6 +249,7 @@ func decodeGetStreamRequest(c echo.Context) (interface{}, error) {
 
 // decodeMetricsRequest decodes POST /metrics/{environment} requests into domain.Metrics
 func decodeMetricsRequest(c echo.Context) (interface{}, error) {
+	//#nosec G307
 	defer c.Request().Body.Close()
 
 	b, err := io.ReadAll(c.Request().Body)
