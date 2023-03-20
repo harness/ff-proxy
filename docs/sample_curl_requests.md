@@ -20,7 +20,7 @@ Fetches an authentication token that can be used for future requests:
 
 If sending this request to a Relay Proxy instance running on localhost:7000 this would be:
 
-`curl -v 'http://localost:7000/client/auth'  -H 'content-type: application/json'  --data-raw '{"apiKey":"${API_KEY}"}'`
+`curl -v 'http://localhost:7000/client/auth'  -H 'content-type: application/json'  --data-raw '{"apiKey":"${API_KEY}"}'`
 
 This should return a 200 code and a body that includes an auth token that we’ll use for future requests e.g.
 
