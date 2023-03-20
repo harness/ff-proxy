@@ -151,7 +151,7 @@ func cors(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Add("Access-Control-Allow-Origin", "*")
 		w.Header().Add("Access-Control-Allow-Methods", "GET,OPTIONS,POST")
-		w.Header().Add("Access-Control-Allow-Headers", "Content-Type,Authorization,Accept,Origin,API-Key")
+		w.Header().Add("Access-Control-Allow-Headers", "Content-Type,Authorization,Accept,Origin,API-Key,Harness-SDK-Info,Harness-AccountID,Harness-EnvironmentID")
 
 		if r.Method == http.MethodOptions {
 			return
