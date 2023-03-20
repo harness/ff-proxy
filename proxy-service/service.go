@@ -68,12 +68,6 @@ var (
 	ErrUnauthorised = errors.New("unauthorised")
 )
 
-// evaluator is a type that can perform evaluations
-type evaluator interface {
-	// Evaluate evaluates featureConfig(s) against a target and returns an evaluation
-	Evaluate(target domain.Target, featureConfigs ...domain.FeatureConfig) ([]clientgen.Evaluation, error)
-}
-
 // authTokenFn is a function that can generate an auth token
 type authTokenFn func(key string) (domain.Token, error)
 
@@ -197,7 +191,6 @@ func (s Service) FeatureConfig(ctx context.Context, req domain.FeatureConfigRequ
 
 	configs := []domain.FeatureConfig{}
 	flagKey := domain.NewFeatureConfigKey(req.EnvironmentID)
-	segmentKey := domain.NewSegmentKey(req.EnvironmentID)
 
 	// fetch flags
 	flags, err := s.featureRepo.Get(ctx, flagKey)
@@ -210,21 +203,10 @@ func (s Service) FeatureConfig(ctx context.Context, req domain.FeatureConfigRequ
 		s.logger.Debug(ctx, "flags not found in cache: ", "err", err.Error())
 	}
 
-	// fetch segments
-	segments, err := s.segmentRepo.GetAsMap(ctx, segmentKey)
-	if err != nil {
-		if !errors.Is(err, domain.ErrCacheNotFound) {
-			return []domain.FeatureConfig{}, fmt.Errorf("%w: %s", ErrInternal, err)
-		}
-		// segments aren't required so just log and continue here
-		s.logger.Debug(ctx, "target segments not found in cache: ", "err", err.Error())
-	}
-
 	// build FeatureConfig
 	for _, flag := range flags {
 		configs = append(configs, domain.FeatureConfig{
 			FeatureFlag: flag,
-			Segments:    segments,
 		})
 	}
 
@@ -236,7 +218,6 @@ func (s Service) FeatureConfigByIdentifier(ctx context.Context, req domain.Featu
 	s.logger = s.logger.With("method", "FeatureConfigByIdentifier")
 
 	flagKey := domain.NewFeatureConfigKey(req.EnvironmentID)
-	segmentKey := domain.NewSegmentKey(req.EnvironmentID)
 
 	// fetch flag
 	flag, err := s.featureRepo.GetByIdentifier(ctx, flagKey, req.Identifier)
@@ -247,20 +228,9 @@ func (s Service) FeatureConfigByIdentifier(ctx context.Context, req domain.Featu
 		return domain.FeatureConfig{}, fmt.Errorf("%w: %s", ErrInternal, err)
 	}
 
-	// fetch segments
-	segments, err := s.segmentRepo.GetAsMap(ctx, segmentKey)
-	if err != nil {
-		if !errors.Is(err, domain.ErrCacheNotFound) {
-			return domain.FeatureConfig{}, fmt.Errorf("%w: %s", ErrInternal, err)
-		}
-		// segments aren't required so just log and continue here
-		s.logger.Debug(ctx, "target segments not found in cache: ", "err", err.Error())
-	}
-
 	// build FeatureConfig
 	return domain.FeatureConfig{
 		FeatureFlag: flag,
-		Segments:    segments,
 	}, nil
 }
 

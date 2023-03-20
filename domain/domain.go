@@ -25,7 +25,6 @@ type FeatureFlag rest.FeatureConfig
 // we return from /GET client/env/<env>/feature-configs
 type FeatureConfig struct {
 	FeatureFlag
-	Segments map[string]Segment `json:"segments"`
 }
 
 // MarshalBinary marshals a FeatureFlag to bytes. Currently it just uses json
