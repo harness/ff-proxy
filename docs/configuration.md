@@ -63,7 +63,9 @@ Adjust the port the relay proxy runs on.
 
 | Environment Variable | Flag | Description                                | Type | Default |
 |----------------------|------|--------------------------------------------|------|---------|
-| PORT                 | port | Port that the proxy service is exposed on. | int  | 8000    |
+| PORT                 | port | Port that the proxy service is exposed on. | int  | 7000    |
+
+**Note**: When running the docker container PORT cannot be set to 8000 as it is reserved for an internal service.
 
 ### Connection mode between Relay Proxy and Harness SaaS
 Some corporate networks may be highly restrictive on allowing sse connections. If you find that the Relay Proxy starts successfully but fails to receive any updates you may want to use these settings to force the Relay Proxy to poll for changes instead of streaming them.
