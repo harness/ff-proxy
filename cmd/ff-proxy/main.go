@@ -83,6 +83,14 @@ func (i *keys) Set(value string) error {
 	return nil
 }
 
+func (i *keys) PrintMasked() string {
+	var maskedKeys []string
+	for _, key := range *i {
+		maskedKeys = append(maskedKeys, token.MaskRight(key))
+	}
+	return strings.Join(maskedKeys, ",")
+}
+
 var (
 	debug                 bool
 	bypassAuth            bool
@@ -249,7 +257,7 @@ func initFF(ctx context.Context, cache gosdkCache.Cache, baseURL, eventURL, envI
 	retryClient.RetryMax = 5
 	retryClient.Logger = l.With("component", "RetryClient", "environment", envID)
 
-	l = l.With("component", "SDK", "apiKey", sdkKey, "environmentID", envID, "environment_identifier", envIdent, "project_identifier", projectIdent)
+	l = l.With("component", "SDK", "apiKey", token.MaskRight(sdkKey), "environmentID", envID, "environment_identifier", envIdent, "project_identifier", projectIdent)
 	structuredLogger, ok := l.(log.StructuredLogger)
 	if !ok {
 		l.Error("unexpected logger", "expected", "log.StructuredLogger", "got", fmt.Sprintf("%T", structuredLogger))
@@ -321,7 +329,7 @@ func main() {
 		cancel()
 	}()
 
-	logger.Info("service config", "pprof", pprofEnabled, "debug", debug, "bypass-auth", bypassAuth, "offline", offline, "port", port, "admin-service", adminService, "account-identifier", accountIdentifier, "org-identifier", orgIdentifier, "sdk-base-url", sdkBaseURL, "sdk-events-url", sdkEventsURL, "redis-addr", redisAddress, "redis-db", redisDB, "api-keys", fmt.Sprintf("%v", apiKeys), "target-poll-duration", fmt.Sprintf("%ds", targetPollDuration), "heartbeat-interval", fmt.Sprintf("%ds", heartbeatInterval), "flag-stream-enabled", flagStreamEnabled, "flag-poll-interval", fmt.Sprintf("%dm", flagPollInterval), "config-dir", configDir, "tls-enabled", tlsEnabled, "tls-cert", tlsCert, "tls-key", tlsKey)
+	logger.Info("service config", "pprof", pprofEnabled, "debug", debug, "bypass-auth", bypassAuth, "offline", offline, "port", port, "admin-service", adminService, "account-identifier", accountIdentifier, "org-identifier", orgIdentifier, "sdk-base-url", sdkBaseURL, "sdk-events-url", sdkEventsURL, "redis-addr", redisAddress, "redis-db", redisDB, "api-keys", apiKeys.PrintMasked(), "target-poll-duration", fmt.Sprintf("%ds", targetPollDuration), "heartbeat-interval", fmt.Sprintf("%ds", heartbeatInterval), "flag-stream-enabled", flagStreamEnabled, "flag-poll-interval", fmt.Sprintf("%dm", flagPollInterval), "config-dir", configDir, "tls-enabled", tlsEnabled, "tls-cert", tlsCert, "tls-key", tlsKey)
 
 	adminService, err := services.NewAdminService(logger, adminService, adminServiceToken)
 	if err != nil {
