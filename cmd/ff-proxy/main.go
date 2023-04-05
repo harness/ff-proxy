@@ -389,7 +389,7 @@ func main() {
 		targetConfig  map[domain.TargetKey][]domain.Target
 		segmentConfig map[domain.SegmentKey][]domain.Segment
 		authConfig    map[domain.AuthAPIKey]string
-		approvedEnvs  map[string]struct{}
+		approvedEnvs  = map[string]struct{}{}
 	)
 
 	var remoteConfig config.RemoteConfig
@@ -462,7 +462,6 @@ func main() {
 		// but this will lockdown requests a bit better while still giving us high availability for now. This could be coupled
 		// with a new config option to exit if any keys fail for users who want to restrict fully to whats provided in the startup config
 		if len(envInfo) == len(apiKeys) {
-			approvedEnvs = map[string]struct{}{}
 			for env, _ := range envInfo {
 				approvedEnvs[env] = struct{}{}
 			}
