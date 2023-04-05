@@ -189,7 +189,7 @@ func setupHTTPServer(t *testing.T, bypassAuth bool, opts ...setupOpts) *HTTPServ
 	}
 
 	if setupConfig.authRepo == nil {
-		ar, err := repository.NewAuthRepo(setupConfig.cache, config.AuthConfig())
+		ar, err := repository.NewAuthRepo(setupConfig.cache, config.AuthConfig(), nil)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -1290,7 +1290,7 @@ func TestHTTPServer_StreamIntegration(t *testing.T) {
 		domain.AuthAPIKey(apiKey1Hash): envID,
 		domain.AuthAPIKey(apiKey2Hash): envID,
 		domain.AuthAPIKey(apiKey3Hash): envID,
-	})
+	}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -15,12 +15,13 @@ const AuthKey = "auth-config"
 
 // AuthRepo is a repository that stores a map of api key hashes to environmentIDs
 type AuthRepo struct {
-	cache cache.Cache
+	cache                cache.Cache
+	approvedEnvironments map[string]struct{}
 }
 
 // NewAuthRepo creates an AuthRepo from a map of api key hashes to environmentIDs
-func NewAuthRepo(c cache.Cache, config map[domain.AuthAPIKey]string) (AuthRepo, error) {
-	ar := AuthRepo{cache: c}
+func NewAuthRepo(c cache.Cache, config map[domain.AuthAPIKey]string, approvedEnvironments map[string]struct{}) (AuthRepo, error) {
+	ar := AuthRepo{cache: c, approvedEnvironments: approvedEnvironments}
 	if config == nil || len(config) == 0 {
 		return ar, nil
 	}
@@ -83,6 +84,7 @@ func (a AuthRepo) Add(ctx context.Context, values ...domain.AuthConfig) error {
 }
 
 // Get gets the environmentID for the passed api key hash
+// if the auth repo has been configured with approved envs only return keys that belong to those envs
 func (a AuthRepo) Get(ctx context.Context, key domain.AuthAPIKey) (string, bool) {
 	var environment domain.EnvironmentID
 
@@ -90,10 +92,18 @@ func (a AuthRepo) Get(ctx context.Context, key domain.AuthAPIKey) (string, bool)
 		return "", false
 	}
 
+	// if we're filtering by env then check result belongs to approved env
+	if len(a.approvedEnvironments) > 0 {
+		if _, exists := a.approvedEnvironments[string(environment)]; !exists {
+			return "", false
+		}
+	}
+
 	return string(environment), true
 }
 
 // getAll gets all values from auth repo
+// if the auth repo has been configured with approved envs only return keys that belong to those envs
 func (a AuthRepo) getAll(ctx context.Context) (map[domain.AuthAPIKey]string, bool) {
 
 	results, err := a.cache.GetAll(ctx, AuthKey)
@@ -104,8 +114,17 @@ func (a AuthRepo) getAll(ctx context.Context) (map[domain.AuthAPIKey]string, boo
 	keys := map[domain.AuthAPIKey]string{}
 	for key, b := range results {
 		var env = strings.Trim(string(b), "\"")
+		if len(a.approvedEnvironments) > 0 {
+			if _, exists := a.approvedEnvironments[env]; !exists {
+				continue
+			}
+		}
 
 		keys[domain.AuthAPIKey(key)] = env
+	}
+
+	if len(keys) == 0 {
+		return map[domain.AuthAPIKey]string{}, false
 	}
 
 	return keys, true
