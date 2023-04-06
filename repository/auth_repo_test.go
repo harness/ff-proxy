@@ -10,9 +10,14 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+var (
+	emptyApprovedEnvironments = map[string]struct{}{}
+)
+
 func TestAuthRepo_Get(t *testing.T) {
 	populated := map[domain.AuthAPIKey]string{
-		domain.AuthAPIKey("apikey-foo"): "env-bar",
+		domain.AuthAPIKey("apikey-foo"): "env-approved",
+		domain.AuthAPIKey("apikey-2"):   "env-not-approved",
 	}
 	unpopulated := map[domain.AuthAPIKey]string{}
 
@@ -22,35 +27,53 @@ func TestAuthRepo_Get(t *testing.T) {
 	}
 
 	testCases := map[string]struct {
-		cache    cache.Cache
-		data     map[domain.AuthAPIKey]string
-		key      string
-		expected expected
+		cache        cache.Cache
+		data         map[domain.AuthAPIKey]string
+		approvedEnvs map[string]struct{}
+		key          string
+		expected     expected
 	}{
 		"Given I have an empty AuthRepo": {
-			cache:    cache.NewMemCache(),
-			data:     unpopulated,
-			key:      "apikey-foo",
-			expected: expected{strVal: "", boolVal: false},
+			cache:        cache.NewMemCache(),
+			data:         unpopulated,
+			approvedEnvs: emptyApprovedEnvironments,
+			key:          "apikey-foo",
+			expected:     expected{strVal: "", boolVal: false},
 		},
 		"Given I have a populated AuthRepo but try to get a key that doesn't exist": {
-			cache:    cache.NewMemCache(),
-			data:     populated,
-			key:      "foo",
-			expected: expected{strVal: "", boolVal: false},
+			cache:        cache.NewMemCache(),
+			data:         populated,
+			approvedEnvs: emptyApprovedEnvironments,
+			key:          "foo",
+			expected:     expected{strVal: "", boolVal: false},
 		},
 		"Given I have a populated AuthRepo and try to get a key that does exist": {
-			cache:    cache.NewMemCache(),
-			data:     populated,
-			key:      "apikey-foo",
-			expected: expected{strVal: "env-bar", boolVal: true},
+			cache:        cache.NewMemCache(),
+			data:         populated,
+			approvedEnvs: emptyApprovedEnvironments,
+			key:          "apikey-foo",
+			expected:     expected{strVal: "env-approved", boolVal: true},
+		},
+		"Given I have a populated AuthRepo and try to get a key that is on the approved env list": {
+			cache:        cache.NewMemCache(),
+			data:         populated,
+			approvedEnvs: map[string]struct{}{"env-approved": struct{}{}},
+			key:          "apikey-foo",
+			expected:     expected{strVal: "env-approved", boolVal: true},
+		},
+		"Given I have a populated AuthRepo and try to get a key that isn't on the approved env list": {
+			cache:        cache.NewMemCache(),
+			data:         populated,
+			approvedEnvs: map[string]struct{}{"env-approved": struct{}{}},
+			key:          "apikey-2",
+			expected:     expected{strVal: "", boolVal: false},
 		},
 	}
 	for desc, tc := range testCases {
 		tc := tc
 		t.Run(desc, func(t *testing.T) {
 
-			repo, err := NewAuthRepo(tc.cache, tc.data)
+			repo, err := NewAuthRepo(tc.cache, tc.data, tc.approvedEnvs)
 			if err != nil {
 				t.Fatalf("(%s): error = %v", desc, err)
 			}
@@ -80,11 +103,12 @@ func TestAuthRepo_GetAll(t *testing.T) {
 	}
 
 	testCases := map[string]struct {
-		cache    cache.Cache
-		data     map[domain.AuthAPIKey]string
-		fn       func(repo AuthRepo)
-		key      string
-		expected expected
+		cache        cache.Cache
+		data         map[domain.AuthAPIKey]string
+		approvedEnvs map[string]struct{}
+		fn           func(repo AuthRepo)
+		key          string
+		expected     expected
 	}{
 		"Given I have an empty AuthRepo": {
 			cache:    cache.NewMemCache(),
@@ -95,6 +119,26 @@ func TestAuthRepo_GetAll(t *testing.T) {
 			cache:    cache.NewMemCache(),
 			data:     populated,
 			expected: expected{keys: populated, boolVal: true},
+		},
+		"Given I have a populated AuthRepo and approved env list with all envs": {
+			cache:        cache.NewMemCache(),
+			data:         populated,
+			approvedEnvs: map[string]struct{}{"env-foo": struct{}{}, "env-bar": struct{}{}},
+			expected:     expected{keys: populated, boolVal: true},
+		},
+		"Given I have a populated AuthRepo and approved env list with one env": {
+			cache:        cache.NewMemCache(),
+			data:         populated,
+			approvedEnvs: map[string]struct{}{"env-foo": struct{}{}},
+			expected: expected{keys: map[domain.AuthAPIKey]string{
+				domain.AuthAPIKey("apikey-foo"): "env-foo",
+			}, boolVal: true},
+		},
+		"Given I have a populated AuthRepo and approved env list with env with no results": {
+			cache:        cache.NewMemCache(),
+			data:         populated,
+			approvedEnvs: map[string]struct{}{"env-noexist": struct{}{}},
+			expected:     expected{keys: map[domain.AuthAPIKey]string{}, boolVal: false},
 		},
 		"Given I add to the  AuthRepo": {
 			cache: cache.NewMemCache(),
@@ -115,7 +159,7 @@ func TestAuthRepo_GetAll(t *testing.T) {
 		tc := tc
 		t.Run(desc, func(t *testing.T) {
 
-			repo, err := NewAuthRepo(tc.cache, tc.data)
+			repo, err := NewAuthRepo(tc.cache, tc.data, tc.approvedEnvs)
 			if err != nil {
 				t.Fatalf("(%s): error = %v", desc, err)
 			}
@@ -183,13 +227,13 @@ func TestAuthRepo_Setup(t *testing.T) {
 		t.Run(desc, func(t *testing.T) {
 
 			// populate initial data
-			_, err := NewAuthRepo(tc.cache, tc.initialData)
+			_, err := NewAuthRepo(tc.cache, tc.initialData, emptyApprovedEnvironments)
 			if err != nil {
 				t.Fatalf("(%s): error = %v", desc, err)
 			}
 
 			// populate extra data
-			repo, err := NewAuthRepo(tc.cache, tc.extraData)
+			repo, err := NewAuthRepo(tc.cache, tc.extraData, emptyApprovedEnvironments)
 			if err != nil {
 				t.Fatalf("(%s): error = %v", desc, err)
 			}

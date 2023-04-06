@@ -389,6 +389,7 @@ func main() {
 		targetConfig  map[domain.TargetKey][]domain.Target
 		segmentConfig map[domain.SegmentKey][]domain.Segment
 		authConfig    map[domain.AuthAPIKey]string
+		approvedEnvs  = map[string]struct{}{}
 	)
 
 	var remoteConfig config.RemoteConfig
@@ -454,6 +455,18 @@ func main() {
 		authConfig = remoteConfig.AuthConfig()
 		targetConfig = remoteConfig.TargetConfig()
 		envInfo := remoteConfig.EnvInfo()
+
+		// If all provided api keys auth'd successfully then restrict this proxy instance to only serve requests from those envs.
+		// The reason we're still lenient here is that if a network issue causes an api key not to auth we still want to
+		// fallback to serving cached data where possible. This logic can be extended/improved in future for other use cases
+		// but this will lockdown requests a bit better while still giving us high availability for now. This could be coupled
+		// with a new config option to exit if any keys fail for users who want to restrict fully to whats provided in the startup config
+		if len(envInfo) == len(apiKeys) {
+			for env, _ := range envInfo {
+				approvedEnvs[env] = struct{}{}
+			}
+			logger.Info("serving requests for configured environments", "environments", approvedEnvs)
+		}
 		logger.Info(fmt.Sprintf("successfully fetched config for %d environment(s)", len(envInfo)))
 		// start an sdk instance for each valid api key
 		for _, env := range envInfo {
@@ -481,7 +494,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	authRepo, err := repository.NewAuthRepo(sdkCache, authConfig)
+	authRepo, err := repository.NewAuthRepo(sdkCache, authConfig, approvedEnvs)
 	if err != nil {
 		logger.Error("failed to create auth config repo", "err", err)
 		os.Exit(1)
