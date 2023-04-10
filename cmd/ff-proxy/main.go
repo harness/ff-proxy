@@ -763,7 +763,7 @@ func validateFlags(flags map[string]interface{}) {
 	}
 
 	if len(unset) > 0 {
-		stdlog.Fatalf("The following configuaration values are required: %v ", unset)
+		stdlog.Fatalf("The following configuration values are required: %v ", unset)
 	}
 }
 
