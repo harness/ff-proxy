@@ -81,13 +81,14 @@ func TestEvaluationsByFeature(t *testing.T) {
 			},
 			wantErr: false,
 		},
-		"Target that doesnt exist returns 404": {
+		"Target that doesnt exist returns results": {
 			args: args{
 				FlagName:   "string-flag1",
 				TargetName: "doesntexist",
 			},
 			want: result{
-				StatusCode: 404,
+				StatusCode: 200,
+				Value:      "red",
 			},
 			wantErr: true,
 		},
@@ -136,13 +137,14 @@ func TestEvaluations(t *testing.T) {
 			},
 			wantErr: false,
 		},
-		"Target that doesnt exist returns 404": {
+		"Target that doesnt exist returns results": {
 			args: args{
 				APIKey:     GetServerAPIKey(),
 				TargetName: "doesntexist",
 			},
 			want: result{
-				StatusCode: 404,
+				StatusCode: 200,
+				Results:    expectedEvaluations,
 			},
 			wantErr: true,
 		},

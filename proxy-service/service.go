@@ -8,6 +8,8 @@ import (
 	"reflect"
 	"time"
 
+	admingen "github.com/harness/ff-proxy/gen/admin"
+
 	"github.com/harness/ff-golang-server-sdk/evaluation"
 	"github.com/harness/ff-golang-server-sdk/logger"
 	"github.com/harness/ff-golang-server-sdk/rest"
@@ -274,18 +276,20 @@ func (s Service) TargetSegmentsByIdentifier(ctx context.Context, req domain.Targ
 func (s Service) Evaluations(ctx context.Context, req domain.EvaluationsRequest) ([]clientgen.Evaluation, error) {
 	s.logger = s.logger.With("method", "Evaluations")
 
-	var evaluations []clientgen.Evaluation
+	evaluations := []clientgen.Evaluation{}
 	targetKey := domain.NewTargetKey(req.EnvironmentID)
 
 	// fetch target
 	t, err := s.targetRepo.GetByIdentifier(ctx, targetKey, req.TargetIdentifier)
 	if err != nil {
 		if errors.Is(err, domain.ErrCacheNotFound) {
-			s.logger.Error(ctx, "target not found in cache: ", "err", err.Error())
-			return nil, fmt.Errorf("%w: %s", ErrNotFound, err)
+			s.logger.Warn(ctx, "target not found in cache, serving request using only identifier attribute: ", "err", err.Error())
+			t = domain.Target{Target: admingen.Target{Identifier: req.TargetIdentifier}}
+		} else {
+			s.logger.Error(ctx, "error fetching target: ", "err", err.Error())
+			return []clientgen.Evaluation{}, fmt.Errorf("%w: %s", ErrInternal, err)
 		}
-		s.logger.Error(ctx, "error fetching target: ", "err", err.Error())
-		return []clientgen.Evaluation{}, fmt.Errorf("%w: %s", ErrInternal, err)
+
 	}
 	target := domain.ConvertTarget(t)
 	query := s.GenerateQueryStore(ctx, req.EnvironmentID)
@@ -322,11 +326,12 @@ func (s Service) EvaluationsByFeature(ctx context.Context, req domain.Evaluation
 	t, err := s.targetRepo.GetByIdentifier(ctx, targetKey, req.TargetIdentifier)
 	if err != nil {
 		if errors.Is(err, domain.ErrCacheNotFound) {
-			s.logger.Error(ctx, "target not found in cache: ", "err", err.Error())
-			return clientgen.Evaluation{}, fmt.Errorf("%w: %s", ErrNotFound, err)
+			s.logger.Warn(ctx, "target not found in cache, serving request using only identifier attribute: ", "err", err.Error())
+			t = domain.Target{Target: admingen.Target{Identifier: req.TargetIdentifier}}
+		} else {
+			s.logger.Error(ctx, "error fetching target: ", "err", err.Error())
+			return clientgen.Evaluation{}, fmt.Errorf("%w: %s", ErrInternal, err)
 		}
-		s.logger.Error(ctx, "error fetching target: ", "err", err.Error())
-		return clientgen.Evaluation{}, fmt.Errorf("%w: %s", ErrInternal, err)
 	}
 	target := domain.ConvertTarget(t)
 

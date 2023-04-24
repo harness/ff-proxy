@@ -523,6 +523,11 @@ func TestHTTPServer_GetTargetSegmentsByIdentifier(t *testing.T) {
 			url:                fmt.Sprintf("%s/client/env/1234/target-segments/bar", testServer.URL),
 			expectedStatusCode: http.StatusNotFound,
 		},
+		"Given I make GET request for an environment that doesn't exist": {
+			method:             http.MethodGet,
+			url:                fmt.Sprintf("%s/client/env/noexist/target-segments/james", testServer.URL),
+			expectedStatusCode: http.StatusNotFound,
+		},
 		"Given I make GET request for an environment and identifier that exist": {
 			method:               http.MethodGet,
 			url:                  fmt.Sprintf("%s/client/env/1234/target-segments/flagsTeam", testServer.URL),
@@ -601,15 +606,20 @@ func TestHTTPServer_GetEvaluations(t *testing.T) {
 			url:                fmt.Sprintf("%s/client/env/1234/target/james/evaluations", testServer.URL),
 			expectedStatusCode: http.StatusMethodNotAllowed,
 		},
+		// we return an empty array for this right now because we can't tell the difference between
+		// an environment not existing at all and there just being no flags in it
 		"Given I make GET request for an environment that doesn't exist": {
-			method:             http.MethodGet,
-			url:                fmt.Sprintf("%s/client/env/abcd/target/james/evaluations", testServer.URL),
-			expectedStatusCode: http.StatusNotFound,
+			method: http.MethodGet,
+			url:    fmt.Sprintf("%s/client/env/abcd/target/james/evaluations", testServer.URL),
+			expectedResponseBody: []byte(`[]
+`),
+			expectedStatusCode: http.StatusOK,
 		},
 		"Given I make GET request for target that doesn't exist": {
-			method:             http.MethodGet,
-			url:                fmt.Sprintf("%s/client/env/1234/target/bar/evaluations", testServer.URL),
-			expectedStatusCode: http.StatusNotFound,
+			method:               http.MethodGet,
+			url:                  fmt.Sprintf("%s/client/env/1234/target/bar/evaluations", testServer.URL),
+			expectedStatusCode:   http.StatusOK,
+			expectedResponseBody: targetFooEvaluations,
 		},
 		// TODO - commented out due to an issue with the new go sdk evaluator in evaluating certain attribute based rules on flags
 		// these rules are now deprecated and can't be created from the UI but we should upgrade once the go sdk fixes this issue
@@ -698,14 +708,17 @@ func TestHTTPServer_GetEvaluationsByFeature(t *testing.T) {
 			expectedStatusCode: http.StatusMethodNotAllowed,
 		},
 		"Given I make GET request for an environment that doesn't exist": {
-			method:             http.MethodGet,
-			url:                fmt.Sprintf("%s/client/env/abcd/target/james/evaluations/harnessappdemodarkmode", testServer.URL),
+			method: http.MethodGet,
+			url:    fmt.Sprintf("%s/client/env/abcd/target/james/evaluations/harnessappdemodarkmode", testServer.URL),
+			expectedResponseBody: []byte(`{"error":"not found"}
+`),
 			expectedStatusCode: http.StatusNotFound,
 		},
 		"Given I make GET request for target that doesn't exist": {
-			method:             http.MethodGet,
-			url:                fmt.Sprintf("%s/client/env/1234/target/bar/evaluations/harnessappdemodarkmode", testServer.URL),
-			expectedStatusCode: http.StatusNotFound,
+			method:               http.MethodGet,
+			url:                  fmt.Sprintf("%s/client/env/1234/target/bar/evaluations/harnessappdemodarkmode", testServer.URL),
+			expectedStatusCode:   http.StatusOK,
+			expectedResponseBody: darkModeEvaluationTrue,
 		},
 		// TODO - commented out due to an issue with the new go sdk evaluator in evaluating certain attribute based rules on flags
 		// these rules are now deprecated and can't be created from the UI but we should upgrade once the go sdk fixes this issue
