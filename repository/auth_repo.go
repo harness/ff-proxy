@@ -26,7 +26,7 @@ func NewAuthRepo(c cache.Cache, config map[domain.AuthAPIKey]string, approvedEnv
 		return ar, nil
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Minute)
 	// cleanup old unused keys for specified envs before we set the new ones
 	ar.clearCachedKeys(ctx, config)
 

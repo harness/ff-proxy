@@ -25,11 +25,17 @@ func NewFeatureFlagRepo(c cache.Cache, config map[domain.FeatureFlagKey][]domain
 		return fcr, nil
 	}
 
-	for key, cfg := range config {
-		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	for key, flags := range config {
+		// Timeout should be set based on the number of flags in the environment rather than
+		// a fixed timeout for each environment. This means that environments with more flags
+		// get a longer timeout, if we just have a fixed timeout for each environment e.g. 10 seconds
+		// then that might not be long enough for environments with a large number of flags.
+		timeout := time.Duration(10*len(flags)) * time.Second
+
+		ctx, cancel := context.WithTimeout(context.Background(), timeout)
 		// cleanup all current keys before we add new ones to make sure keys that have been deleted remotely are removed
 		fcr.cache.RemoveAll(ctx, string(key))
-		if err := fcr.Add(ctx, key, cfg...); err != nil {
+		if err := fcr.Add(ctx, key, flags...); err != nil {
 			cancel()
 			return FeatureFlagRepo{}, fmt.Errorf("failed to add flag: %s", err)
 		}

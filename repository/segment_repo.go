@@ -23,11 +23,17 @@ func NewSegmentRepo(c cache.Cache, config map[domain.SegmentKey][]domain.Segment
 		return sr, nil
 	}
 
-	for key, cfg := range config {
-		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	for key, segments := range config {
+		// Timeout should be set based on the number of flags in the environment rather than
+		// a fixed timeout for each environment. This means that environments with more segments
+		// get a longer timeout, if we just have a fixed timeout for each environment e.g. 10 seconds
+		// then that might not be long enough for environments with a large number of segments.
+		timeout := time.Duration(10*len(segments)) * time.Second
+
+		ctx, cancel := context.WithTimeout(context.Background(), timeout)
 		// cleanup all current keys before we add new ones to make sure keys that have been deleted remotely are removed
 		sr.cache.RemoveAll(ctx, string(key))
-		if err := sr.Add(ctx, key, cfg...); err != nil {
+		if err := sr.Add(ctx, key, segments...); err != nil {
 			cancel()
 			return SegmentRepo{}, fmt.Errorf("failed to add config: %s", err)
 		}

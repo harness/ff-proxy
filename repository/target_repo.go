@@ -24,13 +24,19 @@ func NewTargetRepo(c cache.Cache, config map[domain.TargetKey][]domain.Target) (
 		return tr, nil
 	}
 
-	for key, cfg := range config {
-		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	for key, targets := range config {
+		// Timeout should be set based on the number of targets in the environment rather than
+		// a fixed timeout for each environment. This means that environments with more targets
+		// get a longer timeout, if we just have a fixed timeout for each environment e.g. 10 seconds
+		// then that might not be long enough for environments with a large number of targets.
+		timeout := time.Duration(10*len(targets)) * time.Second
+
+		ctx, cancel := context.WithTimeout(context.Background(), timeout)
 		// don't cleanup all current targets on startup - not all may have been synced to Saas and removing them can lead to 404s for connected sdks fetching updates
 		// this is an issue when we horizontally scale the proxy and a second proxy starts up wiping targets registered from the first that didn't make it to SaaS
 		// unused targets won't cause any issues so it's safe to err on the side of leaving old deleted ones in the cache for now
 		// tr.cache.RemoveAll(ctx, string(key))
-		if err := tr.Add(ctx, key, cfg...); err != nil {
+		if err := tr.Add(ctx, key, targets...); err != nil {
 			cancel()
 			return TargetRepo{}, fmt.Errorf("failed to add config: %s", err)
 		}

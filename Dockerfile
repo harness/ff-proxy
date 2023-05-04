@@ -30,7 +30,7 @@ RUN \
   echo deb https://fanout.jfrog.io/artifactory/debian fanout-focal main \
     | tee /etc/apt/sources.list.d/fanout.list && \
   apt-key adv --keyserver hkp://keyserver.ubuntu.com:80 --recv-keys \
-    EA01C1E777F95324
+    7D0343148157C3DF
 
 ENV PUSHPIN_VERSION 1.35.0-1~focal1
 
