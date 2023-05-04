@@ -6,6 +6,8 @@ import (
 	"fmt"
 
 	"github.com/harness/ff-golang-server-sdk/stream"
+	"github.com/harness/ff-proxy/token"
+	"github.com/prometheus/client_golang/prometheus"
 
 	"github.com/harness/ff-proxy/log"
 )
@@ -29,25 +31,44 @@ type streamEvent struct {
 // StreamWorker is the type that subscribes to the SSEEvent Stream that the EventListener
 // forwards SSEEvents from the embedded SDKs to and forwards them on to clients
 type StreamWorker struct {
-	log log.Logger
-	gpc GripStream
+	log        log.Logger
+	gpc        GripStream
+	ssePublish *prometheus.CounterVec
 }
 
 // NewStreamWorker creates a StreamWorker
-func NewStreamWorker(l log.Logger, gpc GripStream) StreamWorker {
+func NewStreamWorker(l log.Logger, gpc GripStream, reg *prometheus.Registry) StreamWorker {
 	l = l.With("component", "StreamWorker")
-	return StreamWorker{
+	s := StreamWorker{
 		log: l,
 		gpc: gpc,
+		ssePublish: prometheus.NewCounterVec(prometheus.CounterOpts{
+			Name: "ff_proxy_sse_publish",
+			Help: "Records the number of sse events the proxy has received and forwarded on to clients",
+		},
+			[]string{"environment", "api_key", "error"},
+		),
 	}
+
+	reg.MustRegister(s.ssePublish)
+	return s
 }
 
 // Pub makes StreamWorker implement the golang sdks stream.EventStreamListener
 // interface.
-func (s StreamWorker) Pub(ctx context.Context, event stream.Event) error {
+func (s StreamWorker) Pub(ctx context.Context, event stream.Event) (err error) {
 	if event.SSEEvent == nil {
 		return errors.New("can't publish event with nil SSEEvent")
 	}
+
+	defer func() {
+		errLabel := "false"
+		if err != nil {
+			errLabel = "true"
+		}
+
+		s.ssePublish.WithLabelValues(event.Environment, token.MaskRight(event.APIKey), errLabel).Inc()
+	}()
 
 	topic := event.Environment
 	content := fmt.Sprintf("event: *\ndata: %s\n\n", event.SSEEvent.Data)

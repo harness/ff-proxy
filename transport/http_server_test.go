@@ -14,10 +14,6 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/harness/ff-proxy/token"
-
-	"github.com/harness/ff-proxy/stream"
-
 	"github.com/fanout/go-gripcontrol"
 	"github.com/go-redis/redis/v8"
 	sdkstream "github.com/harness/ff-golang-server-sdk/stream"
@@ -30,6 +26,9 @@ import (
 	"github.com/harness/ff-proxy/middleware"
 	proxyservice "github.com/harness/ff-proxy/proxy-service"
 	"github.com/harness/ff-proxy/repository"
+	"github.com/harness/ff-proxy/stream"
+	"github.com/harness/ff-proxy/token"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/r3labs/sse"
 	"github.com/stretchr/testify/assert"
 )
@@ -91,6 +90,7 @@ type setupConfig struct {
 	eventListener sdkstream.EventStreamListener
 	cache         cache.Cache
 	metricService *mockMetricService
+	promReg       prometheusRegister
 }
 
 type setupOpts func(s *setupConfig)
@@ -243,8 +243,13 @@ func setupHTTPServer(t *testing.T, bypassAuth bool, opts ...setupOpts) *HTTPServ
 	})
 	endpoints := NewEndpoints(service)
 
-	server := NewHTTPServer(8000, endpoints, logger, false, "", "")
-	server.Use(middleware.NewEchoAuthMiddleware([]byte(`secret`), bypassAuth))
+	server := NewHTTPServer(8000, endpoints, logger, false, "", "", prometheus.NewRegistry())
+	server.Use(
+		middleware.NewEchoRequestIDMiddleware(),
+		middleware.NewEchoLoggingMiddleware(),
+		middleware.NewEchoAuthMiddleware([]byte(`secret`), bypassAuth),
+		middleware.NewPrometheusMiddleware(prometheus.NewRegistry()),
+	)
 	return server
 }
 
@@ -1423,7 +1428,7 @@ func TestHTTPServer_StreamIntegration(t *testing.T) {
 				},
 			})
 
-			streamWorker := stream.NewStreamWorker(logger, gpc)
+			streamWorker := stream.NewStreamWorker(logger, gpc, prometheus.NewRegistry())
 
 			requests := []*http.Request{}
 			for _, apiKey := range tc.apiKeys {
