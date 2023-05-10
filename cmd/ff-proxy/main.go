@@ -13,6 +13,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/harness/ff-proxy/build"
 	"github.com/harness/ff-proxy/stream"
 
 	"github.com/harness/ff-proxy/token"
@@ -22,6 +23,8 @@ import (
 	"github.com/fanout/go-gripcontrol"
 	"github.com/hashicorp/go-multierror"
 	"github.com/hashicorp/go-retryablehttp"
+
+	"cloud.google.com/go/profiler"
 
 	_ "net/http/pprof" //#nosec
 
@@ -122,6 +125,7 @@ var (
 	tlsEnabled            bool
 	tlsCert               string
 	tlsKey                string
+	gcpProfilerEnabled    bool
 )
 
 const (
@@ -153,6 +157,7 @@ const (
 	tlsEnabledEnv            = "TLS_ENABLED"
 	tlsCertEnv               = "TLS_CERT"
 	tlsKeyEnv                = "TLS_KEY"
+	gcpProfilerEnabledEnv    = "GCP_PROFILER_ENABLED"
 
 	bypassAuthFlag            = "bypass-auth"
 	debugFlag                 = "debug"
@@ -182,6 +187,7 @@ const (
 	tlsEnabledFlag            = "tls-enabled"
 	tlsCertFlag               = "tls-cert"
 	tlsKeyFlag                = "tls-key"
+	gcpProfilerEnabledFlag    = "gcp-profiler-enabled"
 )
 
 func init() {
@@ -214,6 +220,7 @@ func init() {
 	flag.BoolVar(&tlsEnabled, tlsEnabledFlag, false, "if true the proxy will use the tlsCert and tlsKey to run with https enabled")
 	flag.StringVar(&tlsCert, tlsCertFlag, "", "Path to tls cert file. Required if tls enabled is true.")
 	flag.StringVar(&tlsKey, tlsKeyFlag, "", "Path to tls key file. Required if tls enabled is true.")
+	flag.BoolVar(&gcpProfilerEnabled, gcpProfilerEnabledFlag, false, "Enables gcp cloud profiler")
 
 	sdkClients = newSDKClientMap()
 
@@ -246,6 +253,7 @@ func init() {
 		tlsEnabledEnv:            tlsEnabledFlag,
 		tlsCertEnv:               tlsCertFlag,
 		tlsKeyEnv:                tlsKeyFlag,
+		gcpProfilerEnabledEnv:    gcpProfilerEnabledFlag,
 	})
 
 	flag.Parse()
@@ -292,6 +300,13 @@ func initFF(ctx context.Context, cache gosdkCache.Cache, baseURL, eventURL, envI
 }
 
 func main() {
+	// Setup logger
+	logger, err := log.NewStructuredLogger(debug)
+	if err != nil {
+		fmt.Println("we have no logger")
+		os.Exit(1)
+	}
+
 	if pprofEnabled {
 		go func() {
 			// #nosec
@@ -299,6 +314,13 @@ func main() {
 				stdlog.Printf("failed to start pprof server: %s \n", err)
 			}
 		}()
+	}
+
+	if gcpProfilerEnabled {
+		err := profiler.Start(profiler.Config{Service: "ff-proxy", ServiceVersion: build.Version})
+		if err != nil {
+			logger.Info("unable to start gcp profiler", "err", err)
+		}
 	}
 
 	// we currently don't require any config to run in offline mode
@@ -312,13 +334,6 @@ func main() {
 		}
 	}
 	validateFlags(requiredFlags)
-
-	// Setup logger
-	logger, err := log.NewStructuredLogger(debug)
-	if err != nil {
-		fmt.Println("we have no logger")
-		os.Exit(1)
-	}
 
 	// Setup cancelation
 	sigc := make(chan os.Signal, 1)

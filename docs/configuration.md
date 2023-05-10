@@ -111,6 +111,7 @@ You may need to adjust these if you pass all your traffic through a filter or pr
 ### Development
 Flags that can help when developing the proxy.
 
-| Environment Variable | Flag  | Description                | Type    | Default |
-|----------------------|-------|----------------------------|---------|---------|
-| PPROF                | pprof | Enables pprof on port 6060 | boolean | false   |
+| Environment Variable | Flag                 | Description                    | Type    | Default |
+|----------------------|----------------------|--------------------------------|---------|---------|
+| PPROF                | pprof                | Enables pprof on port 6060     | boolean | false   |
+| GCP_PROFILER_ENABLED | gcp-profiler-enabled | Enables the gcp cloud profiler | boolean | false   |

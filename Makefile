@@ -14,6 +14,10 @@ tools = $(addprefix $(GOBIN)/, golangci-lint golint gosec goimports gocov gocov-
 deps = $(addprefix $(GOBIN)/, oapi-codegen)
 export formatlist = $(shell go list  ./... | sed 's/\github.com\/harness\/ff-proxy\///g' | sed 's/\github.com\/harness\/ff-proxy//g' | sed 's/\gen\/admin//g' | sed 's/\gen\/client//g')
 
+ifndef GIT_TAG
+	export GIT_TAG = $(shell git describe --tags --abbrev=0)
+endif
+
 dep: $(deps) ## Install the deps required to generate code and build feature flags
 	@echo "Installing dependances"
 	@go mod download
@@ -36,7 +40,7 @@ generate: ## Generates the client for the ff-servers client service
 
 PHONY+= build
 build: ## Builds the ff-proxy service binary
-	CGO_ENABLED=0 go build -o ff-proxy ./cmd/ff-proxy/main.go
+	CGO_ENABLED=0 go build -ldflags="-X github.com/harness/ff-proxy/build.Version=${GIT_TAG}" -o ff-proxy ./cmd/ff-proxy/main.go
 
 PHONY+= build-race
 build-race: generate ## Builds the ff-proxy service binary with the race detector enabled
