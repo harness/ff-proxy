@@ -256,6 +256,10 @@ func CreateProjectRemote(identifier string) (*http.Response, error) {
 	req.Header.Set("content-type", "application/json")
 	AddAuthToken(context.Background(), req)
 	res, err := client.Client.Do(req)
+	if err != nil {
+		log.Error(err)
+		return nil, err
+	}
 
 	// ensure project is created within cf
 	err = retry.Do(

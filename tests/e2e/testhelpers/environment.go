@@ -52,6 +52,10 @@ func CreateEnvironmentRemote(projectIdentifier string, environment, environmentN
 	req.Header.Set("content-type", "application/json")
 	AddAuthToken(context.Background(), req)
 	res, err := client.Client.Do(req)
+	if err != nil {
+		log.Error(err)
+		return nil, err
+	}
 
 	// ensure environment is created within cf
 	err = retry.Do(
