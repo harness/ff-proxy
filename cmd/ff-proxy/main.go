@@ -14,11 +14,11 @@ import (
 	"time"
 
 	"github.com/harness/ff-proxy/build"
-	"github.com/harness/ff-proxy/stream"
-
-	"github.com/harness/ff-proxy/token"
-
 	"github.com/harness/ff-proxy/export"
+	"github.com/harness/ff-proxy/stream"
+	"github.com/harness/ff-proxy/token"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/collectors"
 
 	"github.com/fanout/go-gripcontrol"
 	"github.com/hashicorp/go-multierror"
@@ -344,6 +344,9 @@ func main() {
 		cancel()
 	}()
 
+	promReg := prometheus.NewRegistry()
+	promReg.MustRegister(collectors.NewGoCollector())
+
 	logger.Info("service config", "pprof", pprofEnabled, "debug", debug, "bypass-auth", bypassAuth, "offline", offline, "port", port, "admin-service", adminService, "account-identifier", accountIdentifier, "org-identifier", orgIdentifier, "sdk-base-url", sdkBaseURL, "sdk-events-url", sdkEventsURL, "redis-addr", redisAddress, "redis-db", redisDB, "api-keys", apiKeys.PrintMasked(), "target-poll-duration", fmt.Sprintf("%ds", targetPollDuration), "heartbeat-interval", fmt.Sprintf("%ds", heartbeatInterval), "flag-stream-enabled", flagStreamEnabled, "flag-poll-interval", fmt.Sprintf("%dm", flagPollInterval), "config-dir", configDir, "tls-enabled", tlsEnabled, "tls-cert", tlsCert, "tls-key", tlsKey)
 
 	adminService, err := services.NewAdminService(logger, adminService, adminServiceToken)
@@ -386,7 +389,7 @@ func main() {
 		}
 		client := redis.NewUniversalClient(&opts)
 		logger.Info("connecting to redis", "address", redisAddress)
-		sdkCache = cache.NewRedisCache(client)
+		sdkCache = cache.NewMetricsCache("redis", promReg, cache.NewRedisCache(client))
 		err = sdkCache.HealthCheck(ctx)
 		if err != nil {
 			logger.Error("failed to connect to redis", "err", err)
@@ -394,7 +397,7 @@ func main() {
 		}
 	} else {
 		logger.Info("initialising default memcache")
-		sdkCache = cache.NewMemCache()
+		sdkCache = cache.NewMetricsCache("in_mem", promReg, cache.NewMemCache())
 	}
 
 	apiKeyHasher := hash.NewSha256()
@@ -443,7 +446,7 @@ func main() {
 			} else {
 				streamEnabled = true
 				logger.Info("starting stream service...")
-				eventListener = stream.NewStreamWorker(logger, gpc)
+				eventListener = stream.NewStreamWorker(logger, gpc, promReg)
 			}
 		} else {
 			logger.Info("starting sdks in polling mode. streaming disabled for connected sdks")
@@ -533,7 +536,7 @@ func main() {
 	tokenSource := token.NewTokenSource(logger, authRepo, apiKeyHasher, []byte(authSecret))
 
 	metricsEnabled := metricPostDuration != 0 && !offline
-	metricService, err := services.NewMetricService(logger, metricService, accountIdentifier, remoteConfig.Tokens(), metricsEnabled)
+	metricService, err := services.NewMetricService(logger, metricService, accountIdentifier, remoteConfig.Tokens(), metricsEnabled, promReg)
 	if err != nil {
 		logger.Error("failed to create client for the feature flags metric service", "err", err)
 		os.Exit(1)
@@ -558,11 +561,12 @@ func main() {
 
 	// Configure endpoints and server
 	endpoints := transport.NewEndpoints(service)
-	server := transport.NewHTTPServer(port, endpoints, logger, tlsEnabled, tlsCert, tlsKey)
+	server := transport.NewHTTPServer(port, endpoints, logger, tlsEnabled, tlsCert, tlsKey, promReg)
 	server.Use(
 		middleware.NewEchoRequestIDMiddleware(),
 		middleware.NewEchoLoggingMiddleware(),
 		middleware.NewEchoAuthMiddleware([]byte(authSecret), bypassAuth),
+		middleware.NewPrometheusMiddleware(promReg),
 	)
 
 	go func() {
