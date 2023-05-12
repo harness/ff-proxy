@@ -23,7 +23,7 @@ var (
 
 func init() {
 	flag.IntVar(&numEnvironments, "environments", 2, "the number of environments to generate")
-	flag.IntVar(&factor, "factor", 2, "the factor to apply to the number of features, segments and targets for each environmnet that's created")
+	flag.IntVar(&factor, "factor", 2, "the factor to apply to the number of features, segments and targets for each environment that's created")
 	flag.IntVar(&features, "features", 1, "baseline number of features to generate")
 	flag.IntVar(&segments, "segments", 1, "baseline number of segments to generate")
 	flag.IntVar(&targets, "targets", 1, "baseline number of targets to generate")

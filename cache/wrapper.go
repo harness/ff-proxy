@@ -21,10 +21,13 @@ import (
 // e.g.
 //
 // some-key-1
-//    field-1: foobar
-//    field-2: fizzbuzz
+//
+//	field-1: foobar
+//	field-2: fizzbuzz
+//
 // some-key-2
-//    field-1: hello-world
+//
+//	field-1: hello-world
 type Cache interface {
 	// Set sets a value in the cache for a given key and field
 	Set(ctx context.Context, key string, field string, value encoding.BinaryMarshaler) error
@@ -34,7 +37,7 @@ type Cache interface {
 	Get(ctx context.Context, key string, field string, v encoding.BinaryUnmarshaler) error
 	// GetByte gets the value of a field for a given key
 	GetByte(ctx context.Context, key string, field string) ([]byte, error)
-	// GetAll gets all of the fiels and their values for a given key
+	// GetAll gets all the fields and their values for a given key
 	GetAll(ctx context.Context, key string) (map[string][]byte, error)
 	// RemoveAll removes all the fields and their values for a given key
 	RemoveAll(ctx context.Context, key string)

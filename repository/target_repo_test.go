@@ -46,7 +46,7 @@ func (m *mockCache) GetByte(ctx context.Context, key string, field string) ([]by
 	return m.getByte()
 }
 
-// GetAll gets all of the fiels and their values for a given key
+// GetAll gets all the fields and their values for a given key
 func (m *mockCache) GetAll(ctx context.Context, key string) (map[string][]byte, error) {
 	return m.getAll()
 }

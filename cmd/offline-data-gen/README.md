@@ -7,7 +7,7 @@ Usage of ./offline-data-gen:
   -environments int
     	the number of environments to generate (default 2)
   -factor int
-    	the factor to apply to the number of features, segments and targets for each environmnet that's created (default 2)
+    	the factor to apply to the number of features, segments and targets for each environment that's created (default 2)
   -features int
     	baseline number of features to generate (default 1)
   -segments int
