@@ -18,7 +18,7 @@ func TestMain(m *testing.M) {
 	os.Exit(exitVal)
 }
 
-// TestSetup performs setup before a test.  This includes initalizing logging, and working
+// TestSetup performs setup before a test.  This includes initializing logging, and working
 // out how to authenticate with the platform
 func Setup() {
 	log.Infof("Global Test Setup")

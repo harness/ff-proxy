@@ -22,7 +22,7 @@ type Endpoints struct {
 	Health                        endpoint.Endpoint
 }
 
-// NewEndpoints returns an initalised Endpoints where each endpoint invokes the
+// NewEndpoints returns an initialised Endpoints where each endpoint invokes the
 // corresponding method on the passed ProxyService
 func NewEndpoints(p proxyservice.ProxyService) *Endpoints {
 	return &Endpoints{
@@ -55,7 +55,7 @@ func makePostAuthenticateEndpoint(s proxyservice.ProxyService) endpoint.Endpoint
 // makeGetFeatureConfigsEndpoint is a function to convert a services GetFeatureConfig
 // method to an endpoint
 func makeGetFeatureConfigsEndpoint(s proxyservice.ProxyService) endpoint.Endpoint {
-	return func(ctx context.Context, request interface{}) (repsonse interface{}, err error) {
+	return func(ctx context.Context, request interface{}) (response interface{}, err error) {
 		req := request.(domain.FeatureConfigRequest)
 		featureConfigs, err := s.FeatureConfig(ctx, req)
 		if err != nil {

@@ -70,7 +70,7 @@ func (s *sdkClientMap) copy() map[string]*harness.CfClient {
 	return s.m
 }
 
-// keys implements the flag.Value interface and allows us to pass a comma seperated
+// keys implements the flag.Value interface and allows us to pass a comma separated
 // list of api keys e.g. -api-keys 123,456,789
 type keys []string
 

@@ -1497,7 +1497,7 @@ func TestHTTPServer_StreamIntegration(t *testing.T) {
 				}
 				cancel()
 
-				t.Logf("Then %s will recieve the event(s)", key)
+				t.Logf("Then %s will receive the event(s)", key)
 				assert.ElementsMatch(t, tc.expectedEvents, actualEvents)
 
 			}
