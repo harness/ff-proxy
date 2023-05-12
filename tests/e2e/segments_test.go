@@ -6,9 +6,8 @@ import (
 	"net/http"
 	"testing"
 
-	"github.com/harness/ff-proxy/tests/e2e/testhelpers"
-
 	"github.com/harness/ff-proxy/gen/client"
+	"github.com/harness/ff-proxy/tests/e2e/testhelpers"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -90,6 +89,9 @@ func TestTargetSegments(t *testing.T) {
 			}
 
 			got, err := GetAllSegments(t, envID, token)
+			if err != nil {
+				t.Error(err)
+			}
 			// Assert the response
 			assert.NotNil(t, got)
 			assert.Equal(t, tt.want.StatusCode, got.StatusCode(), "expected http status code %d but got %d", tt.want.StatusCode, got.StatusCode())

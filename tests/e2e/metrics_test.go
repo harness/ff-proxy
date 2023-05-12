@@ -167,6 +167,10 @@ func getFeatureFlag(identifier string, environment string) (*admin.Feature, erro
 		req.Header.Set("x-api-key", GetUserAccessToken())
 		return nil
 	})
+	if err != nil {
+		log.Error(err)
+		return nil, err
+	}
 
 	flagResponse, err := admin.ParseGetFeatureFlagResponse(response)
 	if err != nil {
