@@ -3,9 +3,11 @@ package cache
 import (
 	"context"
 	"encoding"
+	"errors"
 	"fmt"
 	"time"
 
+	"github.com/harness/ff-proxy/domain"
 	"github.com/prometheus/client_golang/prometheus"
 )
 
@@ -39,21 +41,21 @@ func NewMetricsCache(label string, reg prometheus.Registerer, next Cache) Metric
 		next: next,
 
 		writeDuration: prometheus.NewHistogramVec(prometheus.HistogramOpts{
-			Name:    "ff_proxy_%s_cache_write_duration",
+			Name:    fmt.Sprintf("ff_proxy_%s_cache_write_duration", label),
 			Help:    "Tracks how long write operations to the cache take",
 			Buckets: []float64{0.01, 0.025, 0.05, 0.075, 0.1, 0.25, 0.5},
 		},
 			[]string{},
 		),
 		readDuration: prometheus.NewHistogramVec(prometheus.HistogramOpts{
-			Name:    "ff_proxy_%s_cache_read_duration",
+			Name:    fmt.Sprintf("ff_proxy_%s_cache_read_duration", label),
 			Help:    "Tracks how long write operations to the cache take",
 			Buckets: []float64{0.01, 0.025, 0.05, 0.075, 0.1, 0.25, 0.5},
 		},
 			[]string{},
 		),
 		deleteDuration: prometheus.NewHistogramVec(prometheus.HistogramOpts{
-			Name:    "ff_proxy_%s_cache_delete_duration",
+			Name:    fmt.Sprintf("ff_proxy_%s_cache_delete_duration", label),
 			Help:    "Tracks how long delete operations to the cache take",
 			Buckets: []float64{0.01, 0.025, 0.05, 0.075, 0.1, 0.25, 0.5},
 		},
@@ -73,7 +75,7 @@ func NewMetricsCache(label string, reg prometheus.Registerer, next Cache) Metric
 			[]string{"key", "operation", "error"},
 		),
 		deleteCount: prometheus.NewCounterVec(prometheus.CounterOpts{
-			Name: fmt.Sprintf("ff_proxy_%s_cache_remove_duration", label),
+			Name: fmt.Sprintf("ff_proxy_%s_cache_remove_count", label),
 			Help: "Tracks how many deletes we make to the cache",
 		},
 			[]string{"key", "operation"},
@@ -81,6 +83,9 @@ func NewMetricsCache(label string, reg prometheus.Registerer, next Cache) Metric
 	}
 
 	reg.MustRegister(
+		c.writeDuration,
+		c.readDuration,
+		c.deleteDuration,
 		c.writeCount,
 		c.readCount,
 		c.deleteCount,
@@ -187,6 +192,10 @@ func trackCounter(metric counter, labels ...string) {
 
 func getErrorLabel(err error) string {
 	if err != nil {
+		// Don't want to track NotFound as an error in prometheus metrics
+		if errors.Is(err, domain.ErrCacheNotFound) {
+			return "false"
+		}
 		return "true"
 	}
 	return "false"

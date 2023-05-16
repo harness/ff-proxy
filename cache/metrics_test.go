@@ -252,7 +252,7 @@ func TestCacheMetrics_GetAll(t *testing.T) {
 		readCount    *mockCounter
 		expected     result
 	}{
-		"Given I call GetAll and the decorated cache errors": {
+		"Given I call GetAll and the decorated cache errors with a domain.ErrCacheNotFound error": {
 			args: args{
 				key:       "foo",
 				cacheData: map[string]map[string][]byte{},
@@ -264,7 +264,7 @@ func TestCacheMetrics_GetAll(t *testing.T) {
 
 			expected: result{
 				observations: 1,
-				labels:       []string{"foo", "GetAll", "true"},
+				labels:       []string{"foo", "GetAll", "false"},
 			},
 		},
 		"Given I call GetAll and the decorated cache doesn't error": {
