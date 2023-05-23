@@ -3,6 +3,7 @@ package services
 import (
 	"context"
 	"fmt"
+	"io"
 	"net/http"
 	"sync"
 
@@ -126,6 +127,9 @@ func (m MetricService) SendMetrics(ctx context.Context, clusterIdentifier string
 		}
 		if res != nil && res.StatusCode() != 200 {
 			m.log.Error("sending metrics failed", "environment", envID, "status code", res.StatusCode())
+			defer res.HTTPResponse.Body.Close()
+			b, _ := io.ReadAll(res.HTTPResponse.Body)
+			m.log.Info("failed metrics request", "request_url", res.HTTPResponse.Request.URL.String(), "body", string(b), "token", token)
 		}
 	}
 }
