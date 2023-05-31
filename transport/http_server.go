@@ -93,7 +93,7 @@ func (h *HTTPServer) registerEndpoints(e *Endpoints, reg prometheusRegister) {
 	h.router.GET("/health", NewUnaryHandler(
 		e.Health,
 		decodeHealthRequest,
-		encodeHealthResponse,
+		encodeResponse,
 		encodeEchoError,
 	))
 
