@@ -93,6 +93,10 @@ func TestMetrics(t *testing.T) {
 			continue
 		}
 
+		if flag == nil {
+			continue
+		}
+
 		// check that flag metrics status and last access are correct
 		if flag.Status.Status != "active" {
 			log.Warnf("attempt %d failed, expected status 'active', got %s", i, flag.Status.Status)
