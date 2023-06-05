@@ -93,7 +93,7 @@ func TestMetrics(t *testing.T) {
 			continue
 		}
 
-		if flag == nil {
+		if flag.Status == nil {
 			continue
 		}
 
