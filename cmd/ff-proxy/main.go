@@ -208,7 +208,7 @@ func init() {
 	flag.StringVar(&redisPassword, redisPasswordFlag, "", "Optional. Redis password")
 	flag.IntVar(&redisDB, redisDBFlag, 0, "Database to be selected after connecting to the server.")
 	flag.Var(&apiKeys, apiKeysFlag, "API keys to connect with ff-server for each environment")
-	flag.IntVar(&targetPollDuration, targetPollDurationFlag, 60, "How often in seconds the proxy polls feature flags for Target changes. Set to 0 to disable.")
+	flag.IntVar(&targetPollDuration, targetPollDurationFlag, 0, "How often in seconds the proxy polls feature flags for Target changes. Set to 0 to disable.")
 	flag.IntVar(&metricPostDuration, metricPostDurationFlag, 60, "How often in seconds the proxy posts metrics to Harness. Set to 0 to disable.")
 	flag.IntVar(&heartbeatInterval, heartbeatIntervalFlag, 60, "How often in seconds the proxy polls pings it's health function. Set to 0 to disable.")
 	flag.BoolVar(&pprofEnabled, pprofEnabledFlag, false, "enables pprof on port 6060")
@@ -480,7 +480,7 @@ func main() {
 		// but this will lockdown requests a bit better while still giving us high availability for now. This could be coupled
 		// with a new config option to exit if any keys fail for users who want to restrict fully to whats provided in the startup config
 		if len(envInfo) == len(apiKeys) {
-			for env, _ := range envInfo {
+			for env := range envInfo {
 				approvedEnvs[env] = struct{}{}
 			}
 			logger.Info("serving requests for configured environments", "environments", approvedEnvs)
