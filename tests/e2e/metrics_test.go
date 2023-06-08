@@ -87,18 +87,18 @@ func TestMetrics(t *testing.T) {
 	metricsSuccess := false
 	for i := 1; i <= 18; i++ {
 		time.Sleep(10 * time.Second)
-		flag, err := getFeatureFlag("bool-flag1", GetEnvironmentIdentifier())
+		metrics, err := getFeatureFlagMetrics("bool-flag1", GetEnvironmentIdentifier())
 		if err != nil {
 			t.Errorf("failed to fetch flags: err %s", err)
 		}
 
-		// check that flag metrics status and last access are correct
-		if flag.Status.Status != "active" {
-			log.Warnf("attempt %d failed, expected status 'active', got %s", i, flag.Status.Status)
+		// check that flag metrics exist
+		if metrics.Status.Status != "active" {
+			log.Warnf("attempt %d failed, expected status 'active', got %s", i, metrics.Status.Status)
 			continue
 		}
-		if int64(flag.Status.LastAccess) != timestamp {
-			log.Warnf("attempt %d failed, expected LastAccess %d, got %d", i, timestamp, flag.Status.LastAccess)
+		if int64(metrics.Status.LastAccess) != timestamp {
+			log.Warnf("attempt %d failed, expected LastAccess %d, got %d", i, timestamp, metrics.Status.LastAccess)
 			continue
 		}
 		metricsSuccess = true
@@ -178,6 +178,39 @@ func getFeatureFlag(identifier string, environment string) (*admin.Feature, erro
 	}
 
 	return flagResponse.JSON200, nil
+}
+
+func getFeatureFlagMetrics(identifier string, environment string) (*admin.FeatureMetric, error) {
+	client := testhelpers.DefaultClient()
+
+	response, err := client.GetFeatureMetrics(context.Background(), &admin.GetFeatureMetricsParams{
+		AccountIdentifier:     GetAccountIdentifier(),
+		OrgIdentifier:         GetOrgIdentifier(),
+		ProjectIdentifier:     GetProjectIdentifier(),
+		EnvironmentIdentifier: environment,
+	}, func(ctx context.Context, req *http.Request) error {
+		req.Header.Set("x-api-key", GetUserAccessToken())
+		return nil
+	})
+	if err != nil {
+		log.Error(err)
+		return nil, err
+	}
+
+	metricsResponse, err := admin.ParseGetFeatureMetricsResponse(response)
+	if err != nil {
+		return nil, err
+	}
+	if metricsResponse.StatusCode() != 200 {
+		return nil, fmt.Errorf("metrics non 200 received")
+	}
+	for _, metric := range *metricsResponse.JSON200 {
+		if *metric.Identifier == identifier {
+			return &metric, nil
+		}
+	}
+	log.Warnf("metric not found for %s", identifier)
+	return &admin.FeatureMetric{}, nil
 }
 
 func GetTarget(ctx context.Context, target string, g *admin.GetTargetParams) (*admin.GetTargetResponse, error) {

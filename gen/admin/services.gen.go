@@ -183,8 +183,14 @@ type ClientInterface interface {
 
 	CreateFlagPipeline(ctx context.Context, identifier Identifier, params *CreateFlagPipelineParams, body CreateFlagPipelineJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// GetJiraIssues request
+	GetJiraIssues(ctx context.Context, params *GetJiraIssuesParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// GetOSByID request
 	GetOSByID(ctx context.Context, identifiers Identifiers, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// GetUserFlagOverview request
+	GetUserFlagOverview(ctx context.Context, params *GetUserFlagOverviewParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// GetAllProjects request
 	GetAllProjects(ctx context.Context, params *GetAllProjectsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -204,6 +210,9 @@ type ClientInterface interface {
 	ModifyProjectWithBody(ctx context.Context, identifier Identifier, params *ModifyProjectParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	ModifyProject(ctx context.Context, identifier Identifier, params *ModifyProjectParams, body ModifyProjectJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// GetProjectFlags request
+	GetProjectFlags(ctx context.Context, identifier Identifier, params *GetProjectFlagsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// DeleteGitRepo request
 	DeleteGitRepo(ctx context.Context, identifier Identifier, params *DeleteGitRepoParams, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -700,8 +709,32 @@ func (c *Client) CreateFlagPipeline(ctx context.Context, identifier Identifier, 
 	return c.Client.Do(req)
 }
 
+func (c *Client) GetJiraIssues(ctx context.Context, params *GetJiraIssuesParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetJiraIssuesRequest(c.Server, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
 func (c *Client) GetOSByID(ctx context.Context, identifiers Identifiers, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewGetOSByIDRequest(c.Server, identifiers)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) GetUserFlagOverview(ctx context.Context, params *GetUserFlagOverviewParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetUserFlagOverviewRequest(c.Server, params)
 	if err != nil {
 		return nil, err
 	}
@@ -786,6 +819,18 @@ func (c *Client) ModifyProjectWithBody(ctx context.Context, identifier Identifie
 
 func (c *Client) ModifyProject(ctx context.Context, identifier Identifier, params *ModifyProjectParams, body ModifyProjectJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewModifyProjectRequest(c.Server, identifier, params, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) GetProjectFlags(ctx context.Context, identifier Identifier, params *GetProjectFlagsParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetProjectFlagsRequest(c.Server, identifier, params)
 	if err != nil {
 		return nil, err
 	}
@@ -2664,6 +2709,22 @@ func NewGetAllFeaturesRequest(server string, params *GetAllFeaturesParams) (*htt
 
 	}
 
+	if params.Summary != nil {
+
+		if queryFrag, err := runtime.StyleParamWithLocation("form", true, "summary", runtime.ParamLocationQuery, *params.Summary); err != nil {
+			return nil, err
+		} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+			return nil, err
+		} else {
+			for k, v := range parsed {
+				for _, v2 := range v {
+					queryValues.Add(k, v2)
+				}
+			}
+		}
+
+	}
+
 	queryURL.RawQuery = queryValues.Encode()
 
 	req, err := http.NewRequest("GET", queryURL.String(), nil)
@@ -2926,16 +2987,180 @@ func NewGetFeatureMetricsRequest(server string, params *GetFeatureMetricsParams)
 		}
 	}
 
-	if queryFrag, err := runtime.StyleParamWithLocation("form", true, "featureIDs", runtime.ParamLocationQuery, params.FeatureIDs); err != nil {
-		return nil, err
-	} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
-		return nil, err
-	} else {
-		for k, v := range parsed {
-			for _, v2 := range v {
-				queryValues.Add(k, v2)
+	if params.FeatureIDs != nil {
+
+		if queryFrag, err := runtime.StyleParamWithLocation("form", true, "featureIDs", runtime.ParamLocationQuery, *params.FeatureIDs); err != nil {
+			return nil, err
+		} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+			return nil, err
+		} else {
+			for k, v := range parsed {
+				for _, v2 := range v {
+					queryValues.Add(k, v2)
+				}
 			}
 		}
+
+	}
+
+	if params.PageNumber != nil {
+
+		if queryFrag, err := runtime.StyleParamWithLocation("form", true, "pageNumber", runtime.ParamLocationQuery, *params.PageNumber); err != nil {
+			return nil, err
+		} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+			return nil, err
+		} else {
+			for k, v := range parsed {
+				for _, v2 := range v {
+					queryValues.Add(k, v2)
+				}
+			}
+		}
+
+	}
+
+	if params.PageSize != nil {
+
+		if queryFrag, err := runtime.StyleParamWithLocation("form", true, "pageSize", runtime.ParamLocationQuery, *params.PageSize); err != nil {
+			return nil, err
+		} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+			return nil, err
+		} else {
+			for k, v := range parsed {
+				for _, v2 := range v {
+					queryValues.Add(k, v2)
+				}
+			}
+		}
+
+	}
+
+	if params.SortOrder != nil {
+
+		if queryFrag, err := runtime.StyleParamWithLocation("form", true, "sortOrder", runtime.ParamLocationQuery, *params.SortOrder); err != nil {
+			return nil, err
+		} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+			return nil, err
+		} else {
+			for k, v := range parsed {
+				for _, v2 := range v {
+					queryValues.Add(k, v2)
+				}
+			}
+		}
+
+	}
+
+	if params.SortByField != nil {
+
+		if queryFrag, err := runtime.StyleParamWithLocation("form", true, "sortByField", runtime.ParamLocationQuery, *params.SortByField); err != nil {
+			return nil, err
+		} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+			return nil, err
+		} else {
+			for k, v := range parsed {
+				for _, v2 := range v {
+					queryValues.Add(k, v2)
+				}
+			}
+		}
+
+	}
+
+	if params.Name != nil {
+
+		if queryFrag, err := runtime.StyleParamWithLocation("form", true, "name", runtime.ParamLocationQuery, *params.Name); err != nil {
+			return nil, err
+		} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+			return nil, err
+		} else {
+			for k, v := range parsed {
+				for _, v2 := range v {
+					queryValues.Add(k, v2)
+				}
+			}
+		}
+
+	}
+
+	if params.Identifier != nil {
+
+		if queryFrag, err := runtime.StyleParamWithLocation("form", true, "identifier", runtime.ParamLocationQuery, *params.Identifier); err != nil {
+			return nil, err
+		} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+			return nil, err
+		} else {
+			for k, v := range parsed {
+				for _, v2 := range v {
+					queryValues.Add(k, v2)
+				}
+			}
+		}
+
+	}
+
+	if params.Archived != nil {
+
+		if queryFrag, err := runtime.StyleParamWithLocation("form", true, "archived", runtime.ParamLocationQuery, *params.Archived); err != nil {
+			return nil, err
+		} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+			return nil, err
+		} else {
+			for k, v := range parsed {
+				for _, v2 := range v {
+					queryValues.Add(k, v2)
+				}
+			}
+		}
+
+	}
+
+	if params.Status != nil {
+
+		if queryFrag, err := runtime.StyleParamWithLocation("form", true, "status", runtime.ParamLocationQuery, *params.Status); err != nil {
+			return nil, err
+		} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+			return nil, err
+		} else {
+			for k, v := range parsed {
+				for _, v2 := range v {
+					queryValues.Add(k, v2)
+				}
+			}
+		}
+
+	}
+
+	if params.Lifetime != nil {
+
+		if queryFrag, err := runtime.StyleParamWithLocation("form", true, "lifetime", runtime.ParamLocationQuery, *params.Lifetime); err != nil {
+			return nil, err
+		} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+			return nil, err
+		} else {
+			for k, v := range parsed {
+				for _, v2 := range v {
+					queryValues.Add(k, v2)
+				}
+			}
+		}
+
+	}
+
+	if params.Enabled != nil {
+
+		if queryFrag, err := runtime.StyleParamWithLocation("form", true, "enabled", runtime.ParamLocationQuery, *params.Enabled); err != nil {
+			return nil, err
+		} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+			return nil, err
+		} else {
+			for k, v := range parsed {
+				for _, v2 := range v {
+					queryValues.Add(k, v2)
+				}
+			}
+		}
+
 	}
 
 	queryURL.RawQuery = queryValues.Encode()
@@ -3162,6 +3387,22 @@ func NewDeleteFeatureFlagRequest(server string, identifier Identifier, params *D
 	if params.CommitMsg != nil {
 
 		if queryFrag, err := runtime.StyleParamWithLocation("form", true, "commitMsg", runtime.ParamLocationQuery, *params.CommitMsg); err != nil {
+			return nil, err
+		} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+			return nil, err
+		} else {
+			for k, v := range parsed {
+				for _, v2 := range v {
+					queryValues.Add(k, v2)
+				}
+			}
+		}
+
+	}
+
+	if params.ForceDelete != nil {
+
+		if queryFrag, err := runtime.StyleParamWithLocation("form", true, "forceDelete", runtime.ParamLocationQuery, *params.ForceDelete); err != nil {
 			return nil, err
 		} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
 			return nil, err
@@ -3886,6 +4127,61 @@ func NewCreateFlagPipelineRequestWithBody(server string, identifier Identifier, 
 	return req, nil
 }
 
+// NewGetJiraIssuesRequest generates requests for GetJiraIssues
+func NewGetJiraIssuesRequest(server string, params *GetJiraIssuesParams) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/admin/jira/issues")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	queryValues := queryURL.Query()
+
+	if queryFrag, err := runtime.StyleParamWithLocation("form", true, "accountIdentifier", runtime.ParamLocationQuery, params.AccountIdentifier); err != nil {
+		return nil, err
+	} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+		return nil, err
+	} else {
+		for k, v := range parsed {
+			for _, v2 := range v {
+				queryValues.Add(k, v2)
+			}
+		}
+	}
+
+	if queryFrag, err := runtime.StyleParamWithLocation("form", true, "searchTerm", runtime.ParamLocationQuery, params.SearchTerm); err != nil {
+		return nil, err
+	} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+		return nil, err
+	} else {
+		for k, v := range parsed {
+			for _, v2 := range v {
+				queryValues.Add(k, v2)
+			}
+		}
+	}
+
+	queryURL.RawQuery = queryValues.Encode()
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
 // NewGetOSByIDRequest generates requests for GetOSByID
 func NewGetOSByIDRequest(server string, identifiers Identifiers) (*http.Request, error) {
 	var err error
@@ -3911,6 +4207,49 @@ func NewGetOSByIDRequest(server string, identifiers Identifiers) (*http.Request,
 	if err != nil {
 		return nil, err
 	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewGetUserFlagOverviewRequest generates requests for GetUserFlagOverview
+func NewGetUserFlagOverviewRequest(server string, params *GetUserFlagOverviewParams) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/admin/overview")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	queryValues := queryURL.Query()
+
+	if queryFrag, err := runtime.StyleParamWithLocation("form", true, "accountIdentifier", runtime.ParamLocationQuery, params.AccountIdentifier); err != nil {
+		return nil, err
+	} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+		return nil, err
+	} else {
+		for k, v := range parsed {
+			for _, v2 := range v {
+				queryValues.Add(k, v2)
+			}
+		}
+	}
+
+	queryURL.RawQuery = queryValues.Encode()
 
 	req, err := http.NewRequest("GET", queryURL.String(), nil)
 	if err != nil {
@@ -4302,6 +4641,116 @@ func NewModifyProjectRequestWithBody(server string, identifier Identifier, param
 	}
 
 	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewGetProjectFlagsRequest generates requests for GetProjectFlags
+func NewGetProjectFlagsRequest(server string, identifier Identifier, params *GetProjectFlagsParams) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "identifier", runtime.ParamLocationPath, identifier)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/admin/projects/%s/flags", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	queryValues := queryURL.Query()
+
+	if queryFrag, err := runtime.StyleParamWithLocation("form", true, "accountIdentifier", runtime.ParamLocationQuery, params.AccountIdentifier); err != nil {
+		return nil, err
+	} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+		return nil, err
+	} else {
+		for k, v := range parsed {
+			for _, v2 := range v {
+				queryValues.Add(k, v2)
+			}
+		}
+	}
+
+	if queryFrag, err := runtime.StyleParamWithLocation("form", true, "orgIdentifier", runtime.ParamLocationQuery, params.OrgIdentifier); err != nil {
+		return nil, err
+	} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+		return nil, err
+	} else {
+		for k, v := range parsed {
+			for _, v2 := range v {
+				queryValues.Add(k, v2)
+			}
+		}
+	}
+
+	if params.PageNumber != nil {
+
+		if queryFrag, err := runtime.StyleParamWithLocation("form", true, "pageNumber", runtime.ParamLocationQuery, *params.PageNumber); err != nil {
+			return nil, err
+		} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+			return nil, err
+		} else {
+			for k, v := range parsed {
+				for _, v2 := range v {
+					queryValues.Add(k, v2)
+				}
+			}
+		}
+
+	}
+
+	if params.PageSize != nil {
+
+		if queryFrag, err := runtime.StyleParamWithLocation("form", true, "pageSize", runtime.ParamLocationQuery, *params.PageSize); err != nil {
+			return nil, err
+		} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+			return nil, err
+		} else {
+			for k, v := range parsed {
+				for _, v2 := range v {
+					queryValues.Add(k, v2)
+				}
+			}
+		}
+
+	}
+
+	if params.Name != nil {
+
+		if queryFrag, err := runtime.StyleParamWithLocation("form", true, "name", runtime.ParamLocationQuery, *params.Name); err != nil {
+			return nil, err
+		} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+			return nil, err
+		} else {
+			for k, v := range parsed {
+				for _, v2 := range v {
+					queryValues.Add(k, v2)
+				}
+			}
+		}
+
+	}
+
+	queryURL.RawQuery = queryValues.Encode()
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
 
 	return req, nil
 }
@@ -6852,8 +7301,14 @@ type ClientWithResponsesInterface interface {
 
 	CreateFlagPipelineWithResponse(ctx context.Context, identifier Identifier, params *CreateFlagPipelineParams, body CreateFlagPipelineJSONRequestBody, reqEditors ...RequestEditorFn) (*CreateFlagPipelineResponse, error)
 
+	// GetJiraIssues request
+	GetJiraIssuesWithResponse(ctx context.Context, params *GetJiraIssuesParams, reqEditors ...RequestEditorFn) (*GetJiraIssuesResponse, error)
+
 	// GetOSByID request
 	GetOSByIDWithResponse(ctx context.Context, identifiers Identifiers, reqEditors ...RequestEditorFn) (*GetOSByIDResponse, error)
+
+	// GetUserFlagOverview request
+	GetUserFlagOverviewWithResponse(ctx context.Context, params *GetUserFlagOverviewParams, reqEditors ...RequestEditorFn) (*GetUserFlagOverviewResponse, error)
 
 	// GetAllProjects request
 	GetAllProjectsWithResponse(ctx context.Context, params *GetAllProjectsParams, reqEditors ...RequestEditorFn) (*GetAllProjectsResponse, error)
@@ -6873,6 +7328,9 @@ type ClientWithResponsesInterface interface {
 	ModifyProjectWithBodyWithResponse(ctx context.Context, identifier Identifier, params *ModifyProjectParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*ModifyProjectResponse, error)
 
 	ModifyProjectWithResponse(ctx context.Context, identifier Identifier, params *ModifyProjectParams, body ModifyProjectJSONRequestBody, reqEditors ...RequestEditorFn) (*ModifyProjectResponse, error)
+
+	// GetProjectFlags request
+	GetProjectFlagsWithResponse(ctx context.Context, identifier Identifier, params *GetProjectFlagsParams, reqEditors ...RequestEditorFn) (*GetProjectFlagsResponse, error)
 
 	// DeleteGitRepo request
 	DeleteGitRepoWithResponse(ctx context.Context, identifier Identifier, params *DeleteGitRepoParams, reqEditors ...RequestEditorFn) (*DeleteGitRepoResponse, error)
@@ -7433,6 +7891,7 @@ func (r UpdateFlagsYamlResponse) StatusCode() int {
 type DeleteFeatureFlagResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
+	JSON400      *Error
 	JSON401      *Error
 	JSON403      *Error
 	JSON404      *Error
@@ -7640,6 +8099,32 @@ func (r CreateFlagPipelineResponse) StatusCode() int {
 	return 0
 }
 
+type GetJiraIssuesResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *JiraSearchIssues
+	JSON401      *Error
+	JSON403      *Error
+	JSON404      *Error
+	JSON500      *Error
+}
+
+// Status returns HTTPResponse.Status
+func (r GetJiraIssuesResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetJiraIssuesResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
 type GetOSByIDResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -7669,6 +8154,32 @@ func (r GetOSByIDResponse) Status() string {
 
 // StatusCode returns HTTPResponse.StatusCode
 func (r GetOSByIDResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type GetUserFlagOverviewResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *UserFlagOverview
+	JSON401      *Error
+	JSON403      *Error
+	JSON404      *Error
+	JSON500      *Error
+}
+
+// Status returns HTTPResponse.Status
+func (r GetUserFlagOverviewResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetUserFlagOverviewResponse) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
@@ -7816,6 +8327,32 @@ func (r ModifyProjectResponse) Status() string {
 
 // StatusCode returns HTTPResponse.StatusCode
 func (r ModifyProjectResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type GetProjectFlagsResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *ProjectFlags
+	JSON401      *Error
+	JSON403      *Error
+	JSON404      *Error
+	JSON500      *Error
+}
+
+// Status returns HTTPResponse.Status
+func (r GetProjectFlagsResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetProjectFlagsResponse) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
@@ -8742,6 +9279,15 @@ func (c *ClientWithResponses) CreateFlagPipelineWithResponse(ctx context.Context
 	return ParseCreateFlagPipelineResponse(rsp)
 }
 
+// GetJiraIssuesWithResponse request returning *GetJiraIssuesResponse
+func (c *ClientWithResponses) GetJiraIssuesWithResponse(ctx context.Context, params *GetJiraIssuesParams, reqEditors ...RequestEditorFn) (*GetJiraIssuesResponse, error) {
+	rsp, err := c.GetJiraIssues(ctx, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetJiraIssuesResponse(rsp)
+}
+
 // GetOSByIDWithResponse request returning *GetOSByIDResponse
 func (c *ClientWithResponses) GetOSByIDWithResponse(ctx context.Context, identifiers Identifiers, reqEditors ...RequestEditorFn) (*GetOSByIDResponse, error) {
 	rsp, err := c.GetOSByID(ctx, identifiers, reqEditors...)
@@ -8749,6 +9295,15 @@ func (c *ClientWithResponses) GetOSByIDWithResponse(ctx context.Context, identif
 		return nil, err
 	}
 	return ParseGetOSByIDResponse(rsp)
+}
+
+// GetUserFlagOverviewWithResponse request returning *GetUserFlagOverviewResponse
+func (c *ClientWithResponses) GetUserFlagOverviewWithResponse(ctx context.Context, params *GetUserFlagOverviewParams, reqEditors ...RequestEditorFn) (*GetUserFlagOverviewResponse, error) {
+	rsp, err := c.GetUserFlagOverview(ctx, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetUserFlagOverviewResponse(rsp)
 }
 
 // GetAllProjectsWithResponse request returning *GetAllProjectsResponse
@@ -8810,6 +9365,15 @@ func (c *ClientWithResponses) ModifyProjectWithResponse(ctx context.Context, ide
 		return nil, err
 	}
 	return ParseModifyProjectResponse(rsp)
+}
+
+// GetProjectFlagsWithResponse request returning *GetProjectFlagsResponse
+func (c *ClientWithResponses) GetProjectFlagsWithResponse(ctx context.Context, identifier Identifier, params *GetProjectFlagsParams, reqEditors ...RequestEditorFn) (*GetProjectFlagsResponse, error) {
+	rsp, err := c.GetProjectFlags(ctx, identifier, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetProjectFlagsResponse(rsp)
 }
 
 // DeleteGitRepoWithResponse request returning *DeleteGitRepoResponse
@@ -10043,6 +10607,13 @@ func ParseDeleteFeatureFlagResponse(rsp *http.Response) (*DeleteFeatureFlagRespo
 	}
 
 	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
 		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
@@ -10475,6 +11046,60 @@ func ParseCreateFlagPipelineResponse(rsp *http.Response) (*CreateFlagPipelineRes
 	return response, nil
 }
 
+// ParseGetJiraIssuesResponse parses an HTTP response from a GetJiraIssuesWithResponse call
+func ParseGetJiraIssuesResponse(rsp *http.Response) (*GetJiraIssuesResponse, error) {
+	bodyBytes, err := ioutil.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetJiraIssuesResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest JiraSearchIssues
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
 // ParseGetOSByIDResponse parses an HTTP response from a GetOSByIDWithResponse call
 func ParseGetOSByIDResponse(rsp *http.Response) (*GetOSByIDResponse, error) {
 	bodyBytes, err := ioutil.ReadAll(rsp.Body)
@@ -10500,6 +11125,60 @@ func ParseGetOSByIDResponse(rsp *http.Response) (*GetOSByIDResponse, error) {
 			// Indicates if the request was successful or not
 			Status *Status `json:"status,omitempty"`
 		}
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseGetUserFlagOverviewResponse parses an HTTP response from a GetUserFlagOverviewWithResponse call
+func ParseGetUserFlagOverviewResponse(rsp *http.Response) (*GetUserFlagOverviewResponse, error) {
+	bodyBytes, err := ioutil.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetUserFlagOverviewResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest UserFlagOverview
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -10806,6 +11485,60 @@ func ParseModifyProjectResponse(rsp *http.Response) (*ModifyProjectResponse, err
 			return nil, err
 		}
 		response.JSON409 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseGetProjectFlagsResponse parses an HTTP response from a GetProjectFlagsWithResponse call
+func ParseGetProjectFlagsResponse(rsp *http.Response) (*GetProjectFlagsResponse, error) {
+	bodyBytes, err := ioutil.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetProjectFlagsResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest ProjectFlags
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
 		var dest Error
