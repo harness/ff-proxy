@@ -31,7 +31,8 @@ type MetricService struct {
 	tokens      map[string]string
 	metricsLock *sync.Mutex
 
-	sdkUsage counter
+	sdkUsage         counter
+	metricsForwarded counter
 }
 
 // NewMetricService creates a MetricService
@@ -59,10 +60,18 @@ func NewMetricService(l log.Logger, addr string, accountID string, tokens map[st
 				Name: "ff_proxy_sdk_usage",
 				Help: "Tracks what SDKs are using the FF Proxy",
 			},
-			[]string{"envID", "sdk_type", "sdk_version", "sdk_language"}),
+			[]string{"envID", "sdk_type", "sdk_version", "sdk_language"},
+		),
+		metricsForwarded: prometheus.NewCounterVec(
+			prometheus.CounterOpts{
+				Name: "ff_proxy_metrics_forwarded",
+				Help: "Tracks the number of metrics forwarded from the Proxy to SaaS Feature Flags",
+			},
+			[]string{"envID", "error"},
+		),
 	}
 
-	reg.MustRegister(m.sdkUsage)
+	reg.MustRegister(m.sdkUsage, m.metricsForwarded)
 	return m, nil
 }
 
@@ -111,23 +120,42 @@ func (m MetricService) SendMetrics(ctx context.Context, clusterIdentifier string
 	m.metricsLock.Unlock()
 
 	for envID, metric := range metricsCopy {
-		token, ok := m.tokens[envID]
-		if !ok {
-			m.log.Warn("No token found for environment. Skipping sending metrics for env.", "environment", envID)
-			continue
-		}
-		ctx = context.WithValue(ctx, tokenKey, token)
-		res, err := m.client.PostMetricsWithResponse(ctx, envID, &clientgen.PostMetricsParams{Cluster: &clusterIdentifier}, clientgen.PostMetricsJSONRequestBody{
-			MetricsData: metric.MetricsData,
-			TargetData:  metric.TargetData,
-		}, addAuthToken)
-		if err != nil {
-			m.log.Error("sending metrics failed", "error", err)
-		}
-		if res != nil && res.StatusCode() != 200 {
-			m.log.Error("sending metrics failed", "environment", envID, "status code", res.StatusCode())
+		if err := m.sendMetrics(ctx, envID, metric, clusterIdentifier); err != nil {
+			m.log.Error("sending metrics failed", "environment", envID, "error", err)
 		}
 	}
+
+}
+
+func (m MetricService) sendMetrics(ctx context.Context, envID string, metric domain.MetricsRequest, clusterIdentifier string) (err error) {
+	defer func() {
+		errLabel := "false"
+		if err != nil {
+			errLabel = "true"
+		}
+		m.metricsForwarded.WithLabelValues(envID, errLabel).Inc()
+	}()
+
+	token, ok := m.tokens[envID]
+	if !ok {
+		m.log.Warn("No token found for environment. Skipping sending metrics for env.", "environment", envID)
+		return nil
+	}
+
+	ctx = context.WithValue(ctx, tokenKey, token)
+	res, err := m.client.PostMetricsWithResponse(ctx, envID, &clientgen.PostMetricsParams{Cluster: &clusterIdentifier}, clientgen.PostMetricsJSONRequestBody{
+		MetricsData: metric.MetricsData,
+		TargetData:  metric.TargetData,
+	}, addAuthToken)
+	if err != nil {
+		return err
+	}
+
+	if res != nil && res.StatusCode() != 200 {
+		return fmt.Errorf("got non 200 status code from feature flags: status_code=%d", res.StatusCode())
+	}
+
+	return nil
 }
 
 func addAuthToken(ctx context.Context, req *http.Request) error {
