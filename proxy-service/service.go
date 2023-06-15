@@ -2,13 +2,13 @@ package proxyservice
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"reflect"
 	"time"
 
 	admingen "github.com/harness/ff-proxy/gen/admin"
+	jsoniter "github.com/json-iterator/go"
 
 	"github.com/harness/ff-golang-server-sdk/evaluation"
 	"github.com/harness/ff-golang-server-sdk/logger"
@@ -412,7 +412,7 @@ func boolToHealthString(healthy bool) string {
 func toString(variation rest.Variation, kind string) string {
 	value := fmt.Sprintf("%v", variation.Value)
 	if kind == "json" {
-		data, err := json.Marshal(variation.Value)
+		data, err := jsoniter.Marshal(variation.Value)
 		if err != nil {
 			value = "{}"
 		} else {

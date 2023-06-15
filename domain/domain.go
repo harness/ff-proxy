@@ -1,10 +1,10 @@
 package domain
 
 import (
-	"encoding/json"
 	"fmt"
 
 	"github.com/harness/ff-golang-server-sdk/rest"
+	jsoniter "github.com/json-iterator/go"
 
 	"github.com/golang-jwt/jwt/v4"
 	admingen "github.com/harness/ff-proxy/gen/admin"
@@ -31,12 +31,12 @@ type FeatureConfig struct {
 // marshaling but if we want to optimise storage space we could use something
 // more efficient
 func (f *FeatureFlag) MarshalBinary() ([]byte, error) {
-	return json.Marshal(f)
+	return jsoniter.Marshal(f)
 }
 
 // UnmarshalBinary unmarshals bytes to a FeatureFlag
 func (f *FeatureFlag) UnmarshalBinary(b []byte) error {
-	return json.Unmarshal(b, f)
+	return jsoniter.Unmarshal(b, f)
 }
 
 // TargetKey is the key that maps to a Target
@@ -55,12 +55,12 @@ type Target struct {
 // MarshalBinary marshals a Target to bytes. Currently it uses json marshaling
 // but if we want to optimise storage space we could use something more efficient
 func (t *Target) MarshalBinary() ([]byte, error) {
-	return json.Marshal(t)
+	return jsoniter.Marshal(t)
 }
 
 // UnmarshalBinary unmarshals bytes to a Target
 func (t *Target) UnmarshalBinary(b []byte) error {
-	return json.Unmarshal(b, t)
+	return jsoniter.Unmarshal(b, t)
 }
 
 // SegmentKey is the key that maps to a Segment
@@ -77,12 +77,12 @@ type Segment rest.Segment
 // MarshalBinary marshals a Segment to bytes. Currently it uses json marshaling
 // but if we want to optimise storage space we could use something more efficient
 func (s *Segment) MarshalBinary() ([]byte, error) {
-	return json.Marshal(s)
+	return jsoniter.Marshal(s)
 }
 
 // UnmarshalBinary unmarshals bytes to a Segment
 func (s *Segment) UnmarshalBinary(b []byte) error {
-	return json.Unmarshal(b, s)
+	return jsoniter.Unmarshal(b, s)
 }
 
 // AuthAPIKey is the APIKey type used for authentication lookups
@@ -128,10 +128,10 @@ type AuthConfig struct {
 // MarshalBinary marshals an EnvironmentID to bytes. Currently it uses json marshaling
 // but if we want to optimise storage space we could use something more efficient
 func (a *EnvironmentID) MarshalBinary() ([]byte, error) {
-	return json.Marshal(a)
+	return jsoniter.Marshal(a)
 }
 
 // UnmarshalBinary unmarshals bytes to an EnvironmentID
 func (a *EnvironmentID) UnmarshalBinary(b []byte) error {
-	return json.Unmarshal(b, a)
+	return jsoniter.Unmarshal(b, a)
 }
