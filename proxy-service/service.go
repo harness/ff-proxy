@@ -7,12 +7,11 @@ import (
 	"reflect"
 	"time"
 
-	admingen "github.com/harness/ff-proxy/gen/admin"
-	jsoniter "github.com/json-iterator/go"
-
 	"github.com/harness/ff-golang-server-sdk/evaluation"
 	"github.com/harness/ff-golang-server-sdk/logger"
 	"github.com/harness/ff-golang-server-sdk/rest"
+	admingen "github.com/harness/ff-proxy/gen/admin"
+	jsoniter "github.com/json-iterator/go"
 
 	"github.com/harness/ff-proxy/domain"
 	clientgen "github.com/harness/ff-proxy/gen/client"
@@ -81,7 +80,7 @@ type authTokenFn func(key string) (domain.Token, error)
 type CacheHealthFn func(ctx context.Context) error
 
 // EnvHealthFn is a function that checks the health of all connected environments
-type EnvHealthFn func(ctx context.Context) map[string]error
+type EnvHealthFn func() []domain.EnvironmentHealth
 
 // clientService is the interface for interacting with the feature flag client service
 type clientService interface {
@@ -403,22 +402,16 @@ func (s Service) Metrics(ctx context.Context, req domain.MetricsRequest) error {
 func (s Service) Health(ctx context.Context) (domain.HealthResponse, error) {
 	s.logger = s.logger.With("method", "Health")
 	s.logger.Debug(ctx, "got health request")
-	systemHealth := domain.HealthResponse{}
 
 	// check health functions
 	err := s.cacheHealthFn(ctx)
 	if err != nil {
 		s.logger.Error(ctx, fmt.Sprintf("cache healthcheck error: %s", err.Error()))
 	}
-	systemHealth["cache"] = boolToHealthString(false, err == nil)
-	envHealth := s.envHealthFn(ctx)
-	for env, err := range envHealth {
-		if err != nil {
-			s.logger.Error(ctx, fmt.Sprintf("environment healthcheck error: %s", err.Error()))
-		}
 
-		envHealthy := err == nil
-		systemHealth[fmt.Sprintf("env-%s", env)] = boolToHealthString(true, envHealthy)
+	systemHealth := domain.HealthResponse{
+		CacheStatus:  boolToHealthString(false, err == nil),
+		Environments: s.envHealthFn(),
 	}
 
 	return systemHealth, nil

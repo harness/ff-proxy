@@ -4,7 +4,6 @@ import (
 	"context"
 	"flag"
 	"fmt"
-	"io"
 	stdlog "log"
 	"net/http"
 	"os"
@@ -14,13 +13,13 @@ import (
 
 	"github.com/harness/ff-proxy/build"
 	"github.com/harness/ff-proxy/export"
+	"github.com/harness/ff-proxy/health"
 	"github.com/harness/ff-proxy/stream"
 	"github.com/harness/ff-proxy/token"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/collectors"
 
 	"github.com/fanout/go-gripcontrol"
-	"github.com/hashicorp/go-multierror"
 	"github.com/hashicorp/go-retryablehttp"
 
 	"cloud.google.com/go/profiler"
@@ -385,8 +384,11 @@ func main() {
 		approvedEnvs  = map[string]struct{}{}
 	)
 
-	var remoteConfig config.RemoteConfig
-	var streamEnabled bool
+	var (
+		remoteConfig  config.RemoteConfig
+		streamEnabled bool
+		environments  []string
+	)
 
 	// Load either local config from files or remote config from ff-server
 	if offline && !generateOfflineConfig {
@@ -415,7 +417,7 @@ func main() {
 		// because we won't receive any to forward on. This will force sdks to poll the proxy to get their updates
 		if flagStreamEnabled {
 			// attempt to connect to pushpin stream - if we can't streaming will be disabled
-			err = streamHealthCheck()
+			err = health.StreamHealthCheck()
 			if err != nil {
 				logger.Error("failed to connect to pushpin streaming service - streaming mode not available for sdks connecting to Relay Proxy", "err", err)
 			} else {
@@ -456,6 +458,7 @@ func main() {
 		// with a new config option to exit if any keys fail for users who want to restrict fully to whats provided in the startup config
 		if len(envInfo) == len(apiKeys) {
 			for env := range envInfo {
+				environments = append(environments, env)
 				approvedEnvs[env] = struct{}{}
 			}
 			logger.Info("serving requests for configured environments", "environments", approvedEnvs)
@@ -525,7 +528,7 @@ func main() {
 		SegmentRepo:      sr,
 		AuthRepo:         authRepo,
 		CacheHealthFn:    cacheHealthCheck,
-		EnvHealthFn:      envHealthCheck,
+		EnvHealthFn:      health.NewEnvironmentHealthTracker(ctx, environments, sdkClients, 30*time.Second),
 		AuthFn:           tokenSource.GenerateToken,
 		ClientService:    clientService,
 		MetricService:    metricService,
@@ -629,7 +632,7 @@ func main() {
 				protocol = "https"
 			}
 
-			heartbeat(ctx, ticker.C, fmt.Sprintf("%s://localhost:%d", protocol, port), logger)
+			health.Heartbeat(ctx, ticker.C, fmt.Sprintf("%s://localhost:%d", protocol, port), logger)
 		}()
 	}
 
@@ -641,87 +644,6 @@ func main() {
 // checks the health of the connected cache instance
 func cacheHealthCheck(ctx context.Context) error {
 	return sdkCache.HealthCheck(ctx)
-}
-
-// heartbeat kicks off a goroutine that polls the /health endpoint at intervals
-// determined by how frequently events are sent on the tick channel.
-func heartbeat(ctx context.Context, tick <-chan time.Time, listenAddr string, logger log.StructuredLogger) {
-	go func() {
-		for {
-			select {
-			case <-ctx.Done():
-				logger.Info("stopping heartbeat")
-				return
-			case <-tick:
-				resp, err := http.Get(fmt.Sprintf("%s/health", listenAddr))
-				if err != nil {
-					logger.Error(fmt.Sprintf("heartbeat request failed: %s", err))
-				}
-
-				if resp == nil {
-					continue
-				}
-
-				if resp.StatusCode == http.StatusOK {
-					logger.Info(fmt.Sprintf("heartbeat healthy: status code: %d", resp.StatusCode))
-					resp.Body.Close()
-					continue
-				}
-
-				b, err := io.ReadAll(resp.Body)
-				if err != nil {
-					resp.Body.Close()
-					logger.Error(fmt.Sprintf("failed to read response body from %s", resp.Request.URL.String()))
-					logger.Error(fmt.Sprintf("heartbeat unhealthy: status code: %d", resp.StatusCode))
-					continue
-				}
-				resp.Body.Close()
-
-				logger.Error(fmt.Sprintf("heartbeat unhealthy: status code: %d, body: %s", resp.StatusCode, b))
-			}
-		}
-	}()
-}
-
-// checks the health of all connected environments
-// returns an error, if any for each
-func envHealthCheck(ctx context.Context) map[string]error {
-	envHealth := map[string]error{}
-
-	// if the user chooses to run connected sdks in polling mode then we can skip the stream health checks
-	if !flagStreamEnabled {
-		return envHealth
-	}
-
-	for env, sdk := range sdkClients.Copy() {
-		// get SDK health details
-		var err error
-		streamConnected := sdk.IsStreamConnected()
-		if !streamConnected {
-			err = fmt.Errorf("environment %s unhealthy, stream not connected", env)
-		}
-		envHealth[env] = err
-	}
-	return envHealth
-}
-
-// streamHealthCheck checks if the GripControl stream is available - this is required to enable streaming mode
-func streamHealthCheck() error {
-	var multiErr error
-
-	for i := 0; i < 2; i++ {
-		resp, err := http.Get(fmt.Sprintf("http://localhost:5561"))
-		if err != nil || resp == nil {
-			multiErr = multierror.Append(fmt.Errorf("gpc request failed streaming will be disabled: %s", err), multiErr)
-		} else if resp != nil && resp.StatusCode != http.StatusOK {
-			multiErr = multierror.Append(fmt.Errorf("gpc request failed streaming will be disabled: %d", resp.StatusCode), multiErr)
-		} else {
-			return nil
-		}
-		time.Sleep(2 * time.Second)
-	}
-
-	return multiErr
 }
 
 func loadFlagsFromEnv(envToFlag map[string]string) {

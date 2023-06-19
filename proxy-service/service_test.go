@@ -117,8 +117,8 @@ func setupService(cfg benchmarkConfig, b *testing.B) ProxyService {
 		return nil
 	}
 
-	envHealthFn := func(ctx context.Context) map[string]error {
-		return map[string]error{}
+	envHealthFn := func() []domain.EnvironmentHealth {
+		return []domain.EnvironmentHealth{}
 	}
 
 	// Client service isn't used by the methods we benchmark so we can get away
