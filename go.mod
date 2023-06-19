@@ -12,7 +12,7 @@ require (
 	github.com/golang-jwt/jwt v3.2.2+incompatible
 	github.com/golang-jwt/jwt/v4 v4.4.3
 	github.com/google/uuid v1.3.0
-	github.com/harness/ff-golang-server-sdk v0.1.5
+	github.com/harness/ff-golang-server-sdk v0.1.9-0.20230602135407-fcab18845da4
 	github.com/hashicorp/go-multierror v1.1.1
 	github.com/hashicorp/go-retryablehttp v0.6.8
 	github.com/joho/godotenv v1.4.0

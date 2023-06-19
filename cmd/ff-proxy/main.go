@@ -10,7 +10,6 @@ import (
 	"os"
 	"os/signal"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/harness/ff-proxy/build"
@@ -45,30 +44,6 @@ import (
 	"github.com/harness/ff-proxy/services"
 	"github.com/harness/ff-proxy/transport"
 )
-
-type sdkClientMap struct {
-	*sync.RWMutex
-	m map[string]*harness.CfClient
-}
-
-func newSDKClientMap() *sdkClientMap {
-	return &sdkClientMap{
-		RWMutex: &sync.RWMutex{},
-		m:       map[string]*harness.CfClient{},
-	}
-}
-
-func (s *sdkClientMap) set(key string, value *harness.CfClient) {
-	s.Lock()
-	defer s.Unlock()
-	s.m[key] = value
-}
-
-func (s *sdkClientMap) copy() map[string]*harness.CfClient {
-	s.RLock()
-	defer s.RUnlock()
-	return s.m
-}
 
 // keys implements the flag.Value interface and allows us to pass a comma separated
 // list of api keys e.g. -api-keys 123,456,789
@@ -114,7 +89,7 @@ var (
 	targetPollDuration    int
 	metricPostDuration    int
 	heartbeatInterval     int
-	sdkClients            *sdkClientMap
+	sdkClients            *domain.SDKClientMap
 	sdkCache              cache.Cache
 	pprofEnabled          bool
 	flagPollInterval      int
@@ -222,7 +197,7 @@ func init() {
 	flag.StringVar(&tlsKey, tlsKeyFlag, "", "Path to tls key file. Required if tls enabled is true.")
 	flag.BoolVar(&gcpProfilerEnabled, gcpProfilerEnabledFlag, false, "Enables gcp cloud profiler")
 
-	sdkClients = newSDKClientMap()
+	sdkClients = domain.NewSDKClientMap()
 
 	loadFlagsFromEnv(map[string]string{
 		bypassAuthEnv:            bypassAuthFlag,
@@ -285,7 +260,7 @@ func initFF(ctx context.Context, cache gosdkCache.Cache, baseURL, eventURL, envI
 		harness.WithEventStreamListener(eventListener),
 	)
 
-	sdkClients.set(envID, client)
+	sdkClients.Set(envID, client)
 	defer func() {
 		if err := client.Close(); err != nil {
 			l.Error("error while closing client", "err", err)
@@ -557,6 +532,7 @@ func main() {
 		Offline:          offline,
 		Hasher:           apiKeyHasher,
 		StreamingEnabled: streamEnabled,
+		SDKClients:       sdkClients,
 	})
 
 	// Configure endpoints and server
@@ -630,7 +606,7 @@ func main() {
 						// default to prod cluster
 						clusterIdentifier := "1"
 						// grab which cluster we're connected to from sdk
-						for _, client := range sdkClients.copy() {
+						for _, client := range sdkClients.Copy() {
 							clusterIdentifier = client.GetClusterIdentifier()
 							break
 						}
@@ -717,7 +693,7 @@ func envHealthCheck(ctx context.Context) map[string]error {
 		return envHealth
 	}
 
-	for env, sdk := range sdkClients.copy() {
+	for env, sdk := range sdkClients.Copy() {
 		// get SDK health details
 		var err error
 		streamConnected := sdk.IsStreamConnected()
@@ -791,7 +767,7 @@ func sdksInitialised() bool {
 	// wait for all specified sdks to be started
 	var sdksStarted bool
 	for i := 0; i < 20; i++ {
-		if len(apiKeys) == len(sdkClients.copy()) {
+		if len(apiKeys) == len(sdkClients.Copy()) {
 			sdksStarted = true
 			break
 		}
@@ -802,7 +778,7 @@ func sdksInitialised() bool {
 	}
 
 	// check that all the sdks have fetched flags/segments
-	for _, sdk := range sdkClients.copy() {
+	for _, sdk := range sdkClients.Copy() {
 		init, _ := sdk.IsInitialized()
 		if !init {
 			return false

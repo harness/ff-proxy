@@ -33,6 +33,18 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+type mockSDKClient struct {
+	data map[string]bool
+}
+
+func (n *mockSDKClient) StreamConnected(key string) bool {
+	v, ok := n.data[key]
+	if !ok {
+		return false
+	}
+	return v
+}
+
 func boolPtr(b bool) *bool {
 	return &b
 }
@@ -91,9 +103,16 @@ type setupConfig struct {
 	cache         cache.Cache
 	metricService *mockMetricService
 	promReg       prometheusRegister
+	sdkClients    *mockSDKClient
 }
 
 type setupOpts func(s *setupConfig)
+
+func setupWithSDKClients(m *mockSDKClient) setupOpts {
+	return func(s *setupConfig) {
+		s.sdkClients = m
+	}
+}
 
 func setupWithFeatureRepo(r repository.FeatureFlagRepo) setupOpts {
 	return func(s *setupConfig) {
@@ -221,6 +240,10 @@ func setupHTTPServer(t *testing.T, bypassAuth bool, opts ...setupOpts) *HTTPServ
 		}
 	}
 
+	if setupConfig.sdkClients == nil {
+		setupConfig.sdkClients = &mockSDKClient{data: make(map[string]bool)}
+	}
+
 	logger := log.NoOpLogger{}
 
 	tokenSource := token.NewTokenSource(logger, setupConfig.authRepo, hash.NewSha256(), []byte(`secret`))
@@ -240,6 +263,7 @@ func setupHTTPServer(t *testing.T, bypassAuth bool, opts ...setupOpts) *HTTPServ
 		Offline:          false,
 		Hasher:           hash.NewSha256(),
 		StreamingEnabled: true,
+		SDKClients:       setupConfig.sdkClients,
 	})
 	endpoints := NewEndpoints(service)
 
@@ -1088,7 +1112,7 @@ func TestHTTPServer_Health(t *testing.T) {
 `)
 	cacheUnhealthyResponse := []byte(`{"cache":"unhealthy","env-123":"healthy","env-456":"healthy"}
 `)
-	env456UnhealthyResponse := []byte(`{"cache":"healthy","env-123":"healthy","env-456":"unhealthy"}
+	env456UnhealthyResponse := []byte(`{"cache":"healthy","env-123":"healthy","env-456":"polling"}
 `)
 	cacheHealthErr := func(ctx context.Context) error {
 		return fmt.Errorf("cache is borked")
@@ -1117,13 +1141,13 @@ func TestHTTPServer_Health(t *testing.T) {
 		},
 		"Given I make a GET request and cache is unhealthy": {
 			method:               http.MethodGet,
-			expectedStatusCode:   http.StatusServiceUnavailable,
+			expectedStatusCode:   http.StatusOK,
 			cacheHealthFn:        cacheHealthErr,
 			expectedResponseBody: cacheUnhealthyResponse,
 		},
 		"Given I make a GET request and env 456 is unhealthy": {
 			method:               http.MethodGet,
-			expectedStatusCode:   http.StatusServiceUnavailable,
+			expectedStatusCode:   http.StatusOK,
 			envHealthFn:          envHealthErr,
 			expectedResponseBody: env456UnhealthyResponse,
 		},
@@ -1178,15 +1202,37 @@ func TestHTTPServer_Health(t *testing.T) {
 }
 
 func TestHTTPServer_Stream(t *testing.T) {
+	const (
+		apiKey       = "apikey1"
+		hashedApiKey = "d4f79b313f8106f5af108ad96ff516222dbfd5a0ab52f4308e4b1ad1d740de60"
+
+		apiKey2       = "apikey2"
+		hashedApiKey2 = "17ac3d5d395c9ac2f2685cb75229b5faedd7d207b31516bf2b506c1598fd55ef"
+
+		envID = "1234"
+		env2  = "5678"
+	)
+
+	authRepo, err := repository.NewAuthRepo(cache.NewMemCache(), map[domain.AuthAPIKey]string{
+		domain.AuthAPIKey(hashedApiKey):  envID,
+		domain.AuthAPIKey(hashedApiKey2): env2,
+	}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+
 	// setup HTTPServer & service with auth bypassed
-	server := setupHTTPServer(t, true)
+	server := setupHTTPServer(t, true,
+		setupWithAuthRepo(authRepo),
+		setupWithSDKClients(&mockSDKClient{
+			data: map[string]bool{
+				"1234": true,
+				"5678": false,
+			},
+		}),
+	)
 	testServer := httptest.NewServer(server)
 	defer testServer.Close()
-
-	const (
-		apiKey = "apikey1"
-		envID  = "1234"
-	)
 
 	testCases := map[string]struct {
 		method                  string
@@ -1235,6 +1281,17 @@ func TestHTTPServer_Stream(t *testing.T) {
 				"Grip-Hold":       []string{"stream"},
 				"Grip-Channel":    []string{envID},
 				"Grip-Keep-Alive": []string{"\\n; format=cstring; timeout=15"},
+			},
+		},
+		"Given I make a GET request with an API Key Header for a stream that isn't connected": {
+			method: http.MethodGet,
+			headers: http.Header{
+				"API-Key": []string{"apiKey2"},
+			},
+			url:                fmt.Sprintf("%s/stream", testServer.URL),
+			expectedStatusCode: http.StatusServiceUnavailable,
+			expectedResponseHeaders: http.Header{
+				"Content-Type": []string{"application/json; charset=UTF-8"},
 			},
 		},
 	}

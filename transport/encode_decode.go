@@ -26,13 +26,6 @@ func encodeResponse(ctx context.Context, w http.ResponseWriter, response interfa
 	return jsoniter.NewEncoder(w).Encode(response)
 }
 
-// encodeHealthResponse encodes a healthcheck response with status code
-func encodeHealthResponse(ctx context.Context, w http.ResponseWriter, response interface{}) error {
-	w.Header().Set("Content-Type", "application/json; charset=utf-8")
-	w.WriteHeader(getHealthStatusCode(response))
-	return jsoniter.NewEncoder(w).Encode(response)
-}
-
 func encodeStreamResponse(ctx context.Context, w http.ResponseWriter, response interface{}) error {
 	r, ok := response.(domain.StreamResponse)
 	if !ok {
@@ -44,20 +37,6 @@ func encodeStreamResponse(ctx context.Context, w http.ResponseWriter, response i
 	w.Header().Add("Grip-Channel", r.GripChannel)
 	w.Header().Add("Grip-Keep-Alive", "\\n; format=cstring; timeout=15")
 	return nil
-}
-
-func getHealthStatusCode(response interface{}) int {
-	healthRes, ok := response.(domain.HealthResponse)
-	if !ok {
-		return http.StatusInternalServerError
-	}
-
-	for _, health := range healthRes {
-		if health != "healthy" {
-			return http.StatusServiceUnavailable
-		}
-	}
-	return http.StatusOK
 }
 
 // encodeError encodes error responses returned from handlers
@@ -95,6 +74,10 @@ func codeFrom(err error) int {
 
 	if errors.Is(err, proxyservice.ErrNotImplemented) {
 		return http.StatusNotImplemented
+	}
+
+	if errors.Is(err, proxyservice.ErrStreamDisconnected) {
+		return http.StatusServiceUnavailable
 	}
 
 	return http.StatusInternalServerError

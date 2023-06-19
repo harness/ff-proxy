@@ -202,6 +202,12 @@ github.com/googleapis/gax-go/v2 v2.7.0/go.mod h1:TEop28CZZQ2y+c0VxMUmu1lV+fQx57Q
 github.com/gorilla/mux v1.8.0/go.mod h1:DVbg23sWSpFRCP0SfiEN6jmj59UnW/n46BH5rLB71So=
 github.com/harness/ff-golang-server-sdk v0.1.5 h1:oBExNBrZoZgkBeRPNdrx2Ig21ZgYlwI5ygXTARrWWLg=
 github.com/harness/ff-golang-server-sdk v0.1.5/go.mod h1:wVdWTn+0nPjHf25cvyJ03UnSFKTId2JGUdVIliD/VnU=
+github.com/harness/ff-golang-server-sdk v0.1.9-0.20230526121559-0ad8f0c8e96e h1:9hEIlGCXg9Ln/+H9ymiQzdxI7aM/b3EsICCsStwE6zA=
+github.com/harness/ff-golang-server-sdk v0.1.9-0.20230526121559-0ad8f0c8e96e/go.mod h1:zTiSaSQc5nD5Ofug37KJxijyFHX/xG1JodqMFxNqYI0=
+github.com/harness/ff-golang-server-sdk v0.1.9-0.20230531120043-bc397ace1417 h1:adFmbb37WZ9tLpaJv69XKqEUhvbqCFdc43pjLQoMPSM=
+github.com/harness/ff-golang-server-sdk v0.1.9-0.20230531120043-bc397ace1417/go.mod h1:zTiSaSQc5nD5Ofug37KJxijyFHX/xG1JodqMFxNqYI0=
+github.com/harness/ff-golang-server-sdk v0.1.9-0.20230602135407-fcab18845da4 h1:XUsvuVhqri52ZkTZJU2QRybYN14yFdVyomFq0E2W98c=
+github.com/harness/ff-golang-server-sdk v0.1.9-0.20230602135407-fcab18845da4/go.mod h1:zTiSaSQc5nD5Ofug37KJxijyFHX/xG1JodqMFxNqYI0=
 github.com/hashicorp/errwrap v1.0.0 h1:hLrqtEDnRye3+sgx6z4qVLNuviH3MR5aQ0ykNJa/UYA=
 github.com/hashicorp/errwrap v1.0.0/go.mod h1:YH+1FKiLXxHSkmPseP+kNlulaMuP3n2brvKWEqk/Jc4=
 github.com/hashicorp/go-cleanhttp v0.5.1/go.mod h1:JpRdi6/HCYpAwUzNwuwqhbovhLtngrth3wmdIIUrZ80=

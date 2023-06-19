@@ -68,6 +68,10 @@ var (
 
 	// ErrUnauthorised is the error that the proxy service returns when the
 	ErrUnauthorised = errors.New("unauthorised")
+
+	// ErrStreamDisconnected is the error that the proxy service returns when
+	// its internal sdk has disconnected from the SaaS stream
+	ErrStreamDisconnected = errors.New("SaaS stream disconnected")
 )
 
 // authTokenFn is a function that can generate an auth token
@@ -89,6 +93,11 @@ type metricService interface {
 	StoreMetrics(ctx context.Context, metrics domain.MetricsRequest) error
 }
 
+// SDKClients is an interface that can be used to find out if internal sdks are connected to the SaaS FF stream
+type SDKClients interface {
+	StreamConnected(key string) bool
+}
+
 // Config is the config for a Service
 type Config struct {
 	Logger           log.ContextualLogger
@@ -104,6 +113,7 @@ type Config struct {
 	Offline          bool
 	Hasher           hash.Hasher
 	StreamingEnabled bool
+	SDKClients       SDKClients
 }
 
 // Service is the proxy service implementation
@@ -121,6 +131,7 @@ type Service struct {
 	offline          bool
 	hasher           hash.Hasher
 	streamingEnabled bool
+	sdkClients       SDKClients
 }
 
 // NewService creates and returns a ProxyService
@@ -140,6 +151,7 @@ func NewService(c Config) Service {
 		offline:          c.Offline,
 		hasher:           c.Hasher,
 		streamingEnabled: c.StreamingEnabled,
+		sdkClients:       c.SDKClients,
 	}
 }
 
@@ -356,6 +368,7 @@ func (s Service) EvaluationsByFeature(ctx context.Context, req domain.Evaluation
 // and returns it as the GripChannel.
 func (s Service) Stream(ctx context.Context, req domain.StreamRequest) (domain.StreamResponse, error) {
 	s.logger = s.logger.With("method", "Stream")
+
 	if !s.streamingEnabled {
 		return domain.StreamResponse{}, fmt.Errorf("%w: streaming endpoint disabled", ErrNotImplemented)
 	}
@@ -366,6 +379,15 @@ func (s Service) Stream(ctx context.Context, req domain.StreamRequest) (domain.S
 	if !ok {
 		return domain.StreamResponse{}, fmt.Errorf("%w: no environment found for apiKey %q", ErrNotFound, req.APIKey)
 	}
+
+	// If the internal sdk isn't connected to the SAAS stream for an environment then the Proxy shouldn't
+	// accept streaming connections for that environment. We need to do this to avoid SDKs connected to the
+	// Proxy from missing out on flag changes.
+	if !s.sdkClients.StreamConnected(repoKey) {
+		s.logger.Info(ctx, "rejecting stream connection because SaaS stream is disconnected", "environment", repoKey)
+		return domain.StreamResponse{}, ErrStreamDisconnected
+	}
+
 	return domain.StreamResponse{GripChannel: repoKey}, nil
 }
 
@@ -388,7 +410,7 @@ func (s Service) Health(ctx context.Context) (domain.HealthResponse, error) {
 	if err != nil {
 		s.logger.Error(ctx, fmt.Sprintf("cache healthcheck error: %s", err.Error()))
 	}
-	systemHealth["cache"] = boolToHealthString(err == nil)
+	systemHealth["cache"] = boolToHealthString(false, err == nil)
 	envHealth := s.envHealthFn(ctx)
 	for env, err := range envHealth {
 		if err != nil {
@@ -396,16 +418,24 @@ func (s Service) Health(ctx context.Context) (domain.HealthResponse, error) {
 		}
 
 		envHealthy := err == nil
-		systemHealth[fmt.Sprintf("env-%s", env)] = boolToHealthString(envHealthy)
+		systemHealth[fmt.Sprintf("env-%s", env)] = boolToHealthString(true, envHealthy)
 	}
 
 	return systemHealth, nil
 }
 
-func boolToHealthString(healthy bool) string {
+// TODO: Provide a more detailed health response for environments - FFM-8237
+func boolToHealthString(envHealth bool, healthy bool) string {
+	if envHealth {
+		if !healthy {
+			return "polling"
+		}
+	}
+
 	if !healthy {
 		return "unhealthy"
 	}
+
 	return "healthy"
 }
 
