@@ -1,6 +1,8 @@
 package domain
 
-import clientgen "github.com/harness/ff-proxy/gen/client"
+import (
+	clientgen "github.com/harness/ff-proxy/gen/client"
+)
 
 // AuthRequest contains the fields sent in an authentication request
 type AuthRequest struct {
@@ -12,9 +14,6 @@ type AuthRequest struct {
 type AuthResponse struct {
 	AuthToken string `json:"authToken"`
 }
-
-// HealthResponse contains the fields returned in a healthcheck response
-type HealthResponse map[string]string
 
 // FeatureConfigRequest contains the fields sent in a GET /client/env/{environmentUUID}/feature-configs
 type FeatureConfigRequest struct {
@@ -65,4 +64,10 @@ type StreamResponse struct {
 type MetricsRequest struct {
 	EnvironmentID string `json:"environment_id"`
 	clientgen.Metrics
+}
+
+// HealthResponse contains the fields returned in a healthcheck response
+type HealthResponse struct {
+	Environments []EnvironmentHealth `json:"environments"`
+	CacheStatus  string              `json:"cacheStatus"`
 }

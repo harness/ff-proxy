@@ -10,6 +10,18 @@ import (
 	admingen "github.com/harness/ff-proxy/gen/admin"
 )
 
+// StreamState is the connection state for a stream
+type StreamState string
+
+const (
+	// StreamStateConnected is the status for when a stream is connected
+	StreamStateConnected StreamState = "CONNECTED"
+	// StreamStateDisconnected is the status for when a stream is disconnected
+	StreamStateDisconnected StreamState = "DISCONNECTED"
+	// StreamStateInitializing is the status for when the stream is initialising
+	StreamStateInitializing StreamState = "INITIALIZING"
+)
+
 // FeatureFlagKey is the key that maps to a FeatureConfig
 type FeatureFlagKey string
 
@@ -134,4 +146,16 @@ func (a *EnvironmentID) MarshalBinary() ([]byte, error) {
 // UnmarshalBinary unmarshals bytes to an EnvironmentID
 func (a *EnvironmentID) UnmarshalBinary(b []byte) error {
 	return jsoniter.Unmarshal(b, a)
+}
+
+// EnvironmentHealth contains the health info for an environment
+type EnvironmentHealth struct {
+	ID           string       `json:"id"`
+	StreamStatus StreamStatus `json:"streamStatus"`
+}
+
+// StreamStatus contains a streams state
+type StreamStatus struct {
+	State StreamState `json:"state"`
+	Since int64       `json:"since"`
 }
