@@ -1,5 +1,5 @@
-# Endpoints
-These are the endpoints requested by the Relay Proxy. These are listed in the order they're used:
+# Outbound Endpoints
+These are the endpoints requested by the Relay Proxy when it communicates with Harness SaaS. These are listed in the order they're used:
 - Startup
 - Start SDK per key
 - Periodic requests/polls
@@ -28,7 +28,7 @@ GET https://config.ff.harness.io/api/1.0/client/env/${ENV_ID}/stream - initialis
 
 GET https://config.ff.harness.io/api/1.0/client/env/${ENV_ID}/feature-configs/${FLAG_NAME} - fetches updated flag data after a flag stream event comes in
 
-https://config.ff.harness.io/api/1.0/client/env/${ENV_ID}/target-segments/${GROUP_NAME} - fetches updated target group data after a target group stream event comes in
+GET https://config.ff.harness.io/api/1.0/client/env/${ENV_ID}/target-segments/${GROUP_NAME} - fetches updated target group data after a target group stream event comes in
 
 
 ## Periodic requests/polls

@@ -1,7 +1,7 @@
 # Debugging
 
 ### Outbound requests
-To learn more about what requests the Relay Proxy sends see [Endpoints](./endpoints.md).
+To learn more about what requests the Relay Proxy sends see [Outbound Endpoints](./outbound_endpoints.md).
 
 ### Debug mode
 See [Configuration](./configuration.md) for instructions on enabling debug mode for more detailed logging on requests being sent and handled by the Relay Proxy.
