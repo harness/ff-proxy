@@ -7,11 +7,11 @@ These are the endpoints requested by the Relay Proxy. These are listed in the or
 The base url of these endpoints are configurable if you need to pass them through a filter or another proxy. See [configuration](./configuration.md) for details.
 
 ## Basic startup
-This is the basic data fetched on startup. It fetches account project and environment info required for the Relay Proxy to initialise. This will page through all projects and environments in an account so may make multiple requests.
+This is the basic data fetched on startup. It authenticates each sdk key and parses the project/environment info from the jwt response. It then fetches the hashed api keys + optionally targets. This will page through this data so may make multiple requests.
 
-GET https://app.harness.io/gateway/cf/admin/projects - fetches account projects
+POST https://config.ff.harness.io/api/1.0/client/auth - authenticates api key
 
-GET https://app.harness.io/gateway/cf/admin/environments - fetches account environments
+GET https://app.harness.io/gateway/cf/admin/apikey - gets all hashed api keys for this environment. These are required so connected sdks can authenticate using any key from this environment. This pages through the api keys so may make multiple requests.
 
 GET https://app.harness.io/gateway/cf/admin/targets - fetches environment target data (optional - see TARGET_POLL_DURATION config option). This pages through the targets so may make multiple requests.
 
@@ -41,4 +41,16 @@ POST https://events.ff.harness.io/api/1.0/metrics - send metrics (optional - see
 POST https://config.ff.harness.io/api/1.0/client/auth - when a client authenticates with the Relay Proxy we forward this request onto the remote server to register the target
 
 
-![Call Flow](./images/call_flow.png "Call Flow")
+![Call Flow](./images/call_flow.jpeg "Call Flow")
+
+## Domains Requested
+https://app.harness.io/gateway/cf/admin/*
+
+https://config.ff.harness.io/api/1.0/client/*
+
+https://events.ff.harness.io/api/1.0/metrics
+
+## Protocols
+All requests to SaaS are made using HTTPS on port 443
+
+The /stream request is a long lived SSE connection that receives messages over time and may need special network configuration to be allowed in corporate environments.
