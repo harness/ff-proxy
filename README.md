@@ -33,7 +33,8 @@ For info on horizontal scaling Relay Proxies and a working example see [Load Bal
 If you'd like to build and run the Relay Proxy on Windows see [Windows](./docs/windows.md).
 
 ## Endpoints
-For info on the external Harness SaaS endpoints the Relay Proxy communicates with see [Endpoints](./docs/endpoints.md).
+For info on the external Harness SaaS endpoints the Relay Proxy communicates with see [Outbound Endpoints](./docs/outbound_endpoints.md).
+For info on the Relay Proxy endpoints your sdks will connect to see [Inbound Endpoints](./docs/inbound_endpoints.md).
 
 ## Debugging
 For help on debugging your Relay Proxy install see [Debugging](./docs/debugging.md).
