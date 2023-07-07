@@ -3,9 +3,9 @@ package cache
 import (
 	"context"
 	"errors"
-	"fmt"
 	"testing"
 
+	"github.com/harness/ff-proxy/domain"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -59,7 +59,7 @@ func TestKeyValCache_Get(t *testing.T) {
 			name:      "Get a non-existing key",
 			key:       "nonexistentKey",
 			wantValue: "",
-			wantErr:   ErrNotFound,
+			wantErr:   domain.ErrCacheNotFound,
 		},
 	}
 
@@ -159,54 +159,6 @@ func TestKeyValCache_Keys(t *testing.T) {
 			} else {
 				require.NoError(t, err)
 				assert.ElementsMatch(t, tc.wantKeys, result)
-			}
-		})
-	}
-}
-
-func TestKeyValCache_GetLatest(t *testing.T) {
-	ctx := context.Background()
-	k := setupTestKeyValCache()
-
-	versions := []string{"1", "2", "3", "4", "5"}
-
-	testCases := []struct {
-		name      string
-		key       string
-		wantValue string
-		wantErr   error
-		hasKeys   bool
-	}{
-		{
-			name:      "Get latest version",
-			key:       "mykey",
-			wantValue: "value:5",
-			wantErr:   nil,
-			hasKeys:   true,
-		},
-		{
-			name:      "Errors on no keys",
-			key:       "nopattern",
-			wantValue: "",
-			wantErr:   errors.New("KeyValCache.GetLatest no keys found for key pattern: \"nopattern\""),
-			hasKeys:   false,
-		},
-	}
-
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			if tc.hasKeys {
-				for _, version := range versions {
-					_ = k.Set(ctx, fmt.Sprintf("mykey:%s", version), fmt.Sprintf("value:%s", version))
-				}
-			}
-			result, err := k.GetLatest(ctx, tc.key)
-			if tc.wantErr != nil {
-				require.Error(t, err)
-				assert.EqualError(t, err, tc.wantErr.Error())
-			} else {
-				require.NoError(t, err)
-				assert.Equal(t, tc.wantValue, result)
 			}
 		})
 	}

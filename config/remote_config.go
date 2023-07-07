@@ -51,11 +51,17 @@ type RemoteConfig struct {
 }
 
 // TargetConfig returns the Target information that was retrieved from the Feature Flags Service
-func (r RemoteConfig) TargetConfig() map[domain.TargetKey][]domain.Target {
-	targetConfig := make(map[domain.TargetKey][]domain.Target)
+func (r RemoteConfig) TargetConfig() map[domain.TargetKey]interface{} {
+	targetConfig := make(map[domain.TargetKey]interface{})
+
 	for _, env := range r.projEnvInfo {
-		targetKey := domain.NewTargetKey(env.EnvironmentID)
+		targetKey := domain.NewTargetsKey(env.EnvironmentID)
 		targetConfig[targetKey] = env.Targets
+
+		for _, t := range env.Targets {
+			k := domain.NewTargetKey(env.EnvironmentID, t.Identifier)
+			targetConfig[k] = t
+		}
 	}
 	return targetConfig
 }
@@ -65,7 +71,7 @@ func (r RemoteConfig) AuthConfig() map[domain.AuthAPIKey]string {
 	authConfig := make(map[domain.AuthAPIKey]string)
 	for _, env := range r.projEnvInfo {
 		for _, hashedKey := range env.HashedAPIKeys {
-			authConfig[domain.AuthAPIKey(hashedKey)] = env.EnvironmentID
+			authConfig[domain.NewAuthAPIKey(hashedKey)] = env.EnvironmentID
 		}
 	}
 	return authConfig

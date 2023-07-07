@@ -4,12 +4,44 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"time"
+	"log"
 
 	"github.com/harness/ff-proxy/cache"
 
 	"github.com/harness/ff-proxy/domain"
 )
+
+// TargetOption defines functional option for a TargetRepo
+type TargetOption func(t *TargetRepo)
+
+// WithTargetConfig populates a TargetRepo with the given config
+func WithTargetConfig(config map[domain.TargetKey]interface{}) TargetOption {
+	return func(t *TargetRepo) {
+		for key, value := range config {
+
+			// cleanup all current keys before we add new ones to make sure keys that have been deleted remotely are removed
+			if err := t.cache.Delete(context.Background(), string(key)); err != nil {
+				log.Println("failed to clean cache for targets: ", err)
+			}
+
+			// Don't bother saving an empty slice
+			if s, ok := value.([]domain.Target); ok {
+				if s == nil || len(s) == 0 {
+					return
+				}
+			}
+
+			// Don't bother adding a nil target to the cache
+			if s, ok := value.(*domain.Target); ok && s == nil {
+				return
+			}
+
+			if err := t.cache.Set(context.Background(), string(key), value); err != nil {
+				log.Println("failed to set target in cache: ", err)
+			}
+		}
+	}
+}
 
 // TargetRepo is a repository that stores Targets
 type TargetRepo struct {
@@ -18,68 +50,70 @@ type TargetRepo struct {
 
 // NewTargetRepo creates a TargetRepo. It can optionally preload the repo with data
 // from the passed config
-func NewTargetRepo(c cache.Cache, config map[domain.TargetKey][]domain.Target) (TargetRepo, error) {
+func NewTargetRepo(c cache.Cache, opts ...TargetOption) (TargetRepo, error) {
 	tr := TargetRepo{cache: c}
-	if config == nil {
-		return tr, nil
+
+	for _, opt := range opts {
+		opt(&tr)
 	}
 
-	for key, cfg := range config {
-		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-		// don't cleanup all current targets on startup - not all may have been synced to Saas and removing them can lead to 404s for connected sdks fetching updates
-		// this is an issue when we horizontally scale the proxy and a second proxy starts up wiping targets registered from the first that didn't make it to SaaS
-		// unused targets won't cause any issues so it's safe to err on the side of leaving old deleted ones in the cache for now
-		// tr.cache.RemoveAll(ctx, string(key))
-		if err := tr.Add(ctx, key, cfg...); err != nil {
-			cancel()
-			return TargetRepo{}, fmt.Errorf("failed to add config: %s", err)
-		}
-		cancel()
-	}
 	return tr, nil
 }
 
-// Add adds a target or multiple targets to the given key
-func (t TargetRepo) Add(ctx context.Context, key domain.TargetKey, values ...domain.Target) error {
-	errs := []error{}
-	for _, v := range values {
-		if err := t.cache.Set(ctx, string(key), v.Identifier, &v); err != nil {
-			errs = append(errs, addErr{string(key), v.Identifier, err})
+func (t TargetRepo) Add(ctx context.Context, envID string, targets ...domain.Target) error {
+	if len(targets) == 1 {
+		target := targets[0]
+		key := domain.NewTargetKey(envID, target.Identifier)
+		if err := t.cache.Set(ctx, string(key), target); err != nil {
+			// log and contineu
 		}
 	}
 
-	if len(errs) > 0 {
-		return fmt.Errorf("failed to add target(s) to repo: %v", errs)
+	key := domain.NewTargetsKey(envID)
+
+	var existingTargets []domain.Target
+	err := t.cache.Get(ctx, string(key), &existingTargets)
+	if err != nil && !errors.Is(err, domain.ErrCacheNotFound) {
+		// log and continue
 	}
-	return nil
+
+	existingTargets = append(existingTargets, targets...)
+
+	return t.cache.Set(ctx, string(key), targets)
+}
+
+// Add adds a target or multiple targets to the given key
+func (t TargetRepo) addTarget(ctx context.Context, envID string, target domain.Target) error {
+	key := domain.NewTargetKey(envID, target.Identifier)
+
+	return t.cache.Set(ctx, string(key), target)
+}
+
+func (t TargetRepo) addTargets(ctx context.Context, envID string, targets ...domain.Target) error {
+	key := domain.NewTargetsKey(envID)
+
+	return t.cache.Set(ctx, string(key), targets)
 }
 
 // Get gets all of the Targets for a given key
-func (t TargetRepo) Get(ctx context.Context, key domain.TargetKey) ([]domain.Target, error) {
-	results, err := t.cache.GetAll(ctx, string(key))
+func (t TargetRepo) Get(ctx context.Context, envID string) ([]domain.Target, error) {
+	var targets []domain.Target
+	key := domain.NewTargetsKey(envID)
+
+	err := t.cache.Get(ctx, string(key), &targets)
 	if err != nil {
 		return []domain.Target{}, err
-	}
-
-	targets := make([]domain.Target, len(results))
-
-	idx := 0
-	for _, b := range results {
-		target := &domain.Target{}
-		if err := target.UnmarshalBinary(b); err != nil {
-			return []domain.Target{}, err
-		}
-		targets[idx] = *target
-		idx++
 	}
 
 	return targets, nil
 }
 
 // GetByIdentifier gets a Target for a given key and identifer
-func (t TargetRepo) GetByIdentifier(ctx context.Context, key domain.TargetKey, identifier string) (domain.Target, error) {
+func (t TargetRepo) GetByIdentifier(ctx context.Context, envID string, identifier string) (domain.Target, error) {
 	target := domain.Target{}
-	if err := t.cache.Get(ctx, string(key), identifier, &target); err != nil {
+	key := domain.NewTargetKey(envID, identifier)
+
+	if err := t.cache.Get(ctx, string(key), &target); err != nil {
 		return domain.Target{}, err
 	}
 	return target, nil
@@ -91,12 +125,15 @@ func (t TargetRepo) GetByIdentifier(ctx context.Context, key domain.TargetKey, i
 // an error to avoid wiping all of the Targets from the cache. If we want to remove
 // all of the Targets for a given key then we should add an explicit Remove method
 // that calls cache.Remove.
-func (t TargetRepo) DeltaAdd(ctx context.Context, key domain.TargetKey, targets ...domain.Target) error {
+func (t TargetRepo) DeltaAdd(ctx context.Context, envID string, targets ...domain.Target) error {
 	if len(targets) == 0 {
-		return fmt.Errorf("can't perform DeltaAdd with zero targets for key %s", key)
+		return fmt.Errorf("can't perform DeltaAdd with zero targets for environment %s", envID)
 	}
 
-	results, err := t.cache.GetAll(ctx, string(key))
+	key := domain.NewTargetsKey(envID)
+	var results []domain.Target
+
+	err := t.cache.Get(ctx, string(key), &results)
 	if err != nil {
 		// If the key doesn't already exist in the cache we will want to add it
 		if !errors.Is(err, domain.ErrCacheNotFound) {
@@ -105,26 +142,27 @@ func (t TargetRepo) DeltaAdd(ctx context.Context, key domain.TargetKey, targets 
 	}
 
 	existingTargets := make(map[string]domain.Target, len(results))
-	for _, b := range results {
-		target := &domain.Target{}
-		if err := target.UnmarshalBinary(b); err != nil {
-			return err
-		}
-		existingTargets[target.Identifier] = *target
+	for _, t := range results {
+		existingTargets[t.Identifier] = t
 	}
 
 	newTargets := make(map[string]domain.Target, len(results))
 	for _, target := range targets {
 		newTargets[target.Identifier] = target
+
+		if err := t.addTarget(ctx, envID, target); err != nil {
+			// TODO:
+			return err
+		}
 	}
 
 	// If there are targets from the cache that aren't in the map of new targets
 	// then we'll want to remove them.
 	for identifier := range existingTargets {
 		if _, ok := newTargets[identifier]; !ok {
-			t.cache.Remove(ctx, string(key), identifier)
+			t.cache.Delete(ctx, string(key))
 		}
 	}
 
-	return t.Add(ctx, key, targets...)
+	return t.addTargets(ctx, envID, targets...)
 }

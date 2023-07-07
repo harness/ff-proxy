@@ -5,7 +5,6 @@ import (
 	"time"
 
 	"github.com/alicebob/miniredis/v2"
-	"github.com/go-redis/cache/v8"
 	"github.com/go-redis/redis/v8"
 	jsoniter "github.com/json-iterator/go"
 	gocache "github.com/patrickmn/go-cache"
@@ -57,12 +56,12 @@ func TestNewMemoizeMetrics(t *testing.T) {
 func TestMemoizeCache_makeMarshalFunc(t *testing.T) {
 	mockMetrics := &mockMetrics{}
 
-	c := NewMemoizeCache(nil, 1*time.Minute, 1*time.Minute, 1*time.Minute, mockMetrics)
+	c := NewMemoizeCache(nil, 1*time.Minute, 1*time.Minute, mockMetrics)
 
-	//mc, ok := c.(memoizeCache)
-	//assert.True(t, ok)
+	mc, ok := c.(memoizeCache)
+	assert.True(t, ok)
 
-	marshal := c.makeMarshalFunc(gocache.New(1*time.Minute, 1*time.Minute))
+	marshal := mc.makeMarshalFunc(gocache.New(1*time.Minute, 1*time.Minute))
 
 	m := map[string]string{
 		"hello": "world",
@@ -145,8 +144,8 @@ func TestMemoizeCache_makeUnmarshalFunc(t *testing.T) {
 
 		t.Run(desc, func(t *testing.T) {
 			c := memoizeCache{
-				KeyValCache: setupTestKeyValCache(),
-				metrics:     tc.mocks.metrics,
+				Cache:   setupTestKeyValCache(),
+				metrics: tc.mocks.metrics,
 			}
 
 			if tc.cacheData.value != nil {
@@ -189,17 +188,12 @@ func setupTestKeyValCache() *KeyValCache {
 	})
 
 	k := &KeyValCache{
-		ttl:        1 * time.Hour,
-		localCache: nil,
+		ttl:         0,
+		localCache:  nil,
+		marshalFn:   jsoniter.Marshal,
+		unmarshalFn: jsoniter.Unmarshal,
+		redisClient: redisClient,
 	}
-
-	k.cache = cache.New(&cache.Options{
-		Redis:      redisClient,
-		LocalCache: k.localCache,
-		Marshal:    k.marshalFn,
-		Unmarshal:  k.unmarshalFn,
-	})
-	k.redisClient = redisClient
 
 	return k
 }

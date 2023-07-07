@@ -25,9 +25,14 @@ const (
 // FeatureFlagKey is the key that maps to a FeatureConfig
 type FeatureFlagKey string
 
-// NewFeatureConfigKey creates a FeatureFlagKey from an environment
-func NewFeatureConfigKey(envID string) FeatureFlagKey {
-	return FeatureFlagKey(fmt.Sprintf("env-%s-feature-config", envID))
+// NewFeatureConfigKey creates a FeatureFlagKey from an environment and identifier
+func NewFeatureConfigKey(envID string, identifier string) FeatureFlagKey {
+	return FeatureFlagKey(fmt.Sprintf("env-%s-feature-config-%s", envID, identifier))
+}
+
+// NewFeatureConfigsKey creates a FeatureFlagKey from and environmet
+func NewFeatureConfigsKey(envID string) FeatureFlagKey {
+	return FeatureFlagKey(fmt.Sprintf("env-%s-feature-configs", envID))
 }
 
 // FeatureFlag stores feature flag data
@@ -54,9 +59,14 @@ func (f *FeatureFlag) UnmarshalBinary(b []byte) error {
 // TargetKey is the key that maps to a Target
 type TargetKey string
 
-// NewTargetKey creates a TargetKey from an environment
-func NewTargetKey(envID string) TargetKey {
-	return TargetKey(fmt.Sprintf("env-%s-target-config", envID))
+// NewTargetsKey creates a TargetKey from an environment
+func NewTargetsKey(envID string) TargetKey {
+	return TargetKey(fmt.Sprintf("env-%s-target-configs", envID))
+}
+
+// NewTargetKey creates a TargetKey from an environment and identifier
+func NewTargetKey(envID string, identifier string) TargetKey {
+	return TargetKey(fmt.Sprintf("env-%s-target-config-%s", envID, identifier))
 }
 
 // Target is a admingen.Target that we can declare methods on
@@ -78,9 +88,14 @@ func (t *Target) UnmarshalBinary(b []byte) error {
 // SegmentKey is the key that maps to a Segment
 type SegmentKey string
 
-// NewSegmentKey creates a SegmentKey from an environment
-func NewSegmentKey(envID string) SegmentKey {
-	return SegmentKey(fmt.Sprintf("env-%s-segment", envID))
+// NewSegmentKey creates a SegmentKey from an environment and identifier
+func NewSegmentKey(envID string, identifier string) SegmentKey {
+	return SegmentKey(fmt.Sprintf("env-%s-segment-%s", envID, identifier))
+}
+
+// NewSegmentsKey creates a SegmentKey from an environment
+func NewSegmentsKey(envID string) SegmentKey {
+	return SegmentKey(fmt.Sprintf("env-%s-segments", envID))
 }
 
 // Segment is a rest.Segment that we can declare methods on
@@ -99,6 +114,11 @@ func (s *Segment) UnmarshalBinary(b []byte) error {
 
 // AuthAPIKey is the APIKey type used for authentication lookups
 type AuthAPIKey string
+
+// NewAuthAPIKey creates an AuthAPIKey from a key
+func NewAuthAPIKey(key string) AuthAPIKey {
+	return AuthAPIKey(fmt.Sprintf("auth-key-%s", key))
+}
 
 // Token is a type that contains a generated token string and the claims
 type Token struct {

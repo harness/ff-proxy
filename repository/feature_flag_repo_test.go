@@ -138,98 +138,19 @@ var (
 	}
 )
 
-func TestFeatureFlagRepo_Add(t *testing.T) {
-	key123 := domain.NewFeatureConfigKey("123")
-
-	emptyConfig := map[domain.FeatureFlagKey][]domain.FeatureFlag{}
-	populatedConfig := map[domain.FeatureFlagKey][]domain.FeatureFlag{
-		key123: {featureFlagFoo},
-	}
-
-	testCases := map[string]struct {
-		cache      cache.Cache
-		repoConfig map[domain.FeatureFlagKey][]domain.FeatureFlag
-		flags      []domain.FeatureFlag
-		key        domain.FeatureFlagKey
-		shouldErr  bool
-		expected   []domain.FeatureFlag
-		expecteErr error
-	}{
-		"Given I have an empty repo and I add a FeatureFlag to it": {
-			cache:      cache.NewMemCache(),
-			repoConfig: emptyConfig,
-			flags:      []domain.FeatureFlag{featureFlagFoo},
-			key:        key123,
-			shouldErr:  false,
-			expected:   []domain.FeatureFlag{featureFlagFoo},
-			expecteErr: nil,
-		},
-		"Given I have a repo with a FeatureFlag in it and I add the same FeatureFlag again under the same key": {
-			cache:      cache.NewMemCache(),
-			repoConfig: populatedConfig,
-			flags:      []domain.FeatureFlag{featureFlagFoo},
-			key:        key123,
-			shouldErr:  false,
-			expected:   []domain.FeatureFlag{featureFlagFoo},
-			expecteErr: nil,
-		},
-		"Given I have a repo with a FeatureFlag in it and I add a new FeatureFlag under the same key": {
-			cache:      cache.NewMemCache(),
-			repoConfig: populatedConfig,
-			flags:      []domain.FeatureFlag{featureFlagBar},
-			key:        key123,
-			shouldErr:  false,
-			expected:   []domain.FeatureFlag{featureFlagFoo, featureFlagBar},
-			expecteErr: nil,
-		},
-		"Given I add an FeatureFlag to the repo but the cache errors": {
-			cache: &mockCache{
-				set:    func() error { return errors.New("an error") },
-				getAll: func() (map[string][]byte, error) { return map[string][]byte{}, nil },
-			},
-			repoConfig: nil,
-			flags:      []domain.FeatureFlag{featureFlagBar},
-			key:        key123,
-			shouldErr:  true,
-			expected:   []domain.FeatureFlag{},
-			expecteErr: domain.ErrCacheInternal,
-		},
-	}
-	for desc, tc := range testCases {
-		tc := tc
-		t.Run(desc, func(t *testing.T) {
-
-			repo, err := NewFeatureFlagRepo(tc.cache, tc.repoConfig)
-			if err != nil {
-				t.Fatalf("(%s): error = %v, shouldErr = %v", desc, err, tc.shouldErr)
-			}
-
-			err = repo.Add(context.Background(), tc.key, tc.flags...)
-			if (err != nil) != tc.shouldErr {
-				t.Errorf("(%s): error = %v, shouldErr = %v", desc, err, tc.shouldErr)
-			}
-
-			actual, err := repo.Get(context.Background(), tc.key)
-			if err != nil {
-				t.Errorf("(%s): error = %v, shouldErr = %v", desc, err, tc.shouldErr)
-			}
-			assert.ElementsMatch(t, tc.expected, actual)
-		})
-	}
-}
-
 func TestFeatureFlagRepo_GetByIdentifer(t *testing.T) {
-	key123 := domain.NewFeatureConfigKey("123")
+	key123 := domain.NewFeatureConfigsKey("123")
 
-	emptyConfig := map[domain.FeatureFlagKey][]domain.FeatureFlag{}
-	populatedConfig := map[domain.FeatureFlagKey][]domain.FeatureFlag{
-		key123: {featureFlagFoo},
+	emptyConfig := map[domain.FeatureFlagKey]interface{}{}
+	populatedConfig := map[domain.FeatureFlagKey]interface{}{
+		key123: []domain.FeatureFlag{featureFlagFoo},
+		domain.NewFeatureConfigKey("123", featureFlagFoo.Feature): featureFlagFoo,
 	}
 
 	testCases := map[string]struct {
 		cache       cache.Cache
-		repoConfig  map[domain.FeatureFlagKey][]domain.FeatureFlag
-		key         domain.FeatureFlagKey
+		repoConfig  map[domain.FeatureFlagKey]interface{}
+		envID       string
 		identifier  string
 		shouldErr   bool
 		expected    domain.FeatureFlag
@@ -238,7 +159,7 @@ func TestFeatureFlagRepo_GetByIdentifer(t *testing.T) {
 		"Given I have an empty cache": {
 			cache:       cache.NewMemCache(),
 			repoConfig:  emptyConfig,
-			key:         key123,
+			envID:       "123",
 			identifier:  "foo",
 			shouldErr:   true,
 			expected:    domain.FeatureFlag{},
@@ -247,7 +168,7 @@ func TestFeatureFlagRepo_GetByIdentifer(t *testing.T) {
 		"Given I have a populated cache and I get an identifier that's in the cache": {
 			cache:       cache.NewMemCache(),
 			repoConfig:  populatedConfig,
-			key:         key123,
+			envID:       "123",
 			identifier:  "foo",
 			shouldErr:   false,
 			expected:    featureFlagFoo,
@@ -256,7 +177,7 @@ func TestFeatureFlagRepo_GetByIdentifer(t *testing.T) {
 		"Given I have a populated cache and I try to get an identifier that isn't in the cache": {
 			cache:       cache.NewMemCache(),
 			repoConfig:  emptyConfig,
-			key:         key123,
+			envID:       "123",
 			identifier:  "bar",
 			shouldErr:   true,
 			expected:    domain.FeatureFlag{},
@@ -267,12 +188,12 @@ func TestFeatureFlagRepo_GetByIdentifer(t *testing.T) {
 	for desc, tc := range testCases {
 		tc := tc
 		t.Run(desc, func(t *testing.T) {
-			repo, err := NewFeatureFlagRepo(tc.cache, tc.repoConfig)
+			repo, err := NewFeatureFlagRepo(tc.cache, WithFeatureConfig(tc.repoConfig))
 			if err != nil {
 				t.Fatalf("(%s): error = %v, shouldErr = %v", desc, err, tc.shouldErr)
 			}
 
-			actual, err := repo.GetByIdentifier(context.Background(), tc.key, tc.identifier)
+			actual, err := repo.GetByIdentifier(context.Background(), tc.envID, tc.identifier)
 			if (err != nil) != tc.shouldErr {
 				t.Errorf("(%s): error = %v, shouldErr = %v", desc, err, tc.shouldErr)
 				ok := errors.Is(err, tc.expectedErr)
@@ -280,6 +201,53 @@ func TestFeatureFlagRepo_GetByIdentifer(t *testing.T) {
 			}
 
 			assert.Equal(t, tc.expected, actual)
+		})
+	}
+}
+
+func TestFeatureFlagRepo_Get(t *testing.T) {
+	key123 := domain.NewFeatureConfigsKey("123")
+
+	emptyConfig := map[domain.FeatureFlagKey]interface{}{}
+	populatedConfig := map[domain.FeatureFlagKey]interface{}{
+		key123: []domain.FeatureFlag{featureFlagFoo, featureFlagBar},
+		domain.NewFeatureConfigKey("123", featureFlagFoo.Feature): featureFlagFoo,
+		domain.NewFeatureConfigKey("123", featureFlagBar.Feature): featureFlagBar,
+	}
+
+	testCases := map[string]struct {
+		cache      cache.MemCache
+		repoConfig map[domain.FeatureFlagKey]interface{}
+		shouldErr  bool
+		expected   []domain.FeatureFlag
+	}{
+		"Given I call Get with an empty FeatureFlagRepo": {
+			cache:      cache.NewMemCache(),
+			repoConfig: emptyConfig,
+			shouldErr:  true,
+			expected:   []domain.FeatureFlag{},
+		},
+		"Given I call Get with a populated FeatureFlagRepo": {
+			cache:      cache.NewMemCache(),
+			repoConfig: populatedConfig,
+			shouldErr:  false,
+			expected:   []domain.FeatureFlag{featureFlagFoo, featureFlagBar},
+		},
+	}
+	for desc, tc := range testCases {
+		tc := tc
+		t.Run(desc, func(t *testing.T) {
+			repo, err := NewFeatureFlagRepo(tc.cache, WithFeatureConfig(tc.repoConfig))
+			if err != nil {
+				t.Fatalf("(%s): error = %v, shouldErr = %v", desc, err, tc.shouldErr)
+			}
+
+			actual, err := repo.Get(context.Background(), "123")
+			if (err != nil) != tc.shouldErr {
+				t.Errorf("(%s): error = %v, shouldErr = %v", desc, err, tc.shouldErr)
+			}
+
+			assert.ElementsMatch(t, tc.expected, actual)
 		})
 	}
 }

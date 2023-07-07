@@ -108,7 +108,7 @@ func TestRemoteConfig_NewRemoteConfig(t *testing.T) {
 		orgIdentifier     string
 		projEnvInfo       map[string]EnvironmentDetails
 		authConfig        map[domain.AuthAPIKey]string
-		targetConfig      map[domain.TargetKey][]domain.Target
+		targetConfig      map[domain.TargetKey]interface{}
 		tokens            map[string]string
 	}
 
@@ -131,7 +131,7 @@ func TestRemoteConfig_NewRemoteConfig(t *testing.T) {
 				orgIdentifier:     org,
 				projEnvInfo:       map[string]EnvironmentDetails{},
 				authConfig:        map[domain.AuthAPIKey]string{},
-				targetConfig:      map[domain.TargetKey][]domain.Target{},
+				targetConfig:      map[domain.TargetKey]interface{}{},
 				tokens:            map[string]string{},
 			},
 		},
@@ -148,9 +148,12 @@ func TestRemoteConfig_NewRemoteConfig(t *testing.T) {
 				accountIdentifier: account,
 				orgIdentifier:     org,
 				projEnvInfo:       map[string]EnvironmentDetails{defaultEnvironmentID: defaultEnvDetails},
-				authConfig:        map[domain.AuthAPIKey]string{defaultAPIKey: defaultEnvironmentID},
-				targetConfig:      map[domain.TargetKey][]domain.Target{"env-0000-0000-0000-0000-0000-target-config": {{target1}}},
-				tokens:            map[string]string{defaultEnvironmentID: validJWT},
+				authConfig:        map[domain.AuthAPIKey]string{domain.NewAuthAPIKey(defaultAPIKey): defaultEnvironmentID},
+				targetConfig: map[domain.TargetKey]interface{}{
+					domain.NewTargetKey("0000-0000-0000-0000-0000", target1.Identifier): domain.Target{target1},
+					domain.NewTargetsKey("0000-0000-0000-0000-0000"):                    []domain.Target{{target1}},
+				},
+				tokens: map[string]string{defaultEnvironmentID: validJWT},
 			},
 		},
 		"NewRemoteConfig returns one set of data if given two keys for same environment": {
@@ -166,9 +169,12 @@ func TestRemoteConfig_NewRemoteConfig(t *testing.T) {
 				accountIdentifier: account,
 				orgIdentifier:     org,
 				projEnvInfo:       map[string]EnvironmentDetails{defaultEnvironmentID: defaultEnvDetails},
-				authConfig:        map[domain.AuthAPIKey]string{defaultAPIKey: defaultEnvironmentID},
-				targetConfig:      map[domain.TargetKey][]domain.Target{"env-0000-0000-0000-0000-0000-target-config": {{target1}}},
-				tokens:            map[string]string{defaultEnvironmentID: validJWT},
+				authConfig:        map[domain.AuthAPIKey]string{domain.NewAuthAPIKey(defaultAPIKey): defaultEnvironmentID},
+				targetConfig: map[domain.TargetKey]interface{}{
+					domain.NewTargetKey("0000-0000-0000-0000-0000", target1.Identifier): domain.Target{target1},
+					domain.NewTargetsKey("0000-0000-0000-0000-0000"):                    []domain.Target{{target1}},
+				},
+				tokens: map[string]string{defaultEnvironmentID: validJWT},
 			},
 		},
 		"NewRemoteConfig returns one set of data if one key fails": {
@@ -189,9 +195,12 @@ func TestRemoteConfig_NewRemoteConfig(t *testing.T) {
 				accountIdentifier: account,
 				orgIdentifier:     org,
 				projEnvInfo:       map[string]EnvironmentDetails{defaultEnvironmentID: defaultEnvDetails},
-				authConfig:        map[domain.AuthAPIKey]string{defaultAPIKey: defaultEnvironmentID},
-				targetConfig:      map[domain.TargetKey][]domain.Target{"env-0000-0000-0000-0000-0000-target-config": {{target1}}},
-				tokens:            map[string]string{defaultEnvironmentID: validJWT},
+				authConfig:        map[domain.AuthAPIKey]string{domain.NewAuthAPIKey(defaultAPIKey): defaultEnvironmentID},
+				targetConfig: map[domain.TargetKey]interface{}{
+					domain.NewTargetKey("0000-0000-0000-0000-0000", target1.Identifier): domain.Target{target1},
+					domain.NewTargetsKey("0000-0000-0000-0000-0000"):                    []domain.Target{{target1}},
+				},
+				tokens: map[string]string{defaultEnvironmentID: validJWT},
 			},
 		},
 		"NewRemoteConfig returns data for multiple envs": {
@@ -235,9 +244,14 @@ func TestRemoteConfig_NewRemoteConfig(t *testing.T) {
 					Token:                 "header.eyJlbnZpcm9ubWVudCI6IjExMTEtMTExMS0xMTExLTExMTEtMTExMSIsImVudmlyb25tZW50SWRlbnRpZmllciI6ImVudjIiLCJwcm9qZWN0SWRlbnRpZmllciI6InByb2plY3QyIiwiY2x1c3RlcklkZW50aWZpZXIiOiIyIn0.signature",
 					Targets:               []domain.Target{{target1}},
 				}},
-				authConfig:   map[domain.AuthAPIKey]string{defaultAPIKey: defaultEnvironmentID, "key2": "1111-1111-1111-1111-1111"},
-				targetConfig: map[domain.TargetKey][]domain.Target{"env-0000-0000-0000-0000-0000-target-config": {{target1}}, "env-1111-1111-1111-1111-1111-target-config": {{target1}}},
-				tokens:       map[string]string{defaultEnvironmentID: validJWT, "1111-1111-1111-1111-1111": "header.eyJlbnZpcm9ubWVudCI6IjExMTEtMTExMS0xMTExLTExMTEtMTExMSIsImVudmlyb25tZW50SWRlbnRpZmllciI6ImVudjIiLCJwcm9qZWN0SWRlbnRpZmllciI6InByb2plY3QyIiwiY2x1c3RlcklkZW50aWZpZXIiOiIyIn0.signature"},
+				authConfig: map[domain.AuthAPIKey]string{domain.NewAuthAPIKey(defaultAPIKey): defaultEnvironmentID, domain.NewAuthAPIKey("key2"): "1111-1111-1111-1111-1111"},
+				targetConfig: map[domain.TargetKey]interface{}{
+					domain.NewTargetKey("0000-0000-0000-0000-0000", target1.Identifier): domain.Target{target1},
+					domain.NewTargetsKey("0000-0000-0000-0000-0000"):                    []domain.Target{{target1}},
+					domain.NewTargetKey("1111-1111-1111-1111-1111", target1.Identifier): domain.Target{target1},
+					domain.NewTargetsKey("1111-1111-1111-1111-1111"):                    []domain.Target{{target1}},
+				},
+				tokens: map[string]string{defaultEnvironmentID: validJWT, "1111-1111-1111-1111-1111": "header.eyJlbnZpcm9ubWVudCI6IjExMTEtMTExMS0xMTExLTExMTEtMTExMSIsImVudmlyb25tZW50SWRlbnRpZmllciI6ImVudjIiLCJwcm9qZWN0SWRlbnRpZmllciI6InByb2plY3QyIiwiY2x1c3RlcklkZW50aWZpZXIiOiIyIn0.signature"},
 			},
 		},
 	}

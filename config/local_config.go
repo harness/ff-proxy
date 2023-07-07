@@ -126,6 +126,7 @@ func decodeConfigFiles(c map[string]config, fileSystem fs.FS) fs.WalkDirFunc {
 			if err := ffproxy.DecodeFile(fileSystem, path, &config.Auth); err != nil {
 				return err
 			}
+
 			c[env] = config
 		}
 		return nil
@@ -134,36 +135,56 @@ func decodeConfigFiles(c map[string]config, fileSystem fs.FS) fs.WalkDirFunc {
 
 // FeatureFlag returns the FeatureFlag information from the FeatureFlag
 // in the form of a map of domain.FeatureConfigKeys to slice of domain.FeatureFlag.
-func (f LocalConfig) FeatureFlag() map[domain.FeatureFlagKey][]domain.FeatureFlag {
-	result := map[domain.FeatureFlagKey][]domain.FeatureFlag{}
+func (f LocalConfig) FeatureFlag() map[domain.FeatureFlagKey]interface{} {
+	result := map[domain.FeatureFlagKey]interface{}{}
 
 	for _, cfg := range f.config {
-		key := domain.NewFeatureConfigKey(cfg.Environment)
-		result[key] = cfg.FeatureFlags
+		if len(cfg.FeatureFlags) > 0 {
+			key := domain.NewFeatureConfigsKey(cfg.Environment)
+			result[key] = cfg.FeatureFlags
+		}
+
+		for _, ff := range cfg.FeatureFlags {
+			fkey := domain.NewFeatureConfigKey(cfg.Environment, ff.Feature)
+			result[fkey] = ff
+		}
 	}
 	return result
 }
 
 // Targets returns the target information from the FeatureFlagConfig in the form
 // of a map of domain.TargetKey to slice of domain.Target
-func (f LocalConfig) Targets() map[domain.TargetKey][]domain.Target {
-	results := map[domain.TargetKey][]domain.Target{}
+func (f LocalConfig) Targets() map[domain.TargetKey]interface{} {
+	results := map[domain.TargetKey]interface{}{}
 
 	for _, cfg := range f.config {
-		key := domain.NewTargetKey(cfg.Environment)
-		results[key] = cfg.Targets
+		if len(cfg.Targets) > 0 {
+			key := domain.NewTargetsKey(cfg.Environment)
+			results[key] = cfg.Targets
+		}
+
+		for _, t := range cfg.Targets {
+			k := domain.NewTargetKey(cfg.Environment, t.Identifier)
+			results[k] = t
+		}
 	}
 	return results
 }
 
 // Segments returns the segment informatino from the FeatureFlagConfig in the form
 // of a map of domain.SegmentKey to slice of domain.Segments
-func (f LocalConfig) Segments() map[domain.SegmentKey][]domain.Segment {
-	results := map[domain.SegmentKey][]domain.Segment{}
+func (f LocalConfig) Segments() map[domain.SegmentKey]interface{} {
+	results := map[domain.SegmentKey]interface{}{}
 
 	for _, cfg := range f.config {
-		key := domain.NewSegmentKey(cfg.Environment)
-		results[key] = cfg.Segments
+		if len(cfg.Segments) > 0 {
+			key := domain.NewSegmentsKey(cfg.Environment)
+			results[key] = cfg.Segments
+		}
+
+		for _, s := range cfg.Segments {
+			results[domain.NewSegmentKey(cfg.Environment, s.Identifier)] = s
+		}
 	}
 	return results
 }
@@ -173,7 +194,7 @@ func (f LocalConfig) AuthConfig() map[domain.AuthAPIKey]string {
 	results := map[domain.AuthAPIKey]string{}
 	for _, cfg := range f.config {
 		for _, key := range cfg.Auth {
-			results[key] = cfg.Environment
+			results[domain.NewAuthAPIKey(string(key))] = cfg.Environment
 		}
 	}
 	return results
