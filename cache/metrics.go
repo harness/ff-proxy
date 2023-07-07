@@ -2,7 +2,6 @@ package cache
 
 import (
 	"context"
-	"encoding"
 	"errors"
 	"fmt"
 	"time"
@@ -66,19 +65,19 @@ func NewMetricsCache(label string, reg prometheus.Registerer, next Cache) Metric
 			Name: fmt.Sprintf("ff_proxy_%s_cache_write_count", label),
 			Help: "Tracks how many writes we make to the cache",
 		},
-			[]string{"key", "operation", "error"},
+			[]string{"key", "error"},
 		),
 		readCount: prometheus.NewCounterVec(prometheus.CounterOpts{
 			Name: fmt.Sprintf("ff_proxy_%s_cache_read_count", label),
 			Help: "Tracks how many reads we make to the cache",
 		},
-			[]string{"key", "operation", "error"},
+			[]string{"key", "error"},
 		),
 		deleteCount: prometheus.NewCounterVec(prometheus.CounterOpts{
 			Name: fmt.Sprintf("ff_proxy_%s_cache_remove_count", label),
 			Help: "Tracks how many deletes we make to the cache",
 		},
-			[]string{"key", "operation"},
+			[]string{"key", "error"},
 		),
 	}
 
@@ -95,86 +94,44 @@ func NewMetricsCache(label string, reg prometheus.Registerer, next Cache) Metric
 
 // Set makes MetricsCache implement the Cache interface. It calls the decorated cache's Set method and
 // uses a prometheus counter and histogram to track the number of calls and how long a Set operation takes.
-func (c MetricsCache) Set(ctx context.Context, key string, field string, value encoding.BinaryMarshaler) (err error) {
+func (c MetricsCache) Set(ctx context.Context, key string, value interface{}) (err error) {
 	start := time.Now()
 	defer func() {
 		trackHistogram(start, c.writeDuration)
-		trackCounter(c.writeCount, key, "Set", getErrorLabel(err))
+		trackCounter(c.writeCount, key, getErrorLabel(err))
 	}()
 
-	return c.next.Set(ctx, key, field, value)
-}
-
-// SetByte makes MetricsCache implement the Cache interface. It calls the decorated cache's SetByte method and
-// uses a prometheus counter and histogram to track the number of calls and how long a SetByte operation takes.
-func (c MetricsCache) SetByte(ctx context.Context, key string, field string, value []byte) (err error) {
-	start := time.Now()
-	defer func() {
-		trackHistogram(start, c.writeDuration)
-		trackCounter(c.writeCount, key, "SetByte", getErrorLabel(err))
-	}()
-
-	return c.next.SetByte(ctx, key, field, value)
+	return c.next.Set(ctx, key, value)
 }
 
 // Get makes MetricsCache implement the Cache interface. It calls the decorated cache's Get method and
 // uses a prometheus counter and histogram to track the number of calls and how long a Get operation takes.
-func (c MetricsCache) Get(ctx context.Context, key string, field string, v encoding.BinaryUnmarshaler) (err error) {
+func (c MetricsCache) Get(ctx context.Context, key string, v interface{}) (err error) {
 	start := time.Now()
 	defer func() {
 		trackHistogram(start, c.readDuration)
-		trackCounter(c.readCount, key, "Get", getErrorLabel(err))
+		trackCounter(c.readCount, key, getErrorLabel(err))
 	}()
 
-	return c.next.Get(ctx, key, field, v)
+	return c.next.Get(ctx, key, v)
 }
 
-// GetByte makes MetricsCache implement the Cache interface. It calls the decorated cache's GetByte method and
-// uses a prometheus counter and histogram to track the number of calls and how long a GetByte operation takes.
-func (c MetricsCache) GetByte(ctx context.Context, key string, field string) (b []byte, err error) {
-	start := time.Now()
-	defer func() {
-		trackHistogram(start, c.readDuration)
-		trackCounter(c.readCount, key, "GetByte", getErrorLabel(err))
-	}()
-
-	return c.next.GetByte(ctx, key, field)
-}
-
-// GetAll makes MetricsCache implement the Cache interface. It calls the decorated cache's GetAll method and
-// uses a prometheus counter and histogram to track the number of calls and how long a GetAll operation takes.
-func (c MetricsCache) GetAll(ctx context.Context, key string) (m map[string][]byte, err error) {
-	start := time.Now()
-	defer func() {
-		trackHistogram(start, c.readDuration)
-		trackCounter(c.readCount, key, "GetAll", getErrorLabel(err))
-	}()
-
-	return c.next.GetAll(ctx, key)
-}
-
-// RemoveAll makes MetricsCache implement the Cache interface. It calls the decorated cache's RemoveAll method and
-// uses a prometheus counter and histogram to track the number of calls and how long a RemoveAll operation takes.
-func (c MetricsCache) RemoveAll(ctx context.Context, key string) {
+// Delete makes MetricsCache implement the Cache interface. It calls the decorated cache's delete method
+// and uses a prometheus counter and histogram to track the number of calls and how long each call takes
+func (c MetricsCache) Delete(ctx context.Context, key string) (err error) {
 	start := time.Now()
 	defer func() {
 		trackHistogram(start, c.deleteDuration)
-		trackCounter(c.deleteCount, key, "RemoveAll")
+		trackCounter(c.deleteCount, key, getErrorLabel(err))
 	}()
 
-	c.next.RemoveAll(ctx, key)
+	return c.next.Delete(ctx, key)
 }
 
-// Remove makes MetricsCache implement the Cache interface. It calls the decorated cache's Remove method and
-// uses a prometheus counter and histogram to track the number of calls and how long a Remove operation takes.
-func (c MetricsCache) Remove(ctx context.Context, key string, field string) {
-	start := time.Now()
-	defer func() {
-		trackHistogram(start, c.deleteDuration)
-		trackCounter(c.deleteCount, key, "Remove")
-	}()
-
-	c.next.Remove(ctx, key, field)
+// Keys makes MetricsCache implement the Cache interface. It calls the decorated cache's Keys method
+// and returns the results. It doesn't record any prometheus metrics.
+func (c MetricsCache) Keys(ctx context.Context, key string) ([]string, error) {
+	return c.next.Keys(ctx, key)
 }
 
 // HealthCheck calls the decorated cache's HealthCheck method

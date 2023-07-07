@@ -13,7 +13,9 @@ import (
 	"os"
 	"reflect"
 	"testing"
+	"time"
 
+	"github.com/alicebob/miniredis/v2"
 	"github.com/fanout/go-gripcontrol"
 	"github.com/go-redis/redis/v8"
 	sdkstream "github.com/harness/ff-golang-server-sdk/stream"
@@ -177,11 +179,20 @@ func setupHTTPServer(t *testing.T, bypassAuth bool, opts ...setupOpts) *HTTPServ
 	}
 
 	if setupConfig.cache == nil {
-		setupConfig.cache = cache.NewMemCache()
+		mr, err := miniredis.Run()
+		if err != nil {
+			panic(err)
+		}
+
+		redisClient := redis.NewClient(&redis.Options{
+			Addr: mr.Addr(),
+		})
+
+		setupConfig.cache = cache.NewMemoizeCache(redisClient, 10*time.Minute, 1*time.Minute, 2*time.Minute, nil)
 	}
 
 	if setupConfig.featureRepo == nil {
-		fr, err := repository.NewFeatureFlagRepo(setupConfig.cache, config.FeatureFlag())
+		fr, err := repository.NewFeatureFlagRepo(setupConfig.cache, repository.WithFeatureConfig(config.FeatureFlag()))
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -190,7 +201,7 @@ func setupHTTPServer(t *testing.T, bypassAuth bool, opts ...setupOpts) *HTTPServ
 	}
 
 	if setupConfig.targetRepo == nil {
-		tr, err := repository.NewTargetRepo(setupConfig.cache, config.Targets())
+		tr, err := repository.NewTargetRepo(setupConfig.cache, repository.WithTargetConfig(config.Targets()))
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -199,7 +210,7 @@ func setupHTTPServer(t *testing.T, bypassAuth bool, opts ...setupOpts) *HTTPServ
 	}
 
 	if setupConfig.segmentRepo == nil {
-		sr, err := repository.NewSegmentRepo(setupConfig.cache, config.Segments())
+		sr, err := repository.NewSegmentRepo(setupConfig.cache, repository.WithSegmentConfig(config.Segments()))
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -910,7 +921,6 @@ func TestHTTPServer_PostAuthentication(t *testing.T) {
 	}
 	}
 	`, apiKey1))
-	targetKey := domain.NewTargetKey(envID123)
 
 	targets := []domain.Target{
 		{Target: admingen.Target{
@@ -971,10 +981,19 @@ func TestHTTPServer_PostAuthentication(t *testing.T) {
 		},
 	}
 
+	mr, err := miniredis.Run()
+	if err != nil {
+		panic(err)
+	}
+
+	redisClient := redis.NewClient(&redis.Options{
+		Addr: mr.Addr(),
+	})
+
 	for desc, tc := range testCases {
 		tc := tc
 
-		targetRepo, err := repository.NewTargetRepo(cache.NewMemCache(), nil)
+		targetRepo, err := repository.NewTargetRepo(cache.NewMemoizeCache(redisClient, 10*time.Minute, 1*time.Minute, 2*time.Minute, nil))
 		if err != nil {
 			t.Fatalf("failed to setup targete repo: %s", err)
 		}
@@ -1037,10 +1056,15 @@ func TestHTTPServer_PostAuthentication(t *testing.T) {
 					actualClientTargets = append(actualClientTargets, t)
 				}
 
-				cacheTargets, err := targetRepo.Get(context.Background(), targetKey)
+				cacheTargets, err := targetRepo.Get(context.Background(), envID123)
 				if err != nil {
 					t.Errorf("failed to get targets from cache: %s", err)
 				}
+
+				cacheTarget, err := targetRepo.GetByIdentifier(context.Background(), envID123, tc.expectedCacheTargets[0].Identifier)
+				assert.Nil(t, err)
+
+				assert.Equal(t, tc.expectedCacheTargets[0], cacheTarget)
 
 				t.Log("Then the Targets in the ClientService should match the expected Targets")
 				assert.ElementsMatch(t, tc.expectedClientServiceTargets, actualClientTargets)
@@ -1246,8 +1270,8 @@ func TestHTTPServer_Stream(t *testing.T) {
 	)
 
 	authRepo, err := repository.NewAuthRepo(cache.NewMemCache(), map[domain.AuthAPIKey]string{
-		domain.AuthAPIKey(hashedApiKey):  envID,
-		domain.AuthAPIKey(hashedApiKey2): env2,
+		domain.NewAuthAPIKey(hashedApiKey):  envID,
+		domain.NewAuthAPIKey(hashedApiKey2): env2,
 	}, nil)
 	if err != nil {
 		t.Fatal(err)
@@ -1390,8 +1414,7 @@ func TestHTTPServer_StreamIntegration(t *testing.T) {
 	})
 
 	// Make sure we start and finish with a fresh cache
-
-	cache := cache.NewRedisCache(rc)
+	cache := cache.NewKeyValCache(rc, cache.WithMarshalFunc(json.Marshal), cache.WithUnmarshalFunc(json.Unmarshal))
 
 	authRepo, err := repository.NewAuthRepo(cache, map[domain.AuthAPIKey]string{
 		domain.AuthAPIKey(apiKey1Hash): envID,

@@ -40,93 +40,19 @@ var (
 	}
 )
 
-func TestSegmentRepo_Add(t *testing.T) {
-	key123 := domain.NewSegmentKey("123")
-
-	emptyConfig := map[domain.SegmentKey][]domain.Segment{}
-	populatedConfig := map[domain.SegmentKey][]domain.Segment{
-		key123: {segmentFoo},
-	}
-
-	testCases := map[string]struct {
-		cache      cache.Cache
-		repoConfig map[domain.SegmentKey][]domain.Segment
-		segments   []domain.Segment
-		key        domain.SegmentKey
-		shouldErr  bool
-		expected   []domain.Segment
-	}{
-		"Given I have an empty repo and I add a Segment to it": {
-			cache:      cache.NewMemCache(),
-			repoConfig: emptyConfig,
-			segments:   []domain.Segment{segmentFoo},
-			key:        key123,
-			shouldErr:  false,
-			expected:   []domain.Segment{segmentFoo},
-		},
-		"Given I have a repo with a segment in it and I add the same segment again under the same key": {
-			cache:      cache.NewMemCache(),
-			repoConfig: populatedConfig,
-			segments:   []domain.Segment{segmentFoo},
-			key:        key123,
-			shouldErr:  false,
-			expected:   []domain.Segment{segmentFoo},
-		},
-		"Given I have a repo with a segment in it and I add a new segment under the same key": {
-			cache:      cache.NewMemCache(),
-			repoConfig: populatedConfig,
-			segments:   []domain.Segment{segmentBar},
-			key:        key123,
-			shouldErr:  false,
-			expected:   []domain.Segment{segmentFoo, segmentBar},
-		},
-		"Given I add an segment to the repo but the cache errors": {
-			cache: &mockCache{
-				set:    func() error { return errors.New("an error") },
-				getAll: func() (map[string][]byte, error) { return map[string][]byte{}, nil },
-			},
-			repoConfig: nil,
-			segments:   []domain.Segment{segmentBar},
-			key:        key123,
-			shouldErr:  true,
-			expected:   []domain.Segment{},
-		},
-	}
-	for desc, tc := range testCases {
-		tc := tc
-		t.Run(desc, func(t *testing.T) {
-
-			repo, err := NewSegmentRepo(tc.cache, tc.repoConfig)
-			if err != nil {
-				t.Fatalf("(%s): error = %v, shouldErr = %v", desc, err, tc.shouldErr)
-			}
-
-			err = repo.Add(context.Background(), tc.key, tc.segments...)
-			if (err != nil) != tc.shouldErr {
-				t.Errorf("(%s): error = %v, shouldErr = %v", desc, err, tc.shouldErr)
-			}
-
-			actual, err := repo.Get(context.Background(), tc.key)
-			if err != nil {
-				t.Errorf("(%s): error = %v, shouldErr = %v", desc, err, tc.shouldErr)
-			}
-			assert.ElementsMatch(t, tc.expected, actual)
-		})
-	}
-}
-
 func TestSegmentRepo_GetByIdentifer(t *testing.T) {
-	key123 := domain.NewSegmentKey("123")
+	key123 := domain.NewSegmentsKey("123")
 
-	emptyConfig := map[domain.SegmentKey][]domain.Segment{}
-	populatedConfig := map[domain.SegmentKey][]domain.Segment{
-		key123: {segmentFoo},
+	emptyConfig := map[domain.SegmentKey]interface{}{}
+	populatedConfig := map[domain.SegmentKey]interface{}{
+		key123: []domain.Segment{segmentFoo},
+		domain.NewSegmentKey("123", segmentFoo.Identifier): segmentFoo,
 	}
 
 	testCases := map[string]struct {
 		cache       cache.Cache
-		repoConfig  map[domain.SegmentKey][]domain.Segment
-		key         domain.SegmentKey
+		repoConfig  map[domain.SegmentKey]interface{}
+		envID       string
 		identifier  string
 		shouldErr   bool
 		expected    domain.Segment
@@ -135,7 +61,7 @@ func TestSegmentRepo_GetByIdentifer(t *testing.T) {
 		"Given I have an empty cache": {
 			cache:       cache.NewMemCache(),
 			repoConfig:  emptyConfig,
-			key:         key123,
+			envID:       "123",
 			identifier:  "foo",
 			shouldErr:   true,
 			expected:    domain.Segment{},
@@ -144,7 +70,7 @@ func TestSegmentRepo_GetByIdentifer(t *testing.T) {
 		"Given I have a populated cache and I get an identifier that's in the cache": {
 			cache:       cache.NewMemCache(),
 			repoConfig:  populatedConfig,
-			key:         key123,
+			envID:       "123",
 			identifier:  "foo",
 			shouldErr:   false,
 			expected:    segmentFoo,
@@ -153,7 +79,7 @@ func TestSegmentRepo_GetByIdentifer(t *testing.T) {
 		"Given I have a populated cache and I try to get an identifier that isn't in the cache": {
 			cache:       cache.NewMemCache(),
 			repoConfig:  emptyConfig,
-			key:         key123,
+			envID:       "123",
 			identifier:  "bar",
 			shouldErr:   true,
 			expected:    domain.Segment{},
@@ -164,12 +90,12 @@ func TestSegmentRepo_GetByIdentifer(t *testing.T) {
 	for desc, tc := range testCases {
 		tc := tc
 		t.Run(desc, func(t *testing.T) {
-			repo, err := NewSegmentRepo(tc.cache, tc.repoConfig)
+			repo, err := NewSegmentRepo(tc.cache, WithSegmentConfig(tc.repoConfig))
 			if err != nil {
 				t.Fatalf("(%s): error = %v, shouldErr = %v", desc, err, tc.shouldErr)
 			}
 
-			actual, err := repo.GetByIdentifier(context.Background(), tc.key, tc.identifier)
+			actual, err := repo.GetByIdentifier(context.Background(), tc.envID, tc.identifier)
 			if (err != nil) != tc.shouldErr {
 				t.Errorf("(%s): error = %v, shouldErr = %v", desc, err, tc.shouldErr)
 				ok := errors.Is(err, tc.expectedErr)
@@ -182,16 +108,17 @@ func TestSegmentRepo_GetByIdentifer(t *testing.T) {
 }
 
 func TestSegmentRepoGet(t *testing.T) {
-	key123 := domain.NewSegmentKey("123")
+	key123 := domain.NewSegmentsKey("123")
 
-	emptyConfig := map[domain.SegmentKey][]domain.Segment{}
-	populatedConfig := map[domain.SegmentKey][]domain.Segment{
-		key123: {segmentFoo, segmentBar},
+	emptyConfig := map[domain.SegmentKey]interface{}{}
+	populatedConfig := map[domain.SegmentKey]interface{}{
+		key123: []domain.Segment{segmentFoo, segmentBar},
+		domain.NewSegmentKey("123", segmentFoo.Identifier): segmentFoo,
 	}
 
 	testCases := map[string]struct {
 		cache      cache.MemCache
-		repoConfig map[domain.SegmentKey][]domain.Segment
+		repoConfig map[domain.SegmentKey]interface{}
 		shouldErr  bool
 		expected   []domain.Segment
 	}{
@@ -211,65 +138,17 @@ func TestSegmentRepoGet(t *testing.T) {
 	for desc, tc := range testCases {
 		tc := tc
 		t.Run(desc, func(t *testing.T) {
-			repo, err := NewSegmentRepo(tc.cache, tc.repoConfig)
+			repo, err := NewSegmentRepo(tc.cache, WithSegmentConfig(tc.repoConfig))
 			if err != nil {
 				t.Fatalf("(%s): error = %v, shouldErr = %v", desc, err, tc.shouldErr)
 			}
 
-			actual, err := repo.Get(context.Background(), key123)
+			actual, err := repo.Get(context.Background(), "123")
 			if (err != nil) != tc.shouldErr {
 				t.Errorf("(%s): error = %v, shouldErr = %v", desc, err, tc.shouldErr)
 			}
 
 			assert.ElementsMatch(t, tc.expected, actual)
-		})
-	}
-}
-
-func TestSegmentRepoGetAsMap(t *testing.T) {
-	key123 := domain.NewSegmentKey("123")
-
-	emptyConfig := map[domain.SegmentKey][]domain.Segment{}
-	populatedConfig := map[domain.SegmentKey][]domain.Segment{
-		key123: {segmentFoo, segmentBar},
-	}
-
-	testCases := map[string]struct {
-		cache      cache.MemCache
-		repoConfig map[domain.SegmentKey][]domain.Segment
-		shouldErr  bool
-		expected   map[string]domain.Segment
-	}{
-		"Given I call Get with an empty SegmentRepo": {
-			cache:      cache.NewMemCache(),
-			repoConfig: emptyConfig,
-			shouldErr:  true,
-			expected:   map[string]domain.Segment{},
-		},
-		"Given I call Get with a populated SegmentRepo": {
-			cache:      cache.NewMemCache(),
-			repoConfig: populatedConfig,
-			shouldErr:  false,
-			expected: map[string]domain.Segment{
-				segmentFoo.Identifier: segmentFoo,
-				segmentBar.Identifier: segmentBar,
-			},
-		},
-	}
-	for desc, tc := range testCases {
-		tc := tc
-		t.Run(desc, func(t *testing.T) {
-			repo, err := NewSegmentRepo(tc.cache, tc.repoConfig)
-			if err != nil {
-				t.Fatalf("(%s): error = %v, shouldErr = %v", desc, err, tc.shouldErr)
-			}
-
-			actual, err := repo.GetAsMap(context.Background(), key123)
-			if (err != nil) != tc.shouldErr {
-				t.Errorf("(%s): error = %v, shouldErr = %v", desc, err, tc.shouldErr)
-			}
-
-			assert.Equal(t, tc.expected, actual)
 		})
 	}
 }

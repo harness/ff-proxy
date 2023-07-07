@@ -2,8 +2,6 @@ package cache
 
 import (
 	"context"
-	"encoding"
-	"encoding/json"
 	"fmt"
 	"strings"
 	"sync"
@@ -30,19 +28,17 @@ import (
 //	field-1: hello-world
 type Cache interface {
 	// Set sets a value in the cache for a given key and field
-	Set(ctx context.Context, key string, field string, value encoding.BinaryMarshaler) error
-	// SetByte sets a value in the cache for a given key and field
-	SetByte(ctx context.Context, key string, field string, value []byte) error
+	Set(ctx context.Context, key string, value interface{}) error
+
 	// Get gets the value of a field for a given key
-	Get(ctx context.Context, key string, field string, v encoding.BinaryUnmarshaler) error
-	// GetByte gets the value of a field for a given key
-	GetByte(ctx context.Context, key string, field string) ([]byte, error)
-	// GetAll gets all the fields and their values for a given key
-	GetAll(ctx context.Context, key string) (map[string][]byte, error)
-	// RemoveAll removes all the fields and their values for a given key
-	RemoveAll(ctx context.Context, key string)
-	// Remove removes a field for a given key
-	Remove(ctx context.Context, key string, field string)
+	Get(ctx context.Context, key string, value interface{}) error
+
+	// Delete removes a key from the cache
+	Delete(ctx context.Context, key string) error
+
+	// Keys returns a list of keys that match the pattern
+	Keys(ctx context.Context, key string) ([]string, error)
+
 	// HealthCheck checks cache health
 	HealthCheck(ctx context.Context) error
 }
@@ -103,7 +99,6 @@ func (wrapper *Wrapper) Set(key interface{}, value interface{}) (evicted bool) {
 		return
 	}
 
-	var val []byte
 	switch cacheKey.kind {
 	case dto.KeySegment:
 		segmentConfig, ok := value.(rest.Segment)
@@ -111,30 +106,84 @@ func (wrapper *Wrapper) Set(key interface{}, value interface{}) (evicted bool) {
 			wrapper.logger.Error("failed to cast value in cache to rest.Segment")
 			return
 		}
-		val, err = json.Marshal(segmentConfig)
+
+		// We used to be able to write the raw bytes of the featureConfig and then
+		// unmarshal them in the Proxy to a domain.FeatureConfig. However, because
+		// the memoize cache uses reflection we need to use the same type for marshaling
+		// and unmarshaling which is why we do this conversion.
+		s := domain.Segment(segmentConfig)
+
+		err = wrapper.cache.Set(context.Background(), cacheKey.name, &s)
 		if err != nil {
-			wrapper.logger.Error("failed to marshal segmentConfig", "err", err)
+			wrapper.logger.Warn("failed to set key to wrapper cache", "err", err)
 			return
 		}
+
+	case dto.KeySegments:
+		segmentConfig, ok := value.([]rest.Segment)
+		if !ok {
+			wrapper.logger.Error("failed to cast value in cache to rest.Segment")
+			return
+		}
+
+		// We used to be able to write the raw bytes of the featureConfig and then
+		// unmarshal them in the Proxy to a domain.FeatureConfig. However, because
+		// the memoize cache uses reflection we need to use the same type for marshaling
+		// and unmarshaling which is why we do this conversion.
+		segments := make([]domain.Segment, 0, len(segmentConfig))
+		for _, s := range segmentConfig {
+			segments = append(segments, domain.Segment(s))
+		}
+
+		err = wrapper.cache.Set(context.Background(), cacheKey.name, segments)
+		if err != nil {
+			wrapper.logger.Warn("failed to set key to wrapper cache", "err", err)
+			return
+		}
+
 	case dto.KeyFeature:
 		featureConfig, ok := value.(rest.FeatureConfig)
 		if !ok {
 			wrapper.logger.Error("failed to cast value in cache to rest.FeatureConfig")
 			return
 		}
-		val, err = json.Marshal(featureConfig)
+
+		// We used to be able to write the raw bytes of the featureConfig and then
+		// unmarshal them in the Proxy to a domain.FeatureConfig. However, because
+		// the memoize cache uses reflection we need to use the same type for marshaling
+		// and unmarshaling which is why we do this conversion.
+		ff := domain.FeatureFlag(featureConfig)
+
+		err = wrapper.cache.Set(context.Background(), cacheKey.name, &ff)
 		if err != nil {
-			wrapper.logger.Error("failed to marshal featureConfig", "err", err)
+			wrapper.logger.Warn("failed to set key to wrapper cache", "err", err)
 			return
 		}
+
+	case dto.KeyFeatures:
+		featureConfigs, ok := value.([]rest.FeatureConfig)
+		if !ok {
+			wrapper.logger.Error("failed to cast value in cache to rest.FeatureConfig")
+			return
+		}
+
+		// We used to be able to write the raw bytes of the featureConfig and then
+		// unmarshal them in the Proxy to a domain.FeatureConfig. However, because
+		// the memoize cache uses reflection we need to use the same type for marshaling
+		// and unmarshaling which is why we do this conversion.
+		features := make([]domain.FeatureFlag, 0, len(featureConfigs))
+		for _, f := range featureConfigs {
+			features = append(features, domain.FeatureFlag(f))
+		}
+
+		err = wrapper.cache.Set(context.Background(), cacheKey.name, features)
+		if err != nil {
+			wrapper.logger.Warn("failed to set key to wrapper cache", "err", err)
+			return
+		}
+
 	default:
 		wrapper.logger.Error("unexpected type trying to be set")
-		return
-	}
-
-	err = wrapper.cache.SetByte(context.Background(), cacheKey.name, cacheKey.field, val)
-	if err != nil {
-		wrapper.logger.Warn("failed to set key to wrapper cache", "err", err)
 		return
 	}
 
@@ -167,11 +216,11 @@ func (wrapper *Wrapper) Keys() []interface{} {
 	var keys []interface{}
 
 	// get flag and segment keys
-	segmentKeys := wrapper.getKeysByType(dto.KeySegment)
+	segmentKeys := wrapper.getKeysByType2(dto.KeySegments)
 	if segmentKeys != nil {
 		keys = append(keys, segmentKeys...)
 	}
-	featureKeys := wrapper.getKeysByType(dto.KeyFeature)
+	featureKeys := wrapper.getKeysByType(dto.KeyFeatures)
 	if featureKeys != nil {
 		keys = append(keys, featureKeys...)
 	}
@@ -190,7 +239,7 @@ func (wrapper *Wrapper) Remove(key interface{}) (present bool) {
 	}
 
 	present = wrapper.Contains(key)
-	wrapper.cache.Remove(context.Background(), cacheKey.name, cacheKey.field)
+	wrapper.cache.Delete(context.Background(), cacheKey.name)
 	wrapper.lastUpdate = wrapper.getTime()
 	return present
 }
@@ -230,8 +279,8 @@ func (wrapper *Wrapper) Len() int {
 // Purge is used to completely clear the cache.
 func (wrapper *Wrapper) Purge() {
 	// delete all flags and segments
-	wrapper.deleteByType(dto.KeySegment)
-	wrapper.deleteByType(dto.KeyFeature)
+	wrapper.deleteByType(dto.KeySegments)
+	wrapper.deleteByType(dto.KeyFeatures)
 
 	wrapper.lastUpdate = wrapper.getTime()
 }
@@ -253,7 +302,7 @@ func (wrapper *Wrapper) decodeDTOKey(key interface{}) (cacheKey, error) {
 		return cacheKey{}, fmt.Errorf("couldn't convert key to dto.Key: %s", key)
 	}
 
-	keyName, err := wrapper.generateKeyName(dtoKey.Type)
+	keyName, err := wrapper.generateKeyName(dtoKey.Type, dtoKey.Name)
 	if err != nil {
 		return cacheKey{}, err
 	}
@@ -266,12 +315,16 @@ func (wrapper *Wrapper) decodeDTOKey(key interface{}) (cacheKey, error) {
 }
 
 // generateKeyName generates the key name from the type and cache environment
-func (wrapper *Wrapper) generateKeyName(keyType string) (string, error) {
+func (wrapper *Wrapper) generateKeyName(keyType string, keyName string) (string, error) {
 	switch keyType {
+	case dto.KeyFeatures:
+		return string(domain.NewFeatureConfigsKey(wrapper.environment)), nil
 	case dto.KeyFeature:
-		return string(domain.NewFeatureConfigKey(wrapper.environment)), nil
+		return string(domain.NewFeatureConfigKey(wrapper.environment, keyName)), nil
 	case dto.KeySegment:
-		return string(domain.NewSegmentKey(wrapper.environment)), nil
+		return string(domain.NewSegmentKey(wrapper.environment, keyName)), nil
+	case dto.KeySegments:
+		return string(domain.NewSegmentsKey(wrapper.environment)), nil
 	default:
 		return "", fmt.Errorf("key type not recognised: %s", keyType)
 	}
@@ -280,25 +333,52 @@ func (wrapper *Wrapper) generateKeyName(keyType string) (string, error) {
 func (wrapper *Wrapper) getKeysByType(keyType string) []interface{} {
 	wrapper.logger = wrapper.logger.With("method", "getKeysByType", "keyType", keyType)
 
-	var keys []interface{}
-
-	keyName, err := wrapper.generateKeyName(keyType)
+	keyName, err := wrapper.generateKeyName(keyType, "")
 	if err != nil {
 		wrapper.logger.Warn("failed to generate key name", "err", err)
 		return nil
 	}
 
-	results, err := wrapper.cache.GetAll(context.Background(), keyName)
+	results := make([]rest.FeatureConfig, 0)
+	err = wrapper.cache.Get(context.Background(), keyName, &results)
 	if err != nil {
 		wrapper.logger.Warn("failed to GetAll values for keyName", "keyName", keyName, "err", err)
 		return nil
 	}
 
 	// convert result objects to their dto.Key
-	for key := range results {
+	keys := make([]interface{}, 0, len(results))
+	for _, f := range results {
 		keys = append(keys, dto.Key{
 			Type: keyType,
-			Name: key,
+			Name: f.Feature,
+		})
+	}
+
+	return keys
+}
+
+func (wrapper *Wrapper) getKeysByType2(keyType string) []interface{} {
+	wrapper.logger = wrapper.logger.With("method", "getKeysByType", "keyType", keyType)
+
+	keyName, err := wrapper.generateKeyName(keyType, "")
+	if err != nil {
+		wrapper.logger.Warn("failed to generate key name", "err", err)
+		return nil
+	}
+
+	results := make([]rest.Segment, 0)
+	err = wrapper.cache.Get(context.Background(), keyName, &results)
+	if err != nil {
+		wrapper.logger.Warn("failed to GetAll values for keyName", "keyName", keyName, "err", err)
+		return nil
+	}
+
+	keys := make([]interface{}, 0, len(results))
+	for _, s := range results {
+		keys = append(keys, dto.Key{
+			Type: keyType,
+			Name: s.Identifier,
 		})
 	}
 
@@ -308,56 +388,46 @@ func (wrapper *Wrapper) getKeysByType(keyType string) []interface{} {
 func (wrapper *Wrapper) deleteByType(keyType string) {
 	wrapper.logger = wrapper.logger.With("method", "deleteByType", "keyType", keyType)
 
-	keyName, err := wrapper.generateKeyName(keyType)
+	keyName, err := wrapper.generateKeyName(keyType, "")
 	if err != nil {
 		wrapper.logger.Warn("skipping purge of key type", "err", err)
 		return
 	}
 
-	wrapper.cache.RemoveAll(context.Background(), keyName)
+	wrapper.cache.Delete(context.Background(), keyName)
+	//wrapper.cache.RemoveAll(context.Background(), keyName)
 }
 
 func (wrapper *Wrapper) get(key cacheKey) (interface{}, error) {
 	switch key.kind {
-	case dto.KeyFeature:
-		return wrapper.getFeatureConfig(key)
-	case dto.KeySegment:
-		return wrapper.getSegment(key)
+	case dto.KeyFeatures:
+		return wrapper.getFeatureConfigs(key)
+	case dto.KeySegments:
+		return wrapper.getSegments(key)
 	}
 
 	return nil, fmt.Errorf("invalid type %s", key.kind)
 }
 
-func (wrapper *Wrapper) getFeatureConfig(key cacheKey) (interface{}, error) {
+func (wrapper *Wrapper) getFeatureConfigs(key cacheKey) (interface{}, error) {
 	// get FeatureFlag in rest.FeatureConfig format
-	var featureConfig = rest.FeatureConfig{}
-	val, err := wrapper.cache.GetByte(context.Background(), key.name, key.field)
+	var featureConfig []rest.FeatureConfig
+	err := wrapper.cache.Get(context.Background(), key.name, &featureConfig)
 	if err != nil {
 		return nil, err
 	}
 
-	err = json.Unmarshal(val, &featureConfig)
-	if err != nil {
-		return nil, fmt.Errorf("couldn't cast cached value to rest.FeatureConfig: %s", val)
-	}
-	// return to sdk in rest.FeatureConfig format
 	return featureConfig, nil
 }
 
-func (wrapper *Wrapper) getSegment(key cacheKey) (interface{}, error) {
-	var segment = rest.Segment{}
+func (wrapper *Wrapper) getSegments(key cacheKey) (interface{}, error) {
+	var segment []rest.Segment
 	// get Segment in domain.Segment format
-	val, err := wrapper.cache.GetByte(context.Background(), key.name, key.field)
+	err := wrapper.cache.Get(context.Background(), key.name, &segment)
 	if err != nil {
 		return nil, err
 	}
 
-	err = json.Unmarshal(val, &segment)
-	if err != nil {
-		return nil, fmt.Errorf("couldn't cast cached value to rest.Segment: %s", val)
-	}
-
-	// return to sdk in evaluation.Segment format
 	return segment, nil
 }
 

@@ -36,9 +36,11 @@ func NewTokenSource(l log.Logger, repo authRepo, hasher hasher, secret []byte) T
 func (a TokenSource) GenerateToken(key string) (domain.Token, error) {
 	h := a.hasher.Hash(key)
 
-	env, ok := a.repo.Get(context.Background(), domain.AuthAPIKey(h))
+	k := domain.NewAuthAPIKey(h)
+
+	env, ok := a.repo.Get(context.Background(), k)
 	if !ok {
-		return domain.Token{}, fmt.Errorf("Key %q not found", key)
+		return domain.Token{}, fmt.Errorf("key %q not found", key)
 	}
 
 	t := time.Now().Unix()

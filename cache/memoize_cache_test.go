@@ -59,10 +59,10 @@ func TestMemoizeCache_makeMarshalFunc(t *testing.T) {
 
 	c := NewMemoizeCache(nil, 1*time.Minute, 1*time.Minute, 1*time.Minute, mockMetrics)
 
-	//mc, ok := c.(memoizeCache)
-	//assert.True(t, ok)
+	mc, ok := c.(memoizeCache)
+	assert.True(t, ok)
 
-	marshal := c.makeMarshalFunc(gocache.New(1*time.Minute, 1*time.Minute))
+	marshal := mc.makeMarshalFunc(gocache.New(1*time.Minute, 1*time.Minute))
 
 	m := map[string]string{
 		"hello": "world",
@@ -145,8 +145,8 @@ func TestMemoizeCache_makeUnmarshalFunc(t *testing.T) {
 
 		t.Run(desc, func(t *testing.T) {
 			c := memoizeCache{
-				KeyValCache: setupTestKeyValCache(),
-				metrics:     tc.mocks.metrics,
+				Cache:   setupTestKeyValCache(),
+				metrics: tc.mocks.metrics,
 			}
 
 			if tc.cacheData.value != nil {

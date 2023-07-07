@@ -2,7 +2,6 @@ package repository
 
 import (
 	"context"
-	"encoding"
 	"errors"
 	"testing"
 
@@ -13,13 +12,9 @@ import (
 )
 
 type mockCache struct {
-	set       func() error
-	setByte   func() error
-	get       func() error
-	getByte   func() ([]byte, error)
-	getAll    func() (map[string][]byte, error)
-	removeAll func()
-	remove    func()
+	set    func() error
+	get    func() error
+	delete func() error
 }
 
 func (m *mockCache) HealthCheck(ctx context.Context) error {
@@ -27,38 +22,22 @@ func (m *mockCache) HealthCheck(ctx context.Context) error {
 }
 
 // Set sets a value in the cache for a given key and field
-func (m *mockCache) Set(ctx context.Context, key string, field string, value encoding.BinaryMarshaler) error {
+func (m *mockCache) Set(ctx context.Context, key string, value interface{}) error {
 	return m.set()
 }
 
-// SetByte sets a value in the cache for a given key and field
-func (m *mockCache) SetByte(ctx context.Context, key string, field string, value []byte) error {
-	return m.setByte()
-}
-
 // Get gets the value of a field for a given key
-func (m *mockCache) Get(ctx context.Context, key string, field string, v encoding.BinaryUnmarshaler) error {
+func (m *mockCache) Get(ctx context.Context, key string, v interface{}) error {
 	return m.get()
 }
 
-// GetByte gets the value of a field for a given key
-func (m *mockCache) GetByte(ctx context.Context, key string, field string) ([]byte, error) {
-	return m.getByte()
-}
-
-// GetAll gets all the fields and their values for a given key
-func (m *mockCache) GetAll(ctx context.Context, key string) (map[string][]byte, error) {
-	return m.getAll()
-}
-
-// RemoveAll removes all the fields and their values for a given key
-func (m *mockCache) RemoveAll(ctx context.Context, key string) {
-	m.removeAll()
-}
-
 // Remove removes a field for a given key
-func (m *mockCache) Remove(ctx context.Context, key string, field string) {
-	m.remove()
+func (m *mockCache) Delete(ctx context.Context, key string) error {
+	return m.delete()
+}
+
+func (m *mockCache) Keys(ctx context.Context, key string) ([]string, error) {
+	return []string{}, nil
 }
 
 func strPtr(s string) *string { return &s }
@@ -119,93 +98,19 @@ var (
 	}
 )
 
-func TestTargetRepo_Add(t *testing.T) {
-	key123 := domain.NewTargetKey("123")
-
-	emptyConfig := map[domain.TargetKey][]domain.Target{}
-	populatedConfig := map[domain.TargetKey][]domain.Target{
-		key123: {targetFoo},
-	}
-
-	testCases := map[string]struct {
-		cache      cache.Cache
-		repoConfig map[domain.TargetKey][]domain.Target
-		targets    []domain.Target
-		key        domain.TargetKey
-		shouldErr  bool
-		expected   []domain.Target
-	}{
-		"Given I have an empty repo and I add a Target to it": {
-			cache:      cache.NewMemCache(),
-			repoConfig: emptyConfig,
-			targets:    []domain.Target{targetFoo},
-			key:        key123,
-			shouldErr:  false,
-			expected:   []domain.Target{targetFoo},
-		},
-		"Given I have a repo with a target in it and I add the same target again under the same key": {
-			cache:      cache.NewMemCache(),
-			repoConfig: populatedConfig,
-			targets:    []domain.Target{targetFoo},
-			key:        key123,
-			shouldErr:  false,
-			expected:   []domain.Target{targetFoo},
-		},
-		"Given I have a repo with a target in it and I add a new target under the same key": {
-			cache:      cache.NewMemCache(),
-			repoConfig: populatedConfig,
-			targets:    []domain.Target{targetBar},
-			key:        key123,
-			shouldErr:  false,
-			expected:   []domain.Target{targetFoo, targetBar},
-		},
-		"Given I add an target to the repo but the cache errors": {
-			cache: &mockCache{
-				set:    func() error { return errors.New("an error") },
-				getAll: func() (map[string][]byte, error) { return map[string][]byte{}, nil },
-			},
-			repoConfig: nil,
-			targets:    []domain.Target{targetBar},
-			key:        key123,
-			shouldErr:  true,
-			expected:   []domain.Target{},
-		},
-	}
-	for desc, tc := range testCases {
-		tc := tc
-		t.Run(desc, func(t *testing.T) {
-
-			repo, err := NewTargetRepo(tc.cache, tc.repoConfig)
-			if err != nil {
-				t.Fatalf("(%s): error = %v, shouldErr = %v", desc, err, tc.shouldErr)
-			}
-
-			err = repo.Add(context.Background(), tc.key, tc.targets...)
-			if (err != nil) != tc.shouldErr {
-				t.Errorf("(%s): error = %v, shouldErr = %v", desc, err, tc.shouldErr)
-			}
-
-			actual, err := repo.Get(context.Background(), tc.key)
-			if err != nil {
-				t.Errorf("(%s): error = %v, shouldErr = %v", desc, err, tc.shouldErr)
-			}
-			assert.ElementsMatch(t, tc.expected, actual)
-		})
-	}
-}
-
 func TestTargetRepo_GetByIdentifer(t *testing.T) {
-	key123 := domain.NewTargetKey("123")
+	key123 := domain.NewTargetsKey("123")
 
-	emptyConfig := map[domain.TargetKey][]domain.Target{}
-	populatedConfig := map[domain.TargetKey][]domain.Target{
-		key123: {targetFoo},
+	emptyConfig := map[domain.TargetKey]interface{}{}
+	populatedConfig := map[domain.TargetKey]interface{}{
+		key123: []domain.Target{targetFoo},
+		domain.NewTargetKey("123", targetFoo.Identifier): targetFoo,
 	}
 
 	testCases := map[string]struct {
 		cache       cache.Cache
-		repoConfig  map[domain.TargetKey][]domain.Target
-		key         domain.TargetKey
+		repoConfig  map[domain.TargetKey]interface{}
+		envID       string
 		identifier  string
 		shouldErr   bool
 		expected    domain.Target
@@ -214,7 +119,7 @@ func TestTargetRepo_GetByIdentifer(t *testing.T) {
 		"Given I have an empty cache": {
 			cache:       cache.NewMemCache(),
 			repoConfig:  emptyConfig,
-			key:         key123,
+			envID:       "123",
 			identifier:  "foo",
 			shouldErr:   true,
 			expected:    domain.Target{},
@@ -223,7 +128,7 @@ func TestTargetRepo_GetByIdentifer(t *testing.T) {
 		"Given I have a populated cache and I get an identifier that's in the cache": {
 			cache:       cache.NewMemCache(),
 			repoConfig:  populatedConfig,
-			key:         key123,
+			envID:       "123",
 			identifier:  "foo",
 			shouldErr:   false,
 			expected:    targetFoo,
@@ -232,7 +137,7 @@ func TestTargetRepo_GetByIdentifer(t *testing.T) {
 		"Given I have a populated cache and I try to get an identifier that isn't in the cache": {
 			cache:       cache.NewMemCache(),
 			repoConfig:  emptyConfig,
-			key:         key123,
+			envID:       "123",
 			identifier:  "bar",
 			shouldErr:   true,
 			expected:    domain.Target{},
@@ -243,12 +148,12 @@ func TestTargetRepo_GetByIdentifer(t *testing.T) {
 	for desc, tc := range testCases {
 		tc := tc
 		t.Run(desc, func(t *testing.T) {
-			repo, err := NewTargetRepo(tc.cache, tc.repoConfig)
+			repo, err := NewTargetRepo(tc.cache, WithTargetConfig(tc.repoConfig))
 			if err != nil {
 				t.Fatalf("(%s): error = %v, shouldErr = %v", desc, err, tc.shouldErr)
 			}
 
-			actual, err := repo.GetByIdentifier(context.Background(), tc.key, tc.identifier)
+			actual, err := repo.GetByIdentifier(context.Background(), tc.envID, tc.identifier)
 			if (err != nil) != tc.shouldErr {
 				t.Errorf("(%s): error = %v, shouldErr = %v", desc, err, tc.shouldErr)
 				ok := errors.Is(err, tc.expectedErr)
@@ -261,7 +166,7 @@ func TestTargetRepo_GetByIdentifer(t *testing.T) {
 }
 
 func TestTargetRepo_DeltaAdd(t *testing.T) {
-	key123 := domain.NewTargetKey("123")
+	key123 := domain.NewTargetsKey("123")
 
 	target1 := domain.Target{
 		Target: admingen.Target{
@@ -310,46 +215,46 @@ func TestTargetRepo_DeltaAdd(t *testing.T) {
 
 	testCases := map[string]struct {
 		cache      cache.Cache
-		repoConfig map[domain.TargetKey][]domain.Target
-		key        domain.TargetKey
+		repoConfig map[domain.TargetKey]interface{}
+		env        string
 		targets    []domain.Target
 		expected   []domain.Target
 		shouldErr  bool
 	}{
 		"Given I have an empty TargetRepo and I add two Targets": {
 			cache:      cache.NewMemCache(),
-			repoConfig: map[domain.TargetKey][]domain.Target{},
-			key:        key123,
+			repoConfig: map[domain.TargetKey]interface{}{},
+			env:        "123",
 			targets:    []domain.Target{target1, target2},
 			expected:   []domain.Target{target1, target2},
 			shouldErr:  false,
 		},
 		"Given I have a TargetRepo with Target3 and I add Target1 and Target1": {
 			cache: cache.NewMemCache(),
-			repoConfig: map[domain.TargetKey][]domain.Target{
+			repoConfig: map[domain.TargetKey]interface{}{
 				key123: []domain.Target{target3},
 			},
-			key:       key123,
+			env:       "123",
 			targets:   []domain.Target{target1, target2},
 			expected:  []domain.Target{target1, target2},
 			shouldErr: false,
 		},
 		"Given I have a TargetRepo with two Targets and I add the same Targets with a different Project value ": {
 			cache: cache.NewMemCache(),
-			repoConfig: map[domain.TargetKey][]domain.Target{
+			repoConfig: map[domain.TargetKey]interface{}{
 				key123: []domain.Target{target1, target2},
 			},
-			key:       key123,
+			env:       "123",
 			targets:   []domain.Target{target1ProjectBar, target2ProjectBar},
 			expected:  []domain.Target{target1ProjectBar, target2ProjectBar},
 			shouldErr: false,
 		},
 		"Given I have a TargetRepo with two Targets and I try to add no Targets": {
 			cache: cache.NewMemCache(),
-			repoConfig: map[domain.TargetKey][]domain.Target{
+			repoConfig: map[domain.TargetKey]interface{}{
 				key123: []domain.Target{target1, target2},
 			},
-			key:       key123,
+			env:       "123",
 			targets:   []domain.Target{},
 			expected:  []domain.Target{target1, target2},
 			shouldErr: true,
@@ -362,18 +267,18 @@ func TestTargetRepo_DeltaAdd(t *testing.T) {
 		t.Run(desc, func(t *testing.T) {
 			ctx := context.Background()
 
-			repo, err := NewTargetRepo(tc.cache, tc.repoConfig)
+			repo, err := NewTargetRepo(tc.cache, WithTargetConfig(tc.repoConfig))
 			if err != nil {
 				t.Fatalf("(%s): error = %v, shouldErr = %v", desc, err, tc.shouldErr)
 			}
 
-			err = repo.DeltaAdd(ctx, tc.key, tc.targets...)
+			err = repo.DeltaAdd(ctx, tc.env, tc.targets...)
 			if (err != nil) != tc.shouldErr {
 				t.Errorf("(%s): error = %v, shouldErr = %v", desc, err, tc.shouldErr)
 			}
 
 			t.Log("And the values in the repo should match the expected values")
-			actual, err := repo.Get(ctx, tc.key)
+			actual, err := repo.Get(ctx, tc.env)
 			if err != nil {
 				t.Errorf("(%s): unexpected error getting targets: %s", desc, err)
 			}

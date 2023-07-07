@@ -2,24 +2,16 @@ package cache
 
 import (
 	"context"
-	"errors"
 	"fmt"
-	"sort"
-	"strconv"
-	"strings"
 	"time"
 
 	"github.com/go-redis/cache/v8"
 	"github.com/go-redis/redis/v8"
+	"github.com/harness/ff-proxy/domain"
 )
 
-var (
-	// ErrNotFound is the error returned when a record isn't found
-	ErrNotFound = errors.New("NotFound")
-)
-
-// CacheDoFn returns the item to be cached
-type CacheDoFn func(item *cache.Item) (interface{}, error)
+// DoFn returns the item to be cached
+type DoFn func(item *cache.Item) (interface{}, error)
 
 // Options defines optional parameters for configuring a KeyValCache
 type Options func(k *KeyValCache)
@@ -106,7 +98,7 @@ func (k *KeyValCache) Get(ctx context.Context, key string, value interface{}) er
 	err := k.cache.Get(ctx, key, value)
 	if err != nil {
 		if err == cache.ErrCacheMiss {
-			return fmt.Errorf("%w: KeyValCache.Get key %s doesn't exist in cache: %s", ErrNotFound, key, err)
+			return fmt.Errorf("%w: KeyValCache.Get key %s doesn't exist in cache: %s", domain.ErrCacheNotFound, key, err)
 		}
 		return fmt.Errorf("%w: KeyValCache.Get failed for key: %q", err, key)
 	}
@@ -116,7 +108,7 @@ func (k *KeyValCache) Get(ctx context.Context, key string, value interface{}) er
 // GetOnce gets the value from the cache, if the item does not exist in the cache it executes the doFn, caches the result
 // and returns the value. Only one doFn execution is in-flight for a given key at a time so if a duplicate comes in the
 // caller waits for the original request to complete and gets the result from the cache
-func (k *KeyValCache) GetOnce(ctx context.Context, key string, value interface{}, doFn CacheDoFn) error {
+func (k *KeyValCache) GetOnce(ctx context.Context, key string, value interface{}, doFn DoFn) error {
 	err := k.cache.Once(&cache.Item{
 		Ctx:            ctx,
 		Key:            key,
@@ -126,7 +118,7 @@ func (k *KeyValCache) GetOnce(ctx context.Context, key string, value interface{}
 	})
 	if err != nil {
 		if err == cache.ErrCacheMiss {
-			return fmt.Errorf("%w: key %s doesn't exist in cache: %s", ErrNotFound, key, err)
+			return fmt.Errorf("%w: key %s doesn't exist in cache: %s", domain.ErrCacheNotFound, key, err)
 		}
 		return fmt.Errorf("%w: KeyValCache.GetOnce failed for key %q", err, key)
 	}
@@ -150,24 +142,7 @@ func (k *KeyValCache) Keys(ctx context.Context, key string) ([]string, error) {
 	return cmd.Result()
 }
 
-// GetLatest returns the latest of keys that match the pattern
-// TODO Investigate using ZSET and ZRevRangeByScore for this
-func (k *KeyValCache) GetLatest(ctx context.Context, key string) (string, error) {
-	keys, err := k.redisClient.Keys(ctx, fmt.Sprintf("%s:*", key)).Result()
-	if err != nil {
-		return "", fmt.Errorf("%w: KeyValCache.GetLatest failed for key pattern %q", err, key)
-	}
-
-	if len(keys) == 0 {
-		return "", fmt.Errorf("KeyValCache.GetLatest no keys found for key pattern: %q", key)
-	}
-
-	sort.Slice(keys, func(i, j int) bool {
-		iVersion, _ := strconv.Atoi(strings.Split(keys[i], ":")[1])
-		jVersion, _ := strconv.Atoi(strings.Split(keys[j], ":")[1])
-		return iVersion > jVersion
-	})
-
-	latestVersionKey := keys[0]
-	return k.redisClient.Get(ctx, latestVersionKey).Result()
+// HealthCheck pings the underlying redis cache
+func (k *KeyValCache) HealthCheck(ctx context.Context) error {
+	return k.redisClient.Ping(ctx).Err()
 }

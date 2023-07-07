@@ -170,7 +170,9 @@ func (s Service) Authenticate(ctx context.Context, req domain.AuthRequest) (doma
 	}
 
 	envID := token.Claims().Environment
-	s.targetRepo.Add(ctx, domain.NewTargetKey(envID), req.Target)
+	if err := s.targetRepo.DeltaAdd(ctx, envID, req.Target); err != nil {
+		s.logger.Info(ctx, "failed to save target during auth", "err", err)
+	}
 
 	// if the proxy is running in offline mode we're done, we don't need to bother
 	// forwarding the request to FeatureFlags
@@ -202,11 +204,8 @@ func (s Service) Authenticate(ctx context.Context, req domain.AuthRequest) (doma
 func (s Service) FeatureConfig(ctx context.Context, req domain.FeatureConfigRequest) ([]domain.FeatureConfig, error) {
 	s.logger = s.logger.With("method", "FeatureConfig")
 
-	configs := []domain.FeatureConfig{}
-	flagKey := domain.NewFeatureConfigKey(req.EnvironmentID)
-
 	// fetch flags
-	flags, err := s.featureRepo.Get(ctx, flagKey)
+	flags, err := s.featureRepo.Get(ctx, req.EnvironmentID)
 	if err != nil {
 		if !errors.Is(err, domain.ErrCacheNotFound) {
 			return []domain.FeatureConfig{}, fmt.Errorf("%w: %s", ErrInternal, err)
@@ -216,8 +215,18 @@ func (s Service) FeatureConfig(ctx context.Context, req domain.FeatureConfigRequ
 		s.logger.Debug(ctx, "flags not found in cache: ", "err", err.Error())
 	}
 
+	configs := []domain.FeatureConfig{}
+
 	// build FeatureConfig
+	emptyVariationMap := []rest.VariationMap{}
 	for _, flag := range flags {
+
+		// some sdks e.g. .NET don't cope well with being returned a null VariationToTargetMap so we send back an empty struct here for now
+		// to match ff-server behaviour
+		if flag.VariationToTargetMap == nil {
+			flag.VariationToTargetMap = &emptyVariationMap
+		}
+
 		configs = append(configs, domain.FeatureConfig{
 			FeatureFlag: flag,
 		})
@@ -230,10 +239,8 @@ func (s Service) FeatureConfig(ctx context.Context, req domain.FeatureConfigRequ
 func (s Service) FeatureConfigByIdentifier(ctx context.Context, req domain.FeatureConfigByIdentifierRequest) (domain.FeatureConfig, error) {
 	s.logger = s.logger.With("method", "FeatureConfigByIdentifier")
 
-	flagKey := domain.NewFeatureConfigKey(req.EnvironmentID)
-
 	// fetch flag
-	flag, err := s.featureRepo.GetByIdentifier(ctx, flagKey, req.Identifier)
+	flag, err := s.featureRepo.GetByIdentifier(ctx, req.EnvironmentID, req.Identifier)
 	if err != nil {
 		if errors.Is(err, domain.ErrCacheNotFound) {
 			return domain.FeatureConfig{}, fmt.Errorf("%w: %s", ErrNotFound, err)
@@ -251,9 +258,7 @@ func (s Service) FeatureConfigByIdentifier(ctx context.Context, req domain.Featu
 func (s Service) TargetSegments(ctx context.Context, req domain.TargetSegmentsRequest) ([]domain.Segment, error) {
 	s.logger = s.logger.With("method", "TargetSegments")
 
-	key := domain.NewSegmentKey(req.EnvironmentID)
-
-	segments, err := s.segmentRepo.Get(ctx, key)
+	segments, err := s.segmentRepo.Get(ctx, req.EnvironmentID)
 	if err != nil {
 		if !errors.Is(err, domain.ErrCacheNotFound) {
 			return []domain.Segment{}, fmt.Errorf("%w: %s", ErrInternal, err)
@@ -270,9 +275,7 @@ func (s Service) TargetSegments(ctx context.Context, req domain.TargetSegmentsRe
 func (s Service) TargetSegmentsByIdentifier(ctx context.Context, req domain.TargetSegmentsByIdentifierRequest) (domain.Segment, error) {
 	s.logger = s.logger.With("method", "TargetSegmentsByIdentifier")
 
-	key := domain.NewSegmentKey(req.EnvironmentID)
-
-	segment, err := s.segmentRepo.GetByIdentifier(ctx, key, req.Identifier)
+	segment, err := s.segmentRepo.GetByIdentifier(ctx, req.EnvironmentID, req.Identifier)
 	if err != nil {
 		if errors.Is(err, domain.ErrCacheNotFound) {
 			return domain.Segment{}, fmt.Errorf("%w: %s", ErrNotFound, err)
@@ -288,10 +291,9 @@ func (s Service) Evaluations(ctx context.Context, req domain.EvaluationsRequest)
 	s.logger = s.logger.With("method", "Evaluations")
 
 	evaluations := []clientgen.Evaluation{}
-	targetKey := domain.NewTargetKey(req.EnvironmentID)
 
 	// fetch target
-	t, err := s.targetRepo.GetByIdentifier(ctx, targetKey, req.TargetIdentifier)
+	t, err := s.targetRepo.GetByIdentifier(ctx, req.EnvironmentID, req.TargetIdentifier)
 	if err != nil {
 		if errors.Is(err, domain.ErrCacheNotFound) {
 			s.logger.Warn(ctx, "target not found in cache, serving request using only identifier attribute: ", "err", err.Error())
@@ -331,10 +333,8 @@ func (s Service) Evaluations(ctx context.Context, req domain.EvaluationsRequest)
 func (s Service) EvaluationsByFeature(ctx context.Context, req domain.EvaluationsByFeatureRequest) (clientgen.Evaluation, error) {
 	s.logger = s.logger.With("method", "EvaluationsByFeature")
 
-	targetKey := domain.NewTargetKey(req.EnvironmentID)
-
 	// fetch target
-	t, err := s.targetRepo.GetByIdentifier(ctx, targetKey, req.TargetIdentifier)
+	t, err := s.targetRepo.GetByIdentifier(ctx, req.EnvironmentID, req.TargetIdentifier)
 	if err != nil {
 		if errors.Is(err, domain.ErrCacheNotFound) {
 			s.logger.Warn(ctx, "target not found in cache, serving request using only identifier attribute: ", "err", err.Error())
@@ -374,7 +374,7 @@ func (s Service) Stream(ctx context.Context, req domain.StreamRequest) (domain.S
 
 	hashedAPIKey := s.hasher.Hash(req.APIKey)
 
-	repoKey, ok := s.authRepo.Get(ctx, domain.AuthAPIKey(hashedAPIKey))
+	repoKey, ok := s.authRepo.Get(ctx, domain.NewAuthAPIKey(hashedAPIKey))
 	if !ok {
 		return domain.StreamResponse{}, fmt.Errorf("%w: no environment found for apiKey %q", ErrNotFound, req.APIKey)
 	}
