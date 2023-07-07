@@ -8,7 +8,7 @@ import (
 
 	"github.com/go-redis/redis/v8"
 	jsoniter "github.com/json-iterator/go"
-	gocache "github.com/patrickmn/go-cache"
+	"github.com/patrickmn/go-cache"
 	"github.com/prometheus/client_golang/prometheus"
 )
 
@@ -33,21 +33,25 @@ type internalCache interface {
 }
 
 type memoizeCache struct {
-	Cache
+	*KeyValCache
 	metrics memoizeMetrics
 }
 
 // NewMemoizeCache creates a memoize cache
-func NewMemoizeCache(rc redis.UniversalClient, defaultExpiration, cleanupInterval time.Duration, metrics memoizeMetrics) Cache {
+func NewMemoizeCache(rc redis.UniversalClient, ttl, defaultExpiration, cleanupInterval time.Duration, metrics memoizeMetrics) memoizeCache {
 	mc := memoizeCache{}
-	//c := gocache.New(defaultExpiration, cleanupInterval)
+	c := cache.New(defaultExpiration, cleanupInterval)
 
 	if metrics == nil {
 		metrics = noOpMetrics{}
 	}
 	mc.metrics = metrics
 
-	mc.Cache = NewRedisCache(rc)
+	mc.KeyValCache = NewKeyValCache(rc,
+		WithTTL(ttl),
+		WithMarshalFunc(mc.makeMarshalFunc(c)),
+		WithUnmarshalFunc(mc.makeUnmarshalFunc(c)),
+	)
 
 	return mc
 }
@@ -56,14 +60,13 @@ func (m memoizeCache) makeMarshalFunc(ffCache internalCache) func(interface{}) (
 	return func(i interface{}) ([]byte, error) {
 		data, err := jsoniter.Marshal(i)
 		if err != nil {
-			//log.Error("msg", "unable to marshall feature evaluations", "err", err)
 			return nil, err
 		}
 
 		hasher := md5.New()
 		hasher.Write(data)
 		hash := hasher.Sum(nil)
-		ffCache.Set(string(hash), i, gocache.DefaultExpiration)
+		ffCache.Set(string(hash), i, cache.DefaultExpiration)
 		m.metrics.cacheMarshalInc()
 		return data, nil
 	}
@@ -104,7 +107,7 @@ func (m memoizeCache) makeUnmarshalFunc(ffCache internalCache) func([]byte, inte
 
 		// Because we didn't find these bytes in our local cache.
 		// save them for next time.
-		ffCache.Set(string(hash), i, gocache.DefaultExpiration)
+		ffCache.Set(string(hash), i, cache.DefaultExpiration)
 		return nil
 	}
 }
