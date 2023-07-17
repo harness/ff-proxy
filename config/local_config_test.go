@@ -470,7 +470,7 @@ func TestLocalConfig_Targets(t *testing.T) {
 		localConfig LocalConfig
 		expected    map[domain.TargetKey]interface{}
 	}{
-		"Given I have a LocalConfig with nil features": {
+		"Given I have a LocalConfig with nil targets": {
 			localConfig: LocalConfig{
 				config: map[string]config{
 					"123": {
@@ -482,7 +482,7 @@ func TestLocalConfig_Targets(t *testing.T) {
 
 			expected: map[domain.TargetKey]interface{}{},
 		},
-		"Given I have a LocalConfig with empty features": {
+		"Given I have a LocalConfig with empty targets": {
 			localConfig: LocalConfig{
 				config: map[string]config{
 					"123": {
@@ -509,7 +509,7 @@ func TestLocalConfig_Targets(t *testing.T) {
 				domain.NewTargetKey("123", target.Identifier): &target,
 			},
 		},
-		"Given I have a LocalConfig with two features": {
+		"Given I have a LocalConfig with two targets": {
 			localConfig: LocalConfig{
 				config: map[string]config{
 					"123": {
@@ -533,7 +533,7 @@ func TestLocalConfig_Targets(t *testing.T) {
 
 		t.Run(desc, func(t *testing.T) {
 
-			actual := tc.localConfig.FeatureFlag()
+			actual := tc.localConfig.Targets()
 			assert.Equal(t, tc.expected, actual)
 		})
 	}
