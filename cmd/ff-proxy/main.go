@@ -257,6 +257,7 @@ func initFF(ctx context.Context, cache gosdkCache.Cache, baseURL, eventURL, envI
 		harness.WithCache(cache),
 		harness.WithStoreEnabled(false), // store should be disabled until we implement a wrapper to handle multiple envs
 		harness.WithEventStreamListener(eventListener),
+		harness.WithProxyMode(true),
 	)
 
 	sdkClients.Set(envID, client)
@@ -363,7 +364,7 @@ func main() {
 		}
 		client := redis.NewUniversalClient(&opts)
 		logger.Info("connecting to redis", "address", redisAddress)
-		sdkCache = cache.NewMetricsCache("redis", promReg, cache.NewRedisCache(client))
+		sdkCache = cache.NewMetricsCache("redis", promReg, cache.NewMemoizeCache(client, 1*time.Minute, 2*time.Minute, cache.NewMemoizeMetrics("proxy", promReg)))
 		err = sdkCache.HealthCheck(ctx)
 		if err != nil {
 			logger.Error("failed to connect to redis", "err", err)
@@ -377,9 +378,9 @@ func main() {
 	apiKeyHasher := hash.NewSha256()
 
 	var (
-		featureConfig map[domain.FeatureFlagKey][]domain.FeatureFlag
-		targetConfig  map[domain.TargetKey][]domain.Target
-		segmentConfig map[domain.SegmentKey][]domain.Segment
+		featureConfig map[domain.FeatureFlagKey]interface{}
+		targetConfig  map[domain.TargetKey]interface{}
+		segmentConfig map[domain.SegmentKey]interface{}
 		authConfig    map[domain.AuthAPIKey]string
 		approvedEnvs  = map[string]struct{}{}
 	)
@@ -472,19 +473,19 @@ func main() {
 	}
 
 	// Create repos
-	tr, err := repository.NewTargetRepo(sdkCache, targetConfig)
+	tr, err := repository.NewTargetRepo(sdkCache, repository.WithTargetConfig(targetConfig))
 	if err != nil {
 		logger.Error("failed to create target repo", "err", err)
 		os.Exit(1)
 	}
 
-	fcr, err := repository.NewFeatureFlagRepo(sdkCache, featureConfig)
+	fcr, err := repository.NewFeatureFlagRepo(sdkCache, repository.WithFeatureConfig(featureConfig))
 	if err != nil {
 		logger.Error("failed to create feature config repo", "err", err)
 		os.Exit(1)
 	}
 
-	sr, err := repository.NewSegmentRepo(sdkCache, segmentConfig)
+	sr, err := repository.NewSegmentRepo(sdkCache, repository.WithSegmentConfig(segmentConfig))
 	if err != nil {
 		logger.Error("failed to create segment repo", "err", err)
 		os.Exit(1)
@@ -575,18 +576,17 @@ func main() {
 						return
 					case <-ticker.C:
 						// poll for all targets for each configured environment
-						pollTargetConfig := make(map[domain.TargetKey][]domain.Target)
+						pollTargetConfig := make(map[string][]domain.Target)
 						for _, env := range remoteConfig.EnvInfo() {
 							targets, err := config.GetTargets(ctx, accountIdentifier, orgIdentifier, env.ProjectIdentifier, env.EnvironmentIdentifier, adminService)
 							if err != nil {
 								logger.Error("failed to poll targets for environment %s: %s", env.EnvironmentID, err)
 							}
-							targetKey := domain.NewTargetKey(env.EnvironmentID)
-							pollTargetConfig[targetKey] = targets
+							pollTargetConfig[env.EnvironmentID] = targets
 						}
 
-						for key, values := range pollTargetConfig {
-							tr.DeltaAdd(ctx, key, values...)
+						for env, values := range pollTargetConfig {
+							tr.DeltaAdd(ctx, env, values...)
 						}
 					}
 				}

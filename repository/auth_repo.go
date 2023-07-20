@@ -3,15 +3,11 @@ package repository
 import (
 	"context"
 	"fmt"
-	"strings"
 	"time"
 
 	"github.com/harness/ff-proxy/cache"
 	"github.com/harness/ff-proxy/domain"
 )
-
-// AuthKey is the parent cache key we store all api key environment pairs under
-const AuthKey = "auth-config"
 
 // AuthRepo is a repository that stores a map of api key hashes to environmentIDs
 type AuthRepo struct {
@@ -26,7 +22,7 @@ func NewAuthRepo(c cache.Cache, config map[domain.AuthAPIKey]string, approvedEnv
 		return ar, nil
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	// cleanup old unused keys for specified envs before we set the new ones
 	ar.clearCachedKeys(ctx, config)
 
@@ -63,7 +59,7 @@ func (a AuthRepo) clearCachedKeys(ctx context.Context, newConfig map[domain.Auth
 		// if env exists in envsToAdd map delete the key
 		_, ok := envsToAdd[env]
 		if ok {
-			a.cache.Remove(ctx, AuthKey, string(key))
+			a.cache.Delete(ctx, string(key))
 		}
 	}
 }
@@ -71,9 +67,10 @@ func (a AuthRepo) clearCachedKeys(ctx context.Context, newConfig map[domain.Auth
 // Add adds environment api key hash pairs to the cache
 func (a AuthRepo) Add(ctx context.Context, values ...domain.AuthConfig) error {
 	errs := []error{}
-	for _, v := range values {
-		if err := a.cache.Set(ctx, AuthKey, string(v.APIKey), &v.EnvironmentID); err != nil {
-			errs = append(errs, addErr{AuthKey, string(v.APIKey), err})
+	for i := 0; i < len(values); i++ {
+		value := values[i]
+		if err := a.cache.Set(ctx, string(value.APIKey), &value.EnvironmentID); err != nil {
+			errs = append(errs, addErr{string(value.APIKey), string(value.APIKey), err})
 		}
 	}
 
@@ -88,7 +85,7 @@ func (a AuthRepo) Add(ctx context.Context, values ...domain.AuthConfig) error {
 func (a AuthRepo) Get(ctx context.Context, key domain.AuthAPIKey) (string, bool) {
 	var environment domain.EnvironmentID
 
-	if err := a.cache.Get(ctx, AuthKey, string(key), &environment); err != nil {
+	if err := a.cache.Get(ctx, string(key), &environment); err != nil {
 		return "", false
 	}
 
@@ -105,29 +102,38 @@ func (a AuthRepo) Get(ctx context.Context, key domain.AuthAPIKey) (string, bool)
 // getAll gets all values from auth repo
 // if the auth repo has been configured with approved envs only return keys that belong to those envs
 func (a AuthRepo) getAll(ctx context.Context) (map[domain.AuthAPIKey]string, bool) {
-
-	results, err := a.cache.GetAll(ctx, AuthKey)
+	keys, err := a.cache.Keys(ctx, "auth-key-")
 	if err != nil {
 		return map[domain.AuthAPIKey]string{}, false
-	}
-
-	keys := map[domain.AuthAPIKey]string{}
-	for key, b := range results {
-		var env = strings.Trim(string(b), "\"")
-		if len(a.approvedEnvironments) > 0 {
-			if _, exists := a.approvedEnvironments[env]; !exists {
-				continue
-			}
-		}
-
-		keys[domain.AuthAPIKey(key)] = env
 	}
 
 	if len(keys) == 0 {
 		return map[domain.AuthAPIKey]string{}, false
 	}
 
-	return keys, true
+	results := map[domain.AuthAPIKey]string{}
+	numApprovedEnvs := len(a.approvedEnvironments)
+
+	for _, key := range keys {
+		environment := ""
+		if err := a.cache.Get(ctx, key, &environment); err != nil {
+			continue
+		}
+
+		// Skip if this environment isn't in our list of approved envs
+		if numApprovedEnvs > 0 {
+			if _, exists := a.approvedEnvironments[environment]; !exists {
+				continue
+			}
+		}
+
+		results[domain.AuthAPIKey(key)] = environment
+	}
+
+	if len(results) == 0 {
+		return results, false
+	}
+	return results, true
 }
 
 func apiEnvMapToAuthConfig(config map[domain.AuthAPIKey]string) []domain.AuthConfig {

@@ -9,32 +9,35 @@ import (
 	"github.com/harness/ff-proxy/domain"
 )
 
+// QueryStore ...
 type QueryStore struct {
 	F func(identifier string) (rest.FeatureConfig, error)
 	S func(identifier string) (rest.Segment, error)
 	L func() ([]rest.FeatureConfig, error)
 }
 
+// GetFlag returns a FeatureConfig from the QueryStore
 func (q QueryStore) GetFlag(identifier string) (rest.FeatureConfig, error) {
 	return q.F(identifier)
 }
 
+// GetSegment returns a Segment from the QueryStore
 func (q QueryStore) GetSegment(identifier string) (rest.Segment, error) {
 	return q.S(identifier)
 }
+
+// GetFlags returns FeatureConfigs from the QueryStore
 func (q QueryStore) GetFlags() ([]rest.FeatureConfig, error) {
 	return q.L()
 }
 
 // GenerateQueryStore returns a QueryStore object which can be passed to the go sdk evaluator
 func (s Service) GenerateQueryStore(ctx context.Context, environmentID string) QueryStore {
-	flagKey := domain.NewFeatureConfigKey(environmentID)
-	segmentKey := domain.NewSegmentKey(environmentID)
-
 	return QueryStore{
 		F: func(identifier string) (rest.FeatureConfig, error) {
+
 			// fetch feature
-			flag, err := s.featureRepo.GetByIdentifier(ctx, flagKey, identifier)
+			flag, err := s.featureRepo.GetByIdentifier(ctx, environmentID, identifier)
 			if err != nil {
 				if errors.Is(err, domain.ErrCacheNotFound) {
 					return rest.FeatureConfig{}, ErrNotFound
@@ -45,7 +48,7 @@ func (s Service) GenerateQueryStore(ctx context.Context, environmentID string) Q
 		},
 		S: func(identifier string) (rest.Segment, error) {
 			// fetch segment
-			segment, err := s.segmentRepo.GetByIdentifier(ctx, segmentKey, identifier)
+			segment, err := s.segmentRepo.GetByIdentifier(ctx, environmentID, identifier)
 			if err != nil {
 				if !errors.Is(err, domain.ErrCacheNotFound) {
 					return rest.Segment{}, fmt.Errorf("%w: %s", ErrInternal, err)
@@ -56,7 +59,7 @@ func (s Service) GenerateQueryStore(ctx context.Context, environmentID string) Q
 		},
 		L: func() ([]rest.FeatureConfig, error) {
 			// fetch flags
-			flags, err := s.featureRepo.Get(ctx, flagKey)
+			flags, err := s.featureRepo.Get(ctx, environmentID)
 			if err != nil {
 				if !errors.Is(err, domain.ErrCacheNotFound) {
 					return nil, fmt.Errorf("%w: %s", ErrInternal, err)

@@ -3,12 +3,38 @@ package cache
 import (
 	"context"
 	"errors"
-	"sync"
 	"testing"
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/assert"
 )
+
+type mockCache struct {
+	set    func() error
+	get    func() error
+	delete func() error
+}
+
+func (m mockCache) Set(ctx context.Context, key string, value interface{}) error {
+	return m.set()
+}
+
+func (m mockCache) Get(ctx context.Context, key string, value interface{}) error {
+	return m.get()
+}
+
+func (m mockCache) Delete(ctx context.Context, key string) error {
+	return m.delete()
+}
+
+func (m mockCache) Keys(ctx context.Context, key string) ([]string, error) {
+	return []string{}, nil
+}
+
+func (m mockCache) HealthCheck(ctx context.Context) error {
+	//TODO implement me
+	panic("implement me")
+}
 
 type mockCounter struct {
 	prometheus.Collector
@@ -42,24 +68,12 @@ func (m *mockHistogram) WithLabelValues(lvs ...string) prometheus.Observer {
 	return m.observer
 }
 
-type mockValue struct {
-	marshal   func() ([]byte, error)
-	unmarshal func([]byte) error
-}
-
-func (m mockValue) UnmarshalBinary(data []byte) error {
-	return m.unmarshal(data)
-}
-
-func (m mockValue) MarshalBinary() (data []byte, err error) {
-	return m.marshal()
-}
-
 func TestCacheMetrics_Set(t *testing.T) {
 	type args struct {
 		key   string
-		field string
-		value mockValue
+		value string
+
+		cache mockCache
 	}
 
 	type result struct {
@@ -77,9 +91,12 @@ func TestCacheMetrics_Set(t *testing.T) {
 		"Given I call Set and the decorated cache errors": {
 			args: args{
 				key:   "foo",
-				field: "bar",
-				value: mockValue{
-					marshal: func() ([]byte, error) { return nil, errors.New("an error") },
+				value: "foo",
+
+				cache: mockCache{
+					set: func() error {
+						return errors.New("a set error")
+					},
 				},
 			},
 
@@ -89,15 +106,18 @@ func TestCacheMetrics_Set(t *testing.T) {
 
 			expected: result{
 				observations: 1,
-				labels:       []string{"foo", "Set", "true"},
+				labels:       []string{"foo", "true"},
 			},
 		},
 		"Given I call Set and the decorated cache doesn't error": {
 			args: args{
 				key:   "foo",
-				field: "bar",
-				value: mockValue{
-					marshal: func() ([]byte, error) { return nil, nil },
+				value: "foo",
+
+				cache: mockCache{
+					set: func() error {
+						return nil
+					},
 				},
 			},
 
@@ -107,7 +127,7 @@ func TestCacheMetrics_Set(t *testing.T) {
 
 			expected: result{
 				observations: 1,
-				labels:       []string{"foo", "Set", "false"},
+				labels:       []string{"foo", "false"},
 			},
 		},
 	}
@@ -119,11 +139,11 @@ func TestCacheMetrics_Set(t *testing.T) {
 		t.Run(desc, func(t *testing.T) {
 
 			c := MetricsCache{
-				next:          NewMemCache(),
+				next:          tc.args.cache,
 				writeDuration: tc.writeDuration,
 				writeCount:    tc.writeCount,
 			}
-			err := c.Set(context.Background(), tc.args.key, tc.args.field, tc.args.value)
+			err := c.Set(context.Background(), tc.args.key, tc.args.value)
 			if tc.shouldErr {
 				assert.NotNil(t, err)
 			} else {
@@ -146,8 +166,9 @@ func TestCacheMetrics_Set(t *testing.T) {
 func TestCacheMetrics_Get(t *testing.T) {
 	type args struct {
 		key   string
-		field string
-		value mockValue
+		value string
+
+		cache mockCache
 	}
 
 	type result struct {
@@ -165,9 +186,10 @@ func TestCacheMetrics_Get(t *testing.T) {
 		"Given I call Get and the decorated cache errors": {
 			args: args{
 				key:   "foo",
-				field: "bar",
-				value: mockValue{
-					unmarshal: func(b []byte) error { return errors.New("an error") },
+				value: "foo",
+
+				cache: mockCache{
+					get: func() error { return errors.New("a get error") },
 				},
 			},
 
@@ -177,15 +199,16 @@ func TestCacheMetrics_Get(t *testing.T) {
 
 			expected: result{
 				observations: 1,
-				labels:       []string{"foo", "Get", "true"},
+				labels:       []string{"foo", "true"},
 			},
 		},
 		"Given I call Get and the decorated cache doesn't error": {
 			args: args{
 				key:   "foo",
-				field: "bar",
-				value: mockValue{
-					unmarshal: func(b []byte) error { return nil },
+				value: "foo",
+
+				cache: mockCache{
+					get: func() error { return nil },
 				},
 			},
 
@@ -194,7 +217,7 @@ func TestCacheMetrics_Get(t *testing.T) {
 			readCount:    &mockCounter{},
 			expected: result{
 				observations: 1,
-				labels:       []string{"foo", "Get", "false"},
+				labels:       []string{"foo", "false"},
 			},
 		},
 	}
@@ -206,16 +229,11 @@ func TestCacheMetrics_Get(t *testing.T) {
 		t.Run(desc, func(t *testing.T) {
 
 			c := MetricsCache{
-				next: MemCache{
-					RWMutex: &sync.RWMutex{},
-					data: map[string]map[string][]byte{
-						"foo": map[string][]byte{"bar": []byte("hello world")},
-					},
-				},
+				next:         tc.args.cache,
 				readDuration: tc.readDuration,
 				readCount:    tc.readCount,
 			}
-			err := c.Get(context.Background(), tc.args.key, tc.args.field, tc.args.value)
+			err := c.Get(context.Background(), tc.args.key, tc.args.value)
 			if tc.shouldErr {
 				assert.NotNil(t, err)
 			} else {
@@ -234,157 +252,11 @@ func TestCacheMetrics_Get(t *testing.T) {
 	}
 }
 
-func TestCacheMetrics_GetAll(t *testing.T) {
-	type args struct {
-		key       string
-		cacheData map[string]map[string][]byte
-	}
-
-	type result struct {
-		observations int
-		labels       []string
-	}
-
-	testCases := map[string]struct {
-		args         args
-		shouldErr    bool
-		readDuration *mockHistogram
-		readCount    *mockCounter
-		expected     result
-	}{
-		"Given I call GetAll and the decorated cache errors with a domain.ErrCacheNotFound error": {
-			args: args{
-				key:       "foo",
-				cacheData: map[string]map[string][]byte{},
-			},
-
-			shouldErr:    true,
-			readDuration: &mockHistogram{observer: &mockObserver{}},
-			readCount:    &mockCounter{},
-
-			expected: result{
-				observations: 1,
-				labels:       []string{"foo", "GetAll", "false"},
-			},
-		},
-		"Given I call GetAll and the decorated cache doesn't error": {
-			args: args{
-				key: "foo",
-				cacheData: map[string]map[string][]byte{
-					"foo": map[string][]byte{"bar": []byte("hello world")},
-				},
-			},
-
-			shouldErr:    false,
-			readDuration: &mockHistogram{observer: &mockObserver{}},
-			readCount:    &mockCounter{},
-			expected: result{
-				observations: 1,
-				labels:       []string{"foo", "GetAll", "false"},
-			},
-		},
-	}
-
-	for desc, tc := range testCases {
-		desc := desc
-		tc := tc
-
-		t.Run(desc, func(t *testing.T) {
-
-			c := MetricsCache{
-				next: MemCache{
-					RWMutex: &sync.RWMutex{},
-					data:    tc.args.cacheData,
-				},
-				readDuration: tc.readDuration,
-				readCount:    tc.readCount,
-			}
-
-			_, err := c.GetAll(context.Background(), tc.args.key)
-			if tc.shouldErr {
-				assert.NotNil(t, err)
-			} else {
-				assert.Nil(t, err)
-			}
-
-			t.Log("Then the readDuration should be observed once")
-			assert.Equal(t, tc.expected.observations, tc.readDuration.observer.observations)
-
-			t.Log("Then the readCount should be observed once")
-			assert.Equal(t, tc.expected.observations, tc.readCount.counts)
-
-			t.Logf("And the readCount metric should have the labels: %v", tc.expected.labels)
-			assert.Equal(t, tc.expected.labels, tc.readCount.labels)
-		})
-	}
-}
-
-func TestCacheMetrics_RemoveAll(t *testing.T) {
+func TestCacheMetrics_Delete(t *testing.T) {
 	type args struct {
 		key string
-	}
 
-	type result struct {
-		observations int
-		labels       []string
-	}
-
-	testCases := map[string]struct {
-		args           args
-		shouldErr      bool
-		deleteDuration *mockHistogram
-		deleteCount    *mockCounter
-		expected       result
-	}{
-		"Given I call RemoveAll": {
-			args: args{
-				key: "foo",
-			},
-
-			shouldErr:      true,
-			deleteDuration: &mockHistogram{observer: &mockObserver{}},
-			deleteCount:    &mockCounter{},
-
-			expected: result{
-				observations: 1,
-				labels:       []string{"foo", "RemoveAll"},
-			},
-		},
-	}
-
-	for desc, tc := range testCases {
-		desc := desc
-		tc := tc
-
-		t.Run(desc, func(t *testing.T) {
-
-			c := MetricsCache{
-				next: MemCache{
-					RWMutex: &sync.RWMutex{},
-					data:    map[string]map[string][]byte{},
-				},
-				deleteDuration: tc.deleteDuration,
-				deleteCount:    tc.deleteCount,
-			}
-
-			c.RemoveAll(context.Background(), tc.args.key)
-
-			t.Log("Then the deleteDuration should be observed once")
-			assert.Equal(t, tc.expected.observations, tc.deleteDuration.observer.observations)
-
-			t.Log("Then the deleteCount should be observed once")
-			assert.Equal(t, tc.expected.observations, tc.deleteCount.counts)
-
-			t.Logf("And the deleteCount metric should have the labels: %v", tc.expected.labels)
-			assert.Equal(t, tc.expected.labels, tc.deleteCount.labels)
-		})
-	}
-}
-
-func TestCacheMetrics_Remove(t *testing.T) {
-	type args struct {
-		key   string
-		field string
+		cache mockCache
 	}
 
 	type result struct {
@@ -399,10 +271,13 @@ func TestCacheMetrics_Remove(t *testing.T) {
 		deleteCount   *mockCounter
 		expected      result
 	}{
-		"Given I call Remove": {
+		"Given I call Delete and the underlying cache errors": {
 			args: args{
-				key:   "foo",
-				field: "bar",
+				key: "foo",
+
+				cache: mockCache{
+					delete: func() error { return errors.New("delete error ") },
+				},
 			},
 
 			shouldErr:     true,
@@ -411,7 +286,25 @@ func TestCacheMetrics_Remove(t *testing.T) {
 
 			expected: result{
 				observations: 1,
-				labels:       []string{"foo", "Remove"},
+				labels:       []string{"foo", "true"},
+			},
+		},
+		"Given I call Delete and the underlying cache doesn't erorr": {
+			args: args{
+				key: "foo",
+
+				cache: mockCache{
+					delete: func() error { return nil },
+				},
+			},
+
+			shouldErr:     true,
+			deleteDuraton: &mockHistogram{observer: &mockObserver{}},
+			deleteCount:   &mockCounter{},
+
+			expected: result{
+				observations: 1,
+				labels:       []string{"foo", "false"},
 			},
 		},
 	}
@@ -423,15 +316,12 @@ func TestCacheMetrics_Remove(t *testing.T) {
 		t.Run(desc, func(t *testing.T) {
 
 			c := MetricsCache{
-				next: MemCache{
-					RWMutex: &sync.RWMutex{},
-					data:    map[string]map[string][]byte{},
-				},
+				next:           tc.args.cache,
 				deleteDuration: tc.deleteDuraton,
 				deleteCount:    tc.deleteCount,
 			}
 
-			c.Remove(context.Background(), tc.args.key, tc.args.field)
+			c.Delete(context.Background(), tc.args.key)
 
 			t.Log("Then the deleteCount should be observed once")
 			assert.Equal(t, tc.expected.observations, tc.deleteCount.counts)

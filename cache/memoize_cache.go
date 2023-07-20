@@ -33,12 +33,12 @@ type internalCache interface {
 }
 
 type memoizeCache struct {
-	*KeyValCache
+	Cache
 	metrics memoizeMetrics
 }
 
 // NewMemoizeCache creates a memoize cache
-func NewMemoizeCache(rc redis.UniversalClient, ttl, defaultExpiration, cleanupInterval time.Duration, metrics memoizeMetrics) memoizeCache {
+func NewMemoizeCache(rc redis.UniversalClient, defaultExpiration, cleanupInterval time.Duration, metrics memoizeMetrics) Cache {
 	mc := memoizeCache{}
 	c := gocache.New(defaultExpiration, cleanupInterval)
 
@@ -47,8 +47,8 @@ func NewMemoizeCache(rc redis.UniversalClient, ttl, defaultExpiration, cleanupIn
 	}
 	mc.metrics = metrics
 
-	mc.KeyValCache = NewKeyValCache(rc,
-		WithTTL(ttl),
+	mc.Cache = NewKeyValCache(rc,
+		WithTTL(0),
 		WithMarshalFunc(mc.makeMarshalFunc(c)),
 		WithUnmarshalFunc(mc.makeUnmarshalFunc(c)),
 	)

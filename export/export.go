@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/harness/ff-proxy/domain"
@@ -56,13 +57,28 @@ type Service struct {
 func NewService(logger log.StructuredLogger, featureRepo repository.FeatureFlagRepo, targetRepo repository.TargetRepo,
 	segmentRepo repository.SegmentRepo, authRepo repository.AuthRepo, authConfig map[domain.AuthAPIKey]string, configDir string) Service {
 	l := logger.With("component", "ExportService")
+
+	// The AuthRepo will give us back a map of hashed API keys to environments but the apikeys will be prefixed
+	// with 'auth-key'. The code that loads the authconfig in from the exported file expectes hashed api keys
+	// with no prefixes so we remove them here to avoid any issues reading config in from the exported file.
+	authc := map[domain.AuthAPIKey]string{}
+	for key, env := range authConfig {
+		if strings.HasPrefix(string(key), "auth-key-") {
+			cleanKey := strings.TrimPrefix(string(key), "auth-key-")
+			authc[domain.AuthAPIKey(cleanKey)] = env
+			continue
+		}
+
+		authc[key] = env
+	}
+
 	return Service{
 		logger:      l,
 		featureRepo: featureRepo,
 		targetRepo:  targetRepo,
 		segmentRepo: segmentRepo,
 		authRepo:    authRepo,
-		authConfig:  authConfig,
+		authConfig:  authc,
 		configDir:   configDir,
 	}
 }
@@ -74,9 +90,9 @@ func (s Service) Persist(ctx context.Context) error {
 		// If we haven't got a config for the env yet lets initialise one and
 		// add it to the map
 		if _, ok := configMap[env]; !ok {
-			features, _ := s.featureRepo.Get(ctx, domain.NewFeatureConfigKey(env))
-			targets, _ := s.targetRepo.Get(ctx, domain.NewTargetKey(env))
-			segments, _ := s.segmentRepo.Get(ctx, domain.NewSegmentKey(env))
+			features, _ := s.featureRepo.Get(ctx, env)
+			targets, _ := s.targetRepo.Get(ctx, env)
+			segments, _ := s.segmentRepo.Get(ctx, env)
 
 			config := OfflineConfig{
 				EnvironmentID: env,

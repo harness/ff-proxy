@@ -11,7 +11,7 @@ import (
 	"github.com/hashicorp/go-multierror"
 )
 
-// heartbeat kicks off a goroutine that polls the /health endpoint at intervals
+// Heartbeat kicks off a goroutine that polls the /health endpoint at intervals
 // determined by how frequently events are sent on the tick channel.
 func Heartbeat(ctx context.Context, tick <-chan time.Time, listenAddr string, logger log.StructuredLogger) {
 	go func() {
