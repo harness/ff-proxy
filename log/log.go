@@ -3,10 +3,13 @@ package log
 import (
 	"context"
 
-	"github.com/harness/ff-proxy/middleware"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 )
+
+type contextKey string
+
+const RequestIDKey contextKey = "requestID"
 
 // Logger defines a logger with multiple logging levels. When using the logger
 // calls to its methods should include a brief message describing what happened
@@ -221,11 +224,17 @@ func (s StructuredLogger) With(keyvals ...interface{}) Logger {
 // returns them as a slice of strings
 func ExtractRequestValuesFromContext(ctx context.Context) []interface{} {
 	values := []interface{}{}
-	reqID := middleware.GetRequestID(ctx)
+	reqID := GetRequestID(ctx)
 	if reqID != "" {
 		values = append(values, "reqID")
 		values = append(values, reqID)
 	}
 
 	return values
+}
+
+// GetRequestID extracts the requestID value from the context if it exists.
+func GetRequestID(ctx context.Context) string {
+	requestID, _ := ctx.Value(RequestIDKey).(string)
+	return requestID
 }
