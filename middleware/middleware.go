@@ -1,8 +1,12 @@
 package middleware
 
 import (
+	"bytes"
 	"context"
 	"errors"
+	"fmt"
+	"github.com/harness/ff-proxy/log"
+	"io"
 	"net/http"
 	"strconv"
 	"strings"
@@ -63,10 +67,6 @@ func NewEchoAuthMiddleware(secret []byte, bypassAuth bool) echo.MiddlewareFunc {
 	})
 }
 
-type contextKey string
-
-const requestIDKey contextKey = "requestID"
-
 // NewEchoRequestIDMiddleware returns an echo middleware that either uses a
 // provided requestID from the header or generates one and adds it to the request
 // context.
@@ -82,19 +82,13 @@ func NewEchoRequestIDMiddleware() echo.MiddlewareFunc {
 				reqID = requestUUID.String()
 			}
 
-			req = req.WithContext(context.WithValue(req.Context(), requestIDKey, reqID))
+			req = req.WithContext(context.WithValue(req.Context(), log.RequestIDKey, reqID))
 			c.SetRequest(req)
 
 			resp.Header().Set(echo.HeaderXRequestID, reqID)
 			return next(c)
 		}
 	}
-}
-
-// GetRequestID extracts the requestID value from the context if it exists.
-func GetRequestID(ctx context.Context) string {
-	requestID, _ := ctx.Value(requestIDKey).(string)
-	return requestID
 }
 
 type prometheusMiddleware struct {
@@ -182,6 +176,29 @@ func NewPrometheusMiddleware(reg prometheus.Registerer) echo.MiddlewareFunc {
 			}
 
 			return err
+		}
+	}
+}
+
+// NewMetricsLoggingMiddleware creates a middleware that logs the raw request body coming in to the /metrics endpoint
+func NewMetricsLoggingMiddleware(logger log.Logger) echo.MiddlewareFunc {
+	return func(next echo.HandlerFunc) echo.HandlerFunc {
+		return func(c echo.Context) error {
+			if c.Path() != "/metrics/:environment_uuid" {
+				return next(c)
+			}
+			defer c.Request().Body.Close()
+
+			buf := bytes.NewBuffer([]byte{})
+			if _, err := io.Copy(buf, c.Request().Body); err != nil {
+				return fmt.Errorf("failed to read body in metrics logging middleware: %s")
+			}
+
+			logger.Info("raw metrics payload", "component", "MetricsLoggingMiddleware", "payload", buf.String())
+
+			// Need to reset the request body so it can be read by our handler.
+			c.Request().Body = io.NopCloser(buf)
+			return next(c)
 		}
 	}
 }

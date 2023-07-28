@@ -567,6 +567,7 @@ func main() {
 		middleware.NewEchoLoggingMiddleware(),
 		middleware.NewEchoAuthMiddleware([]byte(authSecret), bypassAuth),
 		middleware.NewPrometheusMiddleware(promReg),
+		middleware.NewMetricsLoggingMiddleware(logger),
 	)
 
 	go func() {
