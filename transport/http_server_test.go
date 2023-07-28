@@ -288,6 +288,7 @@ func setupHTTPServer(t *testing.T, bypassAuth bool, opts ...setupOpts) *HTTPServ
 		middleware.NewEchoLoggingMiddleware(),
 		middleware.NewEchoAuthMiddleware([]byte(`secret`), bypassAuth),
 		middleware.NewPrometheusMiddleware(prometheus.NewRegistry()),
+		middleware.NewMetricsLoggingMiddleware(logger),
 	)
 	return server
 }
