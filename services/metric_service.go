@@ -1,8 +1,10 @@
 package services
 
 import (
+	"bytes"
 	"context"
 	"fmt"
+	"io"
 	"net/http"
 	"sync"
 
@@ -150,11 +152,25 @@ func (m MetricService) sendMetrics(ctx context.Context, envID string, metric dom
 		return nil
 	}
 
+	logPayloadFn := func(ctx context.Context, req *http.Request) error {
+		buf := bytes.NewBuffer([]byte{})
+		if _, err := io.Copy(buf, req.Body); err != nil {
+			return err
+		}
+
+		req.Body = io.NopCloser(buf)
+		m.log.Info("posting metrics to saas", "payload", buf.String())
+		return nil
+	}
+
 	ctx = context.WithValue(ctx, tokenKey, token)
 	res, err := m.client.PostMetricsWithResponse(ctx, envID, &clientgen.PostMetricsParams{Cluster: &clusterIdentifier}, clientgen.PostMetricsJSONRequestBody{
 		MetricsData: metric.MetricsData,
 		TargetData:  metric.TargetData,
-	}, addAuthToken)
+	},
+		addAuthToken,
+		logPayloadFn,
+	)
 	if err != nil {
 		return err
 	}
