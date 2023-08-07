@@ -227,6 +227,8 @@ github.com/harness/ff-golang-server-sdk v0.1.9-0.20230710114508-e1366ad51bc5 h1:
 github.com/harness/ff-golang-server-sdk v0.1.9-0.20230710114508-e1366ad51bc5/go.mod h1:zTiSaSQc5nD5Ofug37KJxijyFHX/xG1JodqMFxNqYI0=
 github.com/harness/ff-golang-server-sdk v0.1.9-0.20230710142157-da4e63abed92 h1:bJWaOJ62Mm8sOS0v9TCrE3kB0mQTEubs497nq7BuDAc=
 github.com/harness/ff-golang-server-sdk v0.1.9-0.20230710142157-da4e63abed92/go.mod h1:zTiSaSQc5nD5Ofug37KJxijyFHX/xG1JodqMFxNqYI0=
+github.com/harness/ff-golang-server-sdk v0.1.10 h1:MAextRMcZOdA7HOMGGOJNF2gdXB+2s0tT2vA/6NU4v4=
+github.com/harness/ff-golang-server-sdk v0.1.10/go.mod h1:zTiSaSQc5nD5Ofug37KJxijyFHX/xG1JodqMFxNqYI0=
 github.com/hashicorp/errwrap v1.0.0 h1:hLrqtEDnRye3+sgx6z4qVLNuviH3MR5aQ0ykNJa/UYA=
 github.com/hashicorp/errwrap v1.0.0/go.mod h1:YH+1FKiLXxHSkmPseP+kNlulaMuP3n2brvKWEqk/Jc4=
 github.com/hashicorp/go-cleanhttp v0.5.1/go.mod h1:JpRdi6/HCYpAwUzNwuwqhbovhLtngrth3wmdIIUrZ80=
