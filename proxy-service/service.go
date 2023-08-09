@@ -2,17 +2,16 @@ package proxyservice
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"reflect"
 	"time"
 
-	admingen "github.com/harness/ff-proxy/gen/admin"
-
 	"github.com/harness/ff-golang-server-sdk/evaluation"
 	"github.com/harness/ff-golang-server-sdk/logger"
 	"github.com/harness/ff-golang-server-sdk/rest"
+	admingen "github.com/harness/ff-proxy/gen/admin"
+	jsoniter "github.com/json-iterator/go"
 
 	"github.com/harness/ff-proxy/domain"
 	clientgen "github.com/harness/ff-proxy/gen/client"
@@ -68,6 +67,10 @@ var (
 
 	// ErrUnauthorised is the error that the proxy service returns when the
 	ErrUnauthorised = errors.New("unauthorised")
+
+	// ErrStreamDisconnected is the error that the proxy service returns when
+	// its internal sdk has disconnected from the SaaS stream
+	ErrStreamDisconnected = errors.New("SaaS stream disconnected")
 )
 
 // authTokenFn is a function that can generate an auth token
@@ -77,7 +80,7 @@ type authTokenFn func(key string) (domain.Token, error)
 type CacheHealthFn func(ctx context.Context) error
 
 // EnvHealthFn is a function that checks the health of all connected environments
-type EnvHealthFn func(ctx context.Context) map[string]error
+type EnvHealthFn func() []domain.EnvironmentHealth
 
 // clientService is the interface for interacting with the feature flag client service
 type clientService interface {
@@ -87,6 +90,11 @@ type clientService interface {
 // metricService is the interface for interacting with the feature flag metric service
 type metricService interface {
 	StoreMetrics(ctx context.Context, metrics domain.MetricsRequest) error
+}
+
+// SDKClients is an interface that can be used to find out if internal sdks are connected to the SaaS FF stream
+type SDKClients interface {
+	StreamConnected(key string) bool
 }
 
 // Config is the config for a Service
@@ -104,6 +112,7 @@ type Config struct {
 	Offline          bool
 	Hasher           hash.Hasher
 	StreamingEnabled bool
+	SDKClients       SDKClients
 }
 
 // Service is the proxy service implementation
@@ -121,6 +130,7 @@ type Service struct {
 	offline          bool
 	hasher           hash.Hasher
 	streamingEnabled bool
+	sdkClients       SDKClients
 }
 
 // NewService creates and returns a ProxyService
@@ -140,6 +150,7 @@ func NewService(c Config) Service {
 		offline:          c.Offline,
 		hasher:           c.Hasher,
 		streamingEnabled: c.StreamingEnabled,
+		sdkClients:       c.SDKClients,
 	}
 }
 
@@ -159,7 +170,9 @@ func (s Service) Authenticate(ctx context.Context, req domain.AuthRequest) (doma
 	}
 
 	envID := token.Claims().Environment
-	s.targetRepo.Add(ctx, domain.NewTargetKey(envID), req.Target)
+	if err := s.targetRepo.DeltaAdd(ctx, envID, req.Target); err != nil {
+		s.logger.Info(ctx, "failed to save target during auth", "err", err)
+	}
 
 	// if the proxy is running in offline mode we're done, we don't need to bother
 	// forwarding the request to FeatureFlags
@@ -191,11 +204,8 @@ func (s Service) Authenticate(ctx context.Context, req domain.AuthRequest) (doma
 func (s Service) FeatureConfig(ctx context.Context, req domain.FeatureConfigRequest) ([]domain.FeatureConfig, error) {
 	s.logger = s.logger.With("method", "FeatureConfig")
 
-	configs := []domain.FeatureConfig{}
-	flagKey := domain.NewFeatureConfigKey(req.EnvironmentID)
-
 	// fetch flags
-	flags, err := s.featureRepo.Get(ctx, flagKey)
+	flags, err := s.featureRepo.Get(ctx, req.EnvironmentID)
 	if err != nil {
 		if !errors.Is(err, domain.ErrCacheNotFound) {
 			return []domain.FeatureConfig{}, fmt.Errorf("%w: %s", ErrInternal, err)
@@ -205,8 +215,18 @@ func (s Service) FeatureConfig(ctx context.Context, req domain.FeatureConfigRequ
 		s.logger.Debug(ctx, "flags not found in cache: ", "err", err.Error())
 	}
 
+	configs := []domain.FeatureConfig{}
+
 	// build FeatureConfig
+	emptyVariationMap := []rest.VariationMap{}
 	for _, flag := range flags {
+
+		// some sdks e.g. .NET don't cope well with being returned a null VariationToTargetMap so we send back an empty struct here for now
+		// to match ff-server behaviour
+		if flag.VariationToTargetMap == nil {
+			flag.VariationToTargetMap = &emptyVariationMap
+		}
+
 		configs = append(configs, domain.FeatureConfig{
 			FeatureFlag: flag,
 		})
@@ -219,10 +239,8 @@ func (s Service) FeatureConfig(ctx context.Context, req domain.FeatureConfigRequ
 func (s Service) FeatureConfigByIdentifier(ctx context.Context, req domain.FeatureConfigByIdentifierRequest) (domain.FeatureConfig, error) {
 	s.logger = s.logger.With("method", "FeatureConfigByIdentifier")
 
-	flagKey := domain.NewFeatureConfigKey(req.EnvironmentID)
-
 	// fetch flag
-	flag, err := s.featureRepo.GetByIdentifier(ctx, flagKey, req.Identifier)
+	flag, err := s.featureRepo.GetByIdentifier(ctx, req.EnvironmentID, req.Identifier)
 	if err != nil {
 		if errors.Is(err, domain.ErrCacheNotFound) {
 			return domain.FeatureConfig{}, fmt.Errorf("%w: %s", ErrNotFound, err)
@@ -240,9 +258,7 @@ func (s Service) FeatureConfigByIdentifier(ctx context.Context, req domain.Featu
 func (s Service) TargetSegments(ctx context.Context, req domain.TargetSegmentsRequest) ([]domain.Segment, error) {
 	s.logger = s.logger.With("method", "TargetSegments")
 
-	key := domain.NewSegmentKey(req.EnvironmentID)
-
-	segments, err := s.segmentRepo.Get(ctx, key)
+	segments, err := s.segmentRepo.Get(ctx, req.EnvironmentID)
 	if err != nil {
 		if !errors.Is(err, domain.ErrCacheNotFound) {
 			return []domain.Segment{}, fmt.Errorf("%w: %s", ErrInternal, err)
@@ -259,9 +275,7 @@ func (s Service) TargetSegments(ctx context.Context, req domain.TargetSegmentsRe
 func (s Service) TargetSegmentsByIdentifier(ctx context.Context, req domain.TargetSegmentsByIdentifierRequest) (domain.Segment, error) {
 	s.logger = s.logger.With("method", "TargetSegmentsByIdentifier")
 
-	key := domain.NewSegmentKey(req.EnvironmentID)
-
-	segment, err := s.segmentRepo.GetByIdentifier(ctx, key, req.Identifier)
+	segment, err := s.segmentRepo.GetByIdentifier(ctx, req.EnvironmentID, req.Identifier)
 	if err != nil {
 		if errors.Is(err, domain.ErrCacheNotFound) {
 			return domain.Segment{}, fmt.Errorf("%w: %s", ErrNotFound, err)
@@ -277,10 +291,9 @@ func (s Service) Evaluations(ctx context.Context, req domain.EvaluationsRequest)
 	s.logger = s.logger.With("method", "Evaluations")
 
 	evaluations := []clientgen.Evaluation{}
-	targetKey := domain.NewTargetKey(req.EnvironmentID)
 
 	// fetch target
-	t, err := s.targetRepo.GetByIdentifier(ctx, targetKey, req.TargetIdentifier)
+	t, err := s.targetRepo.GetByIdentifier(ctx, req.EnvironmentID, req.TargetIdentifier)
 	if err != nil {
 		if errors.Is(err, domain.ErrCacheNotFound) {
 			s.logger.Warn(ctx, "target not found in cache, serving request using only identifier attribute: ", "err", err.Error())
@@ -320,10 +333,8 @@ func (s Service) Evaluations(ctx context.Context, req domain.EvaluationsRequest)
 func (s Service) EvaluationsByFeature(ctx context.Context, req domain.EvaluationsByFeatureRequest) (clientgen.Evaluation, error) {
 	s.logger = s.logger.With("method", "EvaluationsByFeature")
 
-	targetKey := domain.NewTargetKey(req.EnvironmentID)
-
 	// fetch target
-	t, err := s.targetRepo.GetByIdentifier(ctx, targetKey, req.TargetIdentifier)
+	t, err := s.targetRepo.GetByIdentifier(ctx, req.EnvironmentID, req.TargetIdentifier)
 	if err != nil {
 		if errors.Is(err, domain.ErrCacheNotFound) {
 			s.logger.Warn(ctx, "target not found in cache, serving request using only identifier attribute: ", "err", err.Error())
@@ -356,16 +367,26 @@ func (s Service) EvaluationsByFeature(ctx context.Context, req domain.Evaluation
 // and returns it as the GripChannel.
 func (s Service) Stream(ctx context.Context, req domain.StreamRequest) (domain.StreamResponse, error) {
 	s.logger = s.logger.With("method", "Stream")
+
 	if !s.streamingEnabled {
 		return domain.StreamResponse{}, fmt.Errorf("%w: streaming endpoint disabled", ErrNotImplemented)
 	}
 
 	hashedAPIKey := s.hasher.Hash(req.APIKey)
 
-	repoKey, ok := s.authRepo.Get(ctx, domain.AuthAPIKey(hashedAPIKey))
+	repoKey, ok := s.authRepo.Get(ctx, domain.NewAuthAPIKey(hashedAPIKey))
 	if !ok {
 		return domain.StreamResponse{}, fmt.Errorf("%w: no environment found for apiKey %q", ErrNotFound, req.APIKey)
 	}
+
+	// If the internal sdk isn't connected to the SAAS stream for an environment then the Proxy shouldn't
+	// accept streaming connections for that environment. We need to do this to avoid SDKs connected to the
+	// Proxy from missing out on flag changes.
+	if !s.sdkClients.StreamConnected(repoKey) {
+		s.logger.Info(ctx, "rejecting stream connection because SaaS stream is disconnected", "environment", repoKey)
+		return domain.StreamResponse{}, ErrStreamDisconnected
+	}
+
 	return domain.StreamResponse{GripChannel: repoKey}, nil
 }
 
@@ -381,38 +402,40 @@ func (s Service) Metrics(ctx context.Context, req domain.MetricsRequest) error {
 func (s Service) Health(ctx context.Context) (domain.HealthResponse, error) {
 	s.logger = s.logger.With("method", "Health")
 	s.logger.Debug(ctx, "got health request")
-	systemHealth := domain.HealthResponse{}
 
 	// check health functions
 	err := s.cacheHealthFn(ctx)
 	if err != nil {
 		s.logger.Error(ctx, fmt.Sprintf("cache healthcheck error: %s", err.Error()))
 	}
-	systemHealth["cache"] = boolToHealthString(err == nil)
-	envHealth := s.envHealthFn(ctx)
-	for env, err := range envHealth {
-		if err != nil {
-			s.logger.Error(ctx, fmt.Sprintf("environment healthcheck error: %s", err.Error()))
-		}
 
-		envHealthy := err == nil
-		systemHealth[fmt.Sprintf("env-%s", env)] = boolToHealthString(envHealthy)
+	systemHealth := domain.HealthResponse{
+		CacheStatus:  boolToHealthString(false, err == nil),
+		Environments: s.envHealthFn(),
 	}
 
 	return systemHealth, nil
 }
 
-func boolToHealthString(healthy bool) string {
+// TODO: Provide a more detailed health response for environments - FFM-8237
+func boolToHealthString(envHealth bool, healthy bool) string {
+	if envHealth {
+		if !healthy {
+			return "polling"
+		}
+	}
+
 	if !healthy {
 		return "unhealthy"
 	}
+
 	return "healthy"
 }
 
 func toString(variation rest.Variation, kind string) string {
 	value := fmt.Sprintf("%v", variation.Value)
 	if kind == "json" {
-		data, err := json.Marshal(variation.Value)
+		data, err := jsoniter.Marshal(variation.Value)
 		if err != nil {
 			value = "{}"
 		} else {

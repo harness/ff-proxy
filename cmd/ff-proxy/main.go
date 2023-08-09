@@ -4,24 +4,25 @@ import (
 	"context"
 	"flag"
 	"fmt"
-	"io"
 	stdlog "log"
 	"net/http"
 	"os"
 	"os/signal"
 	"strings"
-	"sync"
 	"time"
 
-	"github.com/harness/ff-proxy/stream"
-
-	"github.com/harness/ff-proxy/token"
-
+	"github.com/harness/ff-proxy/build"
 	"github.com/harness/ff-proxy/export"
+	"github.com/harness/ff-proxy/health"
+	"github.com/harness/ff-proxy/stream"
+	"github.com/harness/ff-proxy/token"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/collectors"
 
 	"github.com/fanout/go-gripcontrol"
-	"github.com/hashicorp/go-multierror"
 	"github.com/hashicorp/go-retryablehttp"
+
+	"cloud.google.com/go/profiler"
 
 	_ "net/http/pprof" //#nosec
 
@@ -43,31 +44,7 @@ import (
 	"github.com/harness/ff-proxy/transport"
 )
 
-type sdkClientMap struct {
-	*sync.RWMutex
-	m map[string]*harness.CfClient
-}
-
-func newSDKClientMap() *sdkClientMap {
-	return &sdkClientMap{
-		RWMutex: &sync.RWMutex{},
-		m:       map[string]*harness.CfClient{},
-	}
-}
-
-func (s *sdkClientMap) set(key string, value *harness.CfClient) {
-	s.Lock()
-	defer s.Unlock()
-	s.m[key] = value
-}
-
-func (s *sdkClientMap) copy() map[string]*harness.CfClient {
-	s.RLock()
-	defer s.RUnlock()
-	return s.m
-}
-
-// keys implements the flag.Value interface and allows us to pass a comma seperated
+// keys implements the flag.Value interface and allows us to pass a comma separated
 // list of api keys e.g. -api-keys 123,456,789
 type keys []string
 
@@ -111,7 +88,7 @@ var (
 	targetPollDuration    int
 	metricPostDuration    int
 	heartbeatInterval     int
-	sdkClients            *sdkClientMap
+	sdkClients            *domain.SDKClientMap
 	sdkCache              cache.Cache
 	pprofEnabled          bool
 	flagPollInterval      int
@@ -122,6 +99,7 @@ var (
 	tlsEnabled            bool
 	tlsCert               string
 	tlsKey                string
+	gcpProfilerEnabled    bool
 )
 
 const (
@@ -153,6 +131,7 @@ const (
 	tlsEnabledEnv            = "TLS_ENABLED"
 	tlsCertEnv               = "TLS_CERT"
 	tlsKeyEnv                = "TLS_KEY"
+	gcpProfilerEnabledEnv    = "GCP_PROFILER_ENABLED"
 
 	bypassAuthFlag            = "bypass-auth"
 	debugFlag                 = "debug"
@@ -182,6 +161,7 @@ const (
 	tlsEnabledFlag            = "tls-enabled"
 	tlsCertFlag               = "tls-cert"
 	tlsKeyFlag                = "tls-key"
+	gcpProfilerEnabledFlag    = "gcp-profiler-enabled"
 )
 
 func init() {
@@ -202,7 +182,7 @@ func init() {
 	flag.StringVar(&redisPassword, redisPasswordFlag, "", "Optional. Redis password")
 	flag.IntVar(&redisDB, redisDBFlag, 0, "Database to be selected after connecting to the server.")
 	flag.Var(&apiKeys, apiKeysFlag, "API keys to connect with ff-server for each environment")
-	flag.IntVar(&targetPollDuration, targetPollDurationFlag, 60, "How often in seconds the proxy polls feature flags for Target changes. Set to 0 to disable.")
+	flag.IntVar(&targetPollDuration, targetPollDurationFlag, 0, "How often in seconds the proxy polls feature flags for Target changes. Set to 0 to disable.")
 	flag.IntVar(&metricPostDuration, metricPostDurationFlag, 60, "How often in seconds the proxy posts metrics to Harness. Set to 0 to disable.")
 	flag.IntVar(&heartbeatInterval, heartbeatIntervalFlag, 60, "How often in seconds the proxy polls pings it's health function. Set to 0 to disable.")
 	flag.BoolVar(&pprofEnabled, pprofEnabledFlag, false, "enables pprof on port 6060")
@@ -214,8 +194,9 @@ func init() {
 	flag.BoolVar(&tlsEnabled, tlsEnabledFlag, false, "if true the proxy will use the tlsCert and tlsKey to run with https enabled")
 	flag.StringVar(&tlsCert, tlsCertFlag, "", "Path to tls cert file. Required if tls enabled is true.")
 	flag.StringVar(&tlsKey, tlsKeyFlag, "", "Path to tls key file. Required if tls enabled is true.")
+	flag.BoolVar(&gcpProfilerEnabled, gcpProfilerEnabledFlag, false, "Enables gcp cloud profiler")
 
-	sdkClients = newSDKClientMap()
+	sdkClients = domain.NewSDKClientMap()
 
 	loadFlagsFromEnv(map[string]string{
 		bypassAuthEnv:            bypassAuthFlag,
@@ -246,6 +227,7 @@ func init() {
 		tlsEnabledEnv:            tlsEnabledFlag,
 		tlsCertEnv:               tlsCertFlag,
 		tlsKeyEnv:                tlsKeyFlag,
+		gcpProfilerEnabledEnv:    gcpProfilerEnabledFlag,
 	})
 
 	flag.Parse()
@@ -275,9 +257,10 @@ func initFF(ctx context.Context, cache gosdkCache.Cache, baseURL, eventURL, envI
 		harness.WithCache(cache),
 		harness.WithStoreEnabled(false), // store should be disabled until we implement a wrapper to handle multiple envs
 		harness.WithEventStreamListener(eventListener),
+		harness.WithProxyMode(true),
 	)
 
-	sdkClients.set(envID, client)
+	sdkClients.Set(envID, client)
 	defer func() {
 		if err := client.Close(); err != nil {
 			l.Error("error while closing client", "err", err)
@@ -292,6 +275,13 @@ func initFF(ctx context.Context, cache gosdkCache.Cache, baseURL, eventURL, envI
 }
 
 func main() {
+	// Setup logger
+	logger, err := log.NewStructuredLogger(debug)
+	if err != nil {
+		fmt.Println("we have no logger")
+		os.Exit(1)
+	}
+
 	if pprofEnabled {
 		go func() {
 			// #nosec
@@ -299,6 +289,13 @@ func main() {
 				stdlog.Printf("failed to start pprof server: %s \n", err)
 			}
 		}()
+	}
+
+	if gcpProfilerEnabled {
+		err := profiler.Start(profiler.Config{Service: "ff-proxy", ServiceVersion: build.Version})
+		if err != nil {
+			logger.Info("unable to start gcp profiler", "err", err)
+		}
 	}
 
 	// we currently don't require any config to run in offline mode
@@ -313,13 +310,6 @@ func main() {
 	}
 	validateFlags(requiredFlags)
 
-	// Setup logger
-	logger, err := log.NewStructuredLogger(debug)
-	if err != nil {
-		fmt.Println("we have no logger")
-		os.Exit(1)
-	}
-
 	// Setup cancelation
 	sigc := make(chan os.Signal, 1)
 	signal.Notify(sigc, os.Interrupt)
@@ -328,6 +318,9 @@ func main() {
 		<-sigc
 		cancel()
 	}()
+
+	promReg := prometheus.NewRegistry()
+	promReg.MustRegister(collectors.NewGoCollector())
 
 	logger.Info("service config", "pprof", pprofEnabled, "debug", debug, "bypass-auth", bypassAuth, "offline", offline, "port", port, "admin-service", adminService, "account-identifier", accountIdentifier, "org-identifier", orgIdentifier, "sdk-base-url", sdkBaseURL, "sdk-events-url", sdkEventsURL, "redis-addr", redisAddress, "redis-db", redisDB, "api-keys", apiKeys.PrintMasked(), "target-poll-duration", fmt.Sprintf("%ds", targetPollDuration), "heartbeat-interval", fmt.Sprintf("%ds", heartbeatInterval), "flag-stream-enabled", flagStreamEnabled, "flag-poll-interval", fmt.Sprintf("%dm", flagPollInterval), "config-dir", configDir, "tls-enabled", tlsEnabled, "tls-cert", tlsCert, "tls-key", tlsKey)
 
@@ -371,7 +364,7 @@ func main() {
 		}
 		client := redis.NewUniversalClient(&opts)
 		logger.Info("connecting to redis", "address", redisAddress)
-		sdkCache = cache.NewRedisCache(client)
+		sdkCache = cache.NewMetricsCache("redis", promReg, cache.NewMemoizeCache(client, 1*time.Minute, 2*time.Minute, cache.NewMemoizeMetrics("proxy", promReg)))
 		err = sdkCache.HealthCheck(ctx)
 		if err != nil {
 			logger.Error("failed to connect to redis", "err", err)
@@ -379,21 +372,24 @@ func main() {
 		}
 	} else {
 		logger.Info("initialising default memcache")
-		sdkCache = cache.NewMemCache()
+		sdkCache = cache.NewMetricsCache("in_mem", promReg, cache.NewMemCache())
 	}
 
 	apiKeyHasher := hash.NewSha256()
 
 	var (
-		featureConfig map[domain.FeatureFlagKey][]domain.FeatureFlag
-		targetConfig  map[domain.TargetKey][]domain.Target
-		segmentConfig map[domain.SegmentKey][]domain.Segment
+		featureConfig map[domain.FeatureFlagKey]interface{}
+		targetConfig  map[domain.TargetKey]interface{}
+		segmentConfig map[domain.SegmentKey]interface{}
 		authConfig    map[domain.AuthAPIKey]string
 		approvedEnvs  = map[string]struct{}{}
 	)
 
-	var remoteConfig config.RemoteConfig
-	var streamEnabled bool
+	var (
+		remoteConfig  config.RemoteConfig
+		streamEnabled bool
+		environments  []string
+	)
 
 	// Load either local config from files or remote config from ff-server
 	if offline && !generateOfflineConfig {
@@ -422,13 +418,13 @@ func main() {
 		// because we won't receive any to forward on. This will force sdks to poll the proxy to get their updates
 		if flagStreamEnabled {
 			// attempt to connect to pushpin stream - if we can't streaming will be disabled
-			err = streamHealthCheck()
+			err = health.StreamHealthCheck()
 			if err != nil {
 				logger.Error("failed to connect to pushpin streaming service - streaming mode not available for sdks connecting to Relay Proxy", "err", err)
 			} else {
 				streamEnabled = true
 				logger.Info("starting stream service...")
-				eventListener = stream.NewStreamWorker(logger, gpc)
+				eventListener = stream.NewStreamWorker(logger, gpc, promReg)
 			}
 		} else {
 			logger.Info("starting sdks in polling mode. streaming disabled for connected sdks")
@@ -462,7 +458,8 @@ func main() {
 		// but this will lockdown requests a bit better while still giving us high availability for now. This could be coupled
 		// with a new config option to exit if any keys fail for users who want to restrict fully to whats provided in the startup config
 		if len(envInfo) == len(apiKeys) {
-			for env, _ := range envInfo {
+			for env := range envInfo {
+				environments = append(environments, env)
 				approvedEnvs[env] = struct{}{}
 			}
 			logger.Info("serving requests for configured environments", "environments", approvedEnvs)
@@ -476,19 +473,19 @@ func main() {
 	}
 
 	// Create repos
-	tr, err := repository.NewTargetRepo(sdkCache, targetConfig)
+	tr, err := repository.NewTargetRepo(sdkCache, repository.WithTargetConfig(targetConfig))
 	if err != nil {
 		logger.Error("failed to create target repo", "err", err)
 		os.Exit(1)
 	}
 
-	fcr, err := repository.NewFeatureFlagRepo(sdkCache, featureConfig)
+	fcr, err := repository.NewFeatureFlagRepo(sdkCache, repository.WithFeatureConfig(featureConfig))
 	if err != nil {
 		logger.Error("failed to create feature config repo", "err", err)
 		os.Exit(1)
 	}
 
-	sr, err := repository.NewSegmentRepo(sdkCache, segmentConfig)
+	sr, err := repository.NewSegmentRepo(sdkCache, repository.WithSegmentConfig(segmentConfig))
 	if err != nil {
 		logger.Error("failed to create segment repo", "err", err)
 		os.Exit(1)
@@ -518,7 +515,7 @@ func main() {
 	tokenSource := token.NewTokenSource(logger, authRepo, apiKeyHasher, []byte(authSecret))
 
 	metricsEnabled := metricPostDuration != 0 && !offline
-	metricService, err := services.NewMetricService(logger, metricService, accountIdentifier, remoteConfig.Tokens(), metricsEnabled)
+	metricService, err := services.NewMetricService(logger, metricService, accountIdentifier, remoteConfig.Tokens(), metricsEnabled, promReg)
 	if err != nil {
 		logger.Error("failed to create client for the feature flags metric service", "err", err)
 		os.Exit(1)
@@ -532,22 +529,24 @@ func main() {
 		SegmentRepo:      sr,
 		AuthRepo:         authRepo,
 		CacheHealthFn:    cacheHealthCheck,
-		EnvHealthFn:      envHealthCheck,
+		EnvHealthFn:      health.NewEnvironmentHealthTracker(ctx, environments, sdkClients, 30*time.Second),
 		AuthFn:           tokenSource.GenerateToken,
 		ClientService:    clientService,
 		MetricService:    metricService,
 		Offline:          offline,
 		Hasher:           apiKeyHasher,
 		StreamingEnabled: streamEnabled,
+		SDKClients:       sdkClients,
 	})
 
 	// Configure endpoints and server
 	endpoints := transport.NewEndpoints(service)
-	server := transport.NewHTTPServer(port, endpoints, logger, tlsEnabled, tlsCert, tlsKey)
+	server := transport.NewHTTPServer(port, endpoints, logger, tlsEnabled, tlsCert, tlsKey, promReg)
 	server.Use(
 		middleware.NewEchoRequestIDMiddleware(),
 		middleware.NewEchoLoggingMiddleware(),
 		middleware.NewEchoAuthMiddleware([]byte(authSecret), bypassAuth),
+		middleware.NewPrometheusMiddleware(promReg),
 	)
 
 	go func() {
@@ -577,18 +576,17 @@ func main() {
 						return
 					case <-ticker.C:
 						// poll for all targets for each configured environment
-						pollTargetConfig := make(map[domain.TargetKey][]domain.Target)
+						pollTargetConfig := make(map[string][]domain.Target)
 						for _, env := range remoteConfig.EnvInfo() {
 							targets, err := config.GetTargets(ctx, accountIdentifier, orgIdentifier, env.ProjectIdentifier, env.EnvironmentIdentifier, adminService)
 							if err != nil {
 								logger.Error("failed to poll targets for environment %s: %s", env.EnvironmentID, err)
 							}
-							targetKey := domain.NewTargetKey(env.EnvironmentID)
-							pollTargetConfig[targetKey] = targets
+							pollTargetConfig[env.EnvironmentID] = targets
 						}
 
-						for key, values := range pollTargetConfig {
-							tr.DeltaAdd(ctx, key, values...)
+						for env, values := range pollTargetConfig {
+							tr.DeltaAdd(ctx, env, values...)
 						}
 					}
 				}
@@ -611,7 +609,7 @@ func main() {
 						// default to prod cluster
 						clusterIdentifier := "1"
 						// grab which cluster we're connected to from sdk
-						for _, client := range sdkClients.copy() {
+						for _, client := range sdkClients.Copy() {
 							clusterIdentifier = client.GetClusterIdentifier()
 							break
 						}
@@ -634,7 +632,7 @@ func main() {
 				protocol = "https"
 			}
 
-			heartbeat(ctx, ticker.C, fmt.Sprintf("%s://localhost:%d", protocol, port), logger)
+			health.Heartbeat(ctx, ticker.C, fmt.Sprintf("%s://localhost:%d", protocol, port), logger)
 		}()
 	}
 
@@ -646,87 +644,6 @@ func main() {
 // checks the health of the connected cache instance
 func cacheHealthCheck(ctx context.Context) error {
 	return sdkCache.HealthCheck(ctx)
-}
-
-// heartbeat kicks off a goroutine that polls the /health endpoint at intervals
-// determined by how frequently events are sent on the tick channel.
-func heartbeat(ctx context.Context, tick <-chan time.Time, listenAddr string, logger log.StructuredLogger) {
-	go func() {
-		for {
-			select {
-			case <-ctx.Done():
-				logger.Info("stopping heartbeat")
-				return
-			case <-tick:
-				resp, err := http.Get(fmt.Sprintf("%s/health", listenAddr))
-				if err != nil {
-					logger.Error(fmt.Sprintf("heartbeat request failed: %s", err))
-				}
-
-				if resp == nil {
-					continue
-				}
-
-				if resp.StatusCode == http.StatusOK {
-					logger.Info(fmt.Sprintf("heartbeat healthy: status code: %d", resp.StatusCode))
-					resp.Body.Close()
-					continue
-				}
-
-				b, err := io.ReadAll(resp.Body)
-				if err != nil {
-					resp.Body.Close()
-					logger.Error(fmt.Sprintf("failed to read response body from %s", resp.Request.URL.String()))
-					logger.Error(fmt.Sprintf("heartbeat unhealthy: status code: %d", resp.StatusCode))
-					continue
-				}
-				resp.Body.Close()
-
-				logger.Error(fmt.Sprintf("heartbeat unhealthy: status code: %d, body: %s", resp.StatusCode, b))
-			}
-		}
-	}()
-}
-
-// checks the health of all connected environments
-// returns an error, if any for each
-func envHealthCheck(ctx context.Context) map[string]error {
-	envHealth := map[string]error{}
-
-	// if the user chooses to run connected sdks in polling mode then we can skip the stream health checks
-	if !flagStreamEnabled {
-		return envHealth
-	}
-
-	for env, sdk := range sdkClients.copy() {
-		// get SDK health details
-		var err error
-		streamConnected := sdk.IsStreamConnected()
-		if !streamConnected {
-			err = fmt.Errorf("environment %s unhealthy, stream not connected", env)
-		}
-		envHealth[env] = err
-	}
-	return envHealth
-}
-
-// streamHealthCheck checks if the GripControl stream is available - this is required to enable streaming mode
-func streamHealthCheck() error {
-	var multiErr error
-
-	for i := 0; i < 2; i++ {
-		resp, err := http.Get(fmt.Sprintf("http://localhost:5561"))
-		if err != nil || resp == nil {
-			multiErr = multierror.Append(fmt.Errorf("gpc request failed streaming will be disabled: %s", err), multiErr)
-		} else if resp != nil && resp.StatusCode != http.StatusOK {
-			multiErr = multierror.Append(fmt.Errorf("gpc request failed streaming will be disabled: %d", resp.StatusCode), multiErr)
-		} else {
-			return nil
-		}
-		time.Sleep(2 * time.Second)
-	}
-
-	return multiErr
 }
 
 func loadFlagsFromEnv(envToFlag map[string]string) {
@@ -772,7 +689,7 @@ func sdksInitialised() bool {
 	// wait for all specified sdks to be started
 	var sdksStarted bool
 	for i := 0; i < 20; i++ {
-		if len(apiKeys) == len(sdkClients.copy()) {
+		if len(apiKeys) == len(sdkClients.Copy()) {
 			sdksStarted = true
 			break
 		}
@@ -783,7 +700,7 @@ func sdksInitialised() bool {
 	}
 
 	// check that all the sdks have fetched flags/segments
-	for _, sdk := range sdkClients.copy() {
+	for _, sdk := range sdkClients.Copy() {
 		init, _ := sdk.IsInitialized()
 		if !init {
 			return false

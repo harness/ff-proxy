@@ -8,7 +8,14 @@ import (
 
 	"github.com/harness/ff-proxy/log"
 	"github.com/labstack/echo/v4"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
+
+type prometheusRegister interface {
+	prometheus.Registerer
+	prometheus.Gatherer
+}
 
 // HTTPServer is an http server that handles http requests
 type HTTPServer struct {
@@ -22,7 +29,7 @@ type HTTPServer struct {
 
 // NewHTTPServer registers the passed endpoints against routes and returns an
 // HTTPServer that's ready to use
-func NewHTTPServer(port int, e *Endpoints, l log.Logger, tlsEnabled bool, tlsCert string, tlsKey string) *HTTPServer {
+func NewHTTPServer(port int, e *Endpoints, l log.Logger, tlsEnabled bool, tlsCert string, tlsKey string, reg prometheusRegister) *HTTPServer {
 	l = l.With("component", "HTTPServer")
 
 	router := echo.New()
@@ -43,7 +50,7 @@ func NewHTTPServer(port int, e *Endpoints, l log.Logger, tlsEnabled bool, tlsCer
 		tlsCert:    tlsCert,
 		tlsKey:     tlsKey,
 	}
-	h.registerEndpoints(e)
+	h.registerEndpoints(e, reg)
 	return h
 }
 
@@ -75,7 +82,7 @@ func (h *HTTPServer) Use(mw ...echo.MiddlewareFunc) {
 	}
 }
 
-func (h *HTTPServer) registerEndpoints(e *Endpoints) {
+func (h *HTTPServer) registerEndpoints(e *Endpoints, reg prometheusRegister) {
 	h.router.POST("/client/auth", NewUnaryHandler(
 		e.PostAuthenticate,
 		decodeAuthRequest,
@@ -86,7 +93,7 @@ func (h *HTTPServer) registerEndpoints(e *Endpoints) {
 	h.router.GET("/health", NewUnaryHandler(
 		e.Health,
 		decodeHealthRequest,
-		encodeHealthResponse,
+		encodeResponse,
 		encodeEchoError,
 	))
 
@@ -145,6 +152,8 @@ func (h *HTTPServer) registerEndpoints(e *Endpoints) {
 		encodeResponse,
 		encodeEchoError,
 	))
+
+	h.router.GET("/metrics", echo.WrapHandler(promhttp.HandlerFor(reg, promhttp.HandlerOpts{Registry: reg})))
 }
 
 func cors(next http.Handler) http.Handler {

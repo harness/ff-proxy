@@ -33,7 +33,7 @@ var (
 	}
 
 	segmentFooKey = dto.Key{
-		Type: dto.KeySegment,
+		Type: dto.KeySegments,
 		Name: evaluationSegmentFoo.Identifier,
 	}
 
@@ -74,8 +74,8 @@ var (
 	}
 
 	featureBarKey = dto.Key{
-		Type: dto.KeyFeature,
-		Name: evaluationSegmentFoo.Identifier,
+		Type: dto.KeyFeatures,
+		Name: evaluationFeatureBar.Feature,
 	}
 )
 
@@ -121,35 +121,35 @@ func TestSet(t *testing.T) {
 		expectedLen  int
 		expectedKeys []interface{}
 	}{
-		"segment": {
+		"segments": {
 			values: []value{
 				{
 					key:   segmentFooKey,
-					value: evaluationSegmentFoo,
+					value: []rest.Segment{evaluationSegmentFoo},
 				},
 			},
 			expectedLen:  1,
 			expectedKeys: []interface{}{segmentFooKey},
 		},
-		"feature": {
+		"features": {
 			values: []value{
 				{
 					key:   featureBarKey,
-					value: evaluationFeatureBar,
+					value: []rest.FeatureConfig{evaluationFeatureBar},
 				},
 			},
 			expectedLen:  1,
 			expectedKeys: []interface{}{featureBarKey},
 		},
-		"feature and segment": {
+		"features and segments": {
 			values: []value{
 				{
 					key:   segmentFooKey,
-					value: evaluationSegmentFoo,
+					value: []rest.Segment{evaluationSegmentFoo},
 				},
 				{
 					key:   featureBarKey,
-					value: evaluationFeatureBar,
+					value: []rest.FeatureConfig{evaluationFeatureBar},
 				},
 			},
 			expectedLen:  2,
@@ -171,6 +171,7 @@ func TestSet(t *testing.T) {
 
 			// check each value contains and get
 			for _, val := range tc.values {
+
 				assert.True(t, cache.Contains(val.key))
 				value, ok := cache.Get(val.key)
 				assert.True(t, ok)

@@ -87,14 +87,14 @@ func TestAuthRepo_Get(t *testing.T) {
 
 func TestAuthRepo_GetAll(t *testing.T) {
 	populated := map[domain.AuthAPIKey]string{
-		domain.AuthAPIKey("apikey-foo"): "env-foo",
-		domain.AuthAPIKey("apikey-bar"): "env-bar",
+		domain.NewAuthAPIKey("foo"): "env-foo",
+		domain.NewAuthAPIKey("bar"): "env-bar",
 	}
 
 	unpopulated := map[domain.AuthAPIKey]string{}
 
 	extraKeys := map[domain.AuthAPIKey]string{
-		domain.AuthAPIKey("apikey-extra"): "env-extra",
+		domain.NewAuthAPIKey("extra"): "env-extra",
 	}
 
 	type expected struct {
@@ -131,7 +131,7 @@ func TestAuthRepo_GetAll(t *testing.T) {
 			data:         populated,
 			approvedEnvs: map[string]struct{}{"env-foo": struct{}{}},
 			expected: expected{keys: map[domain.AuthAPIKey]string{
-				domain.AuthAPIKey("apikey-foo"): "env-foo",
+				domain.NewAuthAPIKey("foo"): "env-foo",
 			}, boolVal: true},
 		},
 		"Given I have a populated AuthRepo and approved env list with env with no results": {
@@ -177,18 +177,18 @@ func TestAuthRepo_GetAll(t *testing.T) {
 func TestAuthRepo_Setup(t *testing.T) {
 	// we start with two keys for the foo environment
 	fooKeys := map[domain.AuthAPIKey]string{
-		domain.AuthAPIKey("apikey-foo"):  "env-foo",
-		domain.AuthAPIKey("apikey-foo2"): "env-foo",
+		domain.NewAuthAPIKey("foo"):  "env-foo",
+		domain.NewAuthAPIKey("foo2"): "env-foo",
 	}
 
 	// we test adding new auth data for a different env to make sure we don't clear data from other envs
 	barKeys := map[domain.AuthAPIKey]string{
-		domain.AuthAPIKey("apikey-bar"): "env-bar",
+		domain.NewAuthAPIKey("bar"): "env-bar",
 	}
 
 	// we also test adding fresh data for foo env to make sure we clear old keys
 	newFooKeys := map[domain.AuthAPIKey]string{
-		domain.AuthAPIKey("apikey-foo"): "env-foo",
+		domain.NewAuthAPIKey("foo"): "env-foo",
 	}
 
 	type expected struct {

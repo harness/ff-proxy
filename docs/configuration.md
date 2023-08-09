@@ -80,7 +80,7 @@ Adjust how often certain actions are performed.
 
 | Environment Variable | Flag                 | Description                                                                                 | Type | Default |
 |----------------------|----------------------|---------------------------------------------------------------------------------------------|------|---------|
-| TARGET_POLL_DURATION | target-poll-duration | How often in seconds the proxy polls feature flags for Target changes. Set to 0 to disable. | int  | 60      |
+| TARGET_POLL_DURATION | target-poll-duration | How often in seconds the proxy polls feature flags for Target changes. Set to 0 to disable. | int  | 0       |
 | METRIC_POST_DURATION | metric-post-duration | How often in seconds the proxy posts metrics to Harness. Set to 0 to disable.               | int  | 60      |
 | HEARTBEAT_INTERVAL   | heartbeat-interval   | How often in seconds the proxy polls pings it's health function. Set to 0 to disable.       | int  | 60      |
 
@@ -111,6 +111,7 @@ You may need to adjust these if you pass all your traffic through a filter or pr
 ### Development
 Flags that can help when developing the proxy.
 
-| Environment Variable | Flag  | Description                | Type    | Default |
-|----------------------|-------|----------------------------|---------|---------|
-| PPROF                | pprof | Enables pprof on port 6060 | boolean | false   |
+| Environment Variable | Flag                 | Description                    | Type    | Default |
+|----------------------|----------------------|--------------------------------|---------|---------|
+| PPROF                | pprof                | Enables pprof on port 6060     | boolean | false   |
+| GCP_PROFILER_ENABLED | gcp-profiler-enabled | Enables the gcp cloud profiler | boolean | false   |

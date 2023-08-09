@@ -43,7 +43,7 @@ func NewAdminService(l log.Logger, addr string, serviceToken string) (AdminServi
 	return AdminService{log: l, client: c}, nil
 }
 
-// PageAPIKeysInput contains the paramters required to make a GetEnvironments
+// PageAPIKeysInput contains the parameters required to make a GetEnvironments
 // request
 type PageAPIKeysInput struct {
 	AccountIdentifier     string
@@ -97,7 +97,7 @@ func (r AdminService) PageAPIKeys(ctx context.Context, input PageAPIKeysInput) (
 	}, nil
 }
 
-// PageTargetsInput contains the paramters required to make a PageTargets
+// PageTargetsInput contains the parameters required to make a PageTargets
 // request
 type PageTargetsInput struct {
 	AccountIdentifier     string
@@ -108,7 +108,7 @@ type PageTargetsInput struct {
 	PageSize              int
 }
 
-// PageTargetsResult contains the paramters required to make a PageTargets
+// PageTargetsResult contains the parameters required to make a PageTargets
 // request
 type PageTargetsResult struct {
 	Targets  []admingen.Target

@@ -9,11 +9,17 @@ import (
 	"github.com/harness/ff-proxy/domain"
 	clientgen "github.com/harness/ff-proxy/gen/client"
 	"github.com/harness/ff-proxy/log"
+	"github.com/prometheus/client_golang/prometheus"
 )
 
 const (
 	tokenKey = "token"
 )
+
+type counter interface {
+	prometheus.Collector
+	WithLabelValues(lvs ...string) prometheus.Counter
+}
 
 // MetricService is a type for interacting with the Feature Flag Metric Service
 type MetricService struct {
@@ -23,11 +29,14 @@ type MetricService struct {
 	client      clientgen.ClientWithResponsesInterface
 	metrics     map[string]domain.MetricsRequest
 	tokens      map[string]string
-	metricsLock sync.Mutex
+	metricsLock *sync.Mutex
+
+	sdkUsage         counter
+	metricsForwarded counter
 }
 
 // NewMetricService creates a MetricService
-func NewMetricService(l log.Logger, addr string, accountID string, tokens map[string]string, enabled bool) (MetricService, error) {
+func NewMetricService(l log.Logger, addr string, accountID string, tokens map[string]string, enabled bool, reg *prometheus.Registry) (MetricService, error) {
 	l = l.With("component", "MetricServiceClient")
 	client, err := clientgen.NewClientWithResponses(
 		addr,
@@ -37,7 +46,33 @@ func NewMetricService(l log.Logger, addr string, accountID string, tokens map[st
 		return MetricService{}, err
 	}
 
-	return MetricService{log: l, accountID: accountID, client: client, enabled: enabled, metrics: map[string]domain.MetricsRequest{}, tokens: tokens, metricsLock: sync.Mutex{}}, nil
+	m := MetricService{
+		log:         l,
+		accountID:   accountID,
+		client:      client,
+		enabled:     enabled,
+		metrics:     map[string]domain.MetricsRequest{},
+		tokens:      tokens,
+		metricsLock: &sync.Mutex{},
+
+		sdkUsage: prometheus.NewCounterVec(
+			prometheus.CounterOpts{
+				Name: "ff_proxy_sdk_usage",
+				Help: "Tracks what SDKs are using the FF Proxy",
+			},
+			[]string{"envID", "sdk_type", "sdk_version", "sdk_language"},
+		),
+		metricsForwarded: prometheus.NewCounterVec(
+			prometheus.CounterOpts{
+				Name: "ff_proxy_metrics_forwarded",
+				Help: "Tracks the number of metrics forwarded from the Proxy to SaaS Feature Flags",
+			},
+			[]string{"envID", "error"},
+		),
+	}
+
+	reg.MustRegister(m.sdkUsage, m.metricsForwarded)
+	return m, nil
 }
 
 // StoreMetrics aggregates and stores metrics
@@ -45,8 +80,13 @@ func (m MetricService) StoreMetrics(ctx context.Context, req domain.MetricsReque
 	if !m.enabled {
 		return nil
 	}
+
 	m.metricsLock.Lock()
-	defer m.metricsLock.Unlock()
+	defer func() {
+		m.trackSDKUsage(req)
+		m.metricsLock.Unlock()
+	}()
+
 	// store metrics to send later
 	if _, ok := m.metrics[req.EnvironmentID]; ok {
 		currentMetrics := m.metrics[req.EnvironmentID]
@@ -80,23 +120,42 @@ func (m MetricService) SendMetrics(ctx context.Context, clusterIdentifier string
 	m.metricsLock.Unlock()
 
 	for envID, metric := range metricsCopy {
-		token, ok := m.tokens[envID]
-		if !ok {
-			m.log.Warn("No token found for environment. Skipping sending metrics for env.", "environment", envID)
-			continue
-		}
-		ctx = context.WithValue(ctx, tokenKey, token)
-		res, err := m.client.PostMetricsWithResponse(ctx, envID, &clientgen.PostMetricsParams{Cluster: &clusterIdentifier}, clientgen.PostMetricsJSONRequestBody{
-			MetricsData: metric.MetricsData,
-			TargetData:  metric.TargetData,
-		}, addAuthToken)
-		if err != nil {
-			m.log.Error("sending metrics failed", "error", err)
-		}
-		if res != nil && res.StatusCode() != 200 {
-			m.log.Error("sending metrics failed", "environment", envID, "status code", res.StatusCode())
+		if err := m.sendMetrics(ctx, envID, metric, clusterIdentifier); err != nil {
+			m.log.Error("sending metrics failed", "environment", envID, "error", err)
 		}
 	}
+
+}
+
+func (m MetricService) sendMetrics(ctx context.Context, envID string, metric domain.MetricsRequest, clusterIdentifier string) (err error) {
+	defer func() {
+		errLabel := "false"
+		if err != nil {
+			errLabel = "true"
+		}
+		m.metricsForwarded.WithLabelValues(envID, errLabel).Inc()
+	}()
+
+	token, ok := m.tokens[envID]
+	if !ok {
+		m.log.Warn("No token found for environment. Skipping sending metrics for env.", "environment", envID)
+		return nil
+	}
+
+	ctx = context.WithValue(ctx, tokenKey, token)
+	res, err := m.client.PostMetricsWithResponse(ctx, envID, &clientgen.PostMetricsParams{Cluster: &clusterIdentifier}, clientgen.PostMetricsJSONRequestBody{
+		MetricsData: metric.MetricsData,
+		TargetData:  metric.TargetData,
+	}, addAuthToken)
+	if err != nil {
+		return err
+	}
+
+	if res != nil && res.StatusCode() != 200 {
+		return fmt.Errorf("got non 200 status code from feature flags: status_code=%d", res.StatusCode())
+	}
+
+	return nil
 }
 
 func addAuthToken(ctx context.Context, req *http.Request) error {
@@ -107,4 +166,54 @@ func addAuthToken(ctx context.Context, req *http.Request) error {
 	req.Header.Add("Authorization", fmt.Sprintf("Bearer %s", token))
 
 	return nil
+}
+
+func (m MetricService) trackSDKUsage(req domain.MetricsRequest) {
+	if req.MetricsData == nil {
+		return
+	}
+
+	for _, me := range *req.MetricsData {
+		attrMap := createAttributeMap(me.Attributes)
+
+		sdkType := getSDKType(attrMap)
+		sdkVersion := getSDKVersion(attrMap)
+		sdkLanguage := getSDKLanguage(attrMap)
+
+		m.sdkUsage.WithLabelValues(req.EnvironmentID, sdkType, sdkVersion, sdkLanguage).Inc()
+	}
+}
+
+func createAttributeMap(data []clientgen.KeyValue) map[string]string {
+	result := map[string]string{}
+	for _, kv := range data {
+		result[kv.Key] = kv.Value
+	}
+	return result
+}
+
+// GetSDKType returns the sdk type or an empty string if its not found
+func getSDKType(m map[string]string) string {
+	return m["SDK_TYPE"]
+}
+
+// GetSDKVersion returns the version or an empty string if its not found
+func getSDKVersion(m map[string]string) string {
+	v, ok := m["SDK_VERSION"]
+	if ok {
+		return v
+	}
+
+	// TODO this should be SDK_VERSION - need to update java SDK
+	v2, ok := m["JAR_VERSION"]
+	if ok {
+		return v2
+	}
+
+	return ""
+}
+
+// GetSDKLanguage returns the language or an empty string if its not found
+func getSDKLanguage(m map[string]string) string {
+	return m["SDK_LANGUAGE"]
 }

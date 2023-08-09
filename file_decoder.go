@@ -17,7 +17,7 @@ const (
 	extensionYAML = ".yaml"
 )
 
-// DecodeFile is a convienence function that creates a FileDecoder and calls Decode
+// DecodeFile is a convenience function that creates a FileDecoder and calls Decode
 func DecodeFile(fileSystem fs.FS, path string, v interface{}) error {
 	dec, err := NewFileDecoder(fileSystem, path)
 	if err != nil {

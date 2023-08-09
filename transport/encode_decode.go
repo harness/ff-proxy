@@ -2,7 +2,6 @@ package transport
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -10,6 +9,7 @@ import (
 
 	"github.com/harness/ff-proxy/domain"
 	proxyservice "github.com/harness/ff-proxy/proxy-service"
+	jsoniter "github.com/json-iterator/go"
 	"github.com/labstack/echo/v4"
 )
 
@@ -23,14 +23,7 @@ var (
 // for endpoints that require one.
 func encodeResponse(ctx context.Context, w http.ResponseWriter, response interface{}) error {
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
-	return json.NewEncoder(w).Encode(response)
-}
-
-// encodeHealthResponse encodes a healthcheck response with status code
-func encodeHealthResponse(ctx context.Context, w http.ResponseWriter, response interface{}) error {
-	w.Header().Set("Content-Type", "application/json; charset=utf-8")
-	w.WriteHeader(getHealthStatusCode(response))
-	return json.NewEncoder(w).Encode(response)
+	return jsoniter.NewEncoder(w).Encode(response)
 }
 
 func encodeStreamResponse(ctx context.Context, w http.ResponseWriter, response interface{}) error {
@@ -46,20 +39,6 @@ func encodeStreamResponse(ctx context.Context, w http.ResponseWriter, response i
 	return nil
 }
 
-func getHealthStatusCode(response interface{}) int {
-	healthRes, ok := response.(domain.HealthResponse)
-	if !ok {
-		return http.StatusInternalServerError
-	}
-
-	for _, health := range healthRes {
-		if health != "healthy" {
-			return http.StatusServiceUnavailable
-		}
-	}
-	return http.StatusOK
-}
-
 // encodeError encodes error responses returned from handlers
 func encodeError(ctx context.Context, err error, w http.ResponseWriter) {
 	if err == nil {
@@ -67,7 +46,7 @@ func encodeError(ctx context.Context, err error, w http.ResponseWriter) {
 	}
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	w.WriteHeader(codeFrom(err))
-	json.NewEncoder(w).Encode(map[string]interface{}{
+	jsoniter.NewEncoder(w).Encode(map[string]interface{}{
 		"error": err.Error(),
 	})
 }
@@ -97,6 +76,10 @@ func codeFrom(err error) int {
 		return http.StatusNotImplemented
 	}
 
+	if errors.Is(err, proxyservice.ErrStreamDisconnected) {
+		return http.StatusServiceUnavailable
+	}
+
 	return http.StatusInternalServerError
 }
 
@@ -117,7 +100,7 @@ func decodeAuthRequest(c echo.Context) (interface{}, error) {
 		return nil, fmt.Errorf("%w: request body cannot be empty", errBadRequest)
 	}
 
-	if err := json.Unmarshal(b, &req); err != nil {
+	if err := jsoniter.Unmarshal(b, &req); err != nil {
 		return nil, err
 	}
 
@@ -258,7 +241,7 @@ func decodeMetricsRequest(c echo.Context) (interface{}, error) {
 	}
 
 	req := domain.MetricsRequest{}
-	if err := json.Unmarshal(b, &req); err != nil {
+	if err := jsoniter.Unmarshal(b, &req); err != nil {
 		return nil, err
 	}
 

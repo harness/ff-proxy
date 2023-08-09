@@ -24,7 +24,7 @@ func TestTokenSource_GenerateToken(t *testing.T) {
 	secret := []byte(`secret`)
 
 	authRepo, _ := repository.NewAuthRepo(cache.NewMemCache(), map[domain.AuthAPIKey]string{
-		domain.AuthAPIKey(hashedKey): envID,
+		domain.NewAuthAPIKey(hashedKey): envID,
 	}, nil)
 	tokenSource := NewTokenSource(log.NoOpLogger{}, authRepo, hash.NewSha256(), secret)
 

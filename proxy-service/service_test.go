@@ -33,9 +33,9 @@ func (f fileSystem) Open(name string) (fs.File, error) {
 
 type benchmarkConfig struct {
 	auth        map[domain.AuthAPIKey]string
-	features    map[domain.FeatureFlagKey][]domain.FeatureFlag
-	targets     map[domain.TargetKey][]domain.Target
-	segments    map[domain.SegmentKey][]domain.Segment
+	features    map[domain.FeatureFlagKey]interface{}
+	targets     map[domain.TargetKey]interface{}
+	segments    map[domain.SegmentKey]interface{}
 	numFeatures int
 	numTargets  int
 	numSegments int
@@ -79,14 +79,18 @@ func getConfigByEnv(envID string, b *testing.B) benchmarkConfig {
 	segments := lc.Segments()
 	targets := lc.Targets()
 
+	featureSlice := features[domain.NewFeatureConfigsKey(envID)].([]domain.FeatureConfig)
+	segmentsSlice := segments[domain.NewSegmentsKey(envID)].([]domain.Segment)
+	targetsSlice := targets[domain.NewTargetsKey(envID)].([]domain.Target)
+
 	return benchmarkConfig{
 		auth:        auth,
 		features:    features,
 		segments:    segments,
 		targets:     targets,
-		numFeatures: len(features[domain.NewFeatureConfigKey(envID)]),
-		numTargets:  len(targets[domain.NewTargetKey(envID)]),
-		numSegments: len(segments[domain.NewSegmentKey(envID)]),
+		numFeatures: len(featureSlice),
+		numTargets:  len(targetsSlice),
+		numSegments: len(segmentsSlice),
 	}
 
 }
@@ -94,17 +98,17 @@ func getConfigByEnv(envID string, b *testing.B) benchmarkConfig {
 func setupService(cfg benchmarkConfig, b *testing.B) ProxyService {
 	cache := cache.NewMemCache()
 
-	featureRepo, err := repository.NewFeatureFlagRepo(cache, cfg.features)
+	featureRepo, err := repository.NewFeatureFlagRepo(cache, repository.WithFeatureConfig(cfg.features))
 	if err != nil {
 		b.Fatalf("failed to setup FeatureFlagRepo: %s", err)
 	}
 
-	segmentRepo, err := repository.NewSegmentRepo(cache, cfg.segments)
+	segmentRepo, err := repository.NewSegmentRepo(cache, repository.WithSegmentConfig(cfg.segments))
 	if err != nil {
 		b.Fatalf("failed to setup FeatureFlagRepo: %s", err)
 	}
 
-	targetRepo, err := repository.NewTargetRepo(cache, cfg.targets)
+	targetRepo, err := repository.NewTargetRepo(cache, repository.WithTargetConfig(cfg.targets))
 	if err != nil {
 		b.Fatalf("failed to setup FeatureFlagRepo: %s", err)
 	}
@@ -117,8 +121,8 @@ func setupService(cfg benchmarkConfig, b *testing.B) ProxyService {
 		return nil
 	}
 
-	envHealthFn := func(ctx context.Context) map[string]error {
-		return map[string]error{}
+	envHealthFn := func() []domain.EnvironmentHealth {
+		return []domain.EnvironmentHealth{}
 	}
 
 	// Client service isn't used by the methods we benchmark so we can get away
@@ -155,31 +159,31 @@ func (b benchmarks) Less(i, j int) bool {
 	iEnvID := b[i].envID
 	jEnvID := b[j].envID
 
-	iFlagKey := domain.NewFeatureConfigKey(iEnvID)
-	jFlagKey := domain.NewFeatureConfigKey(jEnvID)
+	iFlagKey := domain.NewFeatureConfigKey(iEnvID, "i")
+	jFlagKey := domain.NewFeatureConfigKey(jEnvID, "j")
 
-	iFeatures := b[i].cfg.features[iFlagKey]
-	jFeatures := b[j].cfg.features[jFlagKey]
+	iFeatures := b[i].cfg.features[iFlagKey].([]domain.FeatureConfig)
+	jFeatures := b[j].cfg.features[jFlagKey].([]domain.FeatureConfig)
 
 	if len(iFeatures) != len(jFeatures) {
 		return len(iFeatures) < len(jFeatures)
 	}
 
-	iSegKey := domain.NewSegmentKey(iEnvID)
-	jSegKey := domain.NewSegmentKey(jEnvID)
+	iSegKey := domain.NewSegmentKey(iEnvID, "i")
+	jSegKey := domain.NewSegmentKey(jEnvID, "j")
 
-	iSegments := b[i].cfg.segments[iSegKey]
-	jSegments := b[j].cfg.segments[jSegKey]
+	iSegments := b[i].cfg.segments[iSegKey].([]domain.Segment)
+	jSegments := b[j].cfg.segments[jSegKey].([]domain.Segment)
 
 	if len(iSegments) != len(jSegments) {
 		return len(iSegments) < len(jSegments)
 	}
 
-	iTargetKey := domain.NewTargetKey(iEnvID)
-	jTargetKey := domain.NewTargetKey(jEnvID)
+	iTargetKey := domain.NewTargetKey(iEnvID, "i")
+	jTargetKey := domain.NewTargetKey(jEnvID, "j")
 
-	iTargets := b[i].cfg.targets[iTargetKey]
-	jTargets := b[j].cfg.targets[jTargetKey]
+	iTargets := b[i].cfg.targets[iTargetKey].([]domain.Target)
+	jTargets := b[j].cfg.targets[jTargetKey].([]domain.Target)
 
 	return len(iTargets) < len(jTargets)
 }
@@ -212,9 +216,13 @@ func BenchmarkFeatureConfig(b *testing.B) {
 	for _, bm := range benchmarks {
 		bm := bm
 
-		numFeatures := len(bm.cfg.features[domain.NewFeatureConfigKey(bm.envID)])
-		numSegments := len(bm.cfg.segments[domain.NewSegmentKey(bm.envID)])
-		numTargets := len(bm.cfg.targets[domain.NewTargetKey(bm.envID)])
+		featureSlice := bm.cfg.features[domain.NewFeatureConfigsKey(bm.envID)].([]domain.FeatureConfig)
+		segmentsSlice := bm.cfg.segments[domain.NewSegmentsKey(bm.envID)].([]domain.Segment)
+		targetsSlice := bm.cfg.targets[domain.NewTargetsKey(bm.envID)].([]domain.Target)
+
+		numFeatures := len(featureSlice)
+		numSegments := len(segmentsSlice)
+		numTargets := len(targetsSlice)
 
 		name := fmt.Sprintf("env-%s, NumFeatures=%d, NumSegments=%d, NumTargets=%d", bm.envID, numFeatures, numSegments, numTargets)
 
@@ -242,9 +250,13 @@ func BenchmarkFeatureConfigByIdentifier(b *testing.B) {
 	for _, bm := range benchmarks {
 		bm := bm
 
-		numFeatures := len(bm.cfg.features[domain.NewFeatureConfigKey(bm.envID)])
-		numSegments := len(bm.cfg.segments[domain.NewSegmentKey(bm.envID)])
-		numTargets := len(bm.cfg.targets[domain.NewTargetKey(bm.envID)])
+		featureSlice := bm.cfg.features[domain.NewFeatureConfigsKey(bm.envID)].([]domain.FeatureConfig)
+		segmentsSlice := bm.cfg.segments[domain.NewSegmentsKey(bm.envID)].([]domain.Segment)
+		targetsSlice := bm.cfg.targets[domain.NewTargetsKey(bm.envID)].([]domain.Target)
+
+		numFeatures := len(featureSlice)
+		numSegments := len(segmentsSlice)
+		numTargets := len(targetsSlice)
 
 		name := fmt.Sprintf("env-%s, NumFeatures=%d, NumSegments=%d, NumTargets=%d", bm.envID, numFeatures, numSegments, numTargets)
 
@@ -276,9 +288,13 @@ func BenchmarkTargetSegments(b *testing.B) {
 	for _, bm := range benchmarks {
 		bm := bm
 
-		numFeatures := len(bm.cfg.features[domain.NewFeatureConfigKey(bm.envID)])
-		numSegments := len(bm.cfg.segments[domain.NewSegmentKey(bm.envID)])
-		numTargets := len(bm.cfg.targets[domain.NewTargetKey(bm.envID)])
+		featureSlice := bm.cfg.features[domain.NewFeatureConfigsKey(bm.envID)].([]domain.FeatureConfig)
+		segmentsSlice := bm.cfg.segments[domain.NewSegmentsKey(bm.envID)].([]domain.Segment)
+		targetsSlice := bm.cfg.targets[domain.NewTargetsKey(bm.envID)].([]domain.Target)
+
+		numFeatures := len(featureSlice)
+		numSegments := len(segmentsSlice)
+		numTargets := len(targetsSlice)
 
 		name := fmt.Sprintf("env-%s, NumFeatures=%d, NumSegments=%d, NumTargets=%d", bm.envID, numFeatures, numSegments, numTargets)
 
@@ -306,9 +322,13 @@ func BenchmarkTargetSegmentsByIdentifier(b *testing.B) {
 	for _, bm := range benchmarks {
 		bm := bm
 
-		numFeatures := len(bm.cfg.features[domain.NewFeatureConfigKey(bm.envID)])
-		numSegments := len(bm.cfg.segments[domain.NewSegmentKey(bm.envID)])
-		numTargets := len(bm.cfg.targets[domain.NewTargetKey(bm.envID)])
+		featureSlice := bm.cfg.features[domain.NewFeatureConfigsKey(bm.envID)].([]domain.FeatureConfig)
+		segmentsSlice := bm.cfg.segments[domain.NewSegmentsKey(bm.envID)].([]domain.Segment)
+		targetsSlice := bm.cfg.targets[domain.NewTargetsKey(bm.envID)].([]domain.Target)
+
+		numFeatures := len(featureSlice)
+		numSegments := len(segmentsSlice)
+		numTargets := len(targetsSlice)
 
 		name := fmt.Sprintf("env-%s, NumFeatures=%d, NumSegments=%d, NumTargets=%d", bm.envID, numFeatures, numSegments, numTargets)
 
@@ -340,9 +360,13 @@ func BenchmarkEvaluations(b *testing.B) {
 	for _, bm := range benchmarks {
 		bm := bm
 
-		numFeatures := len(bm.cfg.features[domain.NewFeatureConfigKey(bm.envID)])
-		numSegments := len(bm.cfg.segments[domain.NewSegmentKey(bm.envID)])
-		numTargets := len(bm.cfg.targets[domain.NewTargetKey(bm.envID)])
+		featureSlice := bm.cfg.features[domain.NewFeatureConfigsKey(bm.envID)].([]domain.FeatureConfig)
+		segmentsSlice := bm.cfg.segments[domain.NewSegmentsKey(bm.envID)].([]domain.Segment)
+		targetsSlice := bm.cfg.targets[domain.NewTargetsKey(bm.envID)].([]domain.Target)
+
+		numFeatures := len(featureSlice)
+		numSegments := len(segmentsSlice)
+		numTargets := len(targetsSlice)
 
 		name := fmt.Sprintf("env-%s, NumFeatures=%d, NumSegments=%d, NumTargets=%d", bm.envID, numFeatures, numSegments, numTargets)
 
@@ -374,9 +398,13 @@ func BenchmarkEvaluationsByFeature(b *testing.B) {
 	for _, bm := range benchmarks {
 		bm := bm
 
-		numFeatures := len(bm.cfg.features[domain.NewFeatureConfigKey(bm.envID)])
-		numSegments := len(bm.cfg.segments[domain.NewSegmentKey(bm.envID)])
-		numTargets := len(bm.cfg.targets[domain.NewTargetKey(bm.envID)])
+		featureSlice := bm.cfg.features[domain.NewFeatureConfigsKey(bm.envID)].([]domain.FeatureConfig)
+		segmentsSlice := bm.cfg.segments[domain.NewSegmentsKey(bm.envID)].([]domain.Segment)
+		targetsSlice := bm.cfg.targets[domain.NewTargetsKey(bm.envID)].([]domain.Target)
+
+		numFeatures := len(featureSlice)
+		numSegments := len(segmentsSlice)
+		numTargets := len(targetsSlice)
 
 		name := fmt.Sprintf("env-%s, NumFeatures=%d, NumSegments=%d, NumTargets=%d", bm.envID, numFeatures, numSegments, numTargets)
 

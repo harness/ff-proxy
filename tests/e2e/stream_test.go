@@ -89,6 +89,7 @@ func TestEvent(t *testing.T) {
 				harness.WithURL(GetStreamURL()),
 				harness.WithEventStreamListener(eventListener),
 				harness.WithHTTPClient(testhelpers.GetCertClient()),
+				harness.WithProxyMode(true),
 			)
 			if err != nil {
 				t.Error("Couldn't create sdk")
