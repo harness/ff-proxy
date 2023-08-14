@@ -56,6 +56,40 @@ var env123MetricsFlag1 = domain.MetricsRequest{
 	},
 }
 
+var env123MetricsFlag1NilTarget = domain.MetricsRequest{
+	EnvironmentID: "123",
+	Metrics: clientgen.Metrics{
+		TargetData: nil,
+		MetricsData: &[]clientgen.MetricsData{
+			{
+				Timestamp:   int64(1234),
+				Count:       1,
+				MetricsType: "FFMETRICS",
+				Attributes: []clientgen.KeyValue{
+					{Key: "featureIdentifier", Value: "flag1"},
+					{Key: "SDK_TYPE", Value: "server"},
+					{Key: "SDK_VERSION", Value: "1.0.2"},
+					{Key: "SDK_LANGUAGE", Value: "golang"},
+				},
+			},
+		},
+	},
+}
+
+var env123MetricsFlag1NilMetrics = domain.MetricsRequest{
+	EnvironmentID: "123",
+	Metrics: clientgen.Metrics{
+		TargetData: &[]clientgen.TargetData{
+			{
+				Identifier: "targetID",
+				Name:       "target name",
+				Attributes: []clientgen.KeyValue{{Key: "targetkey", Value: "targetvalue"}},
+			},
+		},
+		MetricsData: nil,
+	},
+}
+
 var env123MetricsFlag2 = domain.MetricsRequest{
 	EnvironmentID: "123",
 	Metrics: clientgen.Metrics{
@@ -142,6 +176,39 @@ func TestMetricService_StoreMetrics(t *testing.T) {
 			expectedCounts: 2,
 			expectedLabels: []string{
 				"123", "server", "1.0.2", "golang",
+				"123", "client", "1.11.0", "javascript",
+			},
+		},
+		"Given I save two sets of metrics for one environment we combine them and the first set has nil targets": {
+			metrics: []domain.MetricsRequest{env123MetricsFlag1NilTarget, env123MetricsFlag2},
+			enabled: true,
+			counter: &mockCounter{},
+			expected: map[string]domain.MetricsRequest{"123": {
+				EnvironmentID: "123",
+				Metrics: clientgen.Metrics{
+					TargetData:  &[]clientgen.TargetData{},
+					MetricsData: &[]clientgen.MetricsData{(*env123MetricsFlag1.MetricsData)[0], (*env123MetricsFlag2.MetricsData)[0]},
+				},
+			}},
+			expectedCounts: 2,
+			expectedLabels: []string{
+				"123", "server", "1.0.2", "golang",
+				"123", "client", "1.11.0", "javascript",
+			},
+		},
+		"Given I save two sets of metrics for one environment we combine them and the first set has nil metrics": {
+			metrics: []domain.MetricsRequest{env123MetricsFlag1NilMetrics, env123MetricsFlag2},
+			enabled: true,
+			counter: &mockCounter{},
+			expected: map[string]domain.MetricsRequest{"123": {
+				EnvironmentID: "123",
+				Metrics: clientgen.Metrics{
+					TargetData:  &[]clientgen.TargetData{(*env123MetricsFlag1.TargetData)[0]},
+					MetricsData: &[]clientgen.MetricsData{(*env123MetricsFlag2.MetricsData)[0]},
+				},
+			}},
+			expectedCounts: 1,
+			expectedLabels: []string{
 				"123", "client", "1.11.0", "javascript",
 			},
 		},

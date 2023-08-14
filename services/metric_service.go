@@ -87,23 +87,31 @@ func (m MetricService) StoreMetrics(ctx context.Context, req domain.MetricsReque
 		m.metricsLock.Unlock()
 	}()
 
-	// store metrics to send later
-	if _, ok := m.metrics[req.EnvironmentID]; ok {
-		currentMetrics := m.metrics[req.EnvironmentID]
-		if req.MetricsData != nil {
-			newMetrics := append(*currentMetrics.MetricsData, *req.MetricsData...)
-			currentMetrics.MetricsData = &newMetrics
-		}
-		if req.TargetData != nil {
-			newTargets := append(*currentMetrics.TargetData, *req.TargetData...)
-			currentMetrics.TargetData = &newTargets
-		}
-
-		m.metrics[req.EnvironmentID] = currentMetrics
-	} else {
+	// Store metrics to send later
+	currentMetrics, ok := m.metrics[req.EnvironmentID]
+	if !ok {
 		m.metrics[req.EnvironmentID] = req
+		return nil
 	}
 
+	if req.MetricsData != nil {
+		if currentMetrics.MetricsData == nil {
+			currentMetrics.MetricsData = &[]clientgen.MetricsData{}
+		}
+		newMetrics := append(*currentMetrics.MetricsData, *req.MetricsData...)
+		currentMetrics.MetricsData = &newMetrics
+	}
+
+	if req.TargetData != nil {
+		if currentMetrics.TargetData == nil {
+			currentMetrics.TargetData = &[]clientgen.TargetData{}
+		}
+
+		newTargets := append(*currentMetrics.TargetData, *req.TargetData...)
+		currentMetrics.TargetData = &newTargets
+	}
+
+	m.metrics[req.EnvironmentID] = currentMetrics
 	return nil
 }
 
