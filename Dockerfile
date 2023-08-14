@@ -17,22 +17,22 @@ RUN make build
 
 
 ############################
-# STEP 2 build pushpin 20.04 image - source https://github.com/fanout/docker-pushpin/blob/master/Dockerfile
+# STEP 2 build pushpin 22.04 image - source https://github.com/fanout/docker-pushpin/blob/master/Dockerfile
 # TODO - this will rarely change - publish as an image we can consume
 ############################
 # Pull the base image
-FROM ubuntu:20.04 as pushpin
+FROM ubuntu:22.04 as pushpin
 
 # Add private APT repository
 RUN \
   apt-get update && \
   apt-get install -y apt-transport-https software-properties-common && \
-  echo deb https://fanout.jfrog.io/artifactory/debian fanout-focal main \
+  echo deb https://fanout.jfrog.io/artifactory/debian fanout-jammy main \
     | tee /etc/apt/sources.list.d/fanout.list && \
   apt-key adv --keyserver hkp://keyserver.ubuntu.com:80 --recv-keys \
     7D0343148157C3DF
 
-ENV PUSHPIN_VERSION 1.35.0-1~focal1
+ENV PUSHPIN_VERSION 1.37.0-1~jammy
 
 # Install Pushpin
 RUN \
