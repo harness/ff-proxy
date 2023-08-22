@@ -122,7 +122,7 @@ func TestAdminService_PageTargets(t *testing.T) {
 	for desc, tc := range testCases {
 		tc := tc
 		t.Run(desc, func(t *testing.T) {
-			logger, _ := log.NewStructuredLogger(true)
+			logger, _ := log.NewStructuredLogger("DEBUG")
 			adminService, _ := NewAdminService(logger, "localhost:8000", "svc-token")
 			adminService.client = tc.mockService
 
@@ -232,7 +232,7 @@ func TestAdminService_GetAPIKeys(t *testing.T) {
 	for desc, tc := range testCases {
 		tc := tc
 		t.Run(desc, func(t *testing.T) {
-			logger, _ := log.NewStructuredLogger(true)
+			logger, _ := log.NewStructuredLogger("DEBUG")
 			adminService, _ := NewAdminService(logger, "localhost:8000", "svc-token")
 			adminService.client = tc.mockService
 

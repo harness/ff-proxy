@@ -76,7 +76,7 @@ func TestClientService_Authenticate(t *testing.T) {
 	for desc, tc := range testCases {
 		tc := tc
 		t.Run(desc, func(t *testing.T) {
-			logger, _ := log.NewStructuredLogger(true)
+			logger, _ := log.NewStructuredLogger("DEBUG")
 			clientService, _ := NewClientService(logger, "localhost:8000")
 			clientService.client = tc.mockService
 
