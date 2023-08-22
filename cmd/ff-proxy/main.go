@@ -69,7 +69,7 @@ func (i *keys) PrintMasked() string {
 }
 
 var (
-	debug                 bool
+	logLevel              string
 	bypassAuth            bool
 	offline               bool
 	accountIdentifier     string
@@ -104,7 +104,7 @@ var (
 
 const (
 	bypassAuthEnv            = "BYPASS_AUTH"
-	debugEnv                 = "DEBUG"
+	logLevelEnv              = "LOG_LEVEL"
 	offlineEnv               = "OFFLINE"
 	accountIdentifierEnv     = "ACCOUNT_IDENTIFIER"
 	orgIdentifierEnv         = "ORG_IDENTIFIER"
@@ -134,7 +134,7 @@ const (
 	gcpProfilerEnabledEnv    = "GCP_PROFILER_ENABLED"
 
 	bypassAuthFlag            = "bypass-auth"
-	debugFlag                 = "debug"
+	logLevelFlag              = "log-level"
 	offlineFlag               = "offline"
 	accountIdentifierFlag     = "account-identifier"
 	orgIdentifierFlag         = "org-identifier"
@@ -167,7 +167,7 @@ const (
 func init() {
 	flag.BoolVar(&bypassAuth, bypassAuthFlag, false, "bypasses authentication")
 	// TODO - FFM-1812 - we should update this to be loglevel
-	flag.BoolVar(&debug, debugFlag, false, "enables debug logging")
+	flag.StringVar(&logLevel, logLevelFlag, "INFO", "sets the logging level, valid options are INFO, DEBUG & ERROR")
 	flag.BoolVar(&offline, offlineFlag, false, "enables side loading of data from config dir")
 	flag.StringVar(&accountIdentifier, accountIdentifierFlag, "", "account identifier to load remote config for")
 	flag.StringVar(&orgIdentifier, orgIdentifierFlag, "", "org identifier to load remote config for")
@@ -200,7 +200,7 @@ func init() {
 
 	loadFlagsFromEnv(map[string]string{
 		bypassAuthEnv:            bypassAuthFlag,
-		debugEnv:                 debugFlag,
+		logLevelEnv:              logLevelFlag,
 		offlineEnv:               offlineFlag,
 		accountIdentifierEnv:     accountIdentifierFlag,
 		orgIdentifierEnv:         orgIdentifierFlag,
@@ -276,7 +276,7 @@ func initFF(ctx context.Context, cache gosdkCache.Cache, baseURL, eventURL, envI
 
 func main() {
 	// Setup logger
-	logger, err := log.NewStructuredLogger(debug)
+	logger, err := log.NewStructuredLogger(logLevel)
 	if err != nil {
 		fmt.Println("we have no logger")
 		os.Exit(1)
@@ -322,7 +322,7 @@ func main() {
 	promReg := prometheus.NewRegistry()
 	promReg.MustRegister(collectors.NewGoCollector())
 
-	logger.Info("service config", "pprof", pprofEnabled, "debug", debug, "bypass-auth", bypassAuth, "offline", offline, "port", port, "admin-service", adminService, "account-identifier", accountIdentifier, "org-identifier", orgIdentifier, "sdk-base-url", sdkBaseURL, "sdk-events-url", sdkEventsURL, "redis-addr", redisAddress, "redis-db", redisDB, "api-keys", apiKeys.PrintMasked(), "target-poll-duration", fmt.Sprintf("%ds", targetPollDuration), "heartbeat-interval", fmt.Sprintf("%ds", heartbeatInterval), "flag-stream-enabled", flagStreamEnabled, "flag-poll-interval", fmt.Sprintf("%dm", flagPollInterval), "config-dir", configDir, "tls-enabled", tlsEnabled, "tls-cert", tlsCert, "tls-key", tlsKey)
+	logger.Info("service config", "pprof", pprofEnabled, "log-level", logLevel, "bypass-auth", bypassAuth, "offline", offline, "port", port, "admin-service", adminService, "account-identifier", accountIdentifier, "org-identifier", orgIdentifier, "sdk-base-url", sdkBaseURL, "sdk-events-url", sdkEventsURL, "redis-addr", redisAddress, "redis-db", redisDB, "api-keys", apiKeys.PrintMasked(), "target-poll-duration", fmt.Sprintf("%ds", targetPollDuration), "heartbeat-interval", fmt.Sprintf("%ds", heartbeatInterval), "flag-stream-enabled", flagStreamEnabled, "flag-poll-interval", fmt.Sprintf("%dm", flagPollInterval), "config-dir", configDir, "tls-enabled", tlsEnabled, "tls-cert", tlsCert, "tls-key", tlsKey)
 
 	adminService, err := services.NewAdminService(logger, adminService, adminServiceToken)
 	if err != nil {
@@ -544,7 +544,7 @@ func main() {
 	server := transport.NewHTTPServer(port, endpoints, logger, tlsEnabled, tlsCert, tlsKey, promReg)
 	server.Use(
 		middleware.NewEchoRequestIDMiddleware(),
-		middleware.NewEchoLoggingMiddleware(),
+		middleware.NewEchoLoggingMiddleware(logger),
 		middleware.NewEchoAuthMiddleware([]byte(authSecret), bypassAuth),
 		middleware.NewPrometheusMiddleware(promReg),
 	)

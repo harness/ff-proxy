@@ -11,6 +11,7 @@ import (
 	"github.com/golang-jwt/jwt"
 	"github.com/google/uuid"
 	"github.com/harness/ff-proxy/domain"
+	"github.com/harness/ff-proxy/log"
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
 	"github.com/prometheus/client_golang/prometheus"
@@ -18,9 +19,17 @@ import (
 
 // NewEchoLoggingMiddleware returns a new echo middleware that logs requests and
 // their response
-func NewEchoLoggingMiddleware() echo.MiddlewareFunc {
-	return middleware.LoggerWithConfig(middleware.LoggerConfig{
-		Format: "{\"level\":\"info\",\"ts\":\"${time_rfc3339}\",\"method\":\"${method}\",\"path\":\"${path}\",\"status\":\"${status}\",\"took\":\"${latency_human}\",\"component\":\"LoggingMiddleware\",\"reqID\":\"${id}\"}\n",
+func NewEchoLoggingMiddleware(l log.Logger) echo.MiddlewareFunc {
+	return middleware.RequestLoggerWithConfig(middleware.RequestLoggerConfig{
+		LogValuesFunc: func(c echo.Context, v middleware.RequestLoggerValues) error {
+			l.Info("request", "component", "LoggingMiddleware", "method", v.Method, "path", v.RoutePath, "status", v.Status, "took", v.Latency.String(), "reqID", v.RequestID)
+			return nil
+		},
+		LogLatency:   true,
+		LogMethod:    true,
+		LogRoutePath: true,
+		LogRequestID: true,
+		LogStatus:    true,
 	})
 }
 
@@ -63,10 +72,6 @@ func NewEchoAuthMiddleware(secret []byte, bypassAuth bool) echo.MiddlewareFunc {
 	})
 }
 
-type contextKey string
-
-const requestIDKey contextKey = "requestID"
-
 // NewEchoRequestIDMiddleware returns an echo middleware that either uses a
 // provided requestID from the header or generates one and adds it to the request
 // context.
@@ -82,19 +87,13 @@ func NewEchoRequestIDMiddleware() echo.MiddlewareFunc {
 				reqID = requestUUID.String()
 			}
 
-			req = req.WithContext(context.WithValue(req.Context(), requestIDKey, reqID))
+			req = req.WithContext(context.WithValue(req.Context(), log.RequestIDKey, reqID))
 			c.SetRequest(req)
 
 			resp.Header().Set(echo.HeaderXRequestID, reqID)
 			return next(c)
 		}
 	}
-}
-
-// GetRequestID extracts the requestID value from the context if it exists.
-func GetRequestID(ctx context.Context) string {
-	requestID, _ := ctx.Value(requestIDKey).(string)
-	return requestID
 }
 
 type prometheusMiddleware struct {

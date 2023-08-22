@@ -3,7 +3,6 @@ package log
 import (
 	"context"
 
-	"github.com/harness/ff-proxy/middleware"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 )
@@ -141,7 +140,7 @@ type StructuredLogger struct {
 }
 
 // NewStructuredLogger creates a StructuredLogger
-func NewStructuredLogger(debug bool) (StructuredLogger, error) {
+func NewStructuredLogger(level string) (StructuredLogger, error) {
 	encoderConfig := zap.NewProductionEncoderConfig()
 	encoderConfig.EncodeTime = zapcore.RFC3339TimeEncoder
 
@@ -157,9 +156,14 @@ func NewStructuredLogger(debug bool) (StructuredLogger, error) {
 		ErrorOutputPaths:  []string{"stdout"},
 	}
 
-	if debug {
+	switch level {
+	case "DEBUG":
 		config.Level.SetLevel(zapcore.DebugLevel)
 		config.Development = true
+	case "ERROR":
+		config.Level.SetLevel(zapcore.ErrorLevel)
+	default:
+		config.Level.SetLevel(zapcore.InfoLevel)
 	}
 
 	l, err := config.Build(zap.AddCallerSkip(1))
@@ -221,11 +225,22 @@ func (s StructuredLogger) With(keyvals ...interface{}) Logger {
 // returns them as a slice of strings
 func ExtractRequestValuesFromContext(ctx context.Context) []interface{} {
 	values := []interface{}{}
-	reqID := middleware.GetRequestID(ctx)
+	reqID := getRequestID(ctx)
 	if reqID != "" {
 		values = append(values, "reqID")
 		values = append(values, reqID)
 	}
 
 	return values
+}
+
+type contextKey string
+
+// RequestIDKey is the key we associate with the requestID that we set in the request context
+const RequestIDKey contextKey = "requestID"
+
+// getRequestID extracts the requestID value from the context if it exists.
+func getRequestID(ctx context.Context) string {
+	requestID, _ := ctx.Value(RequestIDKey).(string)
+	return requestID
 }

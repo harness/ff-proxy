@@ -74,7 +74,7 @@ func (wrapper *Wrapper) getTime() time.Time {
 
 // Set sets a new value for a key
 func (wrapper *Wrapper) Set(key interface{}, value interface{}) (evicted bool) {
-	wrapper.logger = wrapper.logger.With("method", "Set", "key", key, "value", value)
+	wrapper.logger = wrapper.logger.With("method", "Set", "key", key)
 
 	// on first set delete old data
 	wrapper.m.Lock()
