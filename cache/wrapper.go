@@ -2,6 +2,7 @@ package cache
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"sync"
@@ -74,8 +75,6 @@ func (wrapper *Wrapper) getTime() time.Time {
 
 // Set sets a new value for a key
 func (wrapper *Wrapper) Set(key interface{}, value interface{}) (evicted bool) {
-	wrapper.logger = wrapper.logger.With("method", "Set", "key", key)
-
 	// on first set delete old data
 	wrapper.m.Lock()
 	if wrapper.firstSet {
@@ -184,8 +183,6 @@ func (wrapper *Wrapper) Set(key interface{}, value interface{}) (evicted bool) {
 
 // Get looks up a key's value from the cache.
 func (wrapper *Wrapper) Get(key interface{}) (value interface{}, ok bool) {
-	wrapper.logger = wrapper.logger.With("method", "Get", "key", key)
-
 	cacheKey, err := wrapper.decodeDTOKey(key)
 	if err != nil {
 		wrapper.logger.Error("failed to get key", "err", err)
@@ -194,7 +191,9 @@ func (wrapper *Wrapper) Get(key interface{}) (value interface{}, ok bool) {
 
 	value, err = wrapper.get(cacheKey)
 	if err != nil {
-		wrapper.logger.Error("failed to get field for cacheKey", "cacheKeyField", cacheKey.field, "cacheKeyKind", cacheKey.kind, "err", err)
+		if !errors.Is(err, domain.ErrCacheNotFound) {
+			wrapper.logger.Error("failed to get field for cacheKey", "cacheKeyField", cacheKey.field, "cacheKeyKind", cacheKey.kind, "err", err)
+		}
 		return nil, false
 	}
 
@@ -210,6 +209,7 @@ func (wrapper *Wrapper) Keys() []interface{} {
 	if segmentKeys != nil {
 		keys = append(keys, segmentKeys...)
 	}
+
 	featureKeys := wrapper.getFeatureKeys(dto.KeyFeatures)
 	if featureKeys != nil {
 		keys = append(keys, featureKeys...)
@@ -220,8 +220,6 @@ func (wrapper *Wrapper) Keys() []interface{} {
 
 // Remove removes the provided key from the cache.
 func (wrapper *Wrapper) Remove(key interface{}) (present bool) {
-	wrapper.logger = wrapper.logger.With("method", "Remove", "key", key)
-
 	cacheKey, err := wrapper.decodeDTOKey(key)
 	if err != nil {
 		wrapper.logger.Error("failed to remove key", "err", err)
@@ -271,6 +269,8 @@ func (wrapper *Wrapper) Purge() {
 	// delete all flags and segments
 	wrapper.deleteByType(dto.KeySegments)
 	wrapper.deleteByType(dto.KeyFeatures)
+	wrapper.deleteByType(dto.KeyFeature)
+	wrapper.deleteByType(dto.KeySegment)
 
 	wrapper.lastUpdate = wrapper.getTime()
 }
@@ -304,7 +304,6 @@ func (wrapper *Wrapper) decodeDTOKey(key interface{}) (cacheKey, error) {
 	}, nil
 }
 
-// generateKeyName generates the key name from the type and cache environment
 func (wrapper *Wrapper) generateKeyName(keyType string, keyName string) (string, error) {
 	switch keyType {
 	case dto.KeyFeatures:
@@ -321,7 +320,7 @@ func (wrapper *Wrapper) generateKeyName(keyType string, keyName string) (string,
 }
 
 func (wrapper *Wrapper) getFeatureKeys(keyType string) []interface{} {
-	wrapper.logger = wrapper.logger.With("method", "getFeatureKeys", "keyType", keyType)
+	ctx := context.Background()
 
 	keyName, err := wrapper.generateKeyName(keyType, "")
 	if err != nil {
@@ -330,26 +329,56 @@ func (wrapper *Wrapper) getFeatureKeys(keyType string) []interface{} {
 	}
 
 	results := make([]rest.FeatureConfig, 0)
-	err = wrapper.cache.Get(context.Background(), keyName, &results)
-	if err != nil {
+	if err := wrapper.cache.Get(ctx, keyName, &results); err != nil && !errors.Is(err, domain.ErrCacheNotFound) {
+		// Warn but we need to continue in case there are any keys for a single feature
 		wrapper.logger.Warn("failed to GetAll values for keyName", "keyName", keyName, "err", err)
-		return nil
 	}
 
-	// convert result objects to their dto.Key
 	keys := make([]interface{}, 0, len(results))
-	for _, f := range results {
+
+	// If results isn't empty then that means we found a key for a list of features
+	// in the cache and we should add it to the keys array
+	if len(results) > 0 {
 		keys = append(keys, dto.Key{
 			Type: keyType,
-			Name: f.Feature,
+			Name: keyName,
 		})
+	}
+
+	// We now need to check for any keys for a single feature and add any to the array. We don't know
+	// the name of the feature(s) we're looking for so the only way to do this is with a wildcard search
+	// for any keys matching a prefix
+	fk, err := wrapper.searchForKeys(ctx, dto.KeyFeature, fmt.Sprintf("env-%s-feature-config-", wrapper.environment))
+	if err != nil {
+		return keys
+	}
+
+	for _, k := range fk {
+		keys = append(keys, k)
 	}
 
 	return keys
 }
 
+func (wrapper *Wrapper) searchForKeys(ctx context.Context, keyType string, prefix string) ([]dto.Key, error) {
+	keys, err := wrapper.cache.Keys(ctx, prefix)
+	if err != nil {
+		return nil, err
+	}
+
+	results := make([]dto.Key, 0, len(keys))
+	for _, k := range keys {
+		results = append(results, dto.Key{
+			Type: keyType,
+			Name: k,
+		})
+	}
+
+	return results, nil
+}
+
 func (wrapper *Wrapper) getSegmentKeys(keyType string) []interface{} {
-	wrapper.logger = wrapper.logger.With("method", "getFeatureKeys", "keyType", keyType)
+	ctx := context.Background()
 
 	keyName, err := wrapper.generateKeyName(keyType, "")
 	if err != nil {
@@ -358,39 +387,69 @@ func (wrapper *Wrapper) getSegmentKeys(keyType string) []interface{} {
 	}
 
 	results := make([]rest.Segment, 0)
-	err = wrapper.cache.Get(context.Background(), keyName, &results)
-	if err != nil {
+	if err := wrapper.cache.Get(ctx, keyName, &results); err != nil && !errors.Is(err, domain.ErrCacheNotFound) {
 		wrapper.logger.Warn("failed to GetAll values for keyName", "keyName", keyName, "err", err)
 		return nil
 	}
 
 	keys := make([]interface{}, 0, len(results))
-	for _, s := range results {
+
+	// If results isn't empty then that means we found a key for a list of segments
+	// in the cache and we should add it to the keys array
+	if len(results) > 0 {
 		keys = append(keys, dto.Key{
 			Type: keyType,
-			Name: s.Identifier,
+			Name: keyName,
 		})
+	}
+
+	// We now need to check for any keys for a single segment and add any to the array. We don't know
+	// the name of the segment(s) we're looking for so the only way to do this is with a wildcard search
+	// for any keys matching a prefix
+	fk, err := wrapper.searchForKeys(ctx, dto.KeySegment, fmt.Sprintf("env-%s-segment-", wrapper.environment))
+	if err != nil {
+		return keys
+	}
+
+	for _, k := range fk {
+		keys = append(keys, k)
 	}
 
 	return keys
 }
 
 func (wrapper *Wrapper) deleteByType(keyType string) {
-	wrapper.logger = wrapper.logger.With("method", "deleteByType", "keyType", keyType)
+	if keyType == dto.KeyFeatures || keyType == dto.KeySegments {
+		keyName, err := wrapper.generateKeyName(keyType, "")
+		if err != nil {
+			wrapper.logger.Warn("skipping purge of key type", "err", err)
+			return
+		}
 
-	keyName, err := wrapper.generateKeyName(keyType, "")
-	if err != nil {
-		wrapper.logger.Warn("skipping purge of key type", "err", err)
-		return
+		wrapper.cache.Delete(context.Background(), keyName)
 	}
 
-	wrapper.cache.Delete(context.Background(), keyName)
+	keys := []dto.Key{}
+	switch keyType {
+	case dto.KeyFeature:
+		keys, _ = wrapper.searchForKeys(context.Background(), dto.KeyFeature, fmt.Sprintf("env-%s-feature-config-", wrapper.environment))
+	case dto.KeySegment:
+		keys, _ = wrapper.searchForKeys(context.Background(), dto.KeySegment, fmt.Sprintf("env-%s-segment-", wrapper.environment))
+	}
+
+	for _, key := range keys {
+		wrapper.cache.Delete(context.Background(), key.Name)
+	}
 }
 
 func (wrapper *Wrapper) get(key cacheKey) (interface{}, error) {
 	switch key.kind {
+	case dto.KeyFeature:
+		return wrapper.getFeatureConfig(key)
 	case dto.KeyFeatures:
 		return wrapper.getFeatureConfigs(key)
+	case dto.KeySegment:
+		return wrapper.getSegment(key)
 	case dto.KeySegments:
 		return wrapper.getSegments(key)
 	}
@@ -409,6 +468,17 @@ func (wrapper *Wrapper) getFeatureConfigs(key cacheKey) (interface{}, error) {
 	return featureConfig, nil
 }
 
+func (wrapper *Wrapper) getFeatureConfig(key cacheKey) (interface{}, error) {
+	// get FeatureFlag in rest.FeatureConfig format
+	var ff domain.FeatureFlag
+	err := wrapper.cache.Get(context.Background(), key.name, &ff)
+	if err != nil {
+		return nil, err
+	}
+
+	return rest.FeatureConfig(ff), nil
+}
+
 func (wrapper *Wrapper) getSegments(key cacheKey) (interface{}, error) {
 	var segment []rest.Segment
 	// get Segment in domain.Segment format
@@ -418,6 +488,17 @@ func (wrapper *Wrapper) getSegments(key cacheKey) (interface{}, error) {
 	}
 
 	return segment, nil
+}
+
+func (wrapper *Wrapper) getSegment(key cacheKey) (interface{}, error) {
+	var segment domain.Segment
+	// get Segment in domain.Segment format
+	err := wrapper.cache.Get(context.Background(), key.name, &segment)
+	if err != nil {
+		return nil, err
+	}
+
+	return rest.Segment(segment), nil
 }
 
 func convertToDTOKey(key interface{}) (dto.Key, error) {
