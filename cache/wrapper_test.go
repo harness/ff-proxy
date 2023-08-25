@@ -34,7 +34,7 @@ var (
 
 	segmentFooKey = dto.Key{
 		Type: dto.KeySegments,
-		Name: evaluationSegmentFoo.Identifier,
+		Name: "env-env-segments",
 	}
 
 	evaluationFeatureBar = rest.FeatureConfig{
@@ -75,7 +75,7 @@ var (
 
 	featureBarKey = dto.Key{
 		Type: dto.KeyFeatures,
-		Name: evaluationFeatureBar.Feature,
+		Name: "env-env-feature-configs",
 	}
 )
 
@@ -121,7 +121,40 @@ func TestSet(t *testing.T) {
 		expectedLen  int
 		expectedKeys []interface{}
 	}{
-		"segments": {
+
+		"a single feature key": {
+			values: []value{
+				{
+					key: dto.Key{
+						Type: dto.KeyFeature,
+						Name: evaluationFeatureBar.Feature,
+					},
+					value: evaluationFeatureBar,
+				},
+			},
+			expectedLen: 1,
+			expectedKeys: []interface{}{dto.Key{
+				Type: dto.KeyFeature,
+				Name: fmt.Sprintf("env-env-feature-config-%s", evaluationFeatureBar.Feature),
+			}},
+		},
+		"a single segment key": {
+			values: []value{
+				{
+					key: dto.Key{
+						Type: dto.KeySegment,
+						Name: evaluationSegmentFoo.Identifier,
+					},
+					value: evaluationSegmentFoo,
+				},
+			},
+			expectedLen: 1,
+			expectedKeys: []interface{}{dto.Key{
+				Type: dto.KeySegment,
+				Name: fmt.Sprintf("env-env-segment-%s", evaluationSegmentFoo.Identifier),
+			}},
+		},
+		"a segments key": {
 			values: []value{
 				{
 					key:   segmentFooKey,
@@ -131,7 +164,7 @@ func TestSet(t *testing.T) {
 			expectedLen:  1,
 			expectedKeys: []interface{}{segmentFooKey},
 		},
-		"features": {
+		"a features key": {
 			values: []value{
 				{
 					key:   featureBarKey,
@@ -141,7 +174,8 @@ func TestSet(t *testing.T) {
 			expectedLen:  1,
 			expectedKeys: []interface{}{featureBarKey},
 		},
-		"features and segments": {
+
+		"single segment, single feature and features and segments keys": {
 			values: []value{
 				{
 					key:   segmentFooKey,
@@ -151,9 +185,28 @@ func TestSet(t *testing.T) {
 					key:   featureBarKey,
 					value: []rest.FeatureConfig{evaluationFeatureBar},
 				},
+				{
+					key: dto.Key{
+						Type: dto.KeyFeature,
+						Name: evaluationFeatureBar.Feature,
+					},
+					value: evaluationFeatureBar,
+				},
+				{
+					key: dto.Key{
+						Type: dto.KeySegment,
+						Name: evaluationSegmentFoo.Identifier,
+					},
+					value: evaluationSegmentFoo,
+				},
 			},
-			expectedLen:  2,
-			expectedKeys: []interface{}{segmentFooKey, featureBarKey},
+			expectedLen: 4,
+			expectedKeys: []interface{}{
+				segmentFooKey,
+				dto.Key{Type: dto.KeySegment, Name: fmt.Sprintf("env-env-segment-%s", evaluationSegmentFoo.Identifier)},
+				featureBarKey,
+				dto.Key{Type: dto.KeyFeature, Name: fmt.Sprintf("env-env-feature-config-%s", evaluationFeatureBar.Feature)},
+			},
 		},
 	}
 

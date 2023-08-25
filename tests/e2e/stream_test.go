@@ -3,6 +3,7 @@ package e2e
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"testing"
@@ -131,6 +132,10 @@ type EventListener struct {
 // Pub makes EventListener implement the golang sdks stream.EventStreamListener
 // interface.
 func (e EventListener) Pub(ctx context.Context, event stream.Event) error {
+	if event.SSEEvent == nil {
+		return errors.New("received nil SSE event")
+	}
+
 	// read event message
 	msg := stream.Message{}
 	err := json.Unmarshal(event.SSEEvent.Data, &msg)
