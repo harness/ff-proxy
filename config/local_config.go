@@ -5,9 +5,9 @@ import (
 	"io/fs"
 	"strings"
 
-	ffproxy "github.com/harness/ff-proxy"
-	"github.com/harness/ff-proxy/domain"
-	"github.com/harness/ff-proxy/hash"
+	ffproxy "github.com/harness/ff-proxy/v2"
+	"github.com/harness/ff-proxy/v2/domain"
+	"github.com/harness/ff-proxy/v2/hash"
 )
 
 type config struct {

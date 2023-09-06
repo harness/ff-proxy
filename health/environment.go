@@ -5,7 +5,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/harness/ff-proxy/domain"
+	"github.com/harness/ff-proxy/v2/domain"
 )
 
 type streamStatuser interface {

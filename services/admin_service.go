@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"net/http"
 
-	admingen "github.com/harness/ff-proxy/gen/admin"
-	"github.com/harness/ff-proxy/log"
+	admingen "github.com/harness/ff-proxy/v2/gen/admin"
+	"github.com/harness/ff-proxy/v2/log"
 )
 
 // doer is a simple http client that gets passed to the generated admin client

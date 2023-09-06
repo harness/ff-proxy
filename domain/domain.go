@@ -7,7 +7,7 @@ import (
 	jsoniter "github.com/json-iterator/go"
 
 	"github.com/golang-jwt/jwt/v4"
-	admingen "github.com/harness/ff-proxy/gen/admin"
+	admingen "github.com/harness/ff-proxy/v2/gen/admin"
 )
 
 // StreamState is the connection state for a stream

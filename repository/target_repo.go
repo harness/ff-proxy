@@ -6,9 +6,9 @@ import (
 	"fmt"
 	"log"
 
-	"github.com/harness/ff-proxy/cache"
+	"github.com/harness/ff-proxy/v2/cache"
 
-	"github.com/harness/ff-proxy/domain"
+	"github.com/harness/ff-proxy/v2/domain"
 )
 
 // TargetOption defines functional option for a TargetRepo

@@ -7,7 +7,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/harness/ff-proxy/log"
+	"github.com/harness/ff-proxy/v2/log"
 	"github.com/hashicorp/go-multierror"
 )
 

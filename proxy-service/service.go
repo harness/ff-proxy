@@ -10,14 +10,14 @@ import (
 	"github.com/harness/ff-golang-server-sdk/evaluation"
 	"github.com/harness/ff-golang-server-sdk/logger"
 	"github.com/harness/ff-golang-server-sdk/rest"
-	admingen "github.com/harness/ff-proxy/gen/admin"
+	admingen "github.com/harness/ff-proxy/v2/gen/admin"
 	jsoniter "github.com/json-iterator/go"
 
-	"github.com/harness/ff-proxy/domain"
-	clientgen "github.com/harness/ff-proxy/gen/client"
-	"github.com/harness/ff-proxy/hash"
-	"github.com/harness/ff-proxy/log"
-	"github.com/harness/ff-proxy/repository"
+	"github.com/harness/ff-proxy/v2/domain"
+	clientgen "github.com/harness/ff-proxy/v2/gen/client"
+	"github.com/harness/ff-proxy/v2/hash"
+	"github.com/harness/ff-proxy/v2/log"
+	"github.com/harness/ff-proxy/v2/repository"
 )
 
 // ProxyService is the interface for the ProxyService

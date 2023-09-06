@@ -7,7 +7,7 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/harness/ff-proxy/domain"
+	"github.com/harness/ff-proxy/v2/domain"
 	jsoniter "github.com/json-iterator/go"
 )
 

@@ -7,9 +7,9 @@ import (
 	"strings"
 
 	"github.com/golang-jwt/jwt/v4"
-	"github.com/harness/ff-proxy/domain"
-	"github.com/harness/ff-proxy/log"
-	"github.com/harness/ff-proxy/services"
+	"github.com/harness/ff-proxy/v2/domain"
+	"github.com/harness/ff-proxy/v2/log"
+	"github.com/harness/ff-proxy/v2/services"
 )
 
 type adminService interface {

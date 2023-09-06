@@ -5,8 +5,8 @@ import (
 	"testing"
 
 	"github.com/harness/ff-golang-server-sdk/rest"
-	"github.com/harness/ff-proxy/domain"
-	admingen "github.com/harness/ff-proxy/gen/admin"
+	"github.com/harness/ff-proxy/v2/domain"
+	admingen "github.com/harness/ff-proxy/v2/gen/admin"
 	"github.com/stretchr/testify/assert"
 )
 

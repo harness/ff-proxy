@@ -4,8 +4,8 @@ import (
 	"context"
 
 	"github.com/go-kit/kit/endpoint"
-	"github.com/harness/ff-proxy/domain"
-	proxyservice "github.com/harness/ff-proxy/proxy-service"
+	"github.com/harness/ff-proxy/v2/domain"
+	proxyservice "github.com/harness/ff-proxy/v2/proxy-service"
 )
 
 // Endpoints collects all of the endpoints that make up a ProxyService

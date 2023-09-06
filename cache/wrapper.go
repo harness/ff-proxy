@@ -12,8 +12,8 @@ import (
 
 	"github.com/harness/ff-golang-server-sdk/dto"
 	"github.com/harness/ff-golang-server-sdk/logger"
-	"github.com/harness/ff-proxy/domain"
-	"github.com/harness/ff-proxy/log"
+	"github.com/harness/ff-proxy/v2/domain"
+	"github.com/harness/ff-proxy/v2/log"
 )
 
 // Cache is the interface for a key value cache

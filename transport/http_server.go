@@ -6,7 +6,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/harness/ff-proxy/log"
+	"github.com/harness/ff-proxy/v2/log"
 	"github.com/labstack/echo/v4"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"

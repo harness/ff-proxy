@@ -4,14 +4,14 @@ import (
 	"testing"
 	"time"
 
-	"github.com/harness/ff-proxy/hash"
+	"github.com/harness/ff-proxy/v2/hash"
 
-	"github.com/harness/ff-proxy/cache"
-	"github.com/harness/ff-proxy/log"
+	"github.com/harness/ff-proxy/v2/cache"
+	"github.com/harness/ff-proxy/v2/log"
 
 	"github.com/golang-jwt/jwt/v4"
-	"github.com/harness/ff-proxy/domain"
-	"github.com/harness/ff-proxy/repository"
+	"github.com/harness/ff-proxy/v2/domain"
+	"github.com/harness/ff-proxy/v2/repository"
 	"github.com/stretchr/testify/assert"
 )
 

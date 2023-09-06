@@ -8,10 +8,10 @@ import (
 	"github.com/fanout/go-gripcontrol"
 	"github.com/fanout/go-pubcontrol"
 	"github.com/harness/ff-golang-server-sdk/stream"
-	"github.com/harness/ff-proxy/token"
+	"github.com/harness/ff-proxy/v2/token"
 	"github.com/prometheus/client_golang/prometheus"
 
-	"github.com/harness/ff-proxy/log"
+	"github.com/harness/ff-proxy/v2/log"
 )
 
 // GripStream is the interface for publishing events to a grip channel

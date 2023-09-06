@@ -7,7 +7,7 @@ import (
 
 	"github.com/go-redis/cache/v8"
 	"github.com/go-redis/redis/v8"
-	"github.com/harness/ff-proxy/domain"
+	"github.com/harness/ff-proxy/v2/domain"
 	jsoniter "github.com/json-iterator/go"
 )
 

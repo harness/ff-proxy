@@ -8,7 +8,7 @@ import (
 	"github.com/harness/ff-golang-server-sdk/rest"
 
 	"github.com/harness/ff-golang-server-sdk/dto"
-	"github.com/harness/ff-proxy/log"
+	"github.com/harness/ff-proxy/v2/log"
 	"github.com/stretchr/testify/assert"
 )
 

@@ -3,9 +3,9 @@ package repository
 import (
 	"context"
 
-	"github.com/harness/ff-proxy/cache"
+	"github.com/harness/ff-proxy/v2/cache"
 
-	"github.com/harness/ff-proxy/domain"
+	"github.com/harness/ff-proxy/v2/domain"
 )
 
 // SegmentOption defines functional option for a SegmentRepo

@@ -9,9 +9,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/harness/ff-proxy/domain"
-	"github.com/harness/ff-proxy/log"
-	"github.com/harness/ff-proxy/repository"
+	"github.com/harness/ff-proxy/v2/domain"
+	"github.com/harness/ff-proxy/v2/log"
+	"github.com/harness/ff-proxy/v2/repository"
 )
 
 var readmeTemplate = `

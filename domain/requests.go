@@ -1,7 +1,7 @@
 package domain
 
 import (
-	clientgen "github.com/harness/ff-proxy/gen/client"
+	clientgen "github.com/harness/ff-proxy/v2/gen/client"
 )
 
 // AuthRequest contains the fields sent in an authentication request

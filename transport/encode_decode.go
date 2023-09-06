@@ -7,8 +7,8 @@ import (
 	"io"
 	"net/http"
 
-	"github.com/harness/ff-proxy/domain"
-	proxyservice "github.com/harness/ff-proxy/proxy-service"
+	"github.com/harness/ff-proxy/v2/domain"
+	proxyservice "github.com/harness/ff-proxy/v2/proxy-service"
 	jsoniter "github.com/json-iterator/go"
 	"github.com/labstack/echo/v4"
 )

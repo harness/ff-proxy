@@ -5,10 +5,10 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/harness/ff-proxy/log"
+	"github.com/harness/ff-proxy/v2/log"
 
-	"github.com/harness/ff-proxy/domain"
-	clientgen "github.com/harness/ff-proxy/gen/client"
+	"github.com/harness/ff-proxy/v2/domain"
+	clientgen "github.com/harness/ff-proxy/v2/gen/client"
 	"github.com/stretchr/testify/assert"
 )
 

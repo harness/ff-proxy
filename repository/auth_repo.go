@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/harness/ff-proxy/cache"
-	"github.com/harness/ff-proxy/domain"
+	"github.com/harness/ff-proxy/v2/cache"
+	"github.com/harness/ff-proxy/v2/domain"
 )
 
 // AuthRepo is a repository that stores a map of api key hashes to environmentIDs

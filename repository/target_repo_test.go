@@ -5,9 +5,9 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/harness/ff-proxy/cache"
-	"github.com/harness/ff-proxy/domain"
-	admingen "github.com/harness/ff-proxy/gen/admin"
+	"github.com/harness/ff-proxy/v2/cache"
+	"github.com/harness/ff-proxy/v2/domain"
+	admingen "github.com/harness/ff-proxy/v2/gen/admin"
 	"github.com/stretchr/testify/assert"
 )
 

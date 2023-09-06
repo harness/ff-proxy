@@ -5,10 +5,10 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/harness/ff-proxy/gen/admin"
+	"github.com/harness/ff-proxy/v2/gen/admin"
 
-	"github.com/harness/ff-proxy/domain"
-	"github.com/harness/ff-proxy/services"
+	"github.com/harness/ff-proxy/v2/domain"
+	"github.com/harness/ff-proxy/v2/services"
 
 	"github.com/stretchr/testify/assert"
 )

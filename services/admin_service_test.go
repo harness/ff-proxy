@@ -5,8 +5,8 @@ import (
 	"net/http"
 	"testing"
 
-	admingen "github.com/harness/ff-proxy/gen/admin"
-	"github.com/harness/ff-proxy/log"
+	admingen "github.com/harness/ff-proxy/v2/gen/admin"
+	"github.com/harness/ff-proxy/v2/log"
 
 	"github.com/stretchr/testify/assert"
 )
