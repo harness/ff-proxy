@@ -229,6 +229,14 @@ github.com/harness/ff-golang-server-sdk v0.1.9-0.20230710142157-da4e63abed92 h1:
 github.com/harness/ff-golang-server-sdk v0.1.9-0.20230710142157-da4e63abed92/go.mod h1:zTiSaSQc5nD5Ofug37KJxijyFHX/xG1JodqMFxNqYI0=
 github.com/harness/ff-golang-server-sdk v0.1.10 h1:MAextRMcZOdA7HOMGGOJNF2gdXB+2s0tT2vA/6NU4v4=
 github.com/harness/ff-golang-server-sdk v0.1.10/go.mod h1:zTiSaSQc5nD5Ofug37KJxijyFHX/xG1JodqMFxNqYI0=
+github.com/harness/ff-golang-server-sdk v0.1.11-0.20230912122014-9e744f623a34 h1:bKxS1NnLqBSzO6fT8SrxjMGM5ubHq0dNOj9TDfBKMkw=
+github.com/harness/ff-golang-server-sdk v0.1.11-0.20230912122014-9e744f623a34/go.mod h1:zTiSaSQc5nD5Ofug37KJxijyFHX/xG1JodqMFxNqYI0=
+github.com/harness/ff-golang-server-sdk v0.1.11-0.20230912140050-d73c1a9a004d h1:lhhckk0J5Se0SBbp4Go6vq3oaOwEyANw3JFnJWlQD7g=
+github.com/harness/ff-golang-server-sdk v0.1.11-0.20230912140050-d73c1a9a004d/go.mod h1:zTiSaSQc5nD5Ofug37KJxijyFHX/xG1JodqMFxNqYI0=
+github.com/harness/ff-golang-server-sdk v0.1.11-0.20230912150410-9edde8953b68 h1:wF+0s/NTTFqMuUr56oKhvwrY4l1cq11p4TLqOnxVEac=
+github.com/harness/ff-golang-server-sdk v0.1.11-0.20230912150410-9edde8953b68/go.mod h1:zTiSaSQc5nD5Ofug37KJxijyFHX/xG1JodqMFxNqYI0=
+github.com/harness/ff-golang-server-sdk v0.1.11-0.20230913084026-25c087ad4aa3 h1:bmBLoKzK7GrOmJHHu3bzDsvvgoiJU0av1MuwjJnUjTI=
+github.com/harness/ff-golang-server-sdk v0.1.11-0.20230913084026-25c087ad4aa3/go.mod h1:zTiSaSQc5nD5Ofug37KJxijyFHX/xG1JodqMFxNqYI0=
 github.com/hashicorp/errwrap v1.0.0 h1:hLrqtEDnRye3+sgx6z4qVLNuviH3MR5aQ0ykNJa/UYA=
 github.com/hashicorp/errwrap v1.0.0/go.mod h1:YH+1FKiLXxHSkmPseP+kNlulaMuP3n2brvKWEqk/Jc4=
 github.com/hashicorp/go-cleanhttp v0.5.1/go.mod h1:JpRdi6/HCYpAwUzNwuwqhbovhLtngrth3wmdIIUrZ80=

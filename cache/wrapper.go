@@ -459,13 +459,18 @@ func (wrapper *Wrapper) get(key cacheKey) (interface{}, error) {
 
 func (wrapper *Wrapper) getFeatureConfigs(key cacheKey) (interface{}, error) {
 	// get FeatureFlag in rest.FeatureConfig format
-	var featureConfig []rest.FeatureConfig
+	featureConfig := []domain.FeatureFlag{}
 	err := wrapper.cache.Get(context.Background(), key.name, &featureConfig)
 	if err != nil {
 		return nil, err
 	}
 
-	return featureConfig, nil
+	result := make([]rest.FeatureConfig, 0, len(featureConfig))
+	for _, fc := range featureConfig {
+		result = append(result, rest.FeatureConfig(fc))
+	}
+
+	return result, nil
 }
 
 func (wrapper *Wrapper) getFeatureConfig(key cacheKey) (interface{}, error) {
