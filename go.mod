@@ -15,7 +15,7 @@ require (
 	github.com/golang-jwt/jwt v3.2.2+incompatible
 	github.com/golang-jwt/jwt/v4 v4.4.3
 	github.com/google/uuid v1.3.0
-	github.com/harness/ff-golang-server-sdk v0.1.10
+	github.com/harness/ff-golang-server-sdk v0.1.11-0.20230913084026-25c087ad4aa3
 	github.com/hashicorp/go-multierror v1.1.1
 	github.com/hashicorp/go-retryablehttp v0.6.8
 	github.com/joho/godotenv v1.4.0
@@ -93,3 +93,5 @@ require (
 	gopkg.in/cenkalti/backoff.v1 v1.1.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
+
+replace github.com/harness/ff-golang-server-sdk v0.1.11-0.20230912140050-d73c1a9a004d => ../ff-golang-server-sdk
