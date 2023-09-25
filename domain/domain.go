@@ -4,10 +4,10 @@ import (
 	"fmt"
 
 	"github.com/harness/ff-golang-server-sdk/rest"
+	clientgen "github.com/harness/ff-proxy/v2/gen/client"
 	jsoniter "github.com/json-iterator/go"
 
 	"github.com/golang-jwt/jwt/v4"
-	admingen "github.com/harness/ff-proxy/v2/gen/admin"
 )
 
 // StreamState is the connection state for a stream
@@ -71,7 +71,7 @@ func NewTargetKey(envID string, identifier string) TargetKey {
 
 // Target is a admingen.Target that we can declare methods on
 type Target struct {
-	admingen.Target
+	clientgen.Target
 }
 
 // MarshalBinary marshals a Target to bytes. Currently it uses json marshaling
