@@ -16,6 +16,19 @@ const (
 	tokenKey = "token"
 )
 
+// doer is a simple http client that gets passed to the generated admin client
+// and injects the service token into the header before any requests are made
+type doer struct {
+	c     *http.Client
+	token string
+}
+
+// Do injects the api-key header into the request
+func (d doer) Do(r *http.Request) (*http.Response, error) {
+	r.Header.Add("x-api-key", d.token)
+	return d.c.Do(r)
+}
+
 type counter interface {
 	prometheus.Collector
 	WithLabelValues(lvs ...string) prometheus.Counter
@@ -24,7 +37,6 @@ type counter interface {
 // MetricService is a type for interacting with the Feature Flag Metric Service
 type MetricService struct {
 	log         log.Logger
-	accountID   string
 	enabled     bool
 	client      clientgen.ClientWithResponsesInterface
 	metrics     map[string]domain.MetricsRequest
@@ -36,7 +48,7 @@ type MetricService struct {
 }
 
 // NewMetricService creates a MetricService
-func NewMetricService(l log.Logger, addr string, accountID string, tokens map[string]string, enabled bool, reg *prometheus.Registry) (MetricService, error) {
+func NewMetricService(l log.Logger, addr string, enabled bool, reg *prometheus.Registry) (MetricService, error) {
 	l = l.With("component", "MetricServiceClient")
 	client, err := clientgen.NewClientWithResponses(
 		addr,
@@ -48,11 +60,9 @@ func NewMetricService(l log.Logger, addr string, accountID string, tokens map[st
 
 	m := MetricService{
 		log:         l,
-		accountID:   accountID,
 		client:      client,
 		enabled:     enabled,
 		metrics:     map[string]domain.MetricsRequest{},
-		tokens:      tokens,
 		metricsLock: &sync.Mutex{},
 
 		sdkUsage: prometheus.NewCounterVec(

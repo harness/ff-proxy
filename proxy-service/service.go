@@ -105,14 +105,12 @@ type Config struct {
 	SegmentRepo      repository.SegmentRepo
 	AuthRepo         repository.AuthRepo
 	CacheHealthFn    CacheHealthFn
-	EnvHealthFn      EnvHealthFn
 	AuthFn           authTokenFn
 	ClientService    clientService
 	MetricService    metricService
 	Offline          bool
 	Hasher           hash.Hasher
 	StreamingEnabled bool
-	SDKClients       SDKClients
 }
 
 // Service is the proxy service implementation
@@ -123,7 +121,6 @@ type Service struct {
 	segmentRepo      repository.SegmentRepo
 	authRepo         repository.AuthRepo
 	cacheHealthFn    CacheHealthFn
-	envHealthFn      EnvHealthFn
 	authFn           authTokenFn
 	clientService    clientService
 	metricService    metricService
@@ -143,14 +140,12 @@ func NewService(c Config) Service {
 		segmentRepo:      c.SegmentRepo,
 		authRepo:         c.AuthRepo,
 		cacheHealthFn:    c.CacheHealthFn,
-		envHealthFn:      c.EnvHealthFn,
 		authFn:           c.AuthFn,
 		clientService:    c.ClientService,
 		metricService:    c.MetricService,
 		offline:          c.Offline,
 		hasher:           c.Hasher,
 		streamingEnabled: c.StreamingEnabled,
-		sdkClients:       c.SDKClients,
 	}
 }
 
@@ -410,8 +405,7 @@ func (s Service) Health(ctx context.Context) (domain.HealthResponse, error) {
 	}
 
 	systemHealth := domain.HealthResponse{
-		CacheStatus:  boolToHealthString(false, err == nil),
-		Environments: s.envHealthFn(),
+		CacheStatus: boolToHealthString(false, err == nil),
 	}
 
 	return systemHealth, nil
