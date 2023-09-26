@@ -485,14 +485,19 @@ func (wrapper *Wrapper) getFeatureConfig(key cacheKey) (interface{}, error) {
 }
 
 func (wrapper *Wrapper) getSegments(key cacheKey) (interface{}, error) {
-	var segment []rest.Segment
-	// get Segment in domain.Segment format
-	err := wrapper.cache.Get(context.Background(), key.name, &segment)
+	// get FeatureFlag in rest.FeatureConfig format
+	featureConfig := []domain.Segment{}
+	err := wrapper.cache.Get(context.Background(), key.name, &featureConfig)
 	if err != nil {
 		return nil, err
 	}
 
-	return segment, nil
+	result := make([]rest.Segment, 0, len(featureConfig))
+	for _, fc := range featureConfig {
+		result = append(result, rest.Segment(fc))
+	}
+
+	return result, nil
 }
 
 func (wrapper *Wrapper) getSegment(key cacheKey) (interface{}, error) {
