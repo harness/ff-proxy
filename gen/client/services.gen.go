@@ -118,6 +118,14 @@ type ClientInterface interface {
 
 	PostMetrics(ctx context.Context, environmentUUID EnvironmentPathParam, params *PostMetricsParams, body PostMetricsJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// AuthenticateProxyKey request with any body
+	AuthenticateProxyKeyWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	AuthenticateProxyKey(ctx context.Context, body AuthenticateProxyKeyJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// GetProxyConfig request
+	GetProxyConfig(ctx context.Context, params *GetProxyConfigParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// Stream request
 	Stream(ctx context.Context, params *StreamParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 }
@@ -232,6 +240,42 @@ func (c *Client) PostMetricsWithBody(ctx context.Context, environmentUUID Enviro
 
 func (c *Client) PostMetrics(ctx context.Context, environmentUUID EnvironmentPathParam, params *PostMetricsParams, body PostMetricsJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewPostMetricsRequest(c.Server, environmentUUID, params, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) AuthenticateProxyKeyWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewAuthenticateProxyKeyRequestWithBody(c.Server, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) AuthenticateProxyKey(ctx context.Context, body AuthenticateProxyKeyJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewAuthenticateProxyKeyRequest(c.Server, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) GetProxyConfig(ctx context.Context, params *GetProxyConfigParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetProxyConfigRequest(c.Server, params)
 	if err != nil {
 		return nil, err
 	}
@@ -720,6 +764,153 @@ func NewPostMetricsRequestWithBody(server string, environmentUUID EnvironmentPat
 	return req, nil
 }
 
+// NewAuthenticateProxyKeyRequest calls the generic AuthenticateProxyKey builder with application/json body
+func NewAuthenticateProxyKeyRequest(server string, body AuthenticateProxyKeyJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewAuthenticateProxyKeyRequestWithBody(server, "application/json", bodyReader)
+}
+
+// NewAuthenticateProxyKeyRequestWithBody generates requests for AuthenticateProxyKey with any type of body
+func NewAuthenticateProxyKeyRequestWithBody(server string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/proxy/auth")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("POST", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewGetProxyConfigRequest generates requests for GetProxyConfig
+func NewGetProxyConfigRequest(server string, params *GetProxyConfigParams) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/proxy/config")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	queryValues := queryURL.Query()
+
+	if params.PageNumber != nil {
+
+		if queryFrag, err := runtime.StyleParamWithLocation("form", true, "pageNumber", runtime.ParamLocationQuery, *params.PageNumber); err != nil {
+			return nil, err
+		} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+			return nil, err
+		} else {
+			for k, v := range parsed {
+				for _, v2 := range v {
+					queryValues.Add(k, v2)
+				}
+			}
+		}
+
+	}
+
+	if params.PageSize != nil {
+
+		if queryFrag, err := runtime.StyleParamWithLocation("form", true, "pageSize", runtime.ParamLocationQuery, *params.PageSize); err != nil {
+			return nil, err
+		} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+			return nil, err
+		} else {
+			for k, v := range parsed {
+				for _, v2 := range v {
+					queryValues.Add(k, v2)
+				}
+			}
+		}
+
+	}
+
+	if params.Cluster != nil {
+
+		if queryFrag, err := runtime.StyleParamWithLocation("form", true, "cluster", runtime.ParamLocationQuery, *params.Cluster); err != nil {
+			return nil, err
+		} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+			return nil, err
+		} else {
+			for k, v := range parsed {
+				for _, v2 := range v {
+					queryValues.Add(k, v2)
+				}
+			}
+		}
+
+	}
+
+	if params.Environment != nil {
+
+		if queryFrag, err := runtime.StyleParamWithLocation("form", true, "environment", runtime.ParamLocationQuery, *params.Environment); err != nil {
+			return nil, err
+		} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+			return nil, err
+		} else {
+			for k, v := range parsed {
+				for _, v2 := range v {
+					queryValues.Add(k, v2)
+				}
+			}
+		}
+
+	}
+
+	if queryFrag, err := runtime.StyleParamWithLocation("form", true, "key", runtime.ParamLocationQuery, params.Key); err != nil {
+		return nil, err
+	} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+		return nil, err
+	} else {
+		for k, v := range parsed {
+			for _, v2 := range v {
+				queryValues.Add(k, v2)
+			}
+		}
+	}
+
+	queryURL.RawQuery = queryValues.Encode()
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
 // NewStreamRequest generates requests for Stream
 func NewStreamRequest(server string, params *StreamParams) (*http.Request, error) {
 	var err error
@@ -846,6 +1037,14 @@ type ClientWithResponsesInterface interface {
 	PostMetricsWithBodyWithResponse(ctx context.Context, environmentUUID EnvironmentPathParam, params *PostMetricsParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PostMetricsResponse, error)
 
 	PostMetricsWithResponse(ctx context.Context, environmentUUID EnvironmentPathParam, params *PostMetricsParams, body PostMetricsJSONRequestBody, reqEditors ...RequestEditorFn) (*PostMetricsResponse, error)
+
+	// AuthenticateProxyKey request with any body
+	AuthenticateProxyKeyWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*AuthenticateProxyKeyResponse, error)
+
+	AuthenticateProxyKeyWithResponse(ctx context.Context, body AuthenticateProxyKeyJSONRequestBody, reqEditors ...RequestEditorFn) (*AuthenticateProxyKeyResponse, error)
+
+	// GetProxyConfig request
+	GetProxyConfigWithResponse(ctx context.Context, params *GetProxyConfigParams, reqEditors ...RequestEditorFn) (*GetProxyConfigResponse, error)
 
 	// Stream request
 	StreamWithResponse(ctx context.Context, params *StreamParams, reqEditors ...RequestEditorFn) (*StreamResponse, error)
@@ -1056,6 +1255,59 @@ func (r PostMetricsResponse) StatusCode() int {
 	return 0
 }
 
+type AuthenticateProxyKeyResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *AuthenticationResponse
+	JSON401      *Error
+	JSON403      *Error
+	JSON404      *Error
+	JSON500      *Error
+}
+
+// Status returns HTTPResponse.Status
+func (r AuthenticateProxyKeyResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r AuthenticateProxyKeyResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type GetProxyConfigResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *ProxyConfig
+	JSON400      *Error
+	JSON401      *Error
+	JSON403      *Error
+	JSON404      *Error
+	JSON500      *Error
+}
+
+// Status returns HTTPResponse.Status
+func (r GetProxyConfigResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetProxyConfigResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
 type StreamResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -1163,6 +1415,32 @@ func (c *ClientWithResponses) PostMetricsWithResponse(ctx context.Context, envir
 		return nil, err
 	}
 	return ParsePostMetricsResponse(rsp)
+}
+
+// AuthenticateProxyKeyWithBodyWithResponse request with arbitrary body returning *AuthenticateProxyKeyResponse
+func (c *ClientWithResponses) AuthenticateProxyKeyWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*AuthenticateProxyKeyResponse, error) {
+	rsp, err := c.AuthenticateProxyKeyWithBody(ctx, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseAuthenticateProxyKeyResponse(rsp)
+}
+
+func (c *ClientWithResponses) AuthenticateProxyKeyWithResponse(ctx context.Context, body AuthenticateProxyKeyJSONRequestBody, reqEditors ...RequestEditorFn) (*AuthenticateProxyKeyResponse, error) {
+	rsp, err := c.AuthenticateProxyKey(ctx, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseAuthenticateProxyKeyResponse(rsp)
+}
+
+// GetProxyConfigWithResponse request returning *GetProxyConfigResponse
+func (c *ClientWithResponses) GetProxyConfigWithResponse(ctx context.Context, params *GetProxyConfigParams, reqEditors ...RequestEditorFn) (*GetProxyConfigResponse, error) {
+	rsp, err := c.GetProxyConfig(ctx, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetProxyConfigResponse(rsp)
 }
 
 // StreamWithResponse request returning *StreamResponse
@@ -1482,6 +1760,121 @@ func ParsePostMetricsResponse(rsp *http.Response) (*PostMetricsResponse, error) 
 			return nil, err
 		}
 		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseAuthenticateProxyKeyResponse parses an HTTP response from a AuthenticateProxyKeyWithResponse call
+func ParseAuthenticateProxyKeyResponse(rsp *http.Response) (*AuthenticateProxyKeyResponse, error) {
+	bodyBytes, err := ioutil.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &AuthenticateProxyKeyResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest AuthenticationResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseGetProxyConfigResponse parses an HTTP response from a GetProxyConfigWithResponse call
+func ParseGetProxyConfigResponse(rsp *http.Response) (*GetProxyConfigResponse, error) {
+	bodyBytes, err := ioutil.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetProxyConfigResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest ProxyConfig
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
 		var dest Error

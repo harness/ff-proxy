@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/harness/ff-proxy/v2/build"
+	"github.com/harness/ff-proxy/v2/config/remote"
 	"github.com/harness/ff-proxy/v2/export"
 	"github.com/harness/ff-proxy/v2/health"
 	"github.com/harness/ff-proxy/v2/token"
@@ -26,7 +27,6 @@ import (
 
 	"github.com/harness/ff-proxy/v2/cache"
 	"github.com/harness/ff-proxy/v2/config"
-	"github.com/harness/ff-proxy/v2/domain"
 	"github.com/harness/ff-proxy/v2/hash"
 	"github.com/harness/ff-proxy/v2/log"
 	"github.com/harness/ff-proxy/v2/middleware"
@@ -36,118 +36,127 @@ import (
 	"github.com/harness/ff-proxy/v2/transport"
 )
 
-// keys implements the flag.Value interface and allows us to pass a comma separated
-// list of api keys e.g. -api-keys 123,456,789
-type keys []string
-
-func (i *keys) String() string {
-	return strings.Join(*i, ",")
-}
-
-func (i *keys) Set(value string) error {
-	ss := strings.Split(value, ",")
-	for _, s := range ss {
-		*i = append(*i, s)
-	}
-	return nil
-}
-
-func (i *keys) PrintMasked() string {
-	var maskedKeys []string
-	for _, key := range *i {
-		maskedKeys = append(maskedKeys, token.MaskRight(key))
-	}
-	return strings.Join(maskedKeys, ",")
-}
+var sdkCache cache.Cache
 
 var (
-	logLevel              string
-	bypassAuth            bool
-	offline               bool
+	// Service Config
+	proxyKey              string
 	clientService         string
 	metricService         string
 	authSecret            string
-	sdkBaseURL            string
-	sdkEventsURL          string
-	redisAddress          string
-	redisPassword         string
-	redisDB               int
-	apiKeys               keys
 	metricPostDuration    int
 	heartbeatInterval     int
-	sdkCache              cache.Cache
-	pprofEnabled          bool
 	generateOfflineConfig bool
-	configDir             string
-	port                  int
-	tlsEnabled            bool
-	tlsCert               string
-	tlsKey                string
-	gcpProfilerEnabled    bool
+
+	// Cache Config
+	offline       bool
+	configDir     string
+	redisAddress  string
+	redisPassword string
+	redisDB       int
+
+	// Server Config
+	port       int
+	tlsEnabled bool
+	tlsCert    string
+	tlsKey     string
+
+	// Dev/Debugging
+	bypassAuth         bool
+	logLevel           string
+	gcpProfilerEnabled bool
+	pprofEnabled       bool
 )
 
+// Environment Variables
 const (
-	bypassAuthEnv            = "BYPASS_AUTH"
-	logLevelEnv              = "LOG_LEVEL"
-	offlineEnv               = "OFFLINE"
+	// Service Config
+	proxyKeyEnv              = "PROXY_KEY"
 	clientServiceEnv         = "CLIENT_SERVICE"
 	metricServiceEnv         = "METRIC_SERVICE"
 	authSecretEnv            = "AUTH_SECRET"
-	redisAddrEnv             = "REDIS_ADDRESS"
-	redisPasswordEnv         = "REDIS_PASSWORD"
-	redisDBEnv               = "REDIS_DB"
 	metricPostDurationEnv    = "METRIC_POST_DURATION"
 	heartbeatIntervalEnv     = "HEARTBEAT_INTERVAL"
 	generateOfflineConfigEnv = "GENERATE_OFFLINE_CONFIG"
-	configDirEnv             = "CONFIG_DIR"
-	pprofEnabledEnv          = "PPROF"
-	portEnv                  = "PORT"
-	tlsEnabledEnv            = "TLS_ENABLED"
-	tlsCertEnv               = "TLS_CERT"
-	tlsKeyEnv                = "TLS_KEY"
-	gcpProfilerEnabledEnv    = "GCP_PROFILER_ENABLED"
 
-	bypassAuthFlag            = "bypass-auth"
-	logLevelFlag              = "log-level"
-	offlineFlag               = "offline"
+	// Cache Config
+	offlineEnv       = "OFFLINE"
+	configDirEnv     = "CONFIG_DIR"
+	redisAddrEnv     = "REDIS_ADDRESS"
+	redisPasswordEnv = "REDIS_PASSWORD"
+	redisDBEnv       = "REDIS_DB"
+
+	// Server Config
+	portEnv       = "PORT"
+	tlsEnabledEnv = "TLS_ENABLED"
+	tlsCertEnv    = "TLS_CERT"
+	tlsKeyEnv     = "TLS_KEY"
+
+	// Dev/Debugging
+	bypassAuthEnv         = "BYPASS_AUTH"
+	logLevelEnv           = "LOG_LEVEL"
+	gcpProfilerEnabledEnv = "GCP_PROFILER_ENABLED"
+	pprofEnabledEnv       = "PPROF"
+)
+
+// Flags
+const (
+	// Service Config
+	proxyKeyFlag              = "proxy-key"
 	clientServiceFlag         = "client-service"
 	metricServiceFlag         = "metric-service"
 	authSecretFlag            = "auth-secret"
-	redisAddressFlag          = "redis-address"
-	redisPasswordFlag         = "redis-password"
-	redisDBFlag               = "redis-db"
 	metricPostDurationFlag    = "metric-post-duration"
 	heartbeatIntervalFlag     = "heartbeat-interval"
-	pprofEnabledFlag          = "pprof"
 	generateOfflineConfigFlag = "generate-offline-config"
-	configDirFlag             = "config-dir"
-	portFlag                  = "port"
-	tlsEnabledFlag            = "tls-enabled"
-	tlsCertFlag               = "tls-cert"
-	tlsKeyFlag                = "tls-key"
-	gcpProfilerEnabledFlag    = "gcp-profiler-enabled"
+
+	// Cache Config
+	configDirFlag     = "config-dir"
+	offlineFlag       = "offline"
+	redisAddressFlag  = "redis-address"
+	redisPasswordFlag = "redis-password"
+	redisDBFlag       = "redis-db"
+
+	// Server Config
+	portFlag       = "port"
+	tlsEnabledFlag = "tls-enabled"
+	tlsCertFlag    = "tls-cert"
+	tlsKeyFlag     = "tls-key"
+
+	// Dev/Debugging
+	bypassAuthFlag         = "bypass-auth"
+	logLevelFlag           = "log-level"
+	pprofEnabledFlag       = "pprof"
+	gcpProfilerEnabledFlag = "gcp-profiler-enabled"
 )
 
 func init() {
-	flag.BoolVar(&bypassAuth, bypassAuthFlag, false, "bypasses authentication")
-	// TODO - FFM-1812 - we should update this to be loglevel
-	flag.StringVar(&logLevel, logLevelFlag, "INFO", "sets the logging level, valid options are INFO, DEBUG & ERROR")
-	flag.BoolVar(&offline, offlineFlag, false, "enables side loading of data from config dir")
+	// Service Config
+	flag.StringVar(&proxyKey, proxyKeyFlag, "", "The ProxyKey you want to configure your Proxy to use")
 	flag.StringVar(&clientService, clientServiceFlag, "https://config.ff.harness.io/api/1.0", "the url of the ff client service")
 	flag.StringVar(&metricService, metricServiceFlag, "https://events.ff.harness.io/api/1.0", "the url of the ff metric service")
 	flag.StringVar(&authSecret, authSecretFlag, "secret", "the secret used for signing auth tokens")
+	flag.IntVar(&metricPostDuration, metricPostDurationFlag, 60, "How often in seconds the proxy posts metrics to Harness. Set to 0 to disable.")
+	flag.IntVar(&heartbeatInterval, heartbeatIntervalFlag, 60, "How often in seconds the proxy polls pings it's health function. Set to 0 to disable.")
+	flag.BoolVar(&generateOfflineConfig, generateOfflineConfigFlag, false, "if true the proxy will produce offline config in the /config directory then terminate")
+
+	// Cache Config
+	flag.BoolVar(&offline, offlineFlag, false, "enables side loading of data from config dir")
+	flag.StringVar(&configDir, configDirFlag, "/config", "specify a custom path to search for the offline config directory. Defaults to /config")
 	flag.StringVar(&redisAddress, redisAddressFlag, "", "Redis host:port address")
 	flag.StringVar(&redisPassword, redisPasswordFlag, "", "Optional. Redis password")
 	flag.IntVar(&redisDB, redisDBFlag, 0, "Database to be selected after connecting to the server.")
-	flag.IntVar(&metricPostDuration, metricPostDurationFlag, 60, "How often in seconds the proxy posts metrics to Harness. Set to 0 to disable.")
-	flag.IntVar(&heartbeatInterval, heartbeatIntervalFlag, 60, "How often in seconds the proxy polls pings it's health function. Set to 0 to disable.")
-	flag.BoolVar(&pprofEnabled, pprofEnabledFlag, false, "enables pprof on port 6060")
-	flag.BoolVar(&generateOfflineConfig, generateOfflineConfigFlag, false, "if true the proxy will produce offline config in the /config directory then terminate")
-	flag.StringVar(&configDir, configDirFlag, "/config", "specify a custom path to search for the offline config directory. Defaults to /config")
+
+	// Server Config
 	flag.IntVar(&port, portFlag, 8000, "port the relay proxy service is exposed on, default's to 8000")
 	flag.BoolVar(&tlsEnabled, tlsEnabledFlag, false, "if true the proxy will use the tlsCert and tlsKey to run with https enabled")
 	flag.StringVar(&tlsCert, tlsCertFlag, "", "Path to tls cert file. Required if tls enabled is true.")
 	flag.StringVar(&tlsKey, tlsKeyFlag, "", "Path to tls key file. Required if tls enabled is true.")
+
+	// Dev/Debugging
+	flag.BoolVar(&bypassAuth, bypassAuthFlag, false, "bypasses authentication")
+	flag.StringVar(&logLevel, logLevelFlag, "INFO", "sets the logging level, valid options are INFO, DEBUG & ERROR")
+	flag.BoolVar(&pprofEnabled, pprofEnabledFlag, false, "enables pprof on port 6060")
 	flag.BoolVar(&gcpProfilerEnabled, gcpProfilerEnabledFlag, false, "Enables gcp cloud profiler")
 
 	loadFlagsFromEnv(map[string]string{
@@ -170,12 +179,14 @@ func init() {
 		tlsCertEnv:               tlsCertFlag,
 		tlsKeyEnv:                tlsKeyFlag,
 		gcpProfilerEnabledEnv:    gcpProfilerEnabledFlag,
+		proxyKeyEnv:              proxyKeyFlag,
 	})
 
 	flag.Parse()
 }
 
 func main() {
+
 	// Setup logger
 	logger, err := log.NewStructuredLogger(logLevel)
 	if err != nil {
@@ -202,7 +213,9 @@ func main() {
 	// we currently don't require any config to run in offline mode
 	requiredFlags := map[string]interface{}{}
 	if !offline {
-		requiredFlags = map[string]interface{}{}
+		requiredFlags = map[string]interface{}{
+			proxyKeyEnv: proxyKey,
+		}
 	}
 	validateFlags(requiredFlags)
 
@@ -259,59 +272,79 @@ func main() {
 		sdkCache = cache.NewMetricsCache("in_mem", promReg, cache.NewMemCache())
 	}
 
-	apiKeyHasher := hash.NewSha256()
-
+	// Create services
 	var (
-		featureConfig map[domain.FeatureFlagKey]interface{}
-		targetConfig  map[domain.TargetKey]interface{}
-		segmentConfig map[domain.SegmentKey]interface{}
-		authConfig    map[domain.AuthAPIKey]string
-		approvedEnvs  = map[string]struct{}{}
+		clientSvc services.ClientService
+		metricSvc services.MetricService
 	)
-
-	// Load either local config from files or remote config from ff-server
-	if offline && !generateOfflineConfig {
-		fs := os.DirFS(configDir)
-		config, err := config.NewLocalConfig(fs)
+	{
+		clientSvc, err = services.NewClientService(logger, clientService)
 		if err != nil {
-			logger.Error("failed to load config", "err", err)
+			logger.Error("failed to create client for the feature flags client service", "err", err)
 			os.Exit(1)
 		}
-		featureConfig = config.FeatureFlag()
-		targetConfig = config.Targets()
-		segmentConfig = config.Segments()
-		authConfig = config.AuthConfig()
 
-		logger.Info("retrieved offline config")
+		metricsEnabled := metricPostDuration != 0 && !offline
+		metricSvc, err = services.NewMetricService(logger, metricService, metricsEnabled, promReg)
+		if err != nil {
+			logger.Error("failed to create client for the feature flags metric service", "err", err)
+			os.Exit(1)
+		}
 	}
 
 	// Create repos
-	tr, err := repository.NewTargetRepo(sdkCache, repository.WithTargetConfig(targetConfig))
-	if err != nil {
-		logger.Error("failed to create target repo", "err", err)
-		os.Exit(1)
+	var (
+		targetRepo  repository.TargetRepo
+		flagRepo    repository.FeatureFlagRepo
+		segmentRepo repository.SegmentRepo
+		authRepo    repository.AuthRepo
+	)
+	{
+
+		targetRepo, err = repository.NewTargetRepo(sdkCache)
+		if err != nil {
+			logger.Error("failed to create target repo", "err", err)
+			os.Exit(1)
+		}
+
+		flagRepo, err = repository.NewFeatureFlagRepo(sdkCache)
+		if err != nil {
+			logger.Error("failed to create feature config repo", "err", err)
+			os.Exit(1)
+		}
+
+		segmentRepo, err = repository.NewSegmentRepo(sdkCache)
+		if err != nil {
+			logger.Error("failed to create segment repo", "err", err)
+			os.Exit(1)
+		}
+
+		authRepo, err = repository.NewAuthRepo(sdkCache, nil, nil)
+		if err != nil {
+			logger.Error("failed to create auth config repo", "err", err)
+			os.Exit(1)
+		}
 	}
 
-	fcr, err := repository.NewFeatureFlagRepo(sdkCache, repository.WithFeatureConfig(featureConfig))
-	if err != nil {
-		logger.Error("failed to create feature config repo", "err", err)
-		os.Exit(1)
-	}
+	// Create config that we'll use to populate our repos
+	var (
+		conf config.Config
+	)
+	{
+		if offline {
+			// TODO: Update local config to implement the config.Config interface so we can instantiate it here
+		} else {
+			conf = remote.NewConfig(proxyKey, clientSvc)
+		}
 
-	sr, err := repository.NewSegmentRepo(sdkCache, repository.WithSegmentConfig(segmentConfig))
-	if err != nil {
-		logger.Error("failed to create segment repo", "err", err)
-		os.Exit(1)
-	}
-
-	authRepo, err := repository.NewAuthRepo(sdkCache, authConfig, approvedEnvs)
-	if err != nil {
-		logger.Error("failed to create auth config repo", "err", err)
-		os.Exit(1)
+		if err := conf.Populate(ctx); err != nil {
+			logger.Error("failed to populate repos with config", "err", err)
+			os.Exit(1)
+		}
 	}
 
 	if generateOfflineConfig {
-		exportService := export.NewService(logger, fcr, tr, sr, authRepo, authConfig, configDir)
+		exportService := export.NewService(logger, flagRepo, targetRepo, segmentRepo, authRepo, nil, configDir)
 		err = exportService.Persist(ctx)
 		if err != nil {
 			logger.Error("offline config export failed err: %s", err)
@@ -320,32 +353,20 @@ func main() {
 		os.Exit(0)
 	}
 
+	apiKeyHasher := hash.NewSha256()
 	tokenSource := token.NewTokenSource(logger, authRepo, apiKeyHasher, []byte(authSecret))
-
-	clientService, err := services.NewClientService(logger, clientService)
-	if err != nil {
-		logger.Error("failed to create client for the feature flags client service", "err", err)
-		os.Exit(1)
-	}
-
-	metricsEnabled := metricPostDuration != 0 && !offline
-	metricService, err := services.NewMetricService(logger, metricService, metricsEnabled, promReg)
-	if err != nil {
-		logger.Error("failed to create client for the feature flags metric service", "err", err)
-		os.Exit(1)
-	}
 
 	// Setup service and middleware
 	service := proxyservice.NewService(proxyservice.Config{
 		Logger:        log.NewContextualLogger(logger, log.ExtractRequestValuesFromContext),
-		FeatureRepo:   fcr,
-		TargetRepo:    tr,
-		SegmentRepo:   sr,
+		FeatureRepo:   flagRepo,
+		TargetRepo:    targetRepo,
+		SegmentRepo:   segmentRepo,
 		AuthRepo:      authRepo,
 		CacheHealthFn: cacheHealthCheck,
 		AuthFn:        tokenSource.GenerateToken,
-		ClientService: clientService,
-		MetricService: metricService,
+		ClientService: clientSvc,
+		MetricService: metricSvc,
 		Offline:       offline,
 		Hasher:        apiKeyHasher,
 	})
@@ -370,31 +391,32 @@ func main() {
 		}
 	}()
 
-	if !offline {
-		// start metric sending ticker
-		if metricPostDuration != 0 {
-			go func() {
-				logger.Info(fmt.Sprintf("sending metrics every %d seconds", metricPostDuration))
-				ticker := time.NewTicker(time.Duration(metricPostDuration) * time.Second)
-				defer ticker.Stop()
-
-				for {
-					select {
-					case <-ctx.Done():
-						logger.Info("stopping metrics ticker")
-						return
-					case <-ticker.C:
-						// default to prod cluster
-						clusterIdentifier := "1"
-						logger.Debug("sending metrics")
-						metricService.SendMetrics(ctx, clusterIdentifier)
-					}
-				}
-			}()
-		} else {
-			logger.Info("sending metrics disabled")
-		}
-	}
+	// TODO: We should move this inside services/metrics_service.go
+	//if !offline {
+	//	// start metric sending ticker
+	//	if metricPostDuration != 0 {
+	//		go func() {
+	//			logger.Info(fmt.Sprintf("sending metrics every %d seconds", metricPostDuration))
+	//			ticker := time.NewTicker(time.Duration(metricPostDuration) * time.Second)
+	//			defer ticker.Stop()
+	//
+	//			for {
+	//				select {
+	//				case <-ctx.Done():
+	//					logger.Info("stopping metrics ticker")
+	//					return
+	//				case <-ticker.C:
+	//					// default to prod cluster
+	//					clusterIdentifier := "1"
+	//					logger.Debug("sending metrics")
+	//					metricService.SendMetrics(ctx, clusterIdentifier)
+	//				}
+	//			}
+	//		}()
+	//	} else {
+	//		logger.Info("sending metrics disabled")
+	//	}
+	//}
 
 	if heartbeatInterval != 0 {
 		go func() {
@@ -443,10 +465,6 @@ func validateFlags(flags map[string]interface{}) {
 			}
 		case []string:
 			if len(v.([]string)) == 0 {
-				unset = append(unset, k)
-			}
-		case keys:
-			if len(v.(keys)) == 0 {
 				unset = append(unset, k)
 			}
 		}

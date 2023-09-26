@@ -333,7 +333,7 @@ func TestMetricService_SendMetrics(t *testing.T) {
 		t.Run(desc, func(t *testing.T) {
 			postMetricsCount = 0
 			logger, _ := log.NewStructuredLogger("DEBUG")
-			metricsService, _ := NewMetricService(logger, defaultMetricsURL, defaultAccount, tc.tokens, true, prometheus.NewRegistry())
+			metricsService, _ := NewMetricService(logger, defaultMetricsURL, true, prometheus.NewRegistry())
 			metricsService.metrics = tc.metrics
 			metricsService.client = mockService{postMetricsWithResp: tc.postMetricsWithResp}
 

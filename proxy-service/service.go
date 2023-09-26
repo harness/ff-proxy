@@ -10,7 +10,6 @@ import (
 	"github.com/harness/ff-golang-server-sdk/evaluation"
 	"github.com/harness/ff-golang-server-sdk/logger"
 	"github.com/harness/ff-golang-server-sdk/rest"
-	admingen "github.com/harness/ff-proxy/v2/gen/admin"
 	jsoniter "github.com/json-iterator/go"
 
 	"github.com/harness/ff-proxy/v2/domain"
@@ -292,7 +291,7 @@ func (s Service) Evaluations(ctx context.Context, req domain.EvaluationsRequest)
 	if err != nil {
 		if errors.Is(err, domain.ErrCacheNotFound) {
 			s.logger.Warn(ctx, "target not found in cache, serving request using only identifier attribute: ", "err", err.Error())
-			t = domain.Target{Target: admingen.Target{Identifier: req.TargetIdentifier}}
+			t = domain.Target{Target: clientgen.Target{Identifier: req.TargetIdentifier}}
 		} else {
 			s.logger.Error(ctx, "error fetching target: ", "err", err.Error())
 			return []clientgen.Evaluation{}, fmt.Errorf("%w: %s", ErrInternal, err)
@@ -333,7 +332,7 @@ func (s Service) EvaluationsByFeature(ctx context.Context, req domain.Evaluation
 	if err != nil {
 		if errors.Is(err, domain.ErrCacheNotFound) {
 			s.logger.Warn(ctx, "target not found in cache, serving request using only identifier attribute: ", "err", err.Error())
-			t = domain.Target{Target: admingen.Target{Identifier: req.TargetIdentifier}}
+			t = domain.Target{Target: clientgen.Target{Identifier: req.TargetIdentifier}}
 		} else {
 			s.logger.Error(ctx, "error fetching target: ", "err", err.Error())
 			return clientgen.Evaluation{}, fmt.Errorf("%w: %s", ErrInternal, err)

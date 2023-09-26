@@ -172,6 +172,31 @@ type Prerequisite struct {
 	Variations []string `json:"variations"`
 }
 
+// ProxyConfig defines model for ProxyConfig.
+type ProxyConfig struct {
+	Environments *[]struct {
+		ApiKeys        *[]string        `json:"apiKeys,omitempty"`
+		FeatureConfigs *[]FeatureConfig `json:"featureConfigs,omitempty"`
+		Id             *string          `json:"id,omitempty"`
+		Segments       *[]Segment       `json:"segments,omitempty"`
+	} `json:"environments,omitempty"`
+
+	// The total number of items
+	ItemCount int `json:"itemCount"`
+
+	// The total number of pages
+	PageCount int `json:"pageCount"`
+
+	// The current page
+	PageIndex int `json:"pageIndex"`
+
+	// The number of items per page
+	PageSize int `json:"pageSize"`
+
+	// The version of this object.  The version will be incremented each time the object is modified
+	Version *int `json:"version,omitempty"`
+}
+
 // A Target Group (Segment) response
 type Segment struct {
 	// The data and time in milliseconds when the group was created
@@ -227,13 +252,13 @@ type ServingRule struct {
 	Serve Serve `json:"serve"`
 }
 
-// A tag has a name and value
+// A Tag object used to tag feature flags - consists of name and identifier
 type Tag struct {
+	// The identifier of the tag
+	Identifier string `json:"identifier"`
+
 	// The name of the tag
 	Name string `json:"name"`
-
-	// The value of the tag
-	Value *string `json:"value,omitempty"`
 }
 
 // A Target object
@@ -327,11 +352,23 @@ type ClusterQueryOptionalParam = string
 // EnvironmentPathParam defines model for environmentPathParam.
 type EnvironmentPathParam = string
 
+// PageNumber defines model for pageNumber.
+type PageNumber = int
+
+// PageSize defines model for pageSize.
+type PageSize = int
+
+// BadRequest defines model for BadRequest.
+type BadRequest = Error
+
 // InternalServerError defines model for InternalServerError.
 type InternalServerError = Error
 
 // NotFound defines model for NotFound.
 type NotFound = Error
+
+// TBD
+type ProxyConfigResponse = ProxyConfig
 
 // Unauthenticated defines model for Unauthenticated.
 type Unauthenticated = Error
@@ -387,6 +424,29 @@ type PostMetricsParams struct {
 	Cluster *ClusterQueryOptionalParam `form:"cluster,omitempty" json:"cluster,omitempty"`
 }
 
+// AuthenticateProxyKeyJSONBody defines parameters for AuthenticateProxyKey.
+type AuthenticateProxyKeyJSONBody struct {
+	ProxyKey string `json:"proxyKey"`
+}
+
+// GetProxyConfigParams defines parameters for GetProxyConfig.
+type GetProxyConfigParams struct {
+	// PageNumber
+	PageNumber *PageNumber `form:"pageNumber,omitempty" json:"pageNumber,omitempty"`
+
+	// PageSize
+	PageSize *PageSize `form:"pageSize,omitempty" json:"pageSize,omitempty"`
+
+	// Unique identifier for the cluster for the account
+	Cluster *ClusterQueryOptionalParam `form:"cluster,omitempty" json:"cluster,omitempty"`
+
+	// Accepts an EnvironmentID. If this is provided then the endpoint will only return config for this environment. If this is left empty then the Proxy will return config for all environments associated with the Proxy Key.
+	Environment *string `form:"environment,omitempty" json:"environment,omitempty"`
+
+	// Accpets a Proxy Key.
+	Key string `form:"key" json:"key"`
+}
+
 // StreamParams defines parameters for Stream.
 type StreamParams struct {
 	// Unique identifier for the cluster for the account
@@ -399,3 +459,6 @@ type AuthenticateJSONRequestBody = AuthenticateJSONBody
 
 // PostMetricsJSONRequestBody defines body for PostMetrics for application/json ContentType.
 type PostMetricsJSONRequestBody = PostMetricsJSONBody
+
+// AuthenticateProxyKeyJSONRequestBody defines body for AuthenticateProxyKey for application/json ContentType.
+type AuthenticateProxyKeyJSONRequestBody AuthenticateProxyKeyJSONBody
