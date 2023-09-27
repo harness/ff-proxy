@@ -19,6 +19,15 @@ var (
 	ErrNotFound     = errors.New("ErrNotFound")
 	ErrUnauthorized = errors.New("ErrUnauthorized")
 	ErrInternal     = errors.New("ErrInternal")
+	ErrBadRequest   = errors.New("bad request")
+
+	statusCodeToErr = map[int]error{
+		http.StatusInternalServerError: ErrInternal,
+		http.StatusBadRequest:          ErrBadRequest,
+		http.StatusNotFound:            ErrNotFound,
+		http.StatusUnauthorized:        ErrUnauthorized,
+		http.StatusForbidden:           ErrUnauthorized,
+	}
 )
 
 // ClientService is a type for interacting with the Feature Flag Client Service
@@ -131,4 +140,87 @@ func decodeToken(token string) (tokenClaims, error) {
 	}
 
 	return tc, nil
+}
+
+type GetProxyConfigInput struct {
+	Key               string
+	EnvID             string
+	AuthToken         string
+	ClusterIdentifier string
+	PageNumber        int
+	PageSize          int
+}
+
+// GetProxyConfig makes a /proxy/config request and returns the result.
+func (c ClientService) GetProxyConfig(ctx context.Context, input GetProxyConfigInput) (domain.ProxyConfig, error) {
+	resp, err := c.getProxyConfig(ctx, input)
+	if err != nil {
+		return domain.ProxyConfig{}, nil
+	}
+
+	if resp.Environments == nil {
+		return domain.ProxyConfig{}, nil
+	}
+
+	return domain.ToProxyConfig(resp), nil
+}
+
+// PageProxyConfig pages over the /proxy/config API until its retrieved all the results
+func (c ClientService) PageProxyConfig(ctx context.Context, input GetProxyConfigInput) ([]domain.ProxyConfig, error) {
+	var (
+		configs []domain.ProxyConfig
+		done    bool
+	)
+
+	for !done {
+		cfg, err := c.getProxyConfig(ctx, input)
+		if err != nil {
+			return configs, err
+		}
+
+		configs = append(configs, domain.ToProxyConfig(cfg))
+
+		// If pageIndex is the same as PageCount then we've iterated over all the pages
+		if input.PageNumber >= cfg.PageCount-1 {
+			done = true
+			continue
+		}
+
+		input.PageNumber++
+	}
+
+	return configs, nil
+}
+
+func (c ClientService) getProxyConfig(ctx context.Context, input GetProxyConfigInput) (clientgen.ProxyConfig, error) {
+	var env *string
+	if input.EnvID != "" {
+		env = &input.EnvID
+	}
+
+	params := clientgen.GetProxyConfigParams{
+		PageNumber:  &input.PageNumber,
+		PageSize:    &input.PageSize,
+		Cluster:     &input.ClusterIdentifier,
+		Environment: env,
+		Key:         input.Key,
+	}
+
+	// Add authToken to ctx so addAuthToken can add it to the request
+	ctx = context.WithValue(ctx, tokenKey, input.AuthToken)
+
+	resp, err := c.client.GetProxyConfigWithResponse(ctx, &params, addAuthToken)
+	if err != nil {
+		return clientgen.ProxyConfig{}, fmt.Errorf("%w: %s", ErrInternal, err)
+	}
+
+	if resp.JSON200 == nil {
+		err, ok := statusCodeToErr[resp.StatusCode()]
+		if !ok {
+			return clientgen.ProxyConfig{}, ErrInternal
+		}
+		return clientgen.ProxyConfig{}, err
+	}
+
+	return *resp.JSON200, nil
 }
