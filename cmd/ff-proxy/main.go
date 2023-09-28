@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/harness/ff-proxy/v2/build"
+	"github.com/harness/ff-proxy/v2/config/local"
 	"github.com/harness/ff-proxy/v2/config/remote"
 	"github.com/harness/ff-proxy/v2/export"
 	"github.com/harness/ff-proxy/v2/health"
@@ -332,7 +333,11 @@ func main() {
 	)
 	{
 		if offline {
-			// TODO: Update local config to implement the config.Config interface so we can instantiate it here
+			conf, err = local.NewConfig(os.DirFS(configDir))
+			if err != nil {
+				logger.Error("failed to load local config", "err", err)
+				os.Exit(1)
+			}
 		} else {
 			conf = remote.NewConfig(proxyKey, clientSvc)
 		}
