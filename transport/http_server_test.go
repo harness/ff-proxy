@@ -20,7 +20,7 @@ import (
 	"github.com/go-redis/redis/v8"
 	sdkstream "github.com/harness/ff-golang-server-sdk/stream"
 	"github.com/harness/ff-proxy/v2/cache"
-	"github.com/harness/ff-proxy/v2/config"
+	"github.com/harness/ff-proxy/v2/config/local"
 	"github.com/harness/ff-proxy/v2/domain"
 	clientgen "github.com/harness/ff-proxy/v2/gen/client"
 	"github.com/harness/ff-proxy/v2/hash"
@@ -168,7 +168,7 @@ func setupWithCache(c cache.Cache) setupOpts {
 // and injects all the required dependencies into the proxy service and http server
 func setupHTTPServer(t *testing.T, bypassAuth bool, opts ...setupOpts) *HTTPServer {
 	fileSystem := os.DirFS("../config/test")
-	config, err := config.NewLocalConfig(fileSystem)
+	config, err := local.NewConfig(fileSystem)
 	if err != nil {
 		t.Fatal(err)
 	}
