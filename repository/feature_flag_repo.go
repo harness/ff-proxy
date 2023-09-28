@@ -2,8 +2,9 @@ package repository
 
 import (
 	"context"
+	"fmt"
 
-	"github.com/harness/ff-golang-server-sdk/rest"
+	clientgen "github.com/harness/ff-proxy/v2/gen/client"
 
 	"github.com/harness/ff-proxy/v2/cache"
 
@@ -54,7 +55,7 @@ func NewFeatureFlagRepo(c cache.Cache, opts ...FeatureFlagOption) (FeatureFlagRe
 	return fcr, nil
 }
 
-// Get gets all of the FeatureFlag for a given key
+// Get gets all the FeatureFlag for a given key
 func (f FeatureFlagRepo) Get(ctx context.Context, envID string) ([]domain.FeatureFlag, error) {
 	var featureFlags []domain.FeatureFlag
 	key := domain.NewFeatureConfigsKey(envID)
@@ -75,11 +76,46 @@ func (f FeatureFlagRepo) GetByIdentifier(ctx context.Context, envID string, iden
 	if err := f.cache.Get(ctx, string(key), &featureFlag); err != nil {
 		return domain.FeatureFlag{}, err
 	}
+
 	// some sdks e.g. .NET don't cope well with being returned a null VariationToTargetMap so we send back an empty struct here for now
 	// to match ff-server behaviour
 	if featureFlag.VariationToTargetMap == nil {
-		emptyVariationMap := []rest.VariationMap{}
+		emptyVariationMap := []clientgen.VariationMap{}
 		featureFlag.VariationToTargetMap = &emptyVariationMap
 	}
 	return featureFlag, nil
+}
+
+func (f FeatureFlagRepo) Add(ctx context.Context, config ...domain.FlagConfig) error {
+	errs := []error{}
+
+	for _, cfg := range config {
+		k := domain.NewFeatureConfigsKey(cfg.EnvironmentID)
+
+		if err := f.cache.Set(ctx, string(k), cfg.FeatureConfigs); err != nil {
+			errs = append(errs, addErr{
+				key:        string(k),
+				identifier: "feature-configs",
+				err:        err,
+			})
+		}
+
+		for _, flag := range cfg.FeatureConfigs {
+			key := domain.NewFeatureConfigKey(cfg.EnvironmentID, flag.Feature)
+
+			if err := f.cache.Set(ctx, string(key), flag); err != nil {
+				errs = append(errs, addErr{
+					key:        string(key),
+					identifier: flag.Feature,
+					err:        err,
+				})
+			}
+		}
+	}
+
+	if len(errs) > 0 {
+		return fmt.Errorf("failed to add flagConfig(s) to cache: %v", errs)
+	}
+
+	return nil
 }

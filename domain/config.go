@@ -13,10 +13,10 @@ type ProxyConfig struct {
 
 // Environments contains the environment config that the Proxy needs to store
 type Environments struct {
-	ID             uuid.UUID                 `json:"id" json:"-"`
-	ApiKeys        []string                  `json:"apiKeys"`
-	FeatureConfigs []clientgen.FeatureConfig `json:"featureConfigs"`
-	Segments       []clientgen.Segment       `json:"segments"`
+	ID             uuid.UUID     `json:"id" json:"-"`
+	ApiKeys        []string      `json:"apiKeys"`
+	FeatureConfigs []FeatureFlag `json:"featureConfigs"`
+	Segments       []Segment     `json:"segments"`
 }
 
 // ToProxyConfig is a helper for converting from the generated ProxyConfig type to our domain ProxyConfig type
@@ -25,17 +25,45 @@ func ToProxyConfig(c clientgen.ProxyConfig) ProxyConfig {
 		return ProxyConfig{}
 	}
 
-	environments := make([]Environments, len(*c.Environments))
+	environments := make([]Environments, 0, len(*c.Environments))
 	for _, env := range *c.Environments {
-		e := Environments{
-			ID:             uuid.MustParse(*env.Id),
-			ApiKeys:        *env.ApiKeys,
-			FeatureConfigs: *env.FeatureConfigs,
-			Segments:       *env.Segments,
+		e := Environments{}
+
+		if env.Id != nil {
+			e.ID = uuid.MustParse(*env.Id)
+		}
+
+		if *env.ApiKeys != nil {
+			e.ApiKeys = *env.ApiKeys
+		}
+
+		if *env.FeatureConfigs != nil {
+			e.FeatureConfigs = make([]FeatureFlag, 0, len(*env.FeatureConfigs))
+
+			for _, fc := range *env.FeatureConfigs {
+				e.FeatureConfigs = append(e.FeatureConfigs, FeatureFlag(fc))
+			}
+		}
+
+		if *env.Segments != nil {
+			e.Segments = make([]Segment, 0, len(*env.Segments))
+			for _, s := range *env.Segments {
+				e.Segments = append(e.Segments, Segment(s))
+			}
 		}
 
 		environments = append(environments, e)
 	}
 
 	return ProxyConfig{Environments: environments}
+}
+
+type FlagConfig struct {
+	EnvironmentID  string
+	FeatureConfigs []FeatureFlag
+}
+
+type SegmentConfig struct {
+	EnvironmentID string
+	Segments      []Segment
 }

@@ -4,9 +4,8 @@ import (
 	"embed"
 	"testing"
 
-	"github.com/harness/ff-golang-server-sdk/rest"
 	"github.com/harness/ff-proxy/v2/domain"
-	admingen "github.com/harness/ff-proxy/v2/gen/admin"
+	clientgen "github.com/harness/ff-proxy/v2/gen/client"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -29,21 +28,21 @@ func boolPtr(b bool) *bool { return &b }
 
 var (
 	harnessAppDemoDarkModeConfig = domain.FeatureFlag{
-		DefaultServe: rest.Serve{
+		DefaultServe: clientgen.Serve{
 			Variation: strPtr("true"),
 		},
 		Environment:   "featureflagsqa",
 		Feature:       "harnessappdemodarkmode",
 		Kind:          "boolean",
 		OffVariation:  "false",
-		Prerequisites: &[]rest.Prerequisite{},
+		Prerequisites: &[]clientgen.Prerequisite{},
 		Project:       "FeatureFlagsQADemo",
-		Rules: &[]rest.ServingRule{
+		Rules: &[]clientgen.ServingRule{
 			{
-				Clauses: []rest.Clause{
+				Clauses: []clientgen.Clause{
 					{
 						Attribute: "age",
-						Id:        "79f5bca0-17ca-42c2-8934-5cee840fe2e0",
+						Id:        toPtr("79f5bca0-17ca-42c2-8934-5cee840fe2e0"),
 						Negate:    false,
 						Op:        "equal",
 						Values: []string{
@@ -52,28 +51,28 @@ var (
 					},
 				},
 				Priority: 1,
-				RuleId:   "8756c207-abf8-4202-83fd-dedf5d27e2c2",
-				Serve: rest.Serve{
+				RuleId:   toPtr("8756c207-abf8-4202-83fd-dedf5d27e2c2"),
+				Serve: clientgen.Serve{
 					Variation: strPtr("false"),
 				},
 			},
 		},
 		State: "on",
-		VariationToTargetMap: &[]rest.VariationMap{
+		VariationToTargetMap: &[]clientgen.VariationMap{
 			{
 				TargetSegments: &[]string{
 					"flagsTeam",
 				},
-				Targets: &[]rest.TargetMap{
+				Targets: &[]clientgen.TargetMap{
 					{
-						Identifier: strPtr("davej"),
+						Identifier: "davej",
 						Name:       "Dave Johnston",
 					},
 				},
 				Variation: "false",
 			},
 		},
-		Variations: []rest.Variation{
+		Variations: []clientgen.Variation{
 			{
 				Description: nil,
 				Identifier:  "true",
@@ -91,18 +90,18 @@ var (
 	}
 
 	yetAnotherFlagConfig = domain.FeatureFlag{
-		DefaultServe: rest.Serve{
+		DefaultServe: clientgen.Serve{
 			Variation: strPtr("1"),
 		},
 		Environment:   "featureflagsqa",
 		Feature:       "yet_another_flag",
 		Kind:          "string",
 		OffVariation:  "2",
-		Prerequisites: &[]rest.Prerequisite{},
+		Prerequisites: &[]clientgen.Prerequisite{},
 		Project:       "FeatureFlagsQADemo",
-		Rules:         &[]rest.ServingRule{},
+		Rules:         &[]clientgen.ServingRule{},
 		State:         "on",
-		Variations: []rest.Variation{
+		Variations: []clientgen.Variation{
 			{
 				Description: nil,
 				Identifier:  "1",
@@ -121,14 +120,14 @@ var (
 
 	flagsTeamSegment = domain.Segment{
 		Environment: strPtr("featureflagsqa"),
-		Excluded:    &[]rest.Target{},
+		Excluded:    &[]clientgen.Target{},
 		Identifier:  "flagsTeam",
-		Included:    &[]rest.Target{},
+		Included:    &[]clientgen.Target{},
 		Name:        "flagsTeam",
-		Rules: &[]rest.Clause{
+		Rules: &[]clientgen.Clause{
 			{
 				Attribute: "ip",
-				Id:        "31c18ee7-8051-44cc-8507-b44580467ee5",
+				Id:        toPtr("31c18ee7-8051-44cc-8507-b44580467ee5"),
 				Negate:    false,
 				Op:        "equal",
 				Values:    []string{"2a00:23c5:b672:2401:158:f2a6:67a0:6a79"},
@@ -140,7 +139,7 @@ var (
 	}
 
 	targetFoo = domain.Target{
-		Target: admingen.Target{
+		Target: clientgen.Target{
 			Account:     "foo",
 			Anonymous:   boolPtr(false),
 			CreatedAt:   int64Ptr(1634222520273),
@@ -149,7 +148,7 @@ var (
 			Name:        "foo",
 			Org:         "bar",
 			Project:     "FeatureFlagsQADemo",
-			Segments:    &[]admingen.Segment{},
+			Segments:    &[]clientgen.Segment{},
 			Attributes: &map[string]interface{}{
 				"age": float64(56),
 				"ages": []interface{}{
@@ -165,7 +164,7 @@ var (
 	}
 
 	targetJames = domain.Target{
-		Target: admingen.Target{
+		Target: clientgen.Target{
 			Account:     "",
 			CreatedAt:   int64Ptr(1634222520273),
 			Environment: "featureflagsqa",
@@ -173,7 +172,7 @@ var (
 			Name:        "james",
 			Org:         "",
 			Project:     "FeatureFlagsQADemo",
-			Segments:    &[]admingen.Segment{},
+			Segments:    &[]clientgen.Segment{},
 			Attributes: &map[string]interface{}{
 				"age": float64(55),
 				"ages": []interface{}{
@@ -410,8 +409,8 @@ func TestLocalConfig_Features(t *testing.T) {
 func TestLocalConfig_Targets(t *testing.T) {
 	emptyTarget := []domain.Target{}
 
-	target := domain.Target{admingen.Target{Identifier: "hello"}}
-	target2 := domain.Target{admingen.Target{Identifier: "world"}}
+	target := domain.Target{clientgen.Target{Identifier: "hello"}}
+	target2 := domain.Target{clientgen.Target{Identifier: "world"}}
 
 	testCases := map[string]struct {
 		localConfig LocalConfig
@@ -484,4 +483,8 @@ func TestLocalConfig_Targets(t *testing.T) {
 			assert.Equal(t, tc.expected, actual)
 		})
 	}
+}
+
+func toPtr[T any](t T) *T {
+	return &t
 }

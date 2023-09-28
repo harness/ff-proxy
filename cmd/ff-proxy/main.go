@@ -337,7 +337,7 @@ func main() {
 			conf = remote.NewConfig(proxyKey, clientSvc)
 		}
 
-		if err := conf.Populate(ctx); err != nil {
+		if err := conf.Populate(ctx, authRepo, flagRepo, segmentRepo); err != nil {
 			logger.Error("failed to populate repos with config", "err", err)
 			os.Exit(1)
 		}

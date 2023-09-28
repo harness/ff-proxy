@@ -15,7 +15,6 @@ import (
 	"testing"
 	"time"
 
-	admingen "github.com//v2/gen/admin"
 	"github.com/alicebob/miniredis/v2"
 	"github.com/fanout/go-gripcontrol"
 	"github.com/go-redis/redis/v8"
@@ -23,6 +22,7 @@ import (
 	"github.com/harness/ff-proxy/v2/cache"
 	"github.com/harness/ff-proxy/v2/config"
 	"github.com/harness/ff-proxy/v2/domain"
+	clientgen "github.com/harness/ff-proxy/v2/gen/client"
 	"github.com/harness/ff-proxy/v2/hash"
 	"github.com/harness/ff-proxy/v2/log"
 	"github.com/harness/ff-proxy/v2/middleware"
@@ -282,14 +282,12 @@ func setupHTTPServer(t *testing.T, bypassAuth bool, opts ...setupOpts) *HTTPServ
 		SegmentRepo:      *setupConfig.segmentRepo,
 		AuthRepo:         *setupConfig.authRepo,
 		CacheHealthFn:    setupConfig.cacheHealthFn,
-		EnvHealthFn:      setupConfig.envHealthFn,
 		AuthFn:           tokenSource.GenerateToken,
 		ClientService:    setupConfig.clientService,
 		MetricService:    setupConfig.metricService,
 		Offline:          false,
 		Hasher:           hash.NewSha256(),
 		StreamingEnabled: true,
-		SDKClients:       setupConfig.sdkClients,
 	})
 	endpoints := NewEndpoints(service)
 
@@ -923,7 +921,7 @@ func TestHTTPServer_PostAuthentication(t *testing.T) {
 	`, apiKey1))
 
 	targets := []domain.Target{
-		{Target: admingen.Target{
+		{Target: clientgen.Target{
 			Identifier: "foo",
 			Name:       "bar",
 			Anonymous:  boolPtr(true),
