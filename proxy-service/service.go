@@ -209,10 +209,10 @@ func (s Service) FeatureConfig(ctx context.Context, req domain.FeatureConfigRequ
 		s.logger.Debug(ctx, "flags not found in cache: ", "err", err.Error())
 	}
 
-	configs := []domain.FeatureConfig{}
+	configs := make([]domain.FeatureConfig, 0, len(flags))
 
 	// build FeatureConfig
-	emptyVariationMap := []rest.VariationMap{}
+	emptyVariationMap := []clientgen.VariationMap{}
 	for _, flag := range flags {
 
 		// some sdks e.g. .NET don't cope well with being returned a null VariationToTargetMap so we send back an empty struct here for now

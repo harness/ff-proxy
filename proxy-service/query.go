@@ -44,7 +44,8 @@ func (s Service) GenerateQueryStore(ctx context.Context, environmentID string) Q
 				}
 				return rest.FeatureConfig{}, ErrInternal
 			}
-			return rest.FeatureConfig(flag), nil
+
+			return flag.ToSDKFeatureConfig(), nil
 		},
 		S: func(identifier string) (rest.Segment, error) {
 			// fetch segment
@@ -55,7 +56,8 @@ func (s Service) GenerateQueryStore(ctx context.Context, environmentID string) Q
 				}
 				s.logger.Debug(ctx, "segments not found in cache: ", "err", err.Error())
 			}
-			return rest.Segment(segment), nil
+
+			return segment.ToSDKSegment(), nil
 		},
 		L: func() ([]rest.FeatureConfig, error) {
 			// fetch flags
@@ -69,7 +71,7 @@ func (s Service) GenerateQueryStore(ctx context.Context, environmentID string) Q
 			// TODO can/should we do this conversion in the repo layer instead?
 			var restFlags []rest.FeatureConfig
 			for _, flag := range flags {
-				restFlags = append(restFlags, rest.FeatureConfig(flag))
+				restFlags = append(restFlags, flag.ToSDKFeatureConfig())
 			}
 
 			return restFlags, nil

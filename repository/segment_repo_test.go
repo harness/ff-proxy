@@ -5,7 +5,7 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/harness/ff-golang-server-sdk/rest"
+	clientgen "github.com/harness/ff-proxy/v2/gen/client"
 
 	"github.com/harness/ff-proxy/v2/cache"
 	"github.com/harness/ff-proxy/v2/domain"
@@ -19,10 +19,10 @@ var (
 		Identifier:  "foo",
 		ModifiedAt:  int64Ptr(456),
 		Name:        "fooSegment",
-		Excluded:    &[]rest.Target{},
-		Included:    &[]rest.Target{},
-		Rules:       &[]rest.Clause{},
-		Tags:        &[]rest.Tag{},
+		Excluded:    &[]clientgen.Target{},
+		Included:    &[]clientgen.Target{},
+		Rules:       &[]clientgen.Clause{},
+		Tags:        &[]clientgen.Tag{},
 		Version:     int64Ptr(12),
 	}
 
@@ -32,10 +32,10 @@ var (
 		Identifier:  "bar",
 		ModifiedAt:  int64Ptr(456),
 		Name:        "barSegment",
-		Excluded:    &[]rest.Target{},
-		Included:    &[]rest.Target{},
-		Rules:       &[]rest.Clause{},
-		Tags:        &[]rest.Tag{},
+		Excluded:    &[]clientgen.Target{},
+		Included:    &[]clientgen.Target{},
+		Rules:       &[]clientgen.Clause{},
+		Tags:        &[]clientgen.Tag{},
 		Version:     int64Ptr(12),
 	}
 )

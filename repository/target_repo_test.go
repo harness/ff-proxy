@@ -7,7 +7,7 @@ import (
 
 	"github.com/harness/ff-proxy/v2/cache"
 	"github.com/harness/ff-proxy/v2/domain"
-	admingen "github.com/harness/ff-proxy/v2/gen/admin"
+	clientgen "github.com/harness/ff-proxy/v2/gen/client"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -48,7 +48,7 @@ func boolPtr(b bool) *bool { return &b }
 
 var (
 	targetFoo = domain.Target{
-		Target: admingen.Target{
+		Target: clientgen.Target{
 			Account:     "foo",
 			Anonymous:   boolPtr(false),
 			CreatedAt:   int64Ptr(1634222520273),
@@ -57,7 +57,7 @@ var (
 			Name:        "foo",
 			Org:         "foo",
 			Project:     "FeatureFlagsQADemo",
-			Segments:    &[]admingen.Segment{},
+			Segments:    &[]clientgen.Segment{},
 			Attributes: &map[string]interface{}{
 				"age": float64(55),
 				"ages": []interface{}{
@@ -73,7 +73,7 @@ var (
 	}
 
 	targetBar = domain.Target{
-		Target: admingen.Target{
+		Target: clientgen.Target{
 			Account:     "bar",
 			Anonymous:   boolPtr(false),
 			CreatedAt:   int64Ptr(1634222520273),
@@ -82,7 +82,7 @@ var (
 			Name:        "bar",
 			Org:         "bar",
 			Project:     "FeatureFlagsQADemo",
-			Segments:    &[]admingen.Segment{},
+			Segments:    &[]clientgen.Segment{},
 			Attributes: &map[string]interface{}{
 				"age": float64(55),
 				"ages": []interface{}{
@@ -169,7 +169,7 @@ func TestTargetRepo_DeltaAdd(t *testing.T) {
 	key123 := domain.NewTargetsKey("123")
 
 	target1 := domain.Target{
-		Target: admingen.Target{
+		Target: clientgen.Target{
 			Identifier:  "target1",
 			Name:        "target1",
 			Environment: "123",
@@ -178,7 +178,7 @@ func TestTargetRepo_DeltaAdd(t *testing.T) {
 	}
 
 	target2 := domain.Target{
-		Target: admingen.Target{
+		Target: clientgen.Target{
 			Identifier:  "target2",
 			Name:        "target2",
 			Environment: "123",
@@ -187,7 +187,7 @@ func TestTargetRepo_DeltaAdd(t *testing.T) {
 	}
 
 	target3 := domain.Target{
-		Target: admingen.Target{
+		Target: clientgen.Target{
 			Identifier:  "target3",
 			Name:        "target3",
 			Environment: "123",
@@ -196,7 +196,7 @@ func TestTargetRepo_DeltaAdd(t *testing.T) {
 	}
 
 	target1ProjectBar := domain.Target{
-		Target: admingen.Target{
+		Target: clientgen.Target{
 			Identifier:  "target1",
 			Name:        "target1",
 			Environment: "123",
@@ -205,7 +205,7 @@ func TestTargetRepo_DeltaAdd(t *testing.T) {
 	}
 
 	target2ProjectBar := domain.Target{
-		Target: admingen.Target{
+		Target: clientgen.Target{
 			Identifier:  "target2",
 			Name:        "target2",
 			Environment: "123",
