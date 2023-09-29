@@ -287,6 +287,7 @@ func main() {
 	conf, err := config.NewConfig(offline, configDir, proxyKey, clientSvc)
 	if err != nil {
 		logger.Error("failed to load config", "err", err)
+		os.Exit(1)
 	}
 
 	if err := conf.Populate(ctx, authRepo, flagRepo, segmentRepo); err != nil {
