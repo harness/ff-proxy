@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/harness/ff-proxy/gen/admin"
+	"github.com/harness/ff-proxy/v2/gen/admin"
 )
 
 // DefaultClient returns the default admin client

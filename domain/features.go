@@ -49,7 +49,7 @@ func (f *FeatureFlag) ToSDKFeatureConfig() rest.FeatureConfig {
 	rules := toSDKRules(f.Rules)
 
 	return rest.FeatureConfig{
-		DefaultServe:         rest.Serve{},
+		DefaultServe:         toSDKServe(f.DefaultServe),
 		Environment:          f.Environment,
 		Feature:              f.Feature,
 		Kind:                 rest.FeatureConfigKind(f.Kind),
@@ -64,6 +64,18 @@ func (f *FeatureFlag) ToSDKFeatureConfig() rest.FeatureConfig {
 	}
 }
 
+func toSDKServe(serve clientgen.Serve) rest.Serve {
+	distribution := SafePtrDereference(serve.Distribution)
+
+	return rest.Serve{
+		Distribution: &rest.Distribution{
+			BucketBy:   distribution.BucketBy,
+			Variations: toSDKWeightedVariations(distribution.Variations),
+		},
+		Variation: serve.Variation,
+	}
+}
+
 func toSDKRules(rules *[]clientgen.ServingRule) []rest.ServingRule {
 	if rules == nil {
 		return []rest.ServingRule{}
@@ -72,7 +84,7 @@ func toSDKRules(rules *[]clientgen.ServingRule) []rest.ServingRule {
 	result := make([]rest.ServingRule, 0, len(*rules))
 	for _, r := range *rules {
 
-		clauses := toSDKClause(r.Clauses)
+		clauses := toSDKClause(&r.Clauses)
 		distribution := SafePtrDereference(r.Serve.Distribution)
 		weightedVariations := toSDKWeightedVariations(distribution.Variations)
 
@@ -106,9 +118,13 @@ func toSDKWeightedVariations(weightedVariations []clientgen.WeightedVariation) [
 	return result
 }
 
-func toSDKClause(clauses []clientgen.Clause) []rest.Clause {
-	results := make([]rest.Clause, 0, len(clauses))
-	for _, c := range clauses {
+func toSDKClause(clauses *[]clientgen.Clause) []rest.Clause {
+	if clauses == nil {
+		return []rest.Clause{}
+	}
+
+	results := make([]rest.Clause, 0, len(*clauses))
+	for _, c := range *clauses {
 		results = append(results, rest.Clause{
 			Attribute: c.Attribute,
 			Id:        SafePtrDereference(c.Id),

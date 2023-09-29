@@ -5,10 +5,9 @@ import (
 	"errors"
 	"testing"
 
-	clientgen "github.com/harness/ff-proxy/v2/gen/client"
-
 	"github.com/harness/ff-proxy/v2/cache"
 	"github.com/harness/ff-proxy/v2/domain"
+	clientgen "github.com/harness/ff-proxy/v2/gen/client"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -41,17 +40,17 @@ var (
 )
 
 func TestSegmentRepo_GetByIdentifer(t *testing.T) {
-	key123 := domain.NewSegmentsKey("123")
-
-	emptyConfig := map[domain.SegmentKey]interface{}{}
-	populatedConfig := map[domain.SegmentKey]interface{}{
-		key123: []domain.Segment{segmentFoo},
-		domain.NewSegmentKey("123", segmentFoo.Identifier): segmentFoo,
+	emptyConfig := []domain.SegmentConfig{}
+	populatedConfig := []domain.SegmentConfig{
+		{
+			EnvironmentID: "123",
+			Segments:      []domain.Segment{segmentFoo, segmentBar},
+		},
 	}
 
 	testCases := map[string]struct {
 		cache       cache.Cache
-		repoConfig  map[domain.SegmentKey]interface{}
+		repoConfig  []domain.SegmentConfig
 		envID       string
 		identifier  string
 		shouldErr   bool
@@ -67,13 +66,22 @@ func TestSegmentRepo_GetByIdentifer(t *testing.T) {
 			expected:    domain.Segment{},
 			expectedErr: domain.ErrCacheNotFound,
 		},
-		"Given I have a populated cache and I get an identifier that's in the cache": {
+		"Given I have a populated cache and I get identifier=foo that's in the cache": {
 			cache:       cache.NewMemCache(),
 			repoConfig:  populatedConfig,
 			envID:       "123",
 			identifier:  "foo",
 			shouldErr:   false,
 			expected:    segmentFoo,
+			expectedErr: nil,
+		},
+		"Given I have a populated cache and I get an identifier=bar that's in the cache": {
+			cache:       cache.NewMemCache(),
+			repoConfig:  populatedConfig,
+			envID:       "123",
+			identifier:  "bar",
+			shouldErr:   false,
+			expected:    segmentBar,
 			expectedErr: nil,
 		},
 		"Given I have a populated cache and I try to get an identifier that isn't in the cache": {
@@ -90,12 +98,12 @@ func TestSegmentRepo_GetByIdentifer(t *testing.T) {
 	for desc, tc := range testCases {
 		tc := tc
 		t.Run(desc, func(t *testing.T) {
-			repo, err := NewSegmentRepo(tc.cache, WithSegmentConfig(tc.repoConfig))
-			if err != nil {
-				t.Fatalf("(%s): error = %v, shouldErr = %v", desc, err, tc.shouldErr)
-			}
+			ctx := context.Background()
 
-			actual, err := repo.GetByIdentifier(context.Background(), tc.envID, tc.identifier)
+			repo := NewSegmentRepo(tc.cache)
+			assert.Nil(t, repo.Add(ctx, tc.repoConfig...))
+
+			actual, err := repo.GetByIdentifier(ctx, tc.envID, tc.identifier)
 			if (err != nil) != tc.shouldErr {
 				t.Errorf("(%s): error = %v, shouldErr = %v", desc, err, tc.shouldErr)
 				ok := errors.Is(err, tc.expectedErr)
@@ -108,17 +116,18 @@ func TestSegmentRepo_GetByIdentifer(t *testing.T) {
 }
 
 func TestSegmentRepoGet(t *testing.T) {
-	key123 := domain.NewSegmentsKey("123")
 
-	emptyConfig := map[domain.SegmentKey]interface{}{}
-	populatedConfig := map[domain.SegmentKey]interface{}{
-		key123: []domain.Segment{segmentFoo, segmentBar},
-		domain.NewSegmentKey("123", segmentFoo.Identifier): segmentFoo,
+	emptyConfig := []domain.SegmentConfig{}
+	populatedConfig := []domain.SegmentConfig{
+		{
+			EnvironmentID: "123",
+			Segments:      []domain.Segment{segmentFoo, segmentBar},
+		},
 	}
 
 	testCases := map[string]struct {
 		cache      cache.MemCache
-		repoConfig map[domain.SegmentKey]interface{}
+		repoConfig []domain.SegmentConfig
 		shouldErr  bool
 		expected   []domain.Segment
 	}{
@@ -138,12 +147,12 @@ func TestSegmentRepoGet(t *testing.T) {
 	for desc, tc := range testCases {
 		tc := tc
 		t.Run(desc, func(t *testing.T) {
-			repo, err := NewSegmentRepo(tc.cache, WithSegmentConfig(tc.repoConfig))
-			if err != nil {
-				t.Fatalf("(%s): error = %v, shouldErr = %v", desc, err, tc.shouldErr)
-			}
+			ctx := context.Background()
 
-			actual, err := repo.Get(context.Background(), "123")
+			repo := NewSegmentRepo(tc.cache)
+			assert.Nil(t, repo.Add(ctx, tc.repoConfig...))
+
+			actual, err := repo.Get(ctx, "123")
 			if (err != nil) != tc.shouldErr {
 				t.Errorf("(%s): error = %v, shouldErr = %v", desc, err, tc.shouldErr)
 			}

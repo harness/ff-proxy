@@ -13,8 +13,8 @@ import (
 	log "github.com/sirupsen/logrus"
 
 	"github.com/golang-jwt/jwt"
-	"github.com/harness/ff-proxy/domain"
-	"github.com/harness/ff-proxy/gen/client"
+	"github.com/harness/ff-proxy/v2/domain"
+	"github.com/harness/ff-proxy/v2/gen/client"
 )
 
 const (

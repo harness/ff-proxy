@@ -5,11 +5,11 @@ import (
 	"errors"
 	"testing"
 
-	clientgen "github.com/harness/ff-proxy/v2/gen/client"
-
 	"github.com/harness/ff-proxy/v2/cache"
-	"github.com/harness/ff-proxy/v2/domain"
+	clientgen "github.com/harness/ff-proxy/v2/gen/client"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/harness/ff-proxy/v2/domain"
 )
 
 var (
@@ -139,17 +139,19 @@ var (
 )
 
 func TestFeatureFlagRepo_GetByIdentifer(t *testing.T) {
-	key123 := domain.NewFeatureConfigsKey("123")
-
-	emptyConfig := map[domain.FeatureFlagKey]interface{}{}
-	populatedConfig := map[domain.FeatureFlagKey]interface{}{
-		key123: []domain.FeatureFlag{featureFlagFoo},
-		domain.NewFeatureConfigKey("123", featureFlagFoo.Feature): featureFlagFoo,
+	emptyConfig := []domain.FlagConfig{}
+	populatedConfig := []domain.FlagConfig{
+		{
+			EnvironmentID: "123",
+			FeatureConfigs: []domain.FeatureFlag{
+				featureFlagFoo,
+			},
+		},
 	}
 
 	testCases := map[string]struct {
 		cache       cache.Cache
-		repoConfig  map[domain.FeatureFlagKey]interface{}
+		repoConfig  []domain.FlagConfig
 		envID       string
 		identifier  string
 		shouldErr   bool
@@ -188,10 +190,10 @@ func TestFeatureFlagRepo_GetByIdentifer(t *testing.T) {
 	for desc, tc := range testCases {
 		tc := tc
 		t.Run(desc, func(t *testing.T) {
-			repo, err := NewFeatureFlagRepo(tc.cache, WithFeatureConfig(tc.repoConfig))
-			if err != nil {
-				t.Fatalf("(%s): error = %v, shouldErr = %v", desc, err, tc.shouldErr)
-			}
+			ctx := context.Background()
+
+			repo := NewFeatureFlagRepo(tc.cache)
+			assert.Nil(t, repo.Add(ctx, tc.repoConfig...))
 
 			actual, err := repo.GetByIdentifier(context.Background(), tc.envID, tc.identifier)
 			if (err != nil) != tc.shouldErr {
@@ -206,18 +208,21 @@ func TestFeatureFlagRepo_GetByIdentifer(t *testing.T) {
 }
 
 func TestFeatureFlagRepo_Get(t *testing.T) {
-	key123 := domain.NewFeatureConfigsKey("123")
+	emptyConfig := []domain.FlagConfig{}
 
-	emptyConfig := map[domain.FeatureFlagKey]interface{}{}
-	populatedConfig := map[domain.FeatureFlagKey]interface{}{
-		key123: []domain.FeatureFlag{featureFlagFoo, featureFlagBar},
-		domain.NewFeatureConfigKey("123", featureFlagFoo.Feature): featureFlagFoo,
-		domain.NewFeatureConfigKey("123", featureFlagBar.Feature): featureFlagBar,
+	populatedConfig := []domain.FlagConfig{
+		{
+			EnvironmentID: "123",
+			FeatureConfigs: []domain.FeatureFlag{
+				featureFlagFoo,
+				featureFlagBar,
+			},
+		},
 	}
 
 	testCases := map[string]struct {
 		cache      cache.MemCache
-		repoConfig map[domain.FeatureFlagKey]interface{}
+		repoConfig []domain.FlagConfig
 		shouldErr  bool
 		expected   []domain.FeatureFlag
 	}{
@@ -237,12 +242,12 @@ func TestFeatureFlagRepo_Get(t *testing.T) {
 	for desc, tc := range testCases {
 		tc := tc
 		t.Run(desc, func(t *testing.T) {
-			repo, err := NewFeatureFlagRepo(tc.cache, WithFeatureConfig(tc.repoConfig))
-			if err != nil {
-				t.Fatalf("(%s): error = %v, shouldErr = %v", desc, err, tc.shouldErr)
-			}
+			ctx := context.Background()
 
-			actual, err := repo.Get(context.Background(), "123")
+			repo := NewFeatureFlagRepo(tc.cache)
+			assert.Nil(t, repo.Add(ctx, tc.repoConfig...))
+
+			actual, err := repo.Get(ctx, "123")
 			if (err != nil) != tc.shouldErr {
 				t.Errorf("(%s): error = %v, shouldErr = %v", desc, err, tc.shouldErr)
 			}

@@ -37,11 +37,7 @@ func (s *Segment) UnmarshalBinary(b []byte) error {
 
 func (s *Segment) ToSDKSegment() rest.Segment {
 
-	rules := []rest.Clause{}
-	if *s.Rules != nil {
-		rules = toSDKClause(*s.Rules)
-	}
-
+	rules := toSDKClause(s.Rules)
 	excluded := toSDKTarget(s.Excluded)
 	included := toSDKTarget(s.Included)
 
@@ -66,6 +62,8 @@ func toSDKTarget(targets *[]clientgen.Target) []rest.Target {
 
 	result := make([]rest.Target, 0, len(*targets))
 	for _, t := range *targets {
+		segments := toSDKSegments(t.Segments)
+
 		result = append(result, rest.Target{
 			Account:     t.Account,
 			Anonymous:   t.Anonymous,
@@ -76,9 +74,37 @@ func toSDKTarget(targets *[]clientgen.Target) []rest.Target {
 			Name:        t.Name,
 			Org:         t.Org,
 			Project:     t.Project,
-			Segments:    nil,
+			Segments:    &segments,
 		})
 	}
 
 	return result
+}
+
+func toSDKSegments(segments *[]clientgen.Segment) []rest.Segment {
+	if segments == nil {
+		return []rest.Segment{}
+	}
+
+	results := make([]rest.Segment, 0, len(*segments))
+	for _, s := range *segments {
+		excluded := toSDKTarget(s.Excluded)
+		included := toSDKTarget(s.Included)
+		rules := toSDKClause(s.Rules)
+
+		results = append(results, rest.Segment{
+			CreatedAt:   s.CreatedAt,
+			Environment: s.Environment,
+			Excluded:    &excluded,
+			Identifier:  s.Identifier,
+			Included:    &included,
+			ModifiedAt:  s.ModifiedAt,
+			Name:        s.Name,
+			Rules:       &rules,
+			Tags:        nil,
+			Version:     s.Version,
+		})
+	}
+
+	return results
 }

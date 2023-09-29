@@ -40,7 +40,7 @@ type MetricService struct {
 	enabled     bool
 	client      clientgen.ClientWithResponsesInterface
 	metrics     map[string]domain.MetricsRequest
-	tokens      map[string]string
+	token       string
 	metricsLock *sync.Mutex
 
 	sdkUsage         counter
@@ -48,7 +48,7 @@ type MetricService struct {
 }
 
 // NewMetricService creates a MetricService
-func NewMetricService(l log.Logger, addr string, enabled bool, reg *prometheus.Registry) (MetricService, error) {
+func NewMetricService(l log.Logger, addr string, token string, enabled bool, reg *prometheus.Registry) (MetricService, error) {
 	l = l.With("component", "MetricServiceClient")
 	client, err := clientgen.NewClientWithResponses(
 		addr,
@@ -61,6 +61,7 @@ func NewMetricService(l log.Logger, addr string, enabled bool, reg *prometheus.R
 	m := MetricService{
 		log:         l,
 		client:      client,
+		token:       token,
 		enabled:     enabled,
 		metrics:     map[string]domain.MetricsRequest{},
 		metricsLock: &sync.Mutex{},
@@ -154,13 +155,7 @@ func (m MetricService) sendMetrics(ctx context.Context, envID string, metric dom
 		m.metricsForwarded.WithLabelValues(envID, errLabel).Inc()
 	}()
 
-	token, ok := m.tokens[envID]
-	if !ok {
-		m.log.Warn("No token found for environment. Skipping sending metrics for env.", "environment", envID)
-		return nil
-	}
-
-	ctx = context.WithValue(ctx, tokenKey, token)
+	ctx = context.WithValue(ctx, tokenKey, m.token)
 	res, err := m.client.PostMetricsWithResponse(ctx, envID, &clientgen.PostMetricsParams{Cluster: &clusterIdentifier}, clientgen.PostMetricsJSONRequestBody{
 		MetricsData: metric.MetricsData,
 		TargetData:  metric.TargetData,

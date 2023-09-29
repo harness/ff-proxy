@@ -4,44 +4,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"log"
 
 	"github.com/harness/ff-proxy/v2/cache"
 
 	"github.com/harness/ff-proxy/v2/domain"
 )
-
-// TargetOption defines functional option for a TargetRepo
-type TargetOption func(t *TargetRepo)
-
-// WithTargetConfig populates a TargetRepo with the given config
-func WithTargetConfig(config map[domain.TargetKey]interface{}) TargetOption {
-	return func(t *TargetRepo) {
-		for key, value := range config {
-
-			// cleanup all current keys before we add new ones to make sure keys that have been deleted remotely are removed
-			if err := t.cache.Delete(context.Background(), string(key)); err != nil {
-				log.Println("failed to clean cache for targets: ", err)
-			}
-
-			// Don't bother saving an empty slice
-			if s, ok := value.([]domain.Target); ok {
-				if s == nil || len(s) == 0 {
-					return
-				}
-			}
-
-			// Don't bother adding a nil target to the cache
-			if s, ok := value.(*domain.Target); ok && s == nil {
-				return
-			}
-
-			if err := t.cache.Set(context.Background(), string(key), value); err != nil {
-				log.Println("failed to set target in cache: ", err)
-			}
-		}
-	}
-}
 
 // TargetRepo is a repository that stores Targets
 type TargetRepo struct {
@@ -50,49 +17,8 @@ type TargetRepo struct {
 
 // NewTargetRepo creates a TargetRepo. It can optionally preload the repo with data
 // from the passed config
-func NewTargetRepo(c cache.Cache, opts ...TargetOption) (TargetRepo, error) {
-	tr := TargetRepo{cache: c}
-
-	for _, opt := range opts {
-		opt(&tr)
-	}
-
-	return tr, nil
-}
-
-func (t TargetRepo) Add(ctx context.Context, envID string, targets ...domain.Target) error {
-	if len(targets) == 1 {
-		target := targets[0]
-		key := domain.NewTargetKey(envID, target.Identifier)
-		if err := t.cache.Set(ctx, string(key), target); err != nil {
-			// log and contineu
-		}
-	}
-
-	key := domain.NewTargetsKey(envID)
-
-	var existingTargets []domain.Target
-	err := t.cache.Get(ctx, string(key), &existingTargets)
-	if err != nil && !errors.Is(err, domain.ErrCacheNotFound) {
-		// log and continue
-	}
-
-	existingTargets = append(existingTargets, targets...)
-
-	return t.cache.Set(ctx, string(key), targets)
-}
-
-// Add adds a target or multiple targets to the given key
-func (t TargetRepo) addTarget(ctx context.Context, envID string, target domain.Target) error {
-	key := domain.NewTargetKey(envID, target.Identifier)
-
-	return t.cache.Set(ctx, string(key), target)
-}
-
-func (t TargetRepo) addTargets(ctx context.Context, envID string, targets ...domain.Target) error {
-	key := domain.NewTargetsKey(envID)
-
-	return t.cache.Set(ctx, string(key), targets)
+func NewTargetRepo(c cache.Cache) TargetRepo {
+	return TargetRepo{cache: c}
 }
 
 // Get gets all of the Targets for a given key
@@ -165,4 +91,17 @@ func (t TargetRepo) DeltaAdd(ctx context.Context, envID string, targets ...domai
 	}
 
 	return t.addTargets(ctx, envID, targets...)
+}
+
+// Add adds a target or multiple targets to the given key
+func (t TargetRepo) addTarget(ctx context.Context, envID string, target domain.Target) error {
+	key := domain.NewTargetKey(envID, target.Identifier)
+
+	return t.cache.Set(ctx, string(key), target)
+}
+
+func (t TargetRepo) addTargets(ctx context.Context, envID string, targets ...domain.Target) error {
+	key := domain.NewTargetsKey(envID)
+
+	return t.cache.Set(ctx, string(key), targets)
 }

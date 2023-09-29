@@ -3,7 +3,7 @@ package testhelpers
 import (
 	"context"
 
-	"github.com/harness/ff-proxy/gen/admin"
+	"github.com/harness/ff-proxy/v2/gen/admin"
 )
 
 // CreateSegment ...

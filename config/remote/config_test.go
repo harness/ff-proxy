@@ -54,11 +54,11 @@ func (m *mockFlagRepo) Add(ctx context.Context, config ...domain.FlagConfig) err
 }
 
 type mockClientService struct {
-	authProxyKey    func() (services.AuthenticateProxyKeyResponse, error)
+	authProxyKey    func() (domain.AuthenticateProxyKeyResponse, error)
 	pageProxyConfig func() ([]domain.ProxyConfig, error)
 }
 
-func (m mockClientService) AuthenticateProxyKey(ctx context.Context, key string) (services.AuthenticateProxyKeyResponse, error) {
+func (m mockClientService) AuthenticateProxyKey(ctx context.Context, key string) (domain.AuthenticateProxyKeyResponse, error) {
 	return m.authProxyKey()
 }
 
@@ -66,7 +66,7 @@ func (m mockClientService) Authenticate(ctx context.Context, apiKey string, targ
 	return "not implemented", nil
 }
 
-func (m mockClientService) PageProxyConfig(ctx context.Context, input services.GetProxyConfigInput) ([]domain.ProxyConfig, error) {
+func (m mockClientService) PageProxyConfig(ctx context.Context, input domain.GetProxyConfigInput) ([]domain.ProxyConfig, error) {
 	return m.pageProxyConfig()
 }
 
@@ -165,8 +165,8 @@ func TestConfig_Populate(t *testing.T) {
 			args: args{key: "123"},
 			mocks: mocks{
 				clientService: mockClientService{
-					authProxyKey: func() (services.AuthenticateProxyKeyResponse, error) {
-						return services.AuthenticateProxyKeyResponse{}, services.ErrUnauthorized
+					authProxyKey: func() (domain.AuthenticateProxyKeyResponse, error) {
+						return domain.AuthenticateProxyKeyResponse{}, services.ErrUnauthorized
 					},
 				},
 				authRepo:    &mockAuthRepo{},
@@ -179,8 +179,8 @@ func TestConfig_Populate(t *testing.T) {
 			args: args{key: "123"},
 			mocks: mocks{
 				clientService: mockClientService{
-					authProxyKey: func() (services.AuthenticateProxyKeyResponse, error) {
-						return services.AuthenticateProxyKeyResponse{}, nil
+					authProxyKey: func() (domain.AuthenticateProxyKeyResponse, error) {
+						return domain.AuthenticateProxyKeyResponse{}, nil
 					},
 					pageProxyConfig: func() ([]domain.ProxyConfig, error) {
 						return []domain.ProxyConfig{}, errors.New("client service error")
@@ -196,8 +196,8 @@ func TestConfig_Populate(t *testing.T) {
 			args: args{key: "123"},
 			mocks: mocks{
 				clientService: mockClientService{
-					authProxyKey: func() (services.AuthenticateProxyKeyResponse, error) {
-						return services.AuthenticateProxyKeyResponse{}, nil
+					authProxyKey: func() (domain.AuthenticateProxyKeyResponse, error) {
+						return domain.AuthenticateProxyKeyResponse{}, nil
 					},
 					pageProxyConfig: func() ([]domain.ProxyConfig, error) {
 						return proxyConfig, nil
@@ -217,8 +217,8 @@ func TestConfig_Populate(t *testing.T) {
 			args: args{key: "123"},
 			mocks: mocks{
 				clientService: mockClientService{
-					authProxyKey: func() (services.AuthenticateProxyKeyResponse, error) {
-						return services.AuthenticateProxyKeyResponse{}, nil
+					authProxyKey: func() (domain.AuthenticateProxyKeyResponse, error) {
+						return domain.AuthenticateProxyKeyResponse{}, nil
 					},
 					pageProxyConfig: func() ([]domain.ProxyConfig, error) {
 						return proxyConfig, nil
@@ -252,8 +252,8 @@ func TestConfig_Populate(t *testing.T) {
 			args: args{key: "123"},
 			mocks: mocks{
 				clientService: mockClientService{
-					authProxyKey: func() (services.AuthenticateProxyKeyResponse, error) {
-						return services.AuthenticateProxyKeyResponse{}, nil
+					authProxyKey: func() (domain.AuthenticateProxyKeyResponse, error) {
+						return domain.AuthenticateProxyKeyResponse{}, nil
 					},
 					pageProxyConfig: func() ([]domain.ProxyConfig, error) {
 						return proxyConfig, nil
@@ -287,8 +287,8 @@ func TestConfig_Populate(t *testing.T) {
 			args: args{key: "123"},
 			mocks: mocks{
 				clientService: mockClientService{
-					authProxyKey: func() (services.AuthenticateProxyKeyResponse, error) {
-						return services.AuthenticateProxyKeyResponse{}, nil
+					authProxyKey: func() (domain.AuthenticateProxyKeyResponse, error) {
+						return domain.AuthenticateProxyKeyResponse{}, nil
 					},
 					pageProxyConfig: func() ([]domain.ProxyConfig, error) {
 						return proxyConfig, nil

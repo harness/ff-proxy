@@ -126,7 +126,7 @@ func TestClientService_AuthenticateProxyKey(t *testing.T) {
 
 	type expected struct {
 		err      error
-		response AuthenticateProxyKeyResponse
+		response domain.AuthenticateProxyKeyResponse
 	}
 
 	testCases := map[string]struct {
@@ -175,7 +175,7 @@ func TestClientService_AuthenticateProxyKey(t *testing.T) {
 			}}},
 			expected: expected{
 				err: ErrUnauthorized,
-				response: AuthenticateProxyKeyResponse{
+				response: domain.AuthenticateProxyKeyResponse{
 					Token:             "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJjbHVzdGVyX2lkZW50aWZpZXIiOiIxIiwiYWNjb3VudCI6ImNzZlIzekZsUnhDQktTRG9Pc3ZYcEEiLCJvcmdhbml6YXRpb24iOiJjNDUzYTdmYi1jOGExLTQyMmMtYWMwNy04ZTQwMzg1YTk3ZjQiLCJrZXlfdHlwZSI6IlByb3h5Iiwia2V5IjoiMTRjMjllNTk4NDVkZGMzYmFhOWE1ODlkODU5NjQzZDIyZTEyYzcyNmY5MjU3NWI2NzkzNDA3YTkxNjNiMTQ0MiIsImVudmlyb25tZW50cyI6WyI3NjMwNjZjNC1kNzc5LTRjMzctOTgwNC1lNWNmMzA0NGE0MWQiLCJkNGEzNjMzZi04OWRmLTQ0YzUtOWYzZS0zMjFiY2EyMDIwM2EiXX0.gNfs74ortBsyOXFdXSW4IqvWuwkhcXIZByH6lCLzEVY",
 					ClusterIdentifier: "1",
 				},
@@ -206,7 +206,7 @@ func TestClientService_AuthenticateProxyKey(t *testing.T) {
 
 func TestClientService_PageProxyConfig(t *testing.T) {
 	type args struct {
-		input GetProxyConfigInput
+		input domain.GetProxyConfigInput
 	}
 
 	type mocks struct {
