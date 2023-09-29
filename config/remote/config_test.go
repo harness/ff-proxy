@@ -102,11 +102,11 @@ func TestConfig_Populate(t *testing.T) {
 
 	expectedAuthConfig := []domain.AuthConfig{
 		{
-			APIKey:        domain.AuthAPIKey("123"),
+			APIKey:        domain.NewAuthAPIKey("123"),
 			EnvironmentID: domain.EnvironmentID("2fd10ce3-7ed6-466f-a768-e4df08f566b0"),
 		},
 		{
-			APIKey:        domain.AuthAPIKey("456"),
+			APIKey:        domain.NewAuthAPIKey("456"),
 			EnvironmentID: domain.EnvironmentID("2fd10ce3-7ed6-466f-a768-e4df08f566b0"),
 		},
 	}

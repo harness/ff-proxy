@@ -58,7 +58,7 @@ func (c Config) Populate(ctx context.Context, authRepo domain.AuthRepo, flagRepo
 
 			for _, apiKey := range env.ApiKeys {
 				authConfig = append(authConfig, domain.AuthConfig{
-					APIKey:        domain.AuthAPIKey(apiKey),
+					APIKey:        domain.NewAuthAPIKey(apiKey),
 					EnvironmentID: domain.EnvironmentID(env.ID.String()),
 				})
 			}
