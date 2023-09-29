@@ -36,6 +36,7 @@ generate: ## Generates the client for the ff-servers client service
 	oapi-codegen --config ./ff-api/config/ff-proxy/client-client.yaml ./ff-api/docs/release/client-v1.yaml > gen/client/services.gen.go
 	oapi-codegen --config ./ff-api/config/ff-proxy/client-types.yaml ./ff-api/docs/release/client-v1.yaml > gen/client/types.gen.go
 
+
 PHONY+= build
 build: ## Builds the ff-proxy service binary
 	CGO_ENABLED=0 go build -ldflags="-X github.com/harness/ff-proxy/build.Version=${GIT_TAG}" -o ff-proxy ./cmd/ff-proxy/main.go

@@ -230,22 +230,22 @@ var (
 func TestConfig_Populate(t *testing.T) {
 	expectedAuthConfig := []domain.AuthConfig{
 		{
-			EnvironmentID: domain.EnvironmentID("env-1234"),
-			APIKey:        domain.AuthAPIKey("d4f79b313f8106f5af108ad96ff516222dbfd5a0ab52f4308e4b1ad1d740de60"),
+			EnvironmentID: domain.EnvironmentID("1234"),
+			APIKey:        domain.NewAuthAPIKey("d4f79b313f8106f5af108ad96ff516222dbfd5a0ab52f4308e4b1ad1d740de60"),
 		},
 		{
-			EnvironmentID: domain.EnvironmentID("env-1234"),
-			APIKey:        domain.AuthAPIKey("15fac8fa1c99022568b008b9df07b04b45354ac5ca4740041d904cd3cf2b39e3"),
+			EnvironmentID: domain.EnvironmentID("1234"),
+			APIKey:        domain.NewAuthAPIKey("15fac8fa1c99022568b008b9df07b04b45354ac5ca4740041d904cd3cf2b39e3"),
 		},
 		{
-			EnvironmentID: domain.EnvironmentID("env-1234"),
-			APIKey:        domain.AuthAPIKey("35ab1e0411c4cc6ecaaa676a4c7fef259798799ed40ad09fb07adae902bd0c7a"),
+			EnvironmentID: domain.EnvironmentID("1234"),
+			APIKey:        domain.NewAuthAPIKey("35ab1e0411c4cc6ecaaa676a4c7fef259798799ed40ad09fb07adae902bd0c7a"),
 		},
 	}
 
 	expectedFlagConfig := []domain.FlagConfig{
 		{
-			EnvironmentID: "env-1234",
+			EnvironmentID: "1234",
 			FeatureConfigs: []domain.FeatureFlag{
 				harnessAppDemoDarkModeConfig,
 				yetAnotherFlagConfig,
@@ -255,7 +255,7 @@ func TestConfig_Populate(t *testing.T) {
 
 	expectedSegmentConfig := []domain.SegmentConfig{
 		{
-			EnvironmentID: "env-1234",
+			EnvironmentID: "1234",
 			Segments:      []domain.Segment{flagsTeamSegment},
 		},
 	}

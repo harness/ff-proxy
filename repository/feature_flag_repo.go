@@ -11,33 +11,6 @@ import (
 	"github.com/harness/ff-proxy/v2/domain"
 )
 
-// FeatureFlagOption defines functional option for a FeatureFlagRepo
-type FeatureFlagOption func(f *FeatureFlagRepo)
-
-// WithFeatureConfig populates a FeatureFlagRepo with the given config
-func WithFeatureConfig(config map[domain.FeatureFlagKey]interface{}) FeatureFlagOption {
-	return func(f *FeatureFlagRepo) {
-		for key, value := range config {
-			// cleanup all current keys before we add new ones to make sure keys that have been deleted remotely are removed
-			_ = f.cache.Delete(context.Background(), string(key))
-
-			// Don't bother saving an empty slice
-			if s, ok := value.([]domain.FeatureFlag); ok {
-				if s == nil || len(s) == 0 {
-					return
-				}
-			}
-
-			// Don't bother adding a nil target to the cache
-			if s, ok := value.(*domain.FeatureFlag); ok && s == nil {
-				return
-			}
-
-			f.cache.Set(context.Background(), string(key), value)
-		}
-	}
-}
-
 // FeatureFlagRepo is a repository that stores FeatureFlags
 type FeatureFlagRepo struct {
 	cache cache.Cache
@@ -45,14 +18,8 @@ type FeatureFlagRepo struct {
 
 // NewFeatureFlagRepo creates a FeatureFlagRepo. It can optionally preload the repo with data
 // from the passed config
-func NewFeatureFlagRepo(c cache.Cache, opts ...FeatureFlagOption) (FeatureFlagRepo, error) {
-	fcr := FeatureFlagRepo{cache: c}
-
-	for _, opt := range opts {
-		opt(&fcr)
-	}
-
-	return fcr, nil
+func NewFeatureFlagRepo(c cache.Cache) FeatureFlagRepo {
+	return FeatureFlagRepo{cache: c}
 }
 
 // Get gets all the FeatureFlag for a given key
@@ -86,6 +53,7 @@ func (f FeatureFlagRepo) GetByIdentifier(ctx context.Context, envID string, iden
 	return featureFlag, nil
 }
 
+// Add stores FlagConfig in the cache
 func (f FeatureFlagRepo) Add(ctx context.Context, config ...domain.FlagConfig) error {
 	errs := []error{}
 

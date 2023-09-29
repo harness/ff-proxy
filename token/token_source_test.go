@@ -1,6 +1,7 @@
 package token
 
 import (
+	"context"
 	"testing"
 	"time"
 
@@ -23,9 +24,14 @@ func TestTokenSource_GenerateToken(t *testing.T) {
 	)
 	secret := []byte(`secret`)
 
-	authRepo, _ := repository.NewAuthRepo(cache.NewMemCache(), map[domain.AuthAPIKey]string{
-		domain.NewAuthAPIKey(hashedKey): envID,
-	}, nil)
+	authConfig := domain.AuthConfig{
+		APIKey:        domain.NewAuthAPIKey(hashedKey),
+		EnvironmentID: envID,
+	}
+
+	authRepo := repository.NewAuthRepo(cache.NewMemCache())
+	assert.Nil(t, authRepo.Add(context.Background(), authConfig))
+
 	tokenSource := NewTokenSource(log.NoOpLogger{}, authRepo, hash.NewSha256(), secret)
 
 	testCases := map[string]struct {

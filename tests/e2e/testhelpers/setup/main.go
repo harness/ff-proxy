@@ -6,7 +6,7 @@ import (
 	"io"
 	"os"
 
-	"github.com/harness/ff-proxy/tests/e2e/testhelpers"
+	"github.com/harness/ff-proxy/v2/tests/e2e/testhelpers"
 
 	"github.com/joho/godotenv"
 

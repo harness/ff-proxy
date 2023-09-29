@@ -99,17 +99,12 @@ var (
 )
 
 func TestTargetRepo_GetByIdentifer(t *testing.T) {
-	key123 := domain.NewTargetsKey("123")
-
-	emptyConfig := map[domain.TargetKey]interface{}{}
-	populatedConfig := map[domain.TargetKey]interface{}{
-		key123: []domain.Target{targetFoo},
-		domain.NewTargetKey("123", targetFoo.Identifier): targetFoo,
-	}
+	emptyConfig := []domain.Target{}
+	populatedConfig := []domain.Target{targetFoo, targetBar}
 
 	testCases := map[string]struct {
 		cache       cache.Cache
-		repoConfig  map[domain.TargetKey]interface{}
+		repoConfig  []domain.Target
 		envID       string
 		identifier  string
 		shouldErr   bool
@@ -148,12 +143,14 @@ func TestTargetRepo_GetByIdentifer(t *testing.T) {
 	for desc, tc := range testCases {
 		tc := tc
 		t.Run(desc, func(t *testing.T) {
-			repo, err := NewTargetRepo(tc.cache, WithTargetConfig(tc.repoConfig))
-			if err != nil {
-				t.Fatalf("(%s): error = %v, shouldErr = %v", desc, err, tc.shouldErr)
+			ctx := context.Background()
+
+			repo := NewTargetRepo(tc.cache)
+			if len(tc.repoConfig) > 0 {
+				assert.Nil(t, repo.DeltaAdd(ctx, tc.envID, tc.repoConfig...))
 			}
 
-			actual, err := repo.GetByIdentifier(context.Background(), tc.envID, tc.identifier)
+			actual, err := repo.GetByIdentifier(ctx, tc.envID, tc.identifier)
 			if (err != nil) != tc.shouldErr {
 				t.Errorf("(%s): error = %v, shouldErr = %v", desc, err, tc.shouldErr)
 				ok := errors.Is(err, tc.expectedErr)
@@ -166,8 +163,6 @@ func TestTargetRepo_GetByIdentifer(t *testing.T) {
 }
 
 func TestTargetRepo_DeltaAdd(t *testing.T) {
-	key123 := domain.NewTargetsKey("123")
-
 	target1 := domain.Target{
 		Target: clientgen.Target{
 			Identifier:  "target1",
@@ -215,7 +210,7 @@ func TestTargetRepo_DeltaAdd(t *testing.T) {
 
 	testCases := map[string]struct {
 		cache      cache.Cache
-		repoConfig map[domain.TargetKey]interface{}
+		repoConfig []domain.Target
 		env        string
 		targets    []domain.Target
 		expected   []domain.Target
@@ -223,41 +218,35 @@ func TestTargetRepo_DeltaAdd(t *testing.T) {
 	}{
 		"Given I have an empty TargetRepo and I add two Targets": {
 			cache:      cache.NewMemCache(),
-			repoConfig: map[domain.TargetKey]interface{}{},
+			repoConfig: []domain.Target{},
 			env:        "123",
 			targets:    []domain.Target{target1, target2},
 			expected:   []domain.Target{target1, target2},
 			shouldErr:  false,
 		},
 		"Given I have a TargetRepo with Target3 and I add Target1 and Target1": {
-			cache: cache.NewMemCache(),
-			repoConfig: map[domain.TargetKey]interface{}{
-				key123: []domain.Target{target3},
-			},
-			env:       "123",
-			targets:   []domain.Target{target1, target2},
-			expected:  []domain.Target{target1, target2},
-			shouldErr: false,
+			cache:      cache.NewMemCache(),
+			repoConfig: []domain.Target{target3},
+			env:        "123",
+			targets:    []domain.Target{target1, target2},
+			expected:   []domain.Target{target1, target2},
+			shouldErr:  false,
 		},
 		"Given I have a TargetRepo with two Targets and I add the same Targets with a different Project value ": {
-			cache: cache.NewMemCache(),
-			repoConfig: map[domain.TargetKey]interface{}{
-				key123: []domain.Target{target1, target2},
-			},
-			env:       "123",
-			targets:   []domain.Target{target1ProjectBar, target2ProjectBar},
-			expected:  []domain.Target{target1ProjectBar, target2ProjectBar},
-			shouldErr: false,
+			cache:      cache.NewMemCache(),
+			repoConfig: []domain.Target{target1, target2},
+			env:        "123",
+			targets:    []domain.Target{target1ProjectBar, target2ProjectBar},
+			expected:   []domain.Target{target1ProjectBar, target2ProjectBar},
+			shouldErr:  false,
 		},
 		"Given I have a TargetRepo with two Targets and I try to add no Targets": {
-			cache: cache.NewMemCache(),
-			repoConfig: map[domain.TargetKey]interface{}{
-				key123: []domain.Target{target1, target2},
-			},
-			env:       "123",
-			targets:   []domain.Target{},
-			expected:  []domain.Target{target1, target2},
-			shouldErr: true,
+			cache:      cache.NewMemCache(),
+			repoConfig: []domain.Target{target1, target2},
+			env:        "123",
+			targets:    []domain.Target{},
+			expected:   []domain.Target{target1, target2},
+			shouldErr:  true,
 		},
 	}
 
@@ -267,12 +256,12 @@ func TestTargetRepo_DeltaAdd(t *testing.T) {
 		t.Run(desc, func(t *testing.T) {
 			ctx := context.Background()
 
-			repo, err := NewTargetRepo(tc.cache, WithTargetConfig(tc.repoConfig))
-			if err != nil {
-				t.Fatalf("(%s): error = %v, shouldErr = %v", desc, err, tc.shouldErr)
+			repo := NewTargetRepo(tc.cache)
+			if len(tc.repoConfig) > 0 {
+				assert.Nil(t, repo.DeltaAdd(ctx, tc.env, tc.repoConfig...))
 			}
 
-			err = repo.DeltaAdd(ctx, tc.env, tc.targets...)
+			err := repo.DeltaAdd(ctx, tc.env, tc.targets...)
 			if (err != nil) != tc.shouldErr {
 				t.Errorf("(%s): error = %v, shouldErr = %v", desc, err, tc.shouldErr)
 			}

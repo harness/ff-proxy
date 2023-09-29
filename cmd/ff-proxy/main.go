@@ -12,8 +12,6 @@ import (
 	"time"
 
 	"github.com/harness/ff-proxy/v2/build"
-	"github.com/harness/ff-proxy/v2/config/local"
-	"github.com/harness/ff-proxy/v2/config/remote"
 	"github.com/harness/ff-proxy/v2/export"
 	"github.com/harness/ff-proxy/v2/health"
 	"github.com/harness/ff-proxy/v2/token"
@@ -273,79 +271,34 @@ func main() {
 		sdkCache = cache.NewMetricsCache("in_mem", promReg, cache.NewMemCache())
 	}
 
-	// Create services
-	var (
-		clientSvc services.ClientService
-		metricSvc services.MetricService
-	)
-	{
-		clientSvc, err = services.NewClientService(logger, clientService)
-		if err != nil {
-			logger.Error("failed to create client for the feature flags client service", "err", err)
-			os.Exit(1)
-		}
-
-		metricsEnabled := metricPostDuration != 0 && !offline
-		metricSvc, err = services.NewMetricService(logger, metricService, metricsEnabled, promReg)
-		if err != nil {
-			logger.Error("failed to create client for the feature flags metric service", "err", err)
-			os.Exit(1)
-		}
+	clientSvc, err := services.NewClientService(logger, clientService)
+	if err != nil {
+		logger.Error("failed to create client for the feature flags client service", "err", err)
+		os.Exit(1)
 	}
 
 	// Create repos
-	var (
-		targetRepo  repository.TargetRepo
-		flagRepo    repository.FeatureFlagRepo
-		segmentRepo repository.SegmentRepo
-		authRepo    repository.AuthRepo
-	)
-	{
-
-		targetRepo, err = repository.NewTargetRepo(sdkCache)
-		if err != nil {
-			logger.Error("failed to create target repo", "err", err)
-			os.Exit(1)
-		}
-
-		flagRepo, err = repository.NewFeatureFlagRepo(sdkCache)
-		if err != nil {
-			logger.Error("failed to create feature config repo", "err", err)
-			os.Exit(1)
-		}
-
-		segmentRepo, err = repository.NewSegmentRepo(sdkCache)
-		if err != nil {
-			logger.Error("failed to create segment repo", "err", err)
-			os.Exit(1)
-		}
-
-		authRepo, err = repository.NewAuthRepo(sdkCache, nil, nil)
-		if err != nil {
-			logger.Error("failed to create auth config repo", "err", err)
-			os.Exit(1)
-		}
-	}
+	targetRepo := repository.NewTargetRepo(sdkCache)
+	flagRepo := repository.NewFeatureFlagRepo(sdkCache)
+	segmentRepo := repository.NewSegmentRepo(sdkCache)
+	authRepo := repository.NewAuthRepo(sdkCache)
 
 	// Create config that we'll use to populate our repos
-	var (
-		conf config.Config
-	)
-	{
-		if offline {
-			conf, err = local.NewConfig(os.DirFS(configDir))
-			if err != nil {
-				logger.Error("failed to load local config", "err", err)
-				os.Exit(1)
-			}
-		} else {
-			conf = remote.NewConfig(proxyKey, clientSvc)
-		}
+	conf, err := config.NewConfig(offline, configDir, proxyKey, clientSvc)
+	if err != nil {
+		logger.Error("failed to load config", "err", err)
+	}
 
-		if err := conf.Populate(ctx, authRepo, flagRepo, segmentRepo); err != nil {
-			logger.Error("failed to populate repos with config", "err", err)
-			os.Exit(1)
-		}
+	if err := conf.Populate(ctx, authRepo, flagRepo, segmentRepo); err != nil {
+		logger.Error("failed to populate repos with config", "err", err)
+		os.Exit(1)
+	}
+
+	metricsEnabled := metricPostDuration != 0 && !offline
+	metricSvc, err := services.NewMetricService(logger, metricService, conf.Token(), metricsEnabled, promReg)
+	if err != nil {
+		logger.Error("failed to create client for the feature flags metric service", "err", err)
+		os.Exit(1)
 	}
 
 	if generateOfflineConfig {

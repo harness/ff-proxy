@@ -270,13 +270,13 @@ func TestMetricService_SendMetrics(t *testing.T) {
 	postMetricsCount := 0
 	testCases := map[string]struct {
 		metrics              map[string]domain.MetricsRequest
-		tokens               map[string]string
+		token                string
 		expectedMetricsCount int
 		postMetricsWithResp  func(environment string) (*clientgen.PostMetricsResponse, error)
 	}{
 		"Given I send one environments metrics successfully": {
 			metrics:              map[string]domain.MetricsRequest{"123": env123MetricsFlag1},
-			tokens:               map[string]string{"123": defaultToken},
+			token:                defaultToken,
 			expectedMetricsCount: 1,
 			postMetricsWithResp: func(environment string) (*clientgen.PostMetricsResponse, error) {
 				postMetricsCount++
@@ -287,7 +287,7 @@ func TestMetricService_SendMetrics(t *testing.T) {
 		},
 		"Given I have an error sending metrics for one env": {
 			metrics:              map[string]domain.MetricsRequest{"123": env123MetricsFlag1},
-			tokens:               map[string]string{"123": defaultToken},
+			token:                defaultToken,
 			expectedMetricsCount: 1,
 			postMetricsWithResp: func(environment string) (*clientgen.PostMetricsResponse, error) {
 				postMetricsCount++
@@ -296,7 +296,7 @@ func TestMetricService_SendMetrics(t *testing.T) {
 		},
 		"Given I have 2 environments and the first errors we still send metrics for second env": {
 			metrics:              map[string]domain.MetricsRequest{"123": env123MetricsFlag1, "456": env456MetricsFlag1},
-			tokens:               map[string]string{"123": defaultToken, "456": defaultToken},
+			token:                defaultToken,
 			expectedMetricsCount: 2,
 			postMetricsWithResp: func(environment string) (*clientgen.PostMetricsResponse, error) {
 				postMetricsCount++
@@ -306,18 +306,9 @@ func TestMetricService_SendMetrics(t *testing.T) {
 				return &clientgen.PostMetricsResponse{HTTPResponse: &http.Response{StatusCode: 200}}, nil
 			},
 		},
-		"Given I have 2 environments and missing a token for the first we skip it": {
-			metrics:              map[string]domain.MetricsRequest{"123": env123MetricsFlag1, "456": env456MetricsFlag1},
-			tokens:               map[string]string{"456": defaultToken},
-			expectedMetricsCount: 1,
-			postMetricsWithResp: func(environment string) (*clientgen.PostMetricsResponse, error) {
-				postMetricsCount++
-				return &clientgen.PostMetricsResponse{HTTPResponse: &http.Response{StatusCode: 200}}, nil
-			},
-		},
 		"Given I have 2 environments and the first returns non 200 we still send metrics for second env": {
 			metrics:              map[string]domain.MetricsRequest{"123": env123MetricsFlag1, "456": env456MetricsFlag1},
-			tokens:               map[string]string{"123": defaultToken, "456": defaultToken},
+			token:                defaultToken,
 			expectedMetricsCount: 2,
 			postMetricsWithResp: func(environment string) (*clientgen.PostMetricsResponse, error) {
 				postMetricsCount++
@@ -333,7 +324,7 @@ func TestMetricService_SendMetrics(t *testing.T) {
 		t.Run(desc, func(t *testing.T) {
 			postMetricsCount = 0
 			logger, _ := log.NewStructuredLogger("DEBUG")
-			metricsService, _ := NewMetricService(logger, defaultMetricsURL, true, prometheus.NewRegistry())
+			metricsService, _ := NewMetricService(logger, defaultMetricsURL, tc.token, true, prometheus.NewRegistry())
 			metricsService.metrics = tc.metrics
 			metricsService.client = &mockService{postMetricsWithResp: tc.postMetricsWithResp}
 

@@ -7,8 +7,6 @@ import (
 	"io/fs"
 	"strings"
 
-	ffproxy "github.com/harness/ff-proxy/v2"
-	"github.com/harness/ff-proxy/v2/config"
 	"github.com/harness/ff-proxy/v2/domain"
 	"github.com/harness/ff-proxy/v2/hash"
 )
@@ -42,29 +40,35 @@ func NewConfig(fs fs.FS) (Config, error) {
 	return o, nil
 }
 
+// Token returns an empty string rather than the auth token used to communicate with Harness SaaS because local config
+// loads config from a file rather than fetching it from SaaS.
+func (c Config) Token() string {
+	return ""
+}
+
 // Populate populates the repos with the config loaded from the file system
-func (c Config) Populate(ctx context.Context, authRepo config.AuthRepo, flagRepo config.FlagRepo, segmentRepo config.SegmentRepo) error {
+func (c Config) Populate(ctx context.Context, authRepo domain.AuthRepo, flagRepo domain.FlagRepo, segmentRepo domain.SegmentRepo) error {
 	var (
 		authConfig    []domain.AuthConfig
 		flagConfig    []domain.FlagConfig
 		segmentConfig []domain.SegmentConfig
 	)
 
-	for envID, f := range c.config {
+	for _, f := range c.config {
 		for _, key := range f.Auth {
 			authConfig = append(authConfig, domain.AuthConfig{
-				APIKey:        key,
-				EnvironmentID: domain.EnvironmentID(envID),
+				APIKey:        domain.NewAuthAPIKey(string(key)),
+				EnvironmentID: domain.EnvironmentID(f.Environment),
 			})
 		}
 
 		flagConfig = append(flagConfig, domain.FlagConfig{
-			EnvironmentID:  envID,
+			EnvironmentID:  f.Environment,
 			FeatureConfigs: f.FeatureFlags,
 		})
 
 		segmentConfig = append(segmentConfig, domain.SegmentConfig{
-			EnvironmentID: envID,
+			EnvironmentID: f.Environment,
 			Segments:      f.Segments,
 		})
 	}
@@ -141,7 +145,7 @@ func decodeConfigFiles(c map[string]configObject, fileSystem fs.FS) fs.WalkDirFu
 
 		if i.Name() == "feature_config.json" {
 			cfg := c[env]
-			if err := ffproxy.DecodeFile(fileSystem, path, &cfg.FeatureFlags); err != nil {
+			if err := DecodeFile(fileSystem, path, &cfg.FeatureFlags); err != nil {
 				return err
 			}
 			c[env] = cfg
@@ -150,7 +154,7 @@ func decodeConfigFiles(c map[string]configObject, fileSystem fs.FS) fs.WalkDirFu
 
 		if i.Name() == "targets.json" {
 			cfg := c[env]
-			if err := ffproxy.DecodeFile(fileSystem, path, &cfg.Targets); err != nil {
+			if err := DecodeFile(fileSystem, path, &cfg.Targets); err != nil {
 				return err
 			}
 			c[env] = cfg
@@ -159,7 +163,7 @@ func decodeConfigFiles(c map[string]configObject, fileSystem fs.FS) fs.WalkDirFu
 
 		if i.Name() == "segments.json" {
 			cfg := c[env]
-			if err := ffproxy.DecodeFile(fileSystem, path, &cfg.Segments); err != nil {
+			if err := DecodeFile(fileSystem, path, &cfg.Segments); err != nil {
 				return err
 			}
 			c[env] = cfg
@@ -168,7 +172,7 @@ func decodeConfigFiles(c map[string]configObject, fileSystem fs.FS) fs.WalkDirFu
 
 		if i.Name() == "auth_config.json" {
 			cfg := c[env]
-			if err := ffproxy.DecodeFile(fileSystem, path, &cfg.Auth); err != nil {
+			if err := DecodeFile(fileSystem, path, &cfg.Auth); err != nil {
 				return err
 			}
 

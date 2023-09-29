@@ -11,7 +11,7 @@ import (
 
 	log "github.com/sirupsen/logrus"
 
-	"github.com/harness/ff-proxy/gen/admin"
+	"github.com/harness/ff-proxy/v2/gen/admin"
 
 	"github.com/avast/retry-go"
 )

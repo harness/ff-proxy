@@ -77,19 +77,13 @@ func (c ClientService) Authenticate(ctx context.Context, apiKey string, target d
 	return resp.JSON200.AuthToken, nil
 }
 
-// AuthenticateProxyKeyResponse is the type returned by AuthenticateProxyKey
-type AuthenticateProxyKeyResponse struct {
-	Token             string
-	ClusterIdentifier string
-}
-
 // AuthenticateProxyKey makes an auth request to the ff-client-service's /proxy/auth endpoint
-func (c ClientService) AuthenticateProxyKey(ctx context.Context, key string) (AuthenticateProxyKeyResponse, error) {
+func (c ClientService) AuthenticateProxyKey(ctx context.Context, key string) (domain.AuthenticateProxyKeyResponse, error) {
 	req := clientgen.AuthenticateProxyKeyJSONRequestBody{ProxyKey: key}
 
 	resp, err := c.client.AuthenticateProxyKeyWithResponse(ctx, req)
 	if err != nil {
-		return AuthenticateProxyKeyResponse{}, err
+		return domain.AuthenticateProxyKeyResponse{}, err
 	}
 
 	if resp.JSON200 == nil {
@@ -97,25 +91,25 @@ func (c ClientService) AuthenticateProxyKey(ctx context.Context, key string) (Au
 
 		switch resp.StatusCode() {
 		case http.StatusInternalServerError:
-			return AuthenticateProxyKeyResponse{}, fmt.Errorf("%w: recevied 500 from Harness SaaS authenticating ProxyKey: %s", ErrInternal, maskedKey)
+			return domain.AuthenticateProxyKeyResponse{}, fmt.Errorf("%w: recevied 500 from Harness SaaS authenticating ProxyKey: %s", ErrInternal, maskedKey)
 		case http.StatusNotFound:
-			return AuthenticateProxyKeyResponse{}, fmt.Errorf("%w: received 404 from SaaS authenticating ProxyKey: %s", ErrNotFound, maskedKey)
+			return domain.AuthenticateProxyKeyResponse{}, fmt.Errorf("%w: received 404 from SaaS authenticating ProxyKey: %s", ErrNotFound, maskedKey)
 		case http.StatusUnauthorized:
-			return AuthenticateProxyKeyResponse{}, fmt.Errorf("%w: received unauthorised response from SaaS authenticatin ProxyKey: %s", ErrUnauthorized, maskedKey)
+			return domain.AuthenticateProxyKeyResponse{}, fmt.Errorf("%w: received unauthorised response from SaaS authenticatin ProxyKey: %s", ErrUnauthorized, maskedKey)
 		case http.StatusForbidden:
-			return AuthenticateProxyKeyResponse{}, fmt.Errorf("%w: received forbidden response from SaaS authenticating ProxyKey: %s", ErrUnauthorized, maskedKey)
+			return domain.AuthenticateProxyKeyResponse{}, fmt.Errorf("%w: received forbidden response from SaaS authenticating ProxyKey: %s", ErrUnauthorized, maskedKey)
 
 		default:
-			return AuthenticateProxyKeyResponse{}, fmt.Errorf("%w: unexpected error authenticatin proxy key: %s", ErrInternal, maskedKey)
+			return domain.AuthenticateProxyKeyResponse{}, fmt.Errorf("%w: unexpected error authenticatin proxy key: %s", ErrInternal, maskedKey)
 		}
 	}
 
 	claims, err := decodeToken(resp.JSON200.AuthToken)
 	if err != nil {
-		return AuthenticateProxyKeyResponse{}, err
+		return domain.AuthenticateProxyKeyResponse{}, err
 	}
 
-	return AuthenticateProxyKeyResponse{Token: resp.JSON200.AuthToken, ClusterIdentifier: claims.ClusterIdentifier}, nil
+	return domain.AuthenticateProxyKeyResponse{Token: resp.JSON200.AuthToken, ClusterIdentifier: claims.ClusterIdentifier}, nil
 }
 
 type tokenClaims struct {
@@ -142,17 +136,8 @@ func decodeToken(token string) (tokenClaims, error) {
 	return tc, nil
 }
 
-type GetProxyConfigInput struct {
-	Key               string
-	EnvID             string
-	AuthToken         string
-	ClusterIdentifier string
-	PageNumber        int
-	PageSize          int
-}
-
 // GetProxyConfig makes a /proxy/config request and returns the result.
-func (c ClientService) GetProxyConfig(ctx context.Context, input GetProxyConfigInput) (domain.ProxyConfig, error) {
+func (c ClientService) GetProxyConfig(ctx context.Context, input domain.GetProxyConfigInput) (domain.ProxyConfig, error) {
 	resp, err := c.getProxyConfig(ctx, input)
 	if err != nil {
 		return domain.ProxyConfig{}, nil
@@ -166,7 +151,7 @@ func (c ClientService) GetProxyConfig(ctx context.Context, input GetProxyConfigI
 }
 
 // PageProxyConfig pages over the /proxy/config API until its retrieved all the results
-func (c ClientService) PageProxyConfig(ctx context.Context, input GetProxyConfigInput) ([]domain.ProxyConfig, error) {
+func (c ClientService) PageProxyConfig(ctx context.Context, input domain.GetProxyConfigInput) ([]domain.ProxyConfig, error) {
 	var (
 		configs []domain.ProxyConfig
 		done    bool
@@ -192,7 +177,7 @@ func (c ClientService) PageProxyConfig(ctx context.Context, input GetProxyConfig
 	return configs, nil
 }
 
-func (c ClientService) getProxyConfig(ctx context.Context, input GetProxyConfigInput) (clientgen.ProxyConfig, error) {
+func (c ClientService) getProxyConfig(ctx context.Context, input domain.GetProxyConfigInput) (clientgen.ProxyConfig, error) {
 	var env *string
 	if input.EnvID != "" {
 		env = &input.EnvID

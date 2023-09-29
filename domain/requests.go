@@ -71,3 +71,18 @@ type HealthResponse struct {
 	Environments []EnvironmentHealth `json:"environments"`
 	CacheStatus  string              `json:"cacheStatus"`
 }
+
+type GetProxyConfigInput struct {
+	Key               string
+	EnvID             string
+	AuthToken         string
+	ClusterIdentifier string
+	PageNumber        int
+	PageSize          int
+}
+
+// AuthenticateProxyKeyResponse is the type returned by AuthenticateProxyKey
+type AuthenticateProxyKeyResponse struct {
+	Token             string
+	ClusterIdentifier string
+}

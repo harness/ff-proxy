@@ -10,12 +10,9 @@ import (
 	"net/http"
 	"time"
 
-	v1 "github.com/harness/ff-proxy/gen/admin"
-	log "github.com/sirupsen/logrus"
-
-	"github.com/harness/ff-proxy/gen/admin"
-
 	"github.com/avast/retry-go"
+	v1 "github.com/harness/ff-proxy/v2/gen/admin"
+	log "github.com/sirupsen/logrus"
 )
 
 // DefaultProjectIdentifier ...
@@ -180,7 +177,7 @@ type CreateRemoteProject struct {
 }
 
 // CreateProject ...
-func CreateProject(projectReq admin.CreateProjectJSONRequestBody) (*http.Response, error) {
+func CreateProject(projectReq v1.CreateProjectJSONRequestBody) (*http.Response, error) {
 	if IsPlaformEnabled() {
 		return CreateProjectRemote(projectReq.Identifier)
 	}
@@ -203,12 +200,12 @@ func CreateDefaultProject() (string, error) {
 	identifier := GenerateProjectIdentifier(DefaultProjectIdentifier)
 	description := DefaultProjectDesc
 
-	_, err := CreateProject(admin.CreateProjectJSONRequestBody{
+	_, err := CreateProject(v1.CreateProjectJSONRequestBody{
 		Description: &description,
 		Identifier:  identifier,
 		Name:        DefaultProjectName,
 
-		Tags: &[]admin.Tag{
+		Tags: &[]v1.Tag{
 			{
 				Name:  DefaultTagName,
 				Value: &identifier,
@@ -222,17 +219,17 @@ func CreateDefaultProject() (string, error) {
 }
 
 // CreateProjectLocal ...
-func CreateProjectLocal(projectReq admin.CreateProjectJSONRequestBody) (*admin.CreateProjectResponse, error) {
+func CreateProjectLocal(projectReq v1.CreateProjectJSONRequestBody) (*v1.CreateProjectResponse, error) {
 	client := DefaultClient()
 
-	response, err := client.CreateProject(context.Background(), &admin.CreateProjectParams{
-		AccountIdentifier: admin.AccountQueryParam(GetDefaultAccount()),
-		OrgIdentifier:     admin.OrgQueryParam(GetDefaultOrg()),
+	response, err := client.CreateProject(context.Background(), &v1.CreateProjectParams{
+		AccountIdentifier: v1.AccountQueryParam(GetDefaultAccount()),
+		OrgIdentifier:     v1.OrgQueryParam(GetDefaultOrg()),
 	}, projectReq, AddAuthToken)
 	if err != nil {
 		return nil, err
 	}
-	return admin.ParseCreateProjectResponse(response)
+	return v1.ParseCreateProjectResponse(response)
 }
 
 // CreateProjectRemote ...
@@ -264,7 +261,7 @@ func CreateProjectRemote(identifier string) (*http.Response, error) {
 	// ensure project is created within cf
 	err = retry.Do(
 		func() error {
-			projectResponse, err := ReadProject(admin.Identifier(identifier))
+			projectResponse, err := ReadProject(v1.Identifier(identifier))
 			if err != nil || projectResponse.StatusCode() != http.StatusOK {
 				return errors.New("project not found")
 			}
@@ -282,16 +279,16 @@ func CreateProjectRemote(identifier string) (*http.Response, error) {
 }
 
 // ReadProject ...
-func ReadProject(identifier admin.Identifier) (*admin.GetProjectResponse, error) {
+func ReadProject(identifier v1.Identifier) (*v1.GetProjectResponse, error) {
 	client := DefaultClient()
 
-	response, err := client.GetProject(context.Background(), identifier, &admin.GetProjectParams{
-		AccountIdentifier: admin.AccountQueryParam(GetDefaultAccount()),
-		OrgIdentifier:     admin.OrgQueryParam(GetDefaultOrg()),
+	response, err := client.GetProject(context.Background(), identifier, &v1.GetProjectParams{
+		AccountIdentifier: v1.AccountQueryParam(GetDefaultAccount()),
+		OrgIdentifier:     v1.OrgQueryParam(GetDefaultOrg()),
 	}, AddAuthToken)
 	if err != nil {
 		return nil, err
 	}
 
-	return admin.ParseGetProjectResponse(response)
+	return v1.ParseGetProjectResponse(response)
 }

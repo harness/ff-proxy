@@ -1,4 +1,4 @@
-package ffproxy
+package local
 
 import (
 	"encoding/json"
