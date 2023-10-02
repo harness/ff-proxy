@@ -24,7 +24,7 @@ func NewMemCache() MemCache {
 }
 
 // Set sets a value in the cache for a given key and field
-func (m MemCache) Set(ctx context.Context, key string, value interface{}) error {
+func (m MemCache) Set(_ context.Context, key string, value interface{}) error {
 	m.Lock()
 	defer m.Unlock()
 
@@ -38,7 +38,7 @@ func (m MemCache) Set(ctx context.Context, key string, value interface{}) error 
 }
 
 // Get gets the value of a field for a given key
-func (m MemCache) Get(ctx context.Context, key string, v interface{}) error {
+func (m MemCache) Get(_ context.Context, key string, v interface{}) error {
 	m.RLock()
 	defer m.RUnlock()
 
@@ -54,7 +54,7 @@ func (m MemCache) Get(ctx context.Context, key string, v interface{}) error {
 }
 
 // Delete removes all of the fields and their values for a given key
-func (m MemCache) Delete(ctx context.Context, key string) error {
+func (m MemCache) Delete(_ context.Context, key string) error {
 	m.Lock()
 	defer m.Unlock()
 
@@ -63,7 +63,7 @@ func (m MemCache) Delete(ctx context.Context, key string) error {
 }
 
 // Keys returns a list of keys that match the pattern
-func (m MemCache) Keys(ctx context.Context, key string) ([]string, error) {
+func (m MemCache) Keys(_ context.Context, key string) ([]string, error) {
 	m.Lock()
 	defer m.Unlock()
 
@@ -82,6 +82,6 @@ func (m MemCache) Keys(ctx context.Context, key string) ([]string, error) {
 
 // HealthCheck checks cache health
 // we don't have any connection to check here so just return no errors
-func (m MemCache) HealthCheck(ctx context.Context) error {
+func (m MemCache) HealthCheck(_ context.Context) error {
 	return nil
 }

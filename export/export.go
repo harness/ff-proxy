@@ -84,6 +84,8 @@ func NewService(logger log.StructuredLogger, featureRepo repository.FeatureFlagR
 }
 
 // Persist saves all config to disk
+//
+//nolint:cyclop
 func (s Service) Persist(ctx context.Context) error {
 	configMap := map[string]OfflineConfig{}
 	for hashedKey, env := range s.authConfig {
@@ -111,7 +113,10 @@ func (s Service) Persist(ctx context.Context) error {
 	}
 
 	// make config directory
-	os.Mkdir(s.configDir, createDirPermissionLevel)
+	err := os.Mkdir(s.configDir, createDirPermissionLevel)
+	if err != nil {
+		return fmt.Errorf("failed to create config directory: %s", err)
+	}
 
 	for environment, config := range configMap {
 		dirName := fmt.Sprintf("%s/env-%s", s.configDir, environment)

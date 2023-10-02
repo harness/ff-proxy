@@ -226,9 +226,9 @@ func TestClientService_PageProxyConfig(t *testing.T) {
 		Segments       *[]clientgen.Segment       `json:"segments,omitempty"`
 	}{
 		{
-			Id:      toPtr("515975dd-a4a6-41fe-aefb-ffc088e2b4ec"),
-			ApiKeys: toPtr([]string{"123", "456"}),
-			FeatureConfigs: toPtr([]clientgen.FeatureConfig{
+			Id:      domain.ToPtr("515975dd-a4a6-41fe-aefb-ffc088e2b4ec"),
+			ApiKeys: domain.ToPtr([]string{"123", "456"}),
+			FeatureConfigs: domain.ToPtr([]clientgen.FeatureConfig{
 				{
 					Feature: "DarkMode",
 				},
@@ -236,7 +236,7 @@ func TestClientService_PageProxyConfig(t *testing.T) {
 					Feature: "PerfEnhancement",
 				},
 			}),
-			Segments: toPtr([]clientgen.Segment{
+			Segments: domain.ToPtr([]clientgen.Segment{
 				{
 					Identifier: "GroupOne",
 				},
@@ -254,9 +254,9 @@ func TestClientService_PageProxyConfig(t *testing.T) {
 		Segments       *[]clientgen.Segment       `json:"segments,omitempty"`
 	}{
 		{
-			Id:      toPtr("4ce93f1b-ebb6-4477-b91a-1f985079c8d9"),
-			ApiKeys: toPtr([]string{"789"}),
-			FeatureConfigs: toPtr([]clientgen.FeatureConfig{
+			Id:      domain.ToPtr("4ce93f1b-ebb6-4477-b91a-1f985079c8d9"),
+			ApiKeys: domain.ToPtr([]string{"789"}),
+			FeatureConfigs: domain.ToPtr([]clientgen.FeatureConfig{
 				{
 					Feature: "DarkMode",
 				},
@@ -264,7 +264,7 @@ func TestClientService_PageProxyConfig(t *testing.T) {
 					Feature: "PerfEnhancement",
 				},
 			}),
-			Segments: toPtr([]clientgen.Segment{
+			Segments: domain.ToPtr([]clientgen.Segment{
 				{
 					Identifier: "GroupOne",
 				},
@@ -458,8 +458,4 @@ func mustMarshal(v interface{}) []byte {
 		panic(err)
 	}
 	return b
-}
-
-func toPtr[T any](t T) *T {
-	return &t
 }

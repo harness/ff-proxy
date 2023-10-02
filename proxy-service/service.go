@@ -86,9 +86,9 @@ type clientService interface {
 	Authenticate(ctx context.Context, apiKey string, target domain.Target) (string, error)
 }
 
-// metricService is the interface for interacting with the feature flag metric service
-type metricService interface {
-	StoreMetrics(ctx context.Context, metrics domain.MetricsRequest) error
+// MetricService is the interface for storing metrics
+type MetricService interface {
+	StoreMetrics(metrics domain.MetricsRequest) error
 }
 
 // SDKClients is an interface that can be used to find out if internal sdks are connected to the SaaS FF stream
@@ -106,7 +106,7 @@ type Config struct {
 	CacheHealthFn    CacheHealthFn
 	AuthFn           authTokenFn
 	ClientService    clientService
-	MetricService    metricService
+	MetricService    MetricService
 	Offline          bool
 	Hasher           hash.Hasher
 	StreamingEnabled bool
@@ -122,7 +122,7 @@ type Service struct {
 	cacheHealthFn    CacheHealthFn
 	authFn           authTokenFn
 	clientService    clientService
-	metricService    metricService
+	metricService    MetricService
 	offline          bool
 	hasher           hash.Hasher
 	streamingEnabled bool
@@ -231,7 +231,6 @@ func (s Service) FeatureConfig(ctx context.Context, req domain.FeatureConfigRequ
 
 // FeatureConfigByIdentifier gets the feature config for a feature
 func (s Service) FeatureConfigByIdentifier(ctx context.Context, req domain.FeatureConfigByIdentifierRequest) (domain.FeatureConfig, error) {
-	s.logger = s.logger.With("method", "FeatureConfigByIdentifier")
 
 	// fetch flag
 	flag, err := s.featureRepo.GetByIdentifier(ctx, req.EnvironmentID, req.Identifier)
@@ -250,7 +249,6 @@ func (s Service) FeatureConfigByIdentifier(ctx context.Context, req domain.Featu
 
 // TargetSegments gets all of the TargetSegments in an environment
 func (s Service) TargetSegments(ctx context.Context, req domain.TargetSegmentsRequest) ([]domain.Segment, error) {
-	s.logger = s.logger.With("method", "TargetSegments")
 
 	segments, err := s.segmentRepo.Get(ctx, req.EnvironmentID)
 	if err != nil {
@@ -267,7 +265,6 @@ func (s Service) TargetSegments(ctx context.Context, req domain.TargetSegmentsRe
 
 // TargetSegmentsByIdentifier get a TargetSegments from an environment by its identifier
 func (s Service) TargetSegmentsByIdentifier(ctx context.Context, req domain.TargetSegmentsByIdentifierRequest) (domain.Segment, error) {
-	s.logger = s.logger.With("method", "TargetSegmentsByIdentifier")
 
 	segment, err := s.segmentRepo.GetByIdentifier(ctx, req.EnvironmentID, req.Identifier)
 	if err != nil {
@@ -282,7 +279,6 @@ func (s Service) TargetSegmentsByIdentifier(ctx context.Context, req domain.Targ
 
 // Evaluations gets all the evaluations in an environment for a target
 func (s Service) Evaluations(ctx context.Context, req domain.EvaluationsRequest) ([]clientgen.Evaluation, error) {
-	s.logger = s.logger.With("method", "Evaluations")
 
 	evaluations := []clientgen.Evaluation{}
 
@@ -325,7 +321,6 @@ func (s Service) Evaluations(ctx context.Context, req domain.EvaluationsRequest)
 
 // EvaluationsByFeature gets all the evaluations in an environment for a target for a particular feature
 func (s Service) EvaluationsByFeature(ctx context.Context, req domain.EvaluationsByFeatureRequest) (clientgen.Evaluation, error) {
-	s.logger = s.logger.With("method", "EvaluationsByFeature")
 
 	// fetch target
 	t, err := s.targetRepo.GetByIdentifier(ctx, req.EnvironmentID, req.TargetIdentifier)
@@ -360,7 +355,6 @@ func (s Service) EvaluationsByFeature(ctx context.Context, req domain.Evaluation
 // Stream does a lookup for the environmentID for the APIKey in the StreamRequest
 // and returns it as the GripChannel.
 func (s Service) Stream(ctx context.Context, req domain.StreamRequest) (domain.StreamResponse, error) {
-	s.logger = s.logger.With("method", "Stream")
 
 	if !s.streamingEnabled {
 		return domain.StreamResponse{}, fmt.Errorf("%w: streaming endpoint disabled", ErrNotImplemented)
@@ -386,15 +380,13 @@ func (s Service) Stream(ctx context.Context, req domain.StreamRequest) (domain.S
 
 // Metrics forwards metrics to the analytics service
 func (s Service) Metrics(ctx context.Context, req domain.MetricsRequest) error {
-	s.logger = s.logger.With("method", "Metrics")
 
 	s.logger.Debug(ctx, "got metrics request", "metrics", fmt.Sprintf("%+v", req))
-	return s.metricService.StoreMetrics(ctx, req)
+	return s.metricService.StoreMetrics(req)
 }
 
 // Health checks the health of the system
 func (s Service) Health(ctx context.Context) (domain.HealthResponse, error) {
-	s.logger = s.logger.With("method", "Health")
 	s.logger.Debug(ctx, "got health request")
 
 	// check health functions

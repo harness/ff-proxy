@@ -46,6 +46,7 @@ var (
 	metricPostDuration    int
 	heartbeatInterval     int
 	generateOfflineConfig bool
+	readReplica           bool
 
 	// Cache Config
 	offline       bool
@@ -77,6 +78,7 @@ const (
 	metricPostDurationEnv    = "METRIC_POST_DURATION"
 	heartbeatIntervalEnv     = "HEARTBEAT_INTERVAL"
 	generateOfflineConfigEnv = "GENERATE_OFFLINE_CONFIG"
+	readReplicaEnv           = "READ_REPLICA"
 
 	// Cache Config
 	offlineEnv       = "OFFLINE"
@@ -92,7 +94,7 @@ const (
 	tlsKeyEnv     = "TLS_KEY"
 
 	// Dev/Debugging
-	bypassAuthEnv         = "BYPASS_AUTH"
+	bypassAuthEnv         = "BYPASS_AUTH" //nolint:gosec
 	logLevelEnv           = "LOG_LEVEL"
 	gcpProfilerEnabledEnv = "GCP_PROFILER_ENABLED"
 	pprofEnabledEnv       = "PPROF"
@@ -108,6 +110,7 @@ const (
 	metricPostDurationFlag    = "metric-post-duration"
 	heartbeatIntervalFlag     = "heartbeat-interval"
 	generateOfflineConfigFlag = "generate-offline-config"
+	readReplicaFlag           = "readReplica"
 
 	// Cache Config
 	configDirFlag     = "config-dir"
@@ -129,6 +132,7 @@ const (
 	gcpProfilerEnabledFlag = "gcp-profiler-enabled"
 )
 
+// nolint:gochecknoinits
 func init() {
 	// Service Config
 	flag.StringVar(&proxyKey, proxyKeyFlag, "", "The ProxyKey you want to configure your Proxy to use")
@@ -138,6 +142,7 @@ func init() {
 	flag.IntVar(&metricPostDuration, metricPostDurationFlag, 60, "How often in seconds the proxy posts metrics to Harness. Set to 0 to disable.")
 	flag.IntVar(&heartbeatInterval, heartbeatIntervalFlag, 60, "How often in seconds the proxy polls pings it's health function. Set to 0 to disable.")
 	flag.BoolVar(&generateOfflineConfig, generateOfflineConfigFlag, false, "if true the proxy will produce offline config in the /config directory then terminate")
+	flag.BoolVar(&readReplica, readReplicaFlag, false, "if true the Proxy will operate as a read replica that only reads from the cache and doesn't fetch new data from Harness SaaS")
 
 	// Cache Config
 	flag.BoolVar(&offline, offlineFlag, false, "enables side loading of data from config dir")
@@ -179,11 +184,13 @@ func init() {
 		tlsKeyEnv:                tlsKeyFlag,
 		gcpProfilerEnabledEnv:    gcpProfilerEnabledFlag,
 		proxyKeyEnv:              proxyKeyFlag,
+		readReplicaEnv:           readReplicaFlag,
 	})
 
 	flag.Parse()
 }
 
+//nolint:gocognit,cyclop
 func main() {
 
 	// Setup logger
@@ -235,7 +242,8 @@ func main() {
 	// Create cache
 	// if we're just generating the offline config we should only use in memory mode for now
 	// when we move to a pattern of allowing periodic config dumps to disk we can remove this requirement
-	if redisAddress != "" && !generateOfflineConfig {
+
+	if redisAddress != "" && !generateOfflineConfig { //nolint:nestif
 		// if address does not start with redis:// or rediss:// then default to redis://
 		// if the connection string starts with rediss:// it means we'll connect with TLS enabled
 		redisConnectionString := redisAddress
@@ -278,7 +286,7 @@ func main() {
 	}
 
 	// Create repos
-	targetRepo := repository.NewTargetRepo(sdkCache)
+	targetRepo := repository.NewTargetRepo(sdkCache, logger)
 	flagRepo := repository.NewFeatureFlagRepo(sdkCache)
 	segmentRepo := repository.NewSegmentRepo(sdkCache)
 	authRepo := repository.NewAuthRepo(sdkCache)
@@ -295,12 +303,18 @@ func main() {
 		os.Exit(1)
 	}
 
+	var (
+		metricSvc proxyservice.MetricService
+	)
+
 	metricsEnabled := metricPostDuration != 0 && !offline
-	metricSvc, err := services.NewMetricService(logger, metricService, conf.Token(), metricsEnabled, promReg)
+	ms, err := services.NewMetricService(logger, metricService, conf.Token(), metricsEnabled, promReg)
 	if err != nil {
 		logger.Error("failed to create client for the feature flags metric service", "err", err)
 		os.Exit(1)
 	}
+	ms.Send(ctx, offline, metricPostDuration)
+	metricSvc = ms
 
 	if generateOfflineConfig {
 		exportService := export.NewService(logger, flagRepo, targetRepo, segmentRepo, authRepo, nil, configDir)
@@ -313,7 +327,7 @@ func main() {
 	}
 
 	apiKeyHasher := hash.NewSha256()
-	tokenSource := token.NewTokenSource(logger, authRepo, apiKeyHasher, []byte(authSecret))
+	tokenSource := token.NewSource(logger, authRepo, apiKeyHasher, []byte(authSecret))
 
 	// Setup service and middleware
 	service := proxyservice.NewService(proxyservice.Config{
@@ -350,45 +364,11 @@ func main() {
 		}
 	}()
 
-	// TODO: We should move this inside services/metrics_service.go
-	//if !offline {
-	//	// start metric sending ticker
-	//	if metricPostDuration != 0 {
-	//		go func() {
-	//			logger.Info(fmt.Sprintf("sending metrics every %d seconds", metricPostDuration))
-	//			ticker := time.NewTicker(time.Duration(metricPostDuration) * time.Second)
-	//			defer ticker.Stop()
-	//
-	//			for {
-	//				select {
-	//				case <-ctx.Done():
-	//					logger.Info("stopping metrics ticker")
-	//					return
-	//				case <-ticker.C:
-	//					// default to prod cluster
-	//					clusterIdentifier := "1"
-	//					logger.Debug("sending metrics")
-	//					metricService.SendMetrics(ctx, clusterIdentifier)
-	//				}
-	//			}
-	//		}()
-	//	} else {
-	//		logger.Info("sending metrics disabled")
-	//	}
-	//}
-
-	if heartbeatInterval != 0 {
-		go func() {
-			ticker := time.NewTicker(time.Duration(heartbeatInterval) * time.Second)
-			logger.Info(fmt.Sprintf("polling heartbeat every %d seconds", heartbeatInterval))
-			protocol := "http"
-			if tlsEnabled {
-				protocol = "https"
-			}
-
-			health.Heartbeat(ctx, ticker.C, fmt.Sprintf("%s://localhost:%d", protocol, port), logger)
-		}()
+	protocol := "http"
+	if tlsEnabled {
+		protocol = "https"
 	}
+	health.Heartbeat(ctx, heartbeatInterval, fmt.Sprintf("%s://localhost:%d", protocol, port), logger)
 
 	if err := server.Serve(); err != nil {
 		logger.Error("server stopped", "err", err)
@@ -413,17 +393,17 @@ func loadFlagsFromEnv(envToFlag map[string]string) {
 func validateFlags(flags map[string]interface{}) {
 	unset := []string{}
 	for k, v := range flags {
-		switch v.(type) {
+		switch t := v.(type) {
 		case string:
-			if v == "" {
+			if t == "" {
 				unset = append(unset, k)
 			}
 		case int:
-			if v == 0 {
+			if t == 0 {
 				unset = append(unset, k)
 			}
 		case []string:
-			if len(v.([]string)) == 0 {
+			if len(t) == 0 {
 				unset = append(unset, k)
 			}
 		}

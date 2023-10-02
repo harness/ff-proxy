@@ -32,7 +32,7 @@ func TestTokenSource_GenerateToken(t *testing.T) {
 	authRepo := repository.NewAuthRepo(cache.NewMemCache())
 	assert.Nil(t, authRepo.Add(context.Background(), authConfig))
 
-	tokenSource := NewTokenSource(log.NoOpLogger{}, authRepo, hash.NewSha256(), secret)
+	tokenSource := NewSource(log.NoOpLogger{}, authRepo, hash.NewSha256(), secret)
 
 	testCases := map[string]struct {
 		key         string

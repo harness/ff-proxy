@@ -125,8 +125,13 @@ func copyToFile(filename string, w io.Reader) {
 		log.Fatalf("failed to open segments.json: %s", err)
 	}
 
-	io.Copy(f, w)
-	f.Close()
+	defer f.Close()
+
+	_, err = io.Copy(f, w)
+	if err != nil {
+		log.Fatalf("failed to copy to file: %s", err)
+		return
+	}
 }
 
 var targetTemplate = `

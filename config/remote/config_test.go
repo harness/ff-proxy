@@ -78,7 +78,7 @@ func TestConfig_Populate(t *testing.T) {
 				{
 
 					ID:      uuid.MustParse("2fd10ce3-7ed6-466f-a768-e4df08f566b0"),
-					ApiKeys: []string{"123", "456"},
+					APIKeys: []string{"123", "456"},
 					FeatureConfigs: []domain.FeatureFlag{
 						{
 							Feature: "Foo",

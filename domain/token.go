@@ -27,5 +27,5 @@ func (t Token) Claims() Claims {
 type Claims struct {
 	Environment       string `json:"environment"`
 	ClusterIdentifier string `json:"clusterIdentifier"`
-	jwt.StandardClaims
+	jwt.RegisteredClaims
 }

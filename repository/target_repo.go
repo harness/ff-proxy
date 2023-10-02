@@ -6,19 +6,25 @@ import (
 	"fmt"
 
 	"github.com/harness/ff-proxy/v2/cache"
+	"github.com/harness/ff-proxy/v2/log"
 
 	"github.com/harness/ff-proxy/v2/domain"
 )
 
 // TargetRepo is a repository that stores Targets
 type TargetRepo struct {
+	log   log.Logger
 	cache cache.Cache
 }
 
 // NewTargetRepo creates a TargetRepo. It can optionally preload the repo with data
 // from the passed config
-func NewTargetRepo(c cache.Cache) TargetRepo {
-	return TargetRepo{cache: c}
+func NewTargetRepo(c cache.Cache, l log.Logger) TargetRepo {
+	l = l.With("component", "TargetRepo")
+	return TargetRepo{
+		cache: c,
+		log:   l,
+	}
 }
 
 // Get gets all of the Targets for a given key
@@ -77,7 +83,6 @@ func (t TargetRepo) DeltaAdd(ctx context.Context, envID string, targets ...domai
 		newTargets[target.Identifier] = target
 
 		if err := t.addTarget(ctx, envID, target); err != nil {
-			// TODO:
 			return err
 		}
 	}
@@ -86,7 +91,9 @@ func (t TargetRepo) DeltaAdd(ctx context.Context, envID string, targets ...domai
 	// then we'll want to remove them.
 	for identifier := range existingTargets {
 		if _, ok := newTargets[identifier]; !ok {
-			t.cache.Delete(ctx, string(key))
+			if err := t.cache.Delete(ctx, string(key)); err != nil {
+				t.log.Error("failed to flush stale target from cache during DeltaAdd", "err", err)
+			}
 		}
 	}
 

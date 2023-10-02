@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/harness/ff-proxy/v2/domain"
-	"golang.org/x/exp/slices"
 )
 
 // Config is the type that fetches config from Harness SaaS
@@ -18,20 +17,21 @@ type Config struct {
 }
 
 // NewConfig creates a new Config
-func NewConfig(key string, cs domain.ClientService) Config {
-	c := Config{
+func NewConfig(key string, cs domain.ClientService) *Config {
+	c := &Config{
 		key:           key,
 		clientService: cs,
 	}
 	return c
 }
 
-func (c Config) Token() string {
+// Token returns the authToken that the Config uses to communicate with Harness SaaS
+func (c *Config) Token() string {
 	return c.token
 }
 
 // Populate populates repositories with the config
-func (c Config) Populate(ctx context.Context, authRepo domain.AuthRepo, flagRepo domain.FlagRepo, segmentRepo domain.SegmentRepo) error {
+func (c *Config) Populate(ctx context.Context, authRepo domain.AuthRepo, flagRepo domain.FlagRepo, segmentRepo domain.SegmentRepo) error {
 	authResp, err := authenticate(c.key, c.clientService)
 	if err != nil {
 		return err
@@ -43,20 +43,14 @@ func (c Config) Populate(ctx context.Context, authRepo domain.AuthRepo, flagRepo
 		return err
 	}
 
-	var (
-		authConfig    []domain.AuthConfig
-		flagConfig    []domain.FlagConfig
-		segmentConfig []domain.SegmentConfig
-	)
+	authConfig := make([]domain.AuthConfig, 0, len(proxyConfig))
+	flagConfig := make([]domain.FlagConfig, 0, len(proxyConfig))
+	segmentConfig := make([]domain.SegmentConfig, 0, len(proxyConfig))
 
 	for _, cfg := range proxyConfig {
 
 		for _, env := range cfg.Environments {
-			slices.Grow(authConfig, len(env.ApiKeys))
-			slices.Grow(flagConfig, len(env.FeatureConfigs))
-			slices.Grow(segmentConfig, len(env.Segments))
-
-			for _, apiKey := range env.ApiKeys {
+			for _, apiKey := range env.APIKeys {
 				authConfig = append(authConfig, domain.AuthConfig{
 					APIKey:        domain.NewAuthAPIKey(apiKey),
 					EnvironmentID: domain.EnvironmentID(env.ID.String()),
@@ -115,25 +109,15 @@ func retrieveConfig(key string, authToken string, clusterIdentifier string, cs d
 }
 
 func makeFlagConfig(env domain.Environments) domain.FlagConfig {
-	featureConfigs := make([]domain.FeatureFlag, 0, len(env.FeatureConfigs))
-	for _, flag := range env.FeatureConfigs {
-		featureConfigs = append(featureConfigs, domain.FeatureFlag(flag))
-	}
-
 	return domain.FlagConfig{
 		EnvironmentID:  env.ID.String(),
-		FeatureConfigs: featureConfigs,
+		FeatureConfigs: env.FeatureConfigs,
 	}
 }
 
 func makeSegmentConfig(env domain.Environments) domain.SegmentConfig {
-	segments := make([]domain.Segment, 0, len(env.Segments))
-	for _, seg := range env.Segments {
-		segments = append(segments, domain.Segment(seg))
-	}
-
 	return domain.SegmentConfig{
 		EnvironmentID: env.ID.String(),
-		Segments:      segments,
+		Segments:      env.Segments,
 	}
 }

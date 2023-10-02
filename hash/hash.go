@@ -24,6 +24,9 @@ func NewSha256() *Sha256 {
 // base16 formatting of it as a string
 func (s *Sha256) Hash(v string) string {
 	h := sha256.New()
-	io.WriteString(h, v)
+	_, err := io.WriteString(h, v)
+	if err != nil {
+		return ""
+	}
 	return fmt.Sprintf("%x", h.Sum(nil))
 }

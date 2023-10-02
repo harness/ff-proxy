@@ -28,7 +28,7 @@ func (a AuthRepo) Add(ctx context.Context, values ...domain.AuthConfig) error {
 	for i := 0; i < len(values); i++ {
 		value := values[i]
 		if err := a.cache.Set(ctx, string(value.APIKey), &value.EnvironmentID); err != nil {
-			errs = append(errs, addErr{string(value.APIKey), string(value.APIKey), err})
+			errs = append(errs, addError{string(value.APIKey), string(value.APIKey), err})
 		}
 	}
 

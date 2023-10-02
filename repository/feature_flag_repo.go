@@ -61,7 +61,7 @@ func (f FeatureFlagRepo) Add(ctx context.Context, config ...domain.FlagConfig) e
 		k := domain.NewFeatureConfigsKey(cfg.EnvironmentID)
 
 		if err := f.cache.Set(ctx, string(k), cfg.FeatureConfigs); err != nil {
-			errs = append(errs, addErr{
+			errs = append(errs, addError{
 				key:        string(k),
 				identifier: "feature-configs",
 				err:        err,
@@ -72,7 +72,7 @@ func (f FeatureFlagRepo) Add(ctx context.Context, config ...domain.FlagConfig) e
 			key := domain.NewFeatureConfigKey(cfg.EnvironmentID, flag.Feature)
 
 			if err := f.cache.Set(ctx, string(key), flag); err != nil {
-				errs = append(errs, addErr{
+				errs = append(errs, addError{
 					key:        string(key),
 					identifier: flag.Feature,
 					err:        err,

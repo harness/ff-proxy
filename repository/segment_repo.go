@@ -52,7 +52,7 @@ func (s SegmentRepo) Add(ctx context.Context, config ...domain.SegmentConfig) er
 		k := domain.NewSegmentsKey(cfg.EnvironmentID)
 
 		if err := s.cache.Set(ctx, string(k), cfg.Segments); err != nil {
-			errs = append(errs, addErr{
+			errs = append(errs, addError{
 				key:        string(k),
 				identifier: "segments",
 				err:        err,
@@ -63,7 +63,7 @@ func (s SegmentRepo) Add(ctx context.Context, config ...domain.SegmentConfig) er
 			key := domain.NewSegmentKey(cfg.EnvironmentID, seg.Identifier)
 
 			if err := s.cache.Set(ctx, string(key), seg); err != nil {
-				errs = append(errs, addErr{
+				errs = append(errs, addError{
 					key:        string(key),
 					identifier: seg.Identifier,
 					err:        err,

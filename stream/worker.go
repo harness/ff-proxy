@@ -32,19 +32,19 @@ type streamEvent struct {
 	err     error
 }
 
-// StreamWorker is the type that subscribes to the SSEEvent Stream that the EventListener
+// Worker is the type that subscribes to the SSEEvent Stream that the EventListener
 // forwards SSEEvents from the embedded SDKs to and forwards them on to clients
-type StreamWorker struct {
+type Worker struct {
 	log        log.Logger
 	gpc        GripStream
 	ssePublish *prometheus.CounterVec
 	sseClose   *prometheus.CounterVec
 }
 
-// NewStreamWorker creates a StreamWorker
-func NewStreamWorker(l log.Logger, gpc GripStream, reg *prometheus.Registry) StreamWorker {
-	l = l.With("component", "StreamWorker")
-	s := StreamWorker{
+// NewWorker creates a Worker
+func NewWorker(l log.Logger, gpc GripStream, reg *prometheus.Registry) Worker {
+	l = l.With("component", "Worker")
+	s := Worker{
 		log: l,
 		gpc: gpc,
 		ssePublish: prometheus.NewCounterVec(prometheus.CounterOpts{
@@ -65,9 +65,9 @@ func NewStreamWorker(l log.Logger, gpc GripStream, reg *prometheus.Registry) Str
 	return s
 }
 
-// Pub makes StreamWorker implement the golang sdks stream.EventStreamListener
+// Pub makes Worker implement the golang sdks stream.EventStreamListener
 // interface.
-func (s StreamWorker) Pub(ctx context.Context, event stream.Event) (err error) {
+func (s Worker) Pub(_ context.Context, event stream.Event) (err error) {
 	if errors.Is(event.Err, stream.ErrStreamDisconnect) {
 		return s.closeStream(event)
 	}
@@ -88,7 +88,7 @@ func (s StreamWorker) Pub(ctx context.Context, event stream.Event) (err error) {
 	topic := event.Environment
 	content := fmt.Sprintf("event: *\ndata: %s\n\n", event.SSEEvent.Data)
 
-	if err := s.publish(ctx, streamEvent{
+	if err := s.publish(streamEvent{
 		channel: topic,
 		content: content,
 		err:     nil,
@@ -100,11 +100,11 @@ func (s StreamWorker) Pub(ctx context.Context, event stream.Event) (err error) {
 }
 
 // publish publishes events to the GripStream
-func (s StreamWorker) publish(ctx context.Context, f streamEvent) error {
+func (s Worker) publish(f streamEvent) error {
 	return s.gpc.PublishHttpStream(f.channel, f.content, "", "")
 }
 
-func (s StreamWorker) closeStream(event stream.Event) error {
+func (s Worker) closeStream(event stream.Event) error {
 	item := pubcontrol.NewItem([]pubcontrol.Formatter{&gripcontrol.HttpStreamFormat{Close: true}}, "", "")
 
 	if err := s.gpc.Publish(event.Environment, item); err != nil {

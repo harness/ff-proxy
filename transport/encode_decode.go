@@ -21,12 +21,12 @@ var (
 // encodeResponse is the common method to encode all the non error response types
 // to the client. If we need to we can write specific encodeResponse functions
 // for endpoints that require one.
-func encodeResponse(ctx context.Context, w http.ResponseWriter, response interface{}) error {
+func encodeResponse(_ context.Context, w http.ResponseWriter, response interface{}) error {
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	return jsoniter.NewEncoder(w).Encode(response)
 }
 
-func encodeStreamResponse(ctx context.Context, w http.ResponseWriter, response interface{}) error {
+func encodeStreamResponse(_ context.Context, w http.ResponseWriter, response interface{}) error {
 	r, ok := response.(domain.StreamResponse)
 	if !ok {
 		return fmt.Errorf("internal error encoding stream response")
@@ -37,18 +37,6 @@ func encodeStreamResponse(ctx context.Context, w http.ResponseWriter, response i
 	w.Header().Add("Grip-Channel", r.GripChannel)
 	w.Header().Add("Grip-Keep-Alive", "\\n; format=cstring; timeout=15")
 	return nil
-}
-
-// encodeError encodes error responses returned from handlers
-func encodeError(ctx context.Context, err error, w http.ResponseWriter) {
-	if err == nil {
-		panic("encodeError with nil error")
-	}
-	w.Header().Set("Content-Type", "application/json; charset=utf-8")
-	w.WriteHeader(codeFrom(err))
-	jsoniter.NewEncoder(w).Encode(map[string]interface{}{
-		"error": err.Error(),
-	})
 }
 
 func encodeEchoError(c echo.Context, err error) error {
@@ -117,7 +105,7 @@ func decodeAuthRequest(c echo.Context) (interface{}, error) {
 }
 
 // decodeHealthRequest returns an empty interface
-func decodeHealthRequest(c echo.Context) (interface{}, error) {
+func decodeHealthRequest(_ echo.Context) (interface{}, error) {
 	return nil, nil
 }
 

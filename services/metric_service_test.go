@@ -253,7 +253,7 @@ func TestMetricService_StoreMetrics(t *testing.T) {
 			}
 
 			for _, metric := range tc.metrics {
-				metricService.StoreMetrics(context.Background(), metric)
+				metricService.StoreMetrics(metric)
 			}
 
 			actual := metricService.metrics
@@ -328,7 +328,7 @@ func TestMetricService_SendMetrics(t *testing.T) {
 			metricsService.metrics = tc.metrics
 			metricsService.client = &mockService{postMetricsWithResp: tc.postMetricsWithResp}
 
-			metricsService.SendMetrics(context.Background(), "1")
+			metricsService.sendMetrics(context.Background(), "1")
 
 			// check metrics are cleared after sending
 			actual := metricsService.metrics

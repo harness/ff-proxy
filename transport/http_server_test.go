@@ -57,7 +57,7 @@ type mockClientService struct {
 }
 
 type mockMetricService struct {
-	storeMetrics func(ctx context.Context, metrics domain.MetricsRequest) error
+	storeMetrics func(metrics domain.MetricsRequest) error
 }
 
 func (m *mockClientService) Authenticate(ctx context.Context, apiKey string, target domain.Target) (string, error) {
@@ -81,8 +81,8 @@ func (m *mockClientService) Targets() []domain.Target {
 	return targets
 }
 
-func (m *mockMetricService) StoreMetrics(ctx context.Context, req domain.MetricsRequest) error {
-	return m.storeMetrics(ctx, req)
+func (m *mockMetricService) StoreMetrics(req domain.MetricsRequest) error {
+	return m.storeMetrics(req)
 }
 
 const (
@@ -100,7 +100,7 @@ type setupConfig struct {
 	cacheHealthFn proxyservice.CacheHealthFn
 	envHealthFn   proxyservice.EnvHealthFn
 	clientService *mockClientService
-	streamWorker  stream.StreamWorker
+	streamWorker  stream.Worker
 	eventListener sdkstream.EventStreamListener
 	cache         cache.Cache
 	metricService *mockMetricService
@@ -198,7 +198,7 @@ func setupHTTPServer(t *testing.T, bypassAuth bool, opts ...setupOpts) *HTTPServ
 	}
 
 	if setupConfig.targetRepo == nil {
-		tr := repository.NewTargetRepo(setupConfig.cache)
+		tr := repository.NewTargetRepo(setupConfig.cache, log.NewNoOpLogger())
 
 		setupConfig.targetRepo = &tr
 	}
@@ -221,7 +221,7 @@ func setupHTTPServer(t *testing.T, bypassAuth bool, opts ...setupOpts) *HTTPServ
 	}
 
 	if setupConfig.metricService == nil {
-		setupConfig.metricService = &mockMetricService{storeMetrics: func(ctx context.Context, metrics domain.MetricsRequest) error {
+		setupConfig.metricService = &mockMetricService{storeMetrics: func(metrics domain.MetricsRequest) error {
 			return nil
 		}}
 	}
@@ -259,7 +259,7 @@ func setupHTTPServer(t *testing.T, bypassAuth bool, opts ...setupOpts) *HTTPServ
 
 	logger := log.NoOpLogger{}
 
-	tokenSource := token.NewTokenSource(logger, setupConfig.authRepo, hash.NewSha256(), []byte(`secret`))
+	tokenSource := token.NewSource(logger, setupConfig.authRepo, hash.NewSha256(), []byte(`secret`))
 
 	err = config.Populate(context.Background(), setupConfig.authRepo, setupConfig.featureRepo, setupConfig.segmentRepo)
 	assert.Nil(t, err)
@@ -981,7 +981,7 @@ func TestHTTPServer_PostAuthentication(t *testing.T) {
 	for desc, tc := range testCases {
 		tc := tc
 
-		targetRepo := repository.NewTargetRepo(cache.NewMemoizeCache(redisClient, 1*time.Minute, 2*time.Minute, nil))
+		targetRepo := repository.NewTargetRepo(cache.NewMemoizeCache(redisClient, 1*time.Minute, 2*time.Minute, nil), log.NewNoOpLogger())
 
 		// setup HTTPServer with auth bypassed
 		server := setupHTTPServer(
@@ -1247,10 +1247,10 @@ func TestHTTPServer_Health(t *testing.T) {
 func TestHTTPServer_Stream(t *testing.T) {
 	const (
 		apiKey       = "apikey1"
-		hashedApiKey = "d4f79b313f8106f5af108ad96ff516222dbfd5a0ab52f4308e4b1ad1d740de60"
+		hashedAPIKey = "d4f79b313f8106f5af108ad96ff516222dbfd5a0ab52f4308e4b1ad1d740de60"
 
 		apiKey2       = "apikey2"
-		hashedApiKey2 = "17ac3d5d395c9ac2f2685cb75229b5faedd7d207b31516bf2b506c1598fd55ef"
+		hashedAPIKey2 = "17ac3d5d395c9ac2f2685cb75229b5faedd7d207b31516bf2b506c1598fd55ef"
 
 		envID = "1234"
 		env2  = "5678"
@@ -1521,7 +1521,7 @@ func TestHTTPServer_StreamIntegration(t *testing.T) {
 				},
 			})
 
-			streamWorker := stream.NewStreamWorker(logger, gpc, prometheus.NewRegistry())
+			streamWorker := stream.NewWorker(logger, gpc, prometheus.NewRegistry())
 
 			requests := []*http.Request{}
 			for _, apiKey := range tc.apiKeys {

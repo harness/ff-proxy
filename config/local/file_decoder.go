@@ -10,8 +10,6 @@ import (
 	"gopkg.in/yaml.v2"
 )
 
-type fileExtension string
-
 const (
 	extensionJSON = ".json"
 	extensionYAML = ".yaml"
