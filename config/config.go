@@ -14,11 +14,12 @@ import (
 type Config interface {
 	// Populate populates the repos with the config
 	Populate(ctx context.Context, authRepo domain.AuthRepo, flagRepo domain.FlagRepo, segmentRepo domain.SegmentRepo) error
-	// Token returns the authToken that the Config uses to communicate with Harness SaaS
 
+	// Token returns the authToken that the Config uses to communicate with Harness SaaS
 	Token() string
 }
 
+// NewConfig creates either a local or remote config type that implements the Config interface
 func NewConfig(offline bool, configDir string, proxyKey string, clientService domain.ClientService) (Config, error) {
 	if !offline {
 		return remote.NewConfig(proxyKey, clientService), nil

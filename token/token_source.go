@@ -18,22 +18,22 @@ type hasher interface {
 	Hash(s string) string
 }
 
-// TokenSource is a type that can create and validate tokens
-type TokenSource struct {
+// Source is a type that can create and validate tokens
+type Source struct {
 	repo   authRepo
 	hasher hasher
 	secret []byte
 	log    log.Logger
 }
 
-// NewTokenSource creates a new TokenSource
-func NewTokenSource(l log.Logger, repo authRepo, hasher hasher, secret []byte) TokenSource {
-	l = l.With("component", "TokenSource")
-	return TokenSource{log: l, repo: repo, hasher: hasher, secret: secret}
+// NewSource creates a new Source
+func NewSource(l log.Logger, repo authRepo, hasher hasher, secret []byte) Source {
+	l = l.With("component", "Source")
+	return Source{log: l, repo: repo, hasher: hasher, secret: secret}
 }
 
 // GenerateToken creates a token from a key
-func (a TokenSource) GenerateToken(key string) (domain.Token, error) {
+func (a Source) GenerateToken(key string) (domain.Token, error) {
 	h := a.hasher.Hash(key)
 
 	k := domain.NewAuthAPIKey(h)
@@ -43,13 +43,13 @@ func (a TokenSource) GenerateToken(key string) (domain.Token, error) {
 		return domain.Token{}, fmt.Errorf("key %q not found", key)
 	}
 
-	t := time.Now().Unix()
+	t := time.Now()
 	c := domain.Claims{
 		Environment:       env,
 		ClusterIdentifier: "1",
-		StandardClaims: jwt.StandardClaims{
-			IssuedAt:  t,
-			NotBefore: t,
+		RegisteredClaims: jwt.RegisteredClaims{
+			IssuedAt:  jwt.NewNumericDate(t),
+			NotBefore: jwt.NewNumericDate(t),
 		},
 	}
 

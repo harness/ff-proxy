@@ -16,10 +16,17 @@ import (
 )
 
 var (
-	ErrNotFound     = errors.New("ErrNotFound")
+	// ErrNotFound is the error returned when the client service gets a 404 from Harness SaaS
+	ErrNotFound = errors.New("ErrNotFound")
+
+	// ErrUnauthorized is the error returned when the client service gets a 401 or 403 from Harness SaaS
 	ErrUnauthorized = errors.New("ErrUnauthorized")
-	ErrInternal     = errors.New("ErrInternal")
-	ErrBadRequest   = errors.New("bad request")
+
+	// ErrInternal is the error returned when the client service gets a 500 or unexpected error from Harness SaaS
+	ErrInternal = errors.New("ErrInternal")
+
+	// ErrBadRequest is the error returned when the client service gets a 400 from Harness SaaS
+	ErrBadRequest = errors.New("bad request")
 
 	statusCodeToErr = map[int]error{
 		http.StatusInternalServerError: ErrInternal,

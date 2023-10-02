@@ -3,10 +3,7 @@ package main
 import (
 	"flag"
 	"fmt"
-	"io"
 	"os"
-
-	"github.com/harness/ff-proxy/v2/tests/e2e/testhelpers"
 
 	"github.com/joho/godotenv"
 
@@ -78,71 +75,71 @@ func main() {
 		log.Infof("%s", x)
 	}
 
-	testhelpers.SetupAuth()
-
-	project, err := testhelpers.SetupTestProject()
-	if err != nil {
-		log.Errorf(err.Error())
-		os.Exit(1)
-	}
-
-	// write .env for online test config
-	onlineTestFile, err := os.OpenFile(fmt.Sprintf(onlineTestFileName), os.O_CREATE|os.O_WRONLY, createFilePermissionLevel)
-	if err != nil {
-		onlineTestFile.Close()
-		log.Fatalf("failed to open %s: %s", onlineTestFileName, err)
-	}
-
-	_, err = io.WriteString(onlineTestFile, fmt.Sprintf(onlineTestTemplate, project.Environment.Keys[0].ApiKey, testhelpers.GetClientURL(), project.Account, project.Organization, project.ProjectIdentifier, project.Environment.Identifier, testhelpers.GetUserAccessToken()))
-	if err != nil {
-		log.Fatalf("failed to write to %s: %s", onlineTestFileName, err)
-	}
-
-	// write .env for proxy online in memory mode
-	onlineInMemProxyFile, err := os.OpenFile(fmt.Sprintf(onlineInMemoryProxy), os.O_CREATE|os.O_WRONLY, createFilePermissionLevel)
-	if err != nil {
-		onlineInMemProxyFile.Close()
-		log.Fatalf("failed to open %s: %s", onlineInMemoryProxy, err)
-	}
-
-	_, err = io.WriteString(onlineInMemProxyFile, fmt.Sprintf(onlineProxyInMemTemplate, testhelpers.GetDefaultAccount(), testhelpers.GetDefaultOrg(), testhelpers.GetUserAccessToken(), project.Environment.Keys[0].ApiKey))
-	if err != nil {
-		log.Fatalf("failed to write to %s: %s", onlineInMemoryProxy, err)
-	}
-
-	// write .env for proxy online redis mode
-	onlineProxyRedisFile, err := os.OpenFile(fmt.Sprintf(onlineRedisProxy), os.O_CREATE|os.O_WRONLY, createFilePermissionLevel)
-	if err != nil {
-		onlineProxyRedisFile.Close()
-		log.Fatalf("failed to open %s: %s", onlineRedisProxy, err)
-	}
-
-	_, err = io.WriteString(onlineProxyRedisFile, fmt.Sprintf(onlineProxyRedisTemplate, testhelpers.GetDefaultAccount(), testhelpers.GetDefaultOrg(), testhelpers.GetUserAccessToken(), project.Environment.Keys[0].ApiKey))
-	if err != nil {
-		log.Fatalf("failed to write to %s: %s", onlineRedisProxy, err)
-	}
-
-	// write .env for proxy generate offline config mode
-	generateOfflineFile, err := os.OpenFile(fmt.Sprintf(generateOfflineConfig), os.O_CREATE|os.O_WRONLY, createFilePermissionLevel)
-	if err != nil {
-		generateOfflineFile.Close()
-		log.Fatalf("failed to open %s: %s", generateOfflineConfig, err)
-	}
-
-	_, err = io.WriteString(generateOfflineFile, fmt.Sprintf(generateOfflineConfigTemplate, testhelpers.GetDefaultAccount(), testhelpers.GetDefaultOrg(), testhelpers.GetUserAccessToken(), project.Environment.Keys[0].ApiKey))
-	if err != nil {
-		log.Fatalf("failed to write to %s: %s", generateOfflineConfig, err)
-	}
-
-	// write .env for proxy offline config mode
-	offlineFile, err := os.OpenFile(fmt.Sprintf(offlineConfig), os.O_CREATE|os.O_WRONLY, createFilePermissionLevel)
-	if err != nil {
-		offlineFile.Close()
-		log.Fatalf("failed to open %s: %s", offlineConfig, err)
-	}
-
-	_, err = io.WriteString(offlineFile, offlineConfigTemplate)
-	if err != nil {
-		log.Fatalf("failed to write to %s: %s", offlineConfig, err)
-	}
+	//testhelpers.SetupAuth()
+	//
+	//project, err := testhelpers.SetupTestProject()
+	//if err != nil {
+	//	log.Errorf(err.Error())
+	//	os.Exit(1)
+	//}
+	//
+	//// write .env for online test config
+	//onlineTestFile, err := os.OpenFile(fmt.Sprintf(onlineTestFileName), os.O_CREATE|os.O_WRONLY, createFilePermissionLevel)
+	//if err != nil {
+	//	onlineTestFile.Close()
+	//	log.Fatalf("failed to open %s: %s", onlineTestFileName, err)
+	//}
+	//
+	//_, err = io.WriteString(onlineTestFile, fmt.Sprintf(onlineTestTemplate, project.Environment.Keys[0].ApiKey, testhelpers.GetClientURL(), project.Account, project.Organization, project.ProjectIdentifier, project.Environment.Identifier, testhelpers.GetUserAccessToken()))
+	//if err != nil {
+	//	log.Fatalf("failed to write to %s: %s", onlineTestFileName, err)
+	//}
+	//
+	//// write .env for proxy online in memory mode
+	//onlineInMemProxyFile, err := os.OpenFile(fmt.Sprintf(onlineInMemoryProxy), os.O_CREATE|os.O_WRONLY, createFilePermissionLevel)
+	//if err != nil {
+	//	onlineInMemProxyFile.Close()
+	//	log.Fatalf("failed to open %s: %s", onlineInMemoryProxy, err)
+	//}
+	//
+	//_, err = io.WriteString(onlineInMemProxyFile, fmt.Sprintf(onlineProxyInMemTemplate, testhelpers.GetDefaultAccount(), testhelpers.GetDefaultOrg(), testhelpers.GetUserAccessToken(), project.Environment.Keys[0].ApiKey))
+	//if err != nil {
+	//	log.Fatalf("failed to write to %s: %s", onlineInMemoryProxy, err)
+	//}
+	//
+	//// write .env for proxy online redis mode
+	//onlineProxyRedisFile, err := os.OpenFile(fmt.Sprintf(onlineRedisProxy), os.O_CREATE|os.O_WRONLY, createFilePermissionLevel)
+	//if err != nil {
+	//	onlineProxyRedisFile.Close()
+	//	log.Fatalf("failed to open %s: %s", onlineRedisProxy, err)
+	//}
+	//
+	//_, err = io.WriteString(onlineProxyRedisFile, fmt.Sprintf(onlineProxyRedisTemplate, testhelpers.GetDefaultAccount(), testhelpers.GetDefaultOrg(), testhelpers.GetUserAccessToken(), project.Environment.Keys[0].ApiKey))
+	//if err != nil {
+	//	log.Fatalf("failed to write to %s: %s", onlineRedisProxy, err)
+	//}
+	//
+	//// write .env for proxy generate offline config mode
+	//generateOfflineFile, err := os.OpenFile(fmt.Sprintf(generateOfflineConfig), os.O_CREATE|os.O_WRONLY, createFilePermissionLevel)
+	//if err != nil {
+	//	generateOfflineFile.Close()
+	//	log.Fatalf("failed to open %s: %s", generateOfflineConfig, err)
+	//}
+	//
+	//_, err = io.WriteString(generateOfflineFile, fmt.Sprintf(generateOfflineConfigTemplate, testhelpers.GetDefaultAccount(), testhelpers.GetDefaultOrg(), testhelpers.GetUserAccessToken(), project.Environment.Keys[0].ApiKey))
+	//if err != nil {
+	//	log.Fatalf("failed to write to %s: %s", generateOfflineConfig, err)
+	//}
+	//
+	//// write .env for proxy offline config mode
+	//offlineFile, err := os.OpenFile(fmt.Sprintf(offlineConfig), os.O_CREATE|os.O_WRONLY, createFilePermissionLevel)
+	//if err != nil {
+	//	offlineFile.Close()
+	//	log.Fatalf("failed to open %s: %s", offlineConfig, err)
+	//}
+	//
+	//_, err = io.WriteString(offlineFile, offlineConfigTemplate)
+	//if err != nil {
+	//	log.Fatalf("failed to write to %s: %s", offlineConfig, err)
+	//}
 }

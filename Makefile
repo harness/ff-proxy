@@ -10,7 +10,7 @@ endif
 
 .DEFAULT_GOAL := all
 
-tools = $(addprefix $(GOBIN)/, golangci-lint golint gosec goimports gocov gocov-html)
+tools = $(addprefix $(GOBIN)/, golangci-lint gosec goimports gocov gocov-html)
 deps = $(addprefix $(GOBIN)/, oapi-codegen)
 export formatlist = $(shell go list  ./... | sed 's/\github.com\/harness\/ff-proxy\///g' | sed 's/\github.com\/harness\/ff-proxy//g' | sed 's/\gen\/admin//g' | sed 's/\gen\/client//g')
 
@@ -124,16 +124,13 @@ build-example-sdk: ## builds an example sdk that can be used for hitting the pro
 
 
 #########################################
-# Checks
+# lint
 # These lint, format and check the code for potential vulnerabilities
 #########################################
-PHONY+= check
-check: lint format sec ## Runs linter, goimports and gosec
-
 PHONY+= lint
 lint: tools ## lint the golang code
 	@echo "Linting $(1)"
-	@golint ./...
+	@golangci-lint run ./...
 
 PHONY+= tools
 format: tools ## Format go code and error if any changes are made
@@ -141,12 +138,6 @@ format: tools ## Format go code and error if any changes are made
 	@goimports -l $$formatlist
 	@goimports -l -w $$formatlist | wc -m | xargs | grep -q 0
 	@echo "Formatting complete"
-
-PHONY+= sec
-sec: tools ## Run the security checks
-	@echo "Checking for security problems ..."
-	@gosec -quiet -confidence high -severity medium ./...
-	@echo "No problems found"
 
 ###########################################
 # Install Tools and deps
@@ -158,12 +149,7 @@ sec: tools ## Run the security checks
 # Install golangci-lint
 $(GOBIN)/golangci-lint:
 	@echo "🔘 Installing golangci-lint... (`date '+%H:%M:%S'`)"
-	@curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(GOPATH)/bin
-
-# Install golint to lint code
-$(GOBIN)/golint:
-	@echo "🔘 Installing golint ... (`date '+%H:%M:%S'`)"
-	@go install golang.org/x/lint/golint@latest
+	@curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(go env GOPATH)/bin v1.54.2
 
 # Install goimports to format code
 $(GOBIN)/goimports:

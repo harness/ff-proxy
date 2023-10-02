@@ -81,8 +81,10 @@ func toSDKRules(rules *[]clientgen.ServingRule) []rest.ServingRule {
 		return []rest.ServingRule{}
 	}
 
+	rulesCopy := *rules
 	result := make([]rest.ServingRule, 0, len(*rules))
-	for _, r := range *rules {
+	for i := 0; i < len(*rules); i++ {
+		r := rulesCopy[i]
 
 		clauses := toSDKClause(&r.Clauses)
 		distribution := SafePtrDereference(r.Serve.Distribution)
@@ -175,16 +177,24 @@ func toSDKVariationMap(variationMap *[]clientgen.VariationMap) []rest.VariationM
 
 	vtms := make([]rest.VariationMap, 0, len(*variationMap))
 
-	for _, v := range *variationMap {
-		targetMap := []rest.TargetMap{}
-		if *v.Targets != nil {
-			targetMap = make([]rest.TargetMap, 0, len(targetMap))
-			for _, t := range *v.Targets {
-				targetMap = append(targetMap, rest.TargetMap{
-					Identifier: &t.Identifier,
-					Name:       t.Name,
-				})
-			}
+	variationMapCopy := *variationMap
+	for i := 0; i < len(*variationMap); i++ {
+		v := variationMapCopy[i]
+
+		if v.Targets == nil {
+			continue
+		}
+
+		targetsCopy := *v.Targets
+		targetMap := make([]rest.TargetMap, 0, len(*v.Targets))
+
+		for i := 0; i < len(*v.Targets); i++ {
+			t := targetsCopy[i]
+
+			targetMap = append(targetMap, rest.TargetMap{
+				Identifier: &t.Identifier,
+				Name:       t.Name,
+			})
 		}
 
 		vtms = append(vtms, rest.VariationMap{

@@ -63,6 +63,7 @@ func ToPtr[T any](t T) *T {
 	return &t
 }
 
+// SafePtrDereference is a helper for getting the value stored at a pointer
 func SafePtrDereference[T any](t *T) T {
 	if t == nil {
 		var d T

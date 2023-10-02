@@ -8,6 +8,7 @@ import (
 	"github.com/harness/ff-proxy/v2/cache"
 	"github.com/harness/ff-proxy/v2/domain"
 	clientgen "github.com/harness/ff-proxy/v2/gen/client"
+	"github.com/harness/ff-proxy/v2/log"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -145,7 +146,7 @@ func TestTargetRepo_GetByIdentifer(t *testing.T) {
 		t.Run(desc, func(t *testing.T) {
 			ctx := context.Background()
 
-			repo := NewTargetRepo(tc.cache)
+			repo := NewTargetRepo(tc.cache, log.NewNoOpLogger())
 			if len(tc.repoConfig) > 0 {
 				assert.Nil(t, repo.DeltaAdd(ctx, tc.envID, tc.repoConfig...))
 			}
@@ -256,7 +257,7 @@ func TestTargetRepo_DeltaAdd(t *testing.T) {
 		t.Run(desc, func(t *testing.T) {
 			ctx := context.Background()
 
-			repo := NewTargetRepo(tc.cache)
+			repo := NewTargetRepo(tc.cache, log.NewNoOpLogger())
 			if len(tc.repoConfig) > 0 {
 				assert.Nil(t, repo.DeltaAdd(ctx, tc.env, tc.repoConfig...))
 			}

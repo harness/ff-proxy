@@ -48,13 +48,12 @@ func (c Config) Token() string {
 
 // Populate populates the repos with the config loaded from the file system
 func (c Config) Populate(ctx context.Context, authRepo domain.AuthRepo, flagRepo domain.FlagRepo, segmentRepo domain.SegmentRepo) error {
-	var (
-		authConfig    []domain.AuthConfig
-		flagConfig    []domain.FlagConfig
-		segmentConfig []domain.SegmentConfig
-	)
+	authConfig := make([]domain.AuthConfig, 0, len(c.config))
+	flagConfig := make([]domain.FlagConfig, 0, len(c.config))
+	segmentConfig := make([]domain.SegmentConfig, 0, len(c.config))
 
 	for _, f := range c.config {
+
 		for _, key := range f.Auth {
 			authConfig = append(authConfig, domain.AuthConfig{
 				APIKey:        domain.NewAuthAPIKey(string(key)),
@@ -91,10 +90,7 @@ func (c Config) Populate(ctx context.Context, authRepo domain.AuthRepo, flagRepo
 // loadConfig reads the directory of the filesystem and walks the file tree
 // decoding any configObject files that it finds
 func (c Config) loadConfig(fileSystem fs.FS) error {
-	if err := fs.WalkDir(fileSystem, ".", decodeConfigFiles(c.config, fileSystem)); err != nil {
-		return err
-	}
-	return nil
+	return fs.WalkDir(fileSystem, ".", decodeConfigFiles(c.config, fileSystem))
 }
 
 // getParentDirFromPath gets the name of the parent directory for a file in a path
@@ -110,6 +106,8 @@ func getParentDirFromPath(path string) (string, error) {
 
 // decodeConfigFiles returns a WalkDirFunc that gets called on each file in the
 // configObject directory.
+//
+//nolint:gocognit,cyclop
 func decodeConfigFiles(c map[string]configObject, fileSystem fs.FS) fs.WalkDirFunc {
 	return func(path string, d fs.DirEntry, err error) error {
 		if err != nil {

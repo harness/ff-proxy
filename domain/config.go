@@ -8,13 +8,13 @@ import (
 // ProxyConfig is the object that we receive from SaaS containing the config
 // for each environment associated with a ProxyKey
 type ProxyConfig struct {
-	Environments []Environments `json:"environments" json:"-"`
+	Environments []Environments `json:"environments"`
 }
 
 // Environments contains the environment config that the Proxy needs to store
 type Environments struct {
-	ID             uuid.UUID     `json:"id" json:"-"`
-	ApiKeys        []string      `json:"apiKeys"`
+	ID             uuid.UUID     `json:"id"`
+	APIKeys        []string      `json:"apiKeys"`
 	FeatureConfigs []FeatureFlag `json:"featureConfigs"`
 	Segments       []Segment     `json:"segments"`
 }
@@ -34,7 +34,7 @@ func ToProxyConfig(c clientgen.ProxyConfig) ProxyConfig {
 		}
 
 		if *env.ApiKeys != nil {
-			e.ApiKeys = *env.ApiKeys
+			e.APIKeys = *env.ApiKeys
 		}
 
 		if *env.FeatureConfigs != nil {
