@@ -39,7 +39,7 @@ func NewEndpoints(p proxyservice.ProxyService) *Endpoints {
 	}
 }
 
-// makePostAuthenticateEndpoint is a function to convert a services Authenticate
+// makePostAuthenticateEndpoint is a function to convert a clients Authenticate
 // method to an endpoint
 func makePostAuthenticateEndpoint(s proxyservice.ProxyService) endpoint.Endpoint {
 	return func(ctx context.Context, request interface{}) (response interface{}, err error) {
@@ -52,7 +52,7 @@ func makePostAuthenticateEndpoint(s proxyservice.ProxyService) endpoint.Endpoint
 	}
 }
 
-// makeGetFeatureConfigsEndpoint is a function to convert a services GetFeatureConfig
+// makeGetFeatureConfigsEndpoint is a function to convert a clients GetFeatureConfig
 // method to an endpoint
 func makeGetFeatureConfigsEndpoint(s proxyservice.ProxyService) endpoint.Endpoint {
 	return func(ctx context.Context, request interface{}) (response interface{}, err error) {
@@ -65,7 +65,7 @@ func makeGetFeatureConfigsEndpoint(s proxyservice.ProxyService) endpoint.Endpoin
 	}
 }
 
-// makeGetFeatureConfigsByIdentifierEndpoint is a function to convert a services
+// makeGetFeatureConfigsByIdentifierEndpoint is a function to convert a clients
 // FeatureConfigByIdentifier method to an endpoint
 func makeGetFeatureConfigsByIdentifierEndpoint(s proxyservice.ProxyService) endpoint.Endpoint {
 	return func(ctx context.Context, request interface{}) (response interface{}, err error) {
@@ -78,7 +78,7 @@ func makeGetFeatureConfigsByIdentifierEndpoint(s proxyservice.ProxyService) endp
 	}
 }
 
-// makeGetTargetSegmentsEndpoint is a function to convert a services TargetSegments
+// makeGetTargetSegmentsEndpoint is a function to convert a clients TargetSegments
 // method to an endpoint
 func makeGetTargetSegmentsEndpoint(s proxyservice.ProxyService) endpoint.Endpoint {
 	return func(ctx context.Context, request interface{}) (response interface{}, err error) {
@@ -91,7 +91,7 @@ func makeGetTargetSegmentsEndpoint(s proxyservice.ProxyService) endpoint.Endpoin
 	}
 }
 
-// makeGetTargetSegmentsByIdentifierEndpoint is a function to convert a services
+// makeGetTargetSegmentsByIdentifierEndpoint is a function to convert a clients
 // TargetSegmentsByIdentifier method to an endpoint
 func makeGetTargetSegmentsByIdentifierEndpoint(s proxyservice.ProxyService) endpoint.Endpoint {
 	return func(ctx context.Context, request interface{}) (response interface{}, err error) {
@@ -104,7 +104,7 @@ func makeGetTargetSegmentsByIdentifierEndpoint(s proxyservice.ProxyService) endp
 	}
 }
 
-// makeGetEvaluationsEndpoint is a function to convert a services Evaluations
+// makeGetEvaluationsEndpoint is a function to convert a clients Evaluations
 // method to an endpoint
 func makeGetEvaluationsEndpoint(s proxyservice.ProxyService) endpoint.Endpoint {
 	return func(ctx context.Context, request interface{}) (response interface{}, err error) {
@@ -117,7 +117,7 @@ func makeGetEvaluationsEndpoint(s proxyservice.ProxyService) endpoint.Endpoint {
 	}
 }
 
-// makeGetEvaluationsByFeatureEndpoint is a function to convert a services
+// makeGetEvaluationsByFeatureEndpoint is a function to convert a clients
 // EvaluationsByFeature method to an endpoint
 func makeGetEvaluationsByFeatureEndpoint(s proxyservice.ProxyService) endpoint.Endpoint {
 	return func(ctx context.Context, request interface{}) (response interface{}, err error) {
@@ -130,7 +130,7 @@ func makeGetEvaluationsByFeatureEndpoint(s proxyservice.ProxyService) endpoint.E
 	}
 }
 
-// makeGetStreamEndpoint is a function to convert a services Stream method
+// makeGetStreamEndpoint is a function to convert a clients Stream method
 // to an endpoint
 func makeGetStreamEndpoint(s proxyservice.ProxyService) endpoint.Endpoint {
 	return func(ctx context.Context, request interface{}) (response interface{}, err error) {
@@ -143,7 +143,7 @@ func makeGetStreamEndpoint(s proxyservice.ProxyService) endpoint.Endpoint {
 	}
 }
 
-// makePostMetricsEndpoint is a function to convert a services Metrics method
+// makePostMetricsEndpoint is a function to convert a clients Metrics method
 // to an endpoint
 func makePostMetricsEndpoint(s proxyservice.ProxyService) endpoint.Endpoint {
 	return func(ctx context.Context, request interface{}) (response interface{}, err error) {
@@ -155,7 +155,7 @@ func makePostMetricsEndpoint(s proxyservice.ProxyService) endpoint.Endpoint {
 	}
 }
 
-// makeHealthEndpoint is a function to convert a services Health method
+// makeHealthEndpoint is a function to convert a clients Health method
 // to an endpoint
 func makeHealthEndpoint(s proxyservice.ProxyService) endpoint.Endpoint {
 	return func(ctx context.Context, request interface{}) (response interface{}, err error) {

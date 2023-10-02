@@ -1,4 +1,4 @@
-package services
+package metricsservice
 
 import (
 	"context"
@@ -19,6 +19,14 @@ const (
 	defaultMetricsURL = "https://events.ff.harness.io/api/1.0"
 	defaultToken      = "token"
 )
+
+type mockService struct {
+	*sync.Mutex
+	clientgen.ClientWithResponsesInterface
+
+	postMetricsWithResp func(environment string) (*clientgen.PostMetricsResponse, error)
+	getProxyConfigCalls int
+}
 
 func (m mockService) PostMetricsWithResponse(ctx context.Context, environment clientgen.EnvironmentPathParam, params *clientgen.PostMetricsParams, body clientgen.PostMetricsJSONRequestBody, reqEditors ...clientgen.RequestEditorFn) (*clientgen.PostMetricsResponse, error) {
 	var err error
@@ -245,7 +253,7 @@ func TestMetricService_StoreMetrics(t *testing.T) {
 		tc := tc
 		t.Run(desc, func(t *testing.T) {
 
-			metricService := MetricService{
+			metricService := Client{
 				metrics:     map[string]domain.MetricsRequest{},
 				enabled:     tc.enabled,
 				metricsLock: &sync.Mutex{},
@@ -324,7 +332,7 @@ func TestMetricService_SendMetrics(t *testing.T) {
 		t.Run(desc, func(t *testing.T) {
 			postMetricsCount = 0
 			logger, _ := log.NewStructuredLogger("DEBUG")
-			metricsService, _ := NewMetricService(logger, defaultMetricsURL, tc.token, true, prometheus.NewRegistry(), nil)
+			metricsService, _ := NewClient(logger, defaultMetricsURL, tc.token, true, prometheus.NewRegistry(), nil)
 			metricsService.metrics = tc.metrics
 			metricsService.client = &mockService{postMetricsWithResp: tc.postMetricsWithResp}
 

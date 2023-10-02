@@ -1,4 +1,4 @@
-package services
+package metricsservice
 
 import (
 	"context"
@@ -43,8 +43,8 @@ type counter interface {
 	WithLabelValues(lvs ...string) prometheus.Counter
 }
 
-// MetricService is a type for interacting with the Feature Flag Metric Service
-type MetricService struct {
+// Client is a type for interacting with the Feature Flag Metric Service
+type Client struct {
 	log         log.Logger
 	enabled     bool
 	client      clientgen.ClientWithResponsesInterface
@@ -57,18 +57,18 @@ type MetricService struct {
 	metricsForwarded counter
 }
 
-// NewMetricService creates a MetricService
-func NewMetricService(l log.Logger, addr string, token string, enabled bool, reg *prometheus.Registry, subscriber stream.Subscriber) (MetricService, error) {
+// NewClient creates a MetricService
+func NewClient(l log.Logger, addr string, token string, enabled bool, reg *prometheus.Registry, subscriber stream.Subscriber) (Client, error) {
 	l = l.With("component", "MetricServiceClient")
 	client, err := clientgen.NewClientWithResponses(
 		addr,
 		clientgen.WithHTTPClient(doer{c: http.DefaultClient}),
 	)
 	if err != nil {
-		return MetricService{}, err
+		return Client{}, err
 	}
 
-	m := MetricService{
+	m := Client{
 		log:         l,
 		client:      client,
 		token:       token,
@@ -98,21 +98,21 @@ func NewMetricService(l log.Logger, addr string, token string, enabled bool, reg
 }
 
 // StoreMetrics aggregates and stores metrics
-func (m MetricService) StoreMetrics(_ context.Context, req domain.MetricsRequest) error {
-	if !m.enabled {
+func (c Client) StoreMetrics(_ context.Context, req domain.MetricsRequest) error {
+	if !c.enabled {
 		return nil
 	}
 
-	m.metricsLock.Lock()
+	c.metricsLock.Lock()
 	defer func() {
-		m.trackSDKUsage(req)
-		m.metricsLock.Unlock()
+		c.trackSDKUsage(req)
+		c.metricsLock.Unlock()
 	}()
 
 	// Store metrics to send later
-	currentMetrics, ok := m.metrics[req.EnvironmentID]
+	currentMetrics, ok := c.metrics[req.EnvironmentID]
 	if !ok {
-		m.metrics[req.EnvironmentID] = req
+		c.metrics[req.EnvironmentID] = req
 		return nil
 	}
 
@@ -133,41 +133,41 @@ func (m MetricService) StoreMetrics(_ context.Context, req domain.MetricsRequest
 		currentMetrics.TargetData = &newTargets
 	}
 
-	m.metrics[req.EnvironmentID] = currentMetrics
+	c.metrics[req.EnvironmentID] = currentMetrics
 	return nil
 }
 
 // SendMetrics forwards stored metrics to the SaaS platform
-func (m MetricService) sendMetrics(ctx context.Context, clusterIdentifier string) {
+func (c Client) sendMetrics(ctx context.Context, clusterIdentifier string) {
 	// copy metrics before sending so we don't hog the lock for network requests
-	m.metricsLock.Lock()
+	c.metricsLock.Lock()
 	metricsCopy := map[string]domain.MetricsRequest{}
-	for key, val := range m.metrics {
+	for key, val := range c.metrics {
 		metricsCopy[key] = val
-		delete(m.metrics, key)
+		delete(c.metrics, key)
 	}
-	m.metrics = make(map[string]domain.MetricsRequest)
-	m.metricsLock.Unlock()
+	c.metrics = make(map[string]domain.MetricsRequest)
+	c.metricsLock.Unlock()
 
 	for envID, metric := range metricsCopy {
-		if err := m.postMetrics(ctx, envID, metric, clusterIdentifier); err != nil {
-			m.log.Error("sending metrics failed", "environment", envID, "error", err)
+		if err := c.postMetrics(ctx, envID, metric, clusterIdentifier); err != nil {
+			c.log.Error("sending metrics failed", "environment", envID, "error", err)
 		}
 	}
 
 }
 
-func (m MetricService) postMetrics(ctx context.Context, envID string, metric domain.MetricsRequest, clusterIdentifier string) (err error) {
+func (c Client) postMetrics(ctx context.Context, envID string, metric domain.MetricsRequest, clusterIdentifier string) (err error) {
 	defer func() {
 		errLabel := "false"
 		if err != nil {
 			errLabel = "true"
 		}
-		m.metricsForwarded.WithLabelValues(envID, errLabel).Inc()
+		c.metricsForwarded.WithLabelValues(envID, errLabel).Inc()
 	}()
 
-	ctx = context.WithValue(ctx, tokenKey, m.token)
-	res, err := m.client.PostMetricsWithResponse(ctx, envID, &clientgen.PostMetricsParams{Cluster: &clusterIdentifier}, clientgen.PostMetricsJSONRequestBody{
+	ctx = context.WithValue(ctx, tokenKey, c.token)
+	res, err := c.client.PostMetricsWithResponse(ctx, envID, &clientgen.PostMetricsParams{Cluster: &clusterIdentifier}, clientgen.PostMetricsJSONRequestBody{
 		MetricsData: metric.MetricsData,
 		TargetData:  metric.TargetData,
 	}, addAuthToken)
@@ -192,7 +192,7 @@ func addAuthToken(ctx context.Context, req *http.Request) error {
 	return nil
 }
 
-func (m MetricService) trackSDKUsage(req domain.MetricsRequest) {
+func (c Client) trackSDKUsage(req domain.MetricsRequest) {
 	if req.MetricsData == nil {
 		return
 	}
@@ -204,7 +204,7 @@ func (m MetricService) trackSDKUsage(req domain.MetricsRequest) {
 		sdkVersion := getSDKVersion(attrMap)
 		sdkLanguage := getSDKLanguage(attrMap)
 
-		m.sdkUsage.WithLabelValues(req.EnvironmentID, sdkType, sdkVersion, sdkLanguage).Inc()
+		c.sdkUsage.WithLabelValues(req.EnvironmentID, sdkType, sdkVersion, sdkLanguage).Inc()
 	}
 }
 
@@ -243,20 +243,20 @@ func getSDKLanguage(m map[string]string) string {
 }
 
 // PostMetrics kicks off a job that periodically sends metrics to Harness Saas if we're running in online mode and metricPostDuration is > 0
-func (m MetricService) PostMetrics(ctx context.Context, offline bool, metricPostDuration int) {
+func (c Client) PostMetrics(ctx context.Context, offline bool, metricPostDuration int) {
 	if offline {
 		return
 	}
 
 	if metricPostDuration == 0 {
-		m.log.Info("sending metrics disabled")
+		c.log.Info("sending metrics disabled")
 		return
 	}
 
 	// Start the job that listens for metrics coming in from read replicas on the redis stream
-	go m.subscribe(ctx)
+	go c.subscribe(ctx)
 
-	m.log.Info(fmt.Sprintf("sending metrics every %d seconds", metricPostDuration))
+	c.log.Info(fmt.Sprintf("sending metrics every %d seconds", metricPostDuration))
 
 	// start metric sending ticker
 	go func() {
@@ -266,43 +266,43 @@ func (m MetricService) PostMetrics(ctx context.Context, offline bool, metricPost
 		for {
 			select {
 			case <-ctx.Done():
-				m.log.Info("stopping metrics ticker")
+				c.log.Info("stopping metrics ticker")
 				return
 			case <-ticker.C:
 				// default to prod cluster
 				clusterIdentifier := "1"
-				m.log.Debug("sending metrics")
-				m.sendMetrics(ctx, clusterIdentifier)
+				c.log.Debug("sending metrics")
+				c.sendMetrics(ctx, clusterIdentifier)
 			}
 		}
 	}()
 }
 
 // subscribe kicks off a job that subscribes to the redis stream that readreplicas write metrics onto
-func (m MetricService) subscribe(ctx context.Context) {
+func (c Client) subscribe(ctx context.Context) {
 	id := ""
 	for {
 		// There's nothing we can really do here if we error in the callback parsing/handling the message
 		// so we log the errors as warnings but return nil so we carry on receiving messages from the stream
-		err := m.subscriber.Sub(ctx, SDKMetricsStream, id, func(latestID string, v interface{}) error {
+		err := c.subscriber.Sub(ctx, SDKMetricsStream, id, func(latestID string, v interface{}) error {
 			// We want to keep track of the id of the latest message we've received so that if
 			// we disconnect we can resume from that point
 			id = latestID
 
 			s, ok := v.(string)
 			if !ok {
-				m.log.Warn("unexpected message format received", "stream", SDKMetricsStream, "type", reflect.TypeOf(v))
+				c.log.Warn("unexpected message format received", "stream", SDKMetricsStream, "type", reflect.TypeOf(v))
 				return nil
 			}
 
 			mr := domain.MetricsRequest{}
 			if err := jsoniter.Unmarshal([]byte(s), &mr); err != nil {
-				m.log.Warn("failed to unmarshal metrics message", "stream", SDKMetricsStream, "err", err)
+				c.log.Warn("failed to unmarshal metrics message", "stream", SDKMetricsStream, "err", err)
 				return nil
 			}
 
-			if err := m.StoreMetrics(ctx, mr); err != nil {
-				m.log.Warn("failed to store metrics received from read replica", "stream", SDKMetricsStream, "err", err)
+			if err := c.StoreMetrics(ctx, mr); err != nil {
+				c.log.Warn("failed to store metrics received from read replica", "stream", SDKMetricsStream, "err", err)
 				return nil
 			}
 			return nil
@@ -312,7 +312,7 @@ func (m MetricService) subscribe(ctx context.Context) {
 				return
 			}
 
-			m.log.Warn("dropped subscription to redis stream, backing off for 30 seconds and trying again", "stream", SDKMetricsStream, "err", err)
+			c.log.Warn("dropped subscription to redis stream, backing off for 30 seconds and trying again", "stream", SDKMetricsStream, "err", err)
 
 			// If we do break out of subscribe it will probably be because of a connection error with redis
 			// so backoff for 30 seconds before trying again

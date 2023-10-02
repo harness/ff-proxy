@@ -1,4 +1,4 @@
-package services
+package clientservice
 
 import (
 	"context"
@@ -37,26 +37,26 @@ var (
 	}
 )
 
-// ClientService is a type for interacting with the Feature Flag Client Service
-type ClientService struct {
+// Client is a type for interacting with the Feature Flag Client Service
+type Client struct {
 	log    log.Logger
 	client clientgen.ClientWithResponsesInterface
 }
 
-// NewClientService creates a ClientService
-func NewClientService(l log.Logger, addr string) (ClientService, error) {
+// NewClient creates a Client
+func NewClient(l log.Logger, addr string) (Client, error) {
 	l = l.With("component", "ClientServiceClient")
 
 	client, err := clientgen.NewClientWithResponses(addr)
 	if err != nil {
-		return ClientService{}, err
+		return Client{}, err
 	}
 
-	return ClientService{log: l, client: client}, nil
+	return Client{log: l, client: client}, nil
 }
 
 // Authenticate makes an authentication request to the client service
-func (c ClientService) Authenticate(ctx context.Context, apiKey string, target domain.Target) (string, error) {
+func (c Client) Authenticate(ctx context.Context, apiKey string, target domain.Target) (string, error) {
 	req := clientgen.AuthenticateJSONRequestBody{
 		ApiKey: apiKey,
 		Target: &struct {
@@ -85,7 +85,7 @@ func (c ClientService) Authenticate(ctx context.Context, apiKey string, target d
 }
 
 // AuthenticateProxyKey makes an auth request to the ff-client-service's /proxy/auth endpoint
-func (c ClientService) AuthenticateProxyKey(ctx context.Context, key string) (domain.AuthenticateProxyKeyResponse, error) {
+func (c Client) AuthenticateProxyKey(ctx context.Context, key string) (domain.AuthenticateProxyKeyResponse, error) {
 	req := clientgen.AuthenticateProxyKeyJSONRequestBody{ProxyKey: key}
 
 	resp, err := c.client.AuthenticateProxyKeyWithResponse(ctx, req)
@@ -144,7 +144,7 @@ func decodeToken(token string) (tokenClaims, error) {
 }
 
 // GetProxyConfig makes a /proxy/config request and returns the result.
-func (c ClientService) GetProxyConfig(ctx context.Context, input domain.GetProxyConfigInput) (domain.ProxyConfig, error) {
+func (c Client) GetProxyConfig(ctx context.Context, input domain.GetProxyConfigInput) (domain.ProxyConfig, error) {
 	resp, err := c.getProxyConfig(ctx, input)
 	if err != nil {
 		return domain.ProxyConfig{}, nil
@@ -158,7 +158,7 @@ func (c ClientService) GetProxyConfig(ctx context.Context, input domain.GetProxy
 }
 
 // PageProxyConfig pages over the /proxy/config API until its retrieved all the results
-func (c ClientService) PageProxyConfig(ctx context.Context, input domain.GetProxyConfigInput) ([]domain.ProxyConfig, error) {
+func (c Client) PageProxyConfig(ctx context.Context, input domain.GetProxyConfigInput) ([]domain.ProxyConfig, error) {
 	var (
 		configs []domain.ProxyConfig
 		done    bool
@@ -184,7 +184,7 @@ func (c ClientService) PageProxyConfig(ctx context.Context, input domain.GetProx
 	return configs, nil
 }
 
-func (c ClientService) getProxyConfig(ctx context.Context, input domain.GetProxyConfigInput) (clientgen.ProxyConfig, error) {
+func (c Client) getProxyConfig(ctx context.Context, input domain.GetProxyConfigInput) (clientgen.ProxyConfig, error) {
 	var env *string
 	if input.EnvID != "" {
 		env = &input.EnvID
@@ -198,10 +198,10 @@ func (c ClientService) getProxyConfig(ctx context.Context, input domain.GetProxy
 		Key:         input.Key,
 	}
 
-	// Add authToken to ctx so addAuthToken can add it to the request
-	ctx = context.WithValue(ctx, tokenKey, input.AuthToken)
-
-	resp, err := c.client.GetProxyConfigWithResponse(ctx, &params, addAuthToken)
+	resp, err := c.client.GetProxyConfigWithResponse(ctx, &params, func(ctx context.Context, req *http.Request) error {
+		req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", input.AuthToken))
+		return nil
+	})
 	if err != nil {
 		return clientgen.ProxyConfig{}, fmt.Errorf("%w: %s", ErrInternal, err)
 	}
