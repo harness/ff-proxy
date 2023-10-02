@@ -14,6 +14,7 @@ import (
 	"github.com/harness/ff-proxy/v2/build"
 	"github.com/harness/ff-proxy/v2/export"
 	"github.com/harness/ff-proxy/v2/health"
+	"github.com/harness/ff-proxy/v2/stream"
 	"github.com/harness/ff-proxy/v2/token"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/collectors"
@@ -243,6 +244,8 @@ func main() {
 	// if we're just generating the offline config we should only use in memory mode for now
 	// when we move to a pattern of allowing periodic config dumps to disk we can remove this requirement
 
+	var redisClient redis.UniversalClient
+
 	if redisAddress != "" && !generateOfflineConfig { //nolint:nestif
 		// if address does not start with redis:// or rediss:// then default to redis://
 		// if the connection string starts with rediss:// it means we'll connect with TLS enabled
@@ -266,9 +269,9 @@ func main() {
 		if redisPassword != "" {
 			opts.Password = redisPassword
 		}
-		client := redis.NewUniversalClient(&opts)
+		redisClient = redis.NewUniversalClient(&opts)
 		logger.Info("connecting to redis", "address", redisAddress)
-		sdkCache = cache.NewMetricsCache("redis", promReg, cache.NewMemoizeCache(client, 1*time.Minute, 2*time.Minute, cache.NewMemoizeMetrics("proxy", promReg)))
+		sdkCache = cache.NewMetricsCache("redis", promReg, cache.NewMemoizeCache(redisClient, 1*time.Minute, 2*time.Minute, cache.NewMemoizeMetrics("proxy", promReg)))
 		err = sdkCache.HealthCheck(ctx)
 		if err != nil {
 			logger.Error("failed to connect to redis", "err", err)
@@ -303,18 +306,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	var (
-		metricSvc proxyservice.MetricService
-	)
-
-	metricsEnabled := metricPostDuration != 0 && !offline
-	ms, err := services.NewMetricService(logger, metricService, conf.Token(), metricsEnabled, promReg)
-	if err != nil {
-		logger.Error("failed to create client for the feature flags metric service", "err", err)
-		os.Exit(1)
-	}
-	ms.Send(ctx, offline, metricPostDuration)
-	metricSvc = ms
+	metricSvc := createMetricsService(ctx, logger, conf, promReg, readReplica, redisClient)
 
 	if generateOfflineConfig {
 		exportService := export.NewService(logger, flagRepo, targetRepo, segmentRepo, authRepo, nil, configDir)
@@ -373,6 +365,25 @@ func main() {
 	if err := server.Serve(); err != nil {
 		logger.Error("server stopped", "err", err)
 	}
+}
+
+// createMetricsService is a helper that creates the MetricService implementation we need depending on the mode the
+// Proxy is running in. If the proxy is running in readReplica mode then we want to return a MetricService implementation
+// that pushes metrics onto a redis stream. If we're not running in readReplica mode then we want to return the normal
+// MetricService client that forwards requests on to Harness SaaS
+func createMetricsService(ctx context.Context, logger log.Logger, conf config.Config, promReg *prometheus.Registry, readReplica bool, redisClient redis.UniversalClient) proxyservice.MetricService {
+	if readReplica {
+		return services.NewMetricsStream(stream.NewRedisStream(redisClient))
+	}
+
+	metricsEnabled := metricPostDuration != 0 && !offline
+	ms, err := services.NewMetricService(logger, metricService, conf.Token(), metricsEnabled, promReg)
+	if err != nil {
+		logger.Error("failed to create client for the feature flags metric service", "err", err)
+		os.Exit(1)
+	}
+	ms.Send(ctx, offline, metricPostDuration)
+	return ms
 }
 
 // checks the health of the connected cache instance

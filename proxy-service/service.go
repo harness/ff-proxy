@@ -88,7 +88,7 @@ type clientService interface {
 
 // MetricService is the interface for storing metrics
 type MetricService interface {
-	StoreMetrics(metrics domain.MetricsRequest) error
+	StoreMetrics(ctx context.Context, metrics domain.MetricsRequest) error
 }
 
 // SDKClients is an interface that can be used to find out if internal sdks are connected to the SaaS FF stream
@@ -382,7 +382,7 @@ func (s Service) Stream(ctx context.Context, req domain.StreamRequest) (domain.S
 func (s Service) Metrics(ctx context.Context, req domain.MetricsRequest) error {
 
 	s.logger.Debug(ctx, "got metrics request", "metrics", fmt.Sprintf("%+v", req))
-	return s.metricService.StoreMetrics(req)
+	return s.metricService.StoreMetrics(ctx, req)
 }
 
 // Health checks the health of the system

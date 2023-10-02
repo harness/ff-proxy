@@ -81,7 +81,7 @@ func (m *mockClientService) Targets() []domain.Target {
 	return targets
 }
 
-func (m *mockMetricService) StoreMetrics(req domain.MetricsRequest) error {
+func (m *mockMetricService) StoreMetrics(ctx context.Context, req domain.MetricsRequest) error {
 	return m.storeMetrics(req)
 }
 

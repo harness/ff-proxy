@@ -253,7 +253,7 @@ func TestMetricService_StoreMetrics(t *testing.T) {
 			}
 
 			for _, metric := range tc.metrics {
-				metricService.StoreMetrics(metric)
+				metricService.StoreMetrics(context.Background(), metric)
 			}
 
 			actual := metricService.metrics
