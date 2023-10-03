@@ -2,10 +2,16 @@ package services
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
+	"reflect"
 	"sync"
 	"time"
+
+	jsoniter "github.com/json-iterator/go"
+
+	"github.com/harness/ff-proxy/v2/stream"
 
 	"github.com/harness/ff-proxy/v2/domain"
 	clientgen "github.com/harness/ff-proxy/v2/gen/client"
@@ -45,13 +51,14 @@ type MetricService struct {
 	metrics     map[string]domain.MetricsRequest
 	token       string
 	metricsLock *sync.Mutex
+	subscriber  stream.Subscriber
 
 	sdkUsage         counter
 	metricsForwarded counter
 }
 
 // NewMetricService creates a MetricService
-func NewMetricService(l log.Logger, addr string, token string, enabled bool, reg *prometheus.Registry) (MetricService, error) {
+func NewMetricService(l log.Logger, addr string, token string, enabled bool, reg *prometheus.Registry, subscriber stream.Subscriber) (MetricService, error) {
 	l = l.With("component", "MetricServiceClient")
 	client, err := clientgen.NewClientWithResponses(
 		addr,
@@ -68,6 +75,7 @@ func NewMetricService(l log.Logger, addr string, token string, enabled bool, reg
 		enabled:     enabled,
 		metrics:     map[string]domain.MetricsRequest{},
 		metricsLock: &sync.Mutex{},
+		subscriber:  subscriber,
 
 		sdkUsage: prometheus.NewCounterVec(
 			prometheus.CounterOpts{
@@ -234,8 +242,8 @@ func getSDKLanguage(m map[string]string) string {
 	return m["SDK_LANGUAGE"]
 }
 
-// Send periodically sends metrics to Harness Saas if we're running in online mode and metricPostDuration is > 0
-func (m MetricService) Send(ctx context.Context, offline bool, metricPostDuration int) {
+// PostMetrics kicks off a job that periodically sends metrics to Harness Saas if we're running in online mode and metricPostDuration is > 0
+func (m MetricService) PostMetrics(ctx context.Context, offline bool, metricPostDuration int) {
 	if offline {
 		return
 	}
@@ -244,6 +252,9 @@ func (m MetricService) Send(ctx context.Context, offline bool, metricPostDuratio
 		m.log.Info("sending metrics disabled")
 		return
 	}
+
+	// Start the job that listens for metrics coming in from read replicas on the redis stream
+	go m.subscribe(ctx)
 
 	m.log.Info(fmt.Sprintf("sending metrics every %d seconds", metricPostDuration))
 
@@ -265,4 +276,48 @@ func (m MetricService) Send(ctx context.Context, offline bool, metricPostDuratio
 			}
 		}
 	}()
+}
+
+// subscribe kicks off a job that subscribes to the redis stream that readreplicas write metrics onto
+func (m MetricService) subscribe(ctx context.Context) {
+	id := ""
+	for {
+		// There's nothing we can really do here if we error in the callback parsing/handling the message
+		// so we log the errors as warnings but return nil so we carry on receiving messages from the stream
+		err := m.subscriber.Sub(ctx, SDKMetricsStream, id, func(latestID string, v interface{}) error {
+			// We want to keep track of the id of the latest message we've received so that if
+			// we disconnect we can resume from that point
+			id = latestID
+
+			s, ok := v.(string)
+			if !ok {
+				m.log.Warn("unexpected message format received", "stream", SDKMetricsStream, "type", reflect.TypeOf(v))
+				return nil
+			}
+
+			mr := domain.MetricsRequest{}
+			if err := jsoniter.Unmarshal([]byte(s), &mr); err != nil {
+				m.log.Warn("failed to unmarshal metrics message", "stream", SDKMetricsStream, "err", err)
+				return nil
+			}
+
+			if err := m.StoreMetrics(ctx, mr); err != nil {
+				m.log.Warn("failed to store metrics received from read replica", "stream", SDKMetricsStream, "err", err)
+				return nil
+			}
+			return nil
+		})
+		if err != nil {
+			if errors.Is(err, context.Canceled) {
+				return
+			}
+
+			m.log.Warn("dropped subscription to redis stream, backing off for 30 seconds and trying again", "stream", SDKMetricsStream, "err", err)
+
+			// If we do break out of subscribe it will probably be because of a connection error with redis
+			// so backoff for 30 seconds before trying again
+			time.Sleep(30 * time.Second)
+			continue
+		}
+	}
 }

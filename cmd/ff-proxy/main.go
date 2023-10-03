@@ -238,7 +238,7 @@ func main() {
 	promReg := prometheus.NewRegistry()
 	promReg.MustRegister(collectors.NewGoCollector())
 
-	logger.Info("service config", "pprof", pprofEnabled, "log-level", logLevel, "bypass-auth", bypassAuth, "offline", offline, "port", port, "redis-addr", redisAddress, "redis-db", redisDB, "heartbeat-interval", fmt.Sprintf("%ds", heartbeatInterval), "config-dir", configDir, "tls-enabled", tlsEnabled, "tls-cert", tlsCert, "tls-key", tlsKey)
+	logger.Info("service config", "pprof", pprofEnabled, "log-level", logLevel, "bypass-auth", bypassAuth, "offline", offline, "port", port, "redis-addr", redisAddress, "redis-db", redisDB, "heartbeat-interval", fmt.Sprintf("%ds", heartbeatInterval), "config-dir", configDir, "tls-enabled", tlsEnabled, "tls-cert", tlsCert, "tls-key", tlsKey, "read-replica", readReplica)
 
 	// Create cache
 	// if we're just generating the offline config we should only use in memory mode for now
@@ -372,17 +372,19 @@ func main() {
 // that pushes metrics onto a redis stream. If we're not running in readReplica mode then we want to return the normal
 // MetricService client that forwards requests on to Harness SaaS
 func createMetricsService(ctx context.Context, logger log.Logger, conf config.Config, promReg *prometheus.Registry, readReplica bool, redisClient redis.UniversalClient) proxyservice.MetricService {
+	redisStream := stream.NewRedisStream(redisClient)
 	if readReplica {
 		return services.NewMetricsStream(stream.NewRedisStream(redisClient))
 	}
 
 	metricsEnabled := metricPostDuration != 0 && !offline
-	ms, err := services.NewMetricService(logger, metricService, conf.Token(), metricsEnabled, promReg)
+	ms, err := services.NewMetricService(logger, metricService, conf.Token(), metricsEnabled, promReg, redisStream)
 	if err != nil {
 		logger.Error("failed to create client for the feature flags metric service", "err", err)
 		os.Exit(1)
 	}
-	ms.Send(ctx, offline, metricPostDuration)
+	// Kick off the job that periodically posts metrics to Harness SaaS
+	ms.PostMetrics(ctx, offline, metricPostDuration)
 	return ms
 }
 
