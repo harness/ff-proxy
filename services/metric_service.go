@@ -90,7 +90,7 @@ func NewMetricService(l log.Logger, addr string, token string, enabled bool, reg
 }
 
 // StoreMetrics aggregates and stores metrics
-func (m MetricService) StoreMetrics(req domain.MetricsRequest) error {
+func (m MetricService) StoreMetrics(_ context.Context, req domain.MetricsRequest) error {
 	if !m.enabled {
 		return nil
 	}

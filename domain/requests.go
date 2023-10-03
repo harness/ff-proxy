@@ -2,6 +2,7 @@ package domain
 
 import (
 	clientgen "github.com/harness/ff-proxy/v2/gen/client"
+	jsoniter "github.com/json-iterator/go"
 )
 
 // AuthRequest contains the fields sent in an authentication request
@@ -64,6 +65,11 @@ type StreamResponse struct {
 type MetricsRequest struct {
 	EnvironmentID string `json:"environment_id"`
 	clientgen.Metrics
+}
+
+// MarshalBinary makes MetricsRequest implement the encoding.BinaryMarshaler func
+func (m *MetricsRequest) MarshalBinary() (data []byte, err error) {
+	return jsoniter.Marshal(m)
 }
 
 // HealthResponse contains the fields returned in a healthcheck response
