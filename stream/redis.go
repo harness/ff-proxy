@@ -22,7 +22,7 @@ func NewRedisStream(u redis.UniversalClient) RedisStream {
 }
 
 // Pub publishes events to a redis stream, if the stream doesn't exist it will create
-// the stream and then publish the event
+// the stream and then publish the event.
 func (r RedisStream) Pub(ctx context.Context, stream string, v interface{}) error {
 	var err error
 	values := v
@@ -40,13 +40,58 @@ func (r RedisStream) Pub(ctx context.Context, stream string, v interface{}) erro
 	if err := r.client.XAdd(ctx, &redis.XAddArgs{
 		Stream: stream,
 		ID:     "*",
-		Values: map[string]interface{}{
-			"index": values,
-		},
+		Values: formatRedisMessage(values),
 		MaxLen: r.maxLen,
 	}).Err(); err != nil {
 		return fmt.Errorf(":%w: %s", ErrPublishing, err)
 	}
 
 	return nil
+}
+
+// Sub subscribes to a redis stream starting at the id provided. If an id isn't provided then it will start at the last
+// message on the stream. Sub only exits if there is an error communicating with
+// redis or the context has been cancelled by the caller.
+func (r RedisStream) Sub(ctx context.Context, stream string, id string, handleMessage HandleMessageFn) error {
+	if id == "" {
+		id = "$"
+	}
+
+	for {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		default:
+			xs, err := r.client.XRead(ctx, &redis.XReadArgs{
+				Streams: []string{stream, id},
+				Count:   0,
+				Block:   0,
+			}).Result()
+			if err != nil {
+				return fmt.Errorf("%w: %s", ErrSubscribing, err)
+			}
+
+			for _, x := range xs {
+				for _, msg := range x.Messages {
+					if err := handleMessage(msg.ID, parseRedisMessage(msg.Values)); err != nil {
+						continue
+					}
+				}
+			}
+		}
+	}
+}
+
+func formatRedisMessage(v interface{}) map[string]interface{} {
+	return map[string]interface{}{
+		"event": v,
+	}
+}
+
+func parseRedisMessage(m map[string]interface{}) interface{} {
+	v, ok := m["event"]
+	if !ok {
+		return nil
+	}
+	return v
 }

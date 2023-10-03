@@ -37,7 +37,7 @@ func TestRedisStream_Pub(t *testing.T) {
 			expected: expected{
 				stream: "test-stream",
 				message: map[string]interface{}{
-					"index": "foo",
+					"event": "foo",
 				},
 			},
 		},
@@ -92,6 +92,106 @@ func TestRedisStream_Pub(t *testing.T) {
 					}
 				}
 			}
+		})
+	}
+}
+
+func TestRedisStream_Sub(t *testing.T) {
+	type expected struct {
+		messages []interface{}
+		err      error
+	}
+
+	testCases := map[string]struct {
+		stream      string
+		messages    []string
+		setErr      func(m *miniredis.Miniredis)
+		callbackErr error
+
+		shouldErr bool
+
+		expected expected
+	}{
+		"Given I have two messages and redis errors": {
+			stream:   "test-stream",
+			messages: []string{"foo", "bar"},
+			setErr: func(m *miniredis.Miniredis) {
+				m.SetError("an error")
+			},
+
+			shouldErr: true,
+			expected: expected{
+				messages: nil,
+				err:      ErrSubscribing,
+			},
+		},
+		"Given I have two messages and the callback errors I will still get both messages": {
+			stream:      "test-stream",
+			messages:    []string{"foo", "bar"},
+			callbackErr: errors.New("callback error"),
+
+			shouldErr: true,
+			expected: expected{
+				messages: []interface{}{"foo", "bar"},
+				err:      context.Canceled,
+			},
+		},
+		"Given I have two messages and redis doesn't error": {
+			stream:   "test-stream",
+			messages: []string{"foo", "bar"},
+
+			shouldErr: true,
+			expected: expected{
+				messages: []interface{}{"foo", "bar"},
+				err:      context.Canceled,
+			},
+		},
+	}
+
+	for desc, tc := range testCases {
+		desc := desc
+		tc := tc
+
+		m := miniredis.RunT(t)
+		rc := redis.NewClient(&redis.Options{
+			Addr: m.Addr(),
+		})
+
+		t.Run(desc, func(t *testing.T) {
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+
+			// First publish some messages so we have some to read when we subscribe
+			redisStream := NewRedisStream(rc)
+			for _, msg := range tc.messages {
+				err := redisStream.Pub(ctx, tc.stream, msg)
+				assert.Nil(t, err)
+			}
+
+			// SetErr in miniredis after we've published
+			if tc.setErr != nil {
+				tc.setErr(m)
+			}
+
+			actualMessages := []interface{}{}
+
+			// Sub only exists when there's been a redis error or the context is canceled by the caller
+			// so cancel the context once we've received all the messages we were expecting to prevent
+			// the test from blocking
+			err := redisStream.Sub(ctx, tc.stream, "0", func(id string, v interface{}) error {
+				actualMessages = append(actualMessages, v)
+				if len(actualMessages) == len(tc.expected.messages) {
+					cancel()
+				}
+				return tc.callbackErr
+			})
+			if tc.shouldErr {
+				assert.NotNil(t, err)
+				assert.True(t, errors.Is(err, tc.expected.err))
+			} else {
+				assert.Nil(t, err)
+			}
+
 		})
 	}
 }
