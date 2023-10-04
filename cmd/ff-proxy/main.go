@@ -307,6 +307,14 @@ func main() {
 		os.Exit(1)
 	}
 
+	// If this isn't a read replica Proxy then we'll want to start up a stream with the client
+	// service and receive events
+	if !readReplica {
+		sseClient := stream.NewSSEClient(logger, clientService, proxyKey, conf.Token(), conf.ClusterIdentifier())
+		clientServiceStream := clientservice.NewStream(logger, sseClient, nil)
+		clientServiceStream.Start(ctx)
+	}
+
 	metricSvc := createMetricsService(ctx, logger, conf, promReg, readReplica, redisClient)
 
 	if generateOfflineConfig {

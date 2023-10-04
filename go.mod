@@ -5,7 +5,6 @@ go 1.20
 require (
 	cloud.google.com/go/profiler v0.3.1
 	github.com/alicebob/miniredis/v2 v2.30.4
-	github.com/avast/retry-go v3.0.0+incompatible
 	github.com/deepmap/oapi-codegen v1.11.0
 	github.com/fanout/go-gripcontrol v0.0.0-20221004121322-47dacded330e
 	github.com/fanout/go-pubcontrol v0.0.0-20221004123744-4d052349ceb5
@@ -23,10 +22,11 @@ require (
 	github.com/patrickmn/go-cache v2.1.0+incompatible
 	github.com/prometheus/client_golang v1.11.1
 	github.com/r3labs/sse v0.0.0-20201126193848-34e640891548
+	github.com/r3labs/sse/v2 v2.10.0
 	github.com/sirupsen/logrus v1.8.1
 	github.com/stretchr/testify v1.7.1
 	go.uber.org/zap v1.19.1
-	golang.org/x/exp v0.0.0-20230905200255-921286631fa9
+	gopkg.in/cenkalti/backoff.v1 v1.1.0
 	gopkg.in/yaml.v2 v2.4.0
 )
 
@@ -90,6 +90,5 @@ require (
 	google.golang.org/genproto v0.0.0-20221024183307-1bc688fe9f3e // indirect
 	google.golang.org/grpc v1.50.1 // indirect
 	google.golang.org/protobuf v1.28.1 // indirect
-	gopkg.in/cenkalti/backoff.v1 v1.1.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
