@@ -12,6 +12,8 @@ import (
 	"time"
 
 	"github.com/harness/ff-proxy/v2/build"
+	clientservice "github.com/harness/ff-proxy/v2/clients/client_service"
+	metricsservice "github.com/harness/ff-proxy/v2/clients/metrics_service"
 	"github.com/harness/ff-proxy/v2/export"
 	"github.com/harness/ff-proxy/v2/health"
 	"github.com/harness/ff-proxy/v2/stream"
@@ -32,7 +34,6 @@ import (
 	"github.com/harness/ff-proxy/v2/middleware"
 	proxyservice "github.com/harness/ff-proxy/v2/proxy-service"
 	"github.com/harness/ff-proxy/v2/repository"
-	"github.com/harness/ff-proxy/v2/services"
 	"github.com/harness/ff-proxy/v2/transport"
 )
 
@@ -282,7 +283,7 @@ func main() {
 		sdkCache = cache.NewMetricsCache("in_mem", promReg, cache.NewMemCache())
 	}
 
-	clientSvc, err := services.NewClientService(logger, clientService)
+	clientSvc, err := clientservice.NewClient(logger, clientService)
 	if err != nil {
 		logger.Error("failed to create client for the feature flags client service", "err", err)
 		os.Exit(1)
@@ -367,18 +368,18 @@ func main() {
 	}
 }
 
-// createMetricsService is a helper that creates the MetricService implementation we need depending on the mode the
-// Proxy is running in. If the proxy is running in readReplica mode then we want to return a MetricService implementation
+// createMetricsService is a helper that creates the Client implementation we need depending on the mode the
+// Proxy is running in. If the proxy is running in readReplica mode then we want to return a Client implementation
 // that pushes metrics onto a redis stream. If we're not running in readReplica mode then we want to return the normal
-// MetricService client that forwards requests on to Harness SaaS
+// client that forwards requests on to Harness SaaS
 func createMetricsService(ctx context.Context, logger log.Logger, conf config.Config, promReg *prometheus.Registry, readReplica bool, redisClient redis.UniversalClient) proxyservice.MetricService {
 	redisStream := stream.NewRedisStream(redisClient)
 	if readReplica {
-		return services.NewMetricsStream(stream.NewRedisStream(redisClient))
+		return metricsservice.NewStream(stream.NewRedisStream(redisClient))
 	}
 
 	metricsEnabled := metricPostDuration != 0 && !offline
-	ms, err := services.NewMetricService(logger, metricService, conf.Token(), metricsEnabled, promReg, redisStream)
+	ms, err := metricsservice.NewClient(logger, metricService, conf.Token(), metricsEnabled, promReg, redisStream)
 	if err != nil {
 		logger.Error("failed to create client for the feature flags metric service", "err", err)
 		os.Exit(1)

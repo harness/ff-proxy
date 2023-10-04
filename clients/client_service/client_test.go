@@ -1,4 +1,4 @@
-package services
+package clientservice
 
 import (
 	"context"
@@ -72,7 +72,7 @@ func TestClientService_Authenticate(t *testing.T) {
 		shouldErr   bool
 		expected    string
 	}{
-		"Given I have a working ClientService": {
+		"Given I have a working Client": {
 			mockService: mockService{
 				authWithResp: func() error {
 					return nil
@@ -81,7 +81,7 @@ func TestClientService_Authenticate(t *testing.T) {
 			shouldErr: false,
 			expected:  "hardcoded-token",
 		},
-		"Given I have a ClientService that errors": {
+		"Given I have a Client that errors": {
 			mockService: mockService{
 				authWithResp: func() error {
 					return errors.New("uh oh")
@@ -90,7 +90,7 @@ func TestClientService_Authenticate(t *testing.T) {
 			shouldErr: true,
 			expected:  "",
 		},
-		"Given I have a ClientService that returns a NotFound error": {
+		"Given I have a Client that returns a NotFound error": {
 			mockService: mockService{
 				authWithResp: func() error {
 					return errNotFound
@@ -105,7 +105,7 @@ func TestClientService_Authenticate(t *testing.T) {
 		tc := tc
 		t.Run(desc, func(t *testing.T) {
 			logger, _ := log.NewStructuredLogger("DEBUG")
-			clientService, _ := NewClientService(logger, "localhost:8000")
+			clientService, _ := NewClient(logger, "localhost:8000")
 			clientService.client = &tc.mockService
 
 			actual, err := clientService.Authenticate(context.Background(), "", domain.Target{})
@@ -190,7 +190,7 @@ func TestClientService_AuthenticateProxyKey(t *testing.T) {
 
 		t.Run(desc, func(t *testing.T) {
 
-			c := ClientService{client: &tc.mocks.clientService}
+			c := Client{client: &tc.mocks.clientService}
 			actual, err := c.AuthenticateProxyKey(context.Background(), "123")
 			if tc.shouldErr {
 				assert.NotNil(t, err)
@@ -436,7 +436,7 @@ func TestClientService_PageProxyConfig(t *testing.T) {
 		tc := tc
 
 		t.Run(desc, func(t *testing.T) {
-			c := ClientService{client: tc.mocks.clientService}
+			c := Client{client: tc.mocks.clientService}
 
 			actual, err := c.PageProxyConfig(context.Background(), tc.args.input)
 			if tc.shouldErr {

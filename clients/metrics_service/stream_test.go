@@ -1,4 +1,4 @@
-package services
+package metricsservice
 
 import (
 	"context"
@@ -42,7 +42,7 @@ func TestMetricsStream_StoreMetrics(t *testing.T) {
 
 		t.Run(desc, func(t *testing.T) {
 
-			ms := NewMetricsStream(tc.mockStream)
+			ms := NewStream(tc.mockStream)
 			err := ms.StoreMetrics(context.Background(), domain.MetricsRequest{})
 			if tc.shouldErr {
 				assert.NotNil(t, err)

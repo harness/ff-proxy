@@ -6,8 +6,8 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
+	clientservice "github.com/harness/ff-proxy/v2/clients/client_service"
 	"github.com/harness/ff-proxy/v2/domain"
-	"github.com/harness/ff-proxy/v2/services"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -166,7 +166,7 @@ func TestConfig_Populate(t *testing.T) {
 			mocks: mocks{
 				clientService: mockClientService{
 					authProxyKey: func() (domain.AuthenticateProxyKeyResponse, error) {
-						return domain.AuthenticateProxyKeyResponse{}, services.ErrUnauthorized
+						return domain.AuthenticateProxyKeyResponse{}, clientservice.ErrUnauthorized
 					},
 				},
 				authRepo:    &mockAuthRepo{},
