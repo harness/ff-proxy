@@ -10,8 +10,9 @@ import (
 
 // Config is the type that fetches config from Harness SaaS
 type Config struct {
-	key   string
-	token string
+	key               string
+	token             string
+	clusterIdentifier string
 
 	clientService domain.ClientService
 }
@@ -30,6 +31,11 @@ func (c *Config) Token() string {
 	return c.token
 }
 
+// ClusterIdentifier returns the identifier of the cluster that the Config authenticated against
+func (c *Config) ClusterIdentifier() string {
+	return c.clusterIdentifier
+}
+
 // Populate populates repositories with the config
 func (c *Config) Populate(ctx context.Context, authRepo domain.AuthRepo, flagRepo domain.FlagRepo, segmentRepo domain.SegmentRepo) error {
 	authResp, err := authenticate(c.key, c.clientService)
@@ -37,6 +43,7 @@ func (c *Config) Populate(ctx context.Context, authRepo domain.AuthRepo, flagRep
 		return err
 	}
 	c.token = authResp.Token
+	c.clusterIdentifier = authResp.ClusterIdentifier
 
 	proxyConfig, err := retrieveConfig(c.key, authResp.Token, authResp.ClusterIdentifier, c.clientService)
 	if err != nil {

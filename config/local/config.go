@@ -46,6 +46,12 @@ func (c Config) Token() string {
 	return ""
 }
 
+// ClusterIdentifier returns an empty string rather than a clusterIdentifier because local config
+// loads config from a file and doesn't make any requests to Harness SaaS
+func (c Config) ClusterIdentifier() string {
+	return ""
+}
+
 // Populate populates the repos with the config loaded from the file system
 func (c Config) Populate(ctx context.Context, authRepo domain.AuthRepo, flagRepo domain.FlagRepo, segmentRepo domain.SegmentRepo) error {
 	authConfig := make([]domain.AuthConfig, 0, len(c.config))
