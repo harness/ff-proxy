@@ -355,24 +355,10 @@ func (s Service) EvaluationsByFeature(ctx context.Context, req domain.Evaluation
 // Stream does a lookup for the environmentID for the APIKey in the StreamRequest
 // and returns it as the GripChannel.
 func (s Service) Stream(ctx context.Context, req domain.StreamRequest) (domain.StreamResponse, error) {
-
-	if !s.streamingEnabled {
-		return domain.StreamResponse{}, fmt.Errorf("%w: streaming endpoint disabled", ErrNotImplemented)
-	}
-
 	hashedAPIKey := s.hasher.Hash(req.APIKey)
-
 	repoKey, ok := s.authRepo.Get(ctx, domain.NewAuthAPIKey(hashedAPIKey))
 	if !ok {
 		return domain.StreamResponse{}, fmt.Errorf("%w: no environment found for apiKey %q", ErrNotFound, req.APIKey)
-	}
-
-	// If the internal sdk isn't connected to the SAAS stream for an environment then the Proxy shouldn't
-	// accept streaming connections for that environment. We need to do this to avoid SDKs connected to the
-	// Proxy from missing out on flag changes.
-	if !s.sdkClients.StreamConnected(repoKey) {
-		s.logger.Info(ctx, "rejecting stream connection because SaaS stream is disconnected", "environment", repoKey)
-		return domain.StreamResponse{}, ErrStreamDisconnected
 	}
 
 	return domain.StreamResponse{GripChannel: repoKey}, nil

@@ -13,19 +13,15 @@ import (
 	"github.com/r3labs/sse/v2"
 )
 
-type messageHandler interface {
-	HandleMessage(ctx context.Context, m domain.SSEMessage) error
-}
-
 // Stream is the type that subscribes to stream that relays Proxy events and handles events coming off the stream
 type Stream struct {
 	log            log.Logger
 	subscriber     stream.Subscriber
-	messageHandler messageHandler
+	messageHandler domain.MessageHandler
 }
 
 // NewStream opens a subscription to the client service's stream endpoint
-func NewStream(l log.Logger, s stream.Subscriber, m messageHandler) Stream {
+func NewStream(l log.Logger, s stream.Subscriber, m domain.MessageHandler) Stream {
 	l = l.With("component", "Start")
 	return Stream{
 		log:            l,
@@ -60,6 +56,7 @@ func (s Stream) Start(ctx context.Context) {
 						return
 					}
 
+					s.log.Warn("disconnected from Harness SaaS stream, backing off and retrying in 30 seconds: %s", err)
 					time.Sleep(30 * time.Second)
 				}
 			}

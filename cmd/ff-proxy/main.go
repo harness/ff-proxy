@@ -11,6 +11,10 @@ import (
 	"strings"
 	"time"
 
+	"github.com/harness/ff-proxy/v2/domain"
+
+	"github.com/fanout/go-gripcontrol"
+
 	"github.com/harness/ff-proxy/v2/build"
 	clientservice "github.com/harness/ff-proxy/v2/clients/client_service"
 	metricsservice "github.com/harness/ff-proxy/v2/clients/metrics_service"
@@ -192,7 +196,7 @@ func init() {
 	flag.Parse()
 }
 
-//nolint:gocognit,cyclop
+//nolint:gocognit,cyclop,maintidx
 func main() {
 
 	// Setup logger
@@ -307,11 +311,38 @@ func main() {
 		os.Exit(1)
 	}
 
+	gpc := gripcontrol.NewGripPubControl([]map[string]interface{}{
+		{
+			"control_uri": "http://localhost:5565",
+		},
+	})
+	pushpinStream := stream.NewPushpin(gpc)
+
+	var (
+		messageHandler domain.MessageHandler
+	)
+
+	if readReplica {
+		// If we're running  in read replica mode the only thing we need to do is forward events on
+		// to pushpin so create a StreamForwader with a NoOpMessageHandler to ensure we always
+		// attempt to forward the event on to pushpin
+		messageHandler = stream.NewForwarder(logger, pushpinStream, domain.NoOpMessageHandler{})
+	} else {
+		// If we're running as a 'write' replica Proxy then we need our message handler to forward events
+		// on to redis, pushpin and refresh the cache. These types all implement the MessageHandler interface,
+		// meaning they're essentially middlewares that we can layer one after the other.
+		//
+		// Layering them in this order means that the first thing we'll do when we receive an SSE message
+		// is attempt to refresh the cache, then if that's successful we'll forward the event on to Pushpin and Redis
+		cacheRefresher := cache.NewRefresher(logger)
+		messageHandler = stream.NewForwarder(logger, pushpinStream, cacheRefresher)
+	}
+
 	// If this isn't a read replica Proxy then we'll want to start up a stream with the client
 	// service and receive events
 	if !readReplica {
-		messageHandler := cache.NewRefresher(logger)
-		sseClient := stream.NewSSEClient(logger, clientService, proxyKey, conf.Token(), conf.ClusterIdentifier())
+		streamURL := fmt.Sprintf("%s/stream", clientService)
+		sseClient := stream.NewSSEClient(logger, streamURL, proxyKey, conf.Token())
 		clientServiceStream := clientservice.NewStream(logger, sseClient, messageHandler)
 		clientServiceStream.Start(ctx)
 	}
