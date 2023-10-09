@@ -30,7 +30,7 @@ type mockMessageHandler struct {
 	msg chan struct{}
 }
 
-func (m *mockMessageHandler) HandleMessage(msg domain.SSEMessage) error {
+func (m *mockMessageHandler) HandleMessage(ctx context.Context, msg domain.SSEMessage) error {
 	m.msg <- struct{}{}
 	return nil
 }
