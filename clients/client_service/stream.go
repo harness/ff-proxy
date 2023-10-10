@@ -14,7 +14,7 @@ import (
 )
 
 type messageHandler interface {
-	HandleMessage(m domain.SSEMessage) error
+	HandleMessage(ctx context.Context, m domain.SSEMessage) error
 }
 
 // Stream is the type that subscribes to stream that relays Proxy events and handles events coming off the stream
@@ -49,7 +49,7 @@ func (s Stream) Start(ctx context.Context) {
 						return nil
 					}
 
-					if err := s.messageHandler.HandleMessage(msg); err != nil {
+					if err := s.messageHandler.HandleMessage(ctx, msg); err != nil {
 						return nil
 					}
 

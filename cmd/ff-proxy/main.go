@@ -310,8 +310,9 @@ func main() {
 	// If this isn't a read replica Proxy then we'll want to start up a stream with the client
 	// service and receive events
 	if !readReplica {
+		messageHandler := cache.NewRefresher(logger)
 		sseClient := stream.NewSSEClient(logger, clientService, proxyKey, conf.Token(), conf.ClusterIdentifier())
-		clientServiceStream := clientservice.NewStream(logger, sseClient, nil)
+		clientServiceStream := clientservice.NewStream(logger, sseClient, messageHandler)
 		clientServiceStream.Start(ctx)
 	}
 
