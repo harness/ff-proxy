@@ -34,7 +34,7 @@ func TestRefresher_HandleMessage(t *testing.T) {
 		"Given I have an SSEMessage with the domain 'flag' event 'foo'": {
 			args: args{
 				message: domain.SSEMessage{
-					Domain: domainFeature,
+					Domain: domain.MsgDomainFeature,
 					Event:  "foo",
 				},
 			},
@@ -44,7 +44,7 @@ func TestRefresher_HandleMessage(t *testing.T) {
 		"Given I have an SSEMessage with the domain 'target-segment' event 'foo'": {
 			args: args{
 				message: domain.SSEMessage{
-					Domain: domainSegment,
+					Domain: domain.MsgDomainSegment,
 					Event:  "foo",
 				},
 			},
@@ -54,8 +54,8 @@ func TestRefresher_HandleMessage(t *testing.T) {
 		"Given I have an SSEMessage with the domain 'flag' event 'patch'": {
 			args: args{
 				message: domain.SSEMessage{
-					Domain: domainFeature,
-					Event:  patchEvent,
+					Domain: domain.MsgDomainFeature,
+					Event:  domain.EventPatch,
 				},
 			},
 			expected:  expected{err: nil},
@@ -64,8 +64,8 @@ func TestRefresher_HandleMessage(t *testing.T) {
 		"Given I have an SSEMessage with the domain 'flag' event 'create'": {
 			args: args{
 				message: domain.SSEMessage{
-					Domain: domainFeature,
-					Event:  createEvent,
+					Domain: domain.MsgDomainFeature,
+					Event:  domain.EventCreate,
 				},
 			},
 			expected:  expected{err: nil},
@@ -74,8 +74,8 @@ func TestRefresher_HandleMessage(t *testing.T) {
 		"Given I have an SSEMessage with the domain 'flag' event 'delete'": {
 			args: args{
 				message: domain.SSEMessage{
-					Domain: domainFeature,
-					Event:  deleteEvent,
+					Domain: domain.MsgDomainFeature,
+					Event:  domain.EventDelete,
 				},
 			},
 			expected:  expected{err: nil},
@@ -84,8 +84,8 @@ func TestRefresher_HandleMessage(t *testing.T) {
 		"Given I have an SSEMessage with the domain 'target-segment' event 'patch'": {
 			args: args{
 				message: domain.SSEMessage{
-					Domain: domainSegment,
-					Event:  patchEvent,
+					Domain: domain.MsgDomainSegment,
+					Event:  domain.EventPatch,
 				},
 			},
 			expected:  expected{err: nil},
@@ -94,8 +94,8 @@ func TestRefresher_HandleMessage(t *testing.T) {
 		"Given I have an SSEMessage with the domain 'target-segment' event 'create'": {
 			args: args{
 				message: domain.SSEMessage{
-					Domain: domainSegment,
-					Event:  createEvent,
+					Domain: domain.MsgDomainSegment,
+					Event:  domain.EventCreate,
 				},
 			},
 			expected:  expected{err: nil},
@@ -104,8 +104,8 @@ func TestRefresher_HandleMessage(t *testing.T) {
 		"Given I have an SSEMessage with the domain 'target-segment' event 'delete'": {
 			args: args{
 				message: domain.SSEMessage{
-					Domain: domainSegment,
-					Event:  deleteEvent,
+					Domain: domain.MsgDomainSegment,
+					Event:  domain.EventDelete,
 				},
 			},
 			expected:  expected{err: nil},
@@ -114,7 +114,7 @@ func TestRefresher_HandleMessage(t *testing.T) {
 		"Given I have an SSEMessage with the domain 'proxy' event 'foo'": {
 			args: args{
 				message: domain.SSEMessage{
-					Domain: domainProxy,
+					Domain: domain.MsgDomainProxy,
 					Event:  "foo",
 				},
 			},
@@ -124,8 +124,8 @@ func TestRefresher_HandleMessage(t *testing.T) {
 		"Given I have an SSEMessage with the domain 'proxy' event 'proxyKeyDeleted'": {
 			args: args{
 				message: domain.SSEMessage{
-					Domain: domainProxy,
-					Event:  proxyKeyDeleted,
+					Domain: domain.MsgDomainProxy,
+					Event:  domain.EventProxyKeyDeleted,
 				},
 			},
 			expected:  expected{err: nil},
@@ -134,8 +134,8 @@ func TestRefresher_HandleMessage(t *testing.T) {
 		"Given I have an SSEMessage with the domain 'proxy' event 'environmentsAdded'": {
 			args: args{
 				message: domain.SSEMessage{
-					Domain: domainProxy,
-					Event:  environmentsAdded,
+					Domain: domain.MsgDomainProxy,
+					Event:  domain.EventEnvironmentAdded,
 				},
 			},
 			expected:  expected{err: nil},
@@ -144,8 +144,8 @@ func TestRefresher_HandleMessage(t *testing.T) {
 		"Given I have an SSEMessage with the domain 'proxy' event 'environmentsRemoved'": {
 			args: args{
 				message: domain.SSEMessage{
-					Domain: domainProxy,
-					Event:  environmentsRemoved,
+					Domain: domain.MsgDomainProxy,
+					Event:  domain.EventEnvironmentRemoved,
 				},
 			},
 			expected:  expected{err: nil},
@@ -154,8 +154,8 @@ func TestRefresher_HandleMessage(t *testing.T) {
 		"Given I have an SSEMessage with the domain 'proxy' event 'apiKeyAdded'": {
 			args: args{
 				message: domain.SSEMessage{
-					Domain: domainProxy,
-					Event:  apiKeyAdded,
+					Domain: domain.MsgDomainProxy,
+					Event:  domain.EventAPIKeyAdded,
 				},
 			},
 			expected:  expected{err: nil},
@@ -164,8 +164,8 @@ func TestRefresher_HandleMessage(t *testing.T) {
 		"Given I have an SSEMessage with the domain 'proxy' event 'apiKeyRemoved'": {
 			args: args{
 				message: domain.SSEMessage{
-					Domain: domainProxy,
-					Event:  apiKeyRemoved,
+					Domain: domain.MsgDomainProxy,
+					Event:  domain.EventAPIKeyRemoved,
 				},
 			},
 			expected:  expected{err: nil},

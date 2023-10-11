@@ -10,32 +10,6 @@ import (
 	"github.com/harness/ff-proxy/v2/domain"
 )
 
-const (
-	// domainFeature identifies flag messages from ff server or stream
-	domainFeature = "flag"
-
-	// domainSegment identifies segment messages from ff server or stream
-	domainSegment = "target-segment"
-
-	// domainProxy identifiers proxy messages from the ff server
-	domainProxy = "proxy"
-
-	// patchEvent identifies a patch event from the SSE stream
-	patchEvent = "patch"
-
-	// deleteEvent identifies a delete event from the SSE stream
-	deleteEvent = "delete"
-
-	//createEvent identifies a create event from the SSE stream
-	createEvent = "create"
-
-	proxyKeyDeleted     = "proxyKeyDeleted"
-	environmentsAdded   = "environmentsAdded"
-	environmentsRemoved = "environmentsRemoved"
-	apiKeyAdded         = "apiKeyAdded"
-	apiKeyRemoved       = "apiKeyRemoved"
-)
-
 var (
 	// ErrUnexpectedMessageDomain is the error returned when an SSE message has a message domain we aren't expecting
 	ErrUnexpectedMessageDomain = errors.New("unexpected message domain")
@@ -58,11 +32,11 @@ func NewRefresher(l log.Logger) Refresher {
 // HandleMessage makes Refresher implement the MessageHandler interface
 func (s Refresher) HandleMessage(ctx context.Context, msg domain.SSEMessage) error {
 	switch msg.Domain {
-	case domainFeature:
+	case domain.MsgDomainFeature:
 		return handleFeatureMessage(ctx, msg)
-	case domainSegment:
+	case domain.MsgDomainSegment:
 		return handleSegmentMessage(ctx, msg)
-	case domainProxy:
+	case domain.MsgDomainProxy:
 		return handleProxyMessage(ctx, msg)
 	default:
 		return fmt.Errorf("%w: %s", ErrUnexpectedMessageDomain, msg.Domain)
@@ -72,8 +46,8 @@ func (s Refresher) HandleMessage(ctx context.Context, msg domain.SSEMessage) err
 
 func handleFeatureMessage(_ context.Context, msg domain.SSEMessage) error {
 	switch msg.Event {
-	case deleteEvent:
-	case patchEvent, createEvent:
+	case domain.EventDelete:
+	case domain.EventPatch, domain.EventCreate:
 
 	default:
 		return fmt.Errorf("%w %q for FeatureMessage", ErrUnexpectedEventType, msg.Event)
@@ -83,8 +57,8 @@ func handleFeatureMessage(_ context.Context, msg domain.SSEMessage) error {
 
 func handleSegmentMessage(_ context.Context, msg domain.SSEMessage) error {
 	switch msg.Event {
-	case deleteEvent:
-	case patchEvent, createEvent:
+	case domain.EventDelete:
+	case domain.EventPatch, domain.EventCreate:
 
 	default:
 		return fmt.Errorf("%w %q for SegmentMessage", ErrUnexpectedEventType, msg.Event)
@@ -94,11 +68,11 @@ func handleSegmentMessage(_ context.Context, msg domain.SSEMessage) error {
 
 func handleProxyMessage(_ context.Context, msg domain.SSEMessage) error {
 	switch msg.Event {
-	case proxyKeyDeleted:
-	case environmentsAdded:
-	case environmentsRemoved:
-	case apiKeyAdded:
-	case apiKeyRemoved:
+	case domain.EventProxyKeyDeleted:
+	case domain.EventEnvironmentAdded:
+	case domain.EventEnvironmentRemoved:
+	case domain.EventAPIKeyAdded:
+	case domain.EventAPIKeyRemoved:
 	default:
 		return fmt.Errorf("%w %q for Proxymessage", ErrUnexpectedEventType, msg.Event)
 	}

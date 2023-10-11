@@ -43,7 +43,7 @@ func (r RedisStream) Pub(ctx context.Context, stream string, v interface{}) erro
 		Values: formatRedisMessage(values),
 		MaxLen: r.maxLen,
 	}).Err(); err != nil {
-		return fmt.Errorf(":%w: %s", ErrPublishing, err)
+		return fmt.Errorf("RedisStream: %w: %s", ErrPublishing, err)
 	}
 
 	return nil
@@ -68,7 +68,7 @@ func (r RedisStream) Sub(ctx context.Context, stream string, id string, handleMe
 				Block:   0,
 			}).Result()
 			if err != nil {
-				return fmt.Errorf("%w: %s", ErrSubscribing, err)
+				return fmt.Errorf("RedisStream: %w: %s", ErrSubscribing, err)
 			}
 
 			for _, x := range xs {

@@ -5,7 +5,7 @@ import (
 	"fmt"
 
 	"github.com/harness/ff-proxy/v2/log"
-	"github.com/r3labs/sse"
+	"github.com/r3labs/sse/v2"
 	"gopkg.in/cenkalti/backoff.v1"
 )
 
@@ -21,8 +21,8 @@ type SSEClient struct {
 }
 
 // NewSSEClient creates an SSEClient
-func NewSSEClient(l log.Logger, url string, key string, token string, clusterIdentfier string) *SSEClient {
-	c := sse.NewClient(fmt.Sprintf("%s/stream?clusterIdentifier=%s", url, clusterIdentfier))
+func NewSSEClient(l log.Logger, url string, key string, token string) *SSEClient {
+	c := sse.NewClient(url)
 	c.Headers = map[string]string{
 		"Authorization": fmt.Sprintf("Bearer %s", token),
 		"API-Key":       key,
