@@ -224,7 +224,7 @@ func main() {
 
 	// we currently don't require any config to run in offline mode
 	requiredFlags := map[string]interface{}{}
-	if !offline {
+	if !offline && !readReplica {
 		requiredFlags = map[string]interface{}{
 			proxyKeyEnv: proxyKey,
 		}
@@ -243,7 +243,7 @@ func main() {
 	promReg := prometheus.NewRegistry()
 	promReg.MustRegister(collectors.NewGoCollector())
 
-	logger.Info("service config", "pprof", pprofEnabled, "log-level", logLevel, "bypass-auth", bypassAuth, "offline", offline, "port", port, "redis-addr", redisAddress, "redis-db", redisDB, "heartbeat-interval", fmt.Sprintf("%ds", heartbeatInterval), "config-dir", configDir, "tls-enabled", tlsEnabled, "tls-cert", tlsCert, "tls-key", tlsKey, "read-replica", readReplica)
+	logger.Info("service config", "pprof", pprofEnabled, "log-level", logLevel, "bypass-auth", bypassAuth, "offline", offline, "port", port, "redis-addr", redisAddress, "redis-db", redisDB, "heartbeat-interval", fmt.Sprintf("%ds", heartbeatInterval), "config-dir", configDir, "tls-enabled", tlsEnabled, "tls-cert", tlsCert, "tls-key", tlsKey, "read-replica", readReplica, "client-service", clientService, "metrics-service", metricService)
 
 	// Create cache
 	// if we're just generating the offline config we should only use in memory mode for now
@@ -306,9 +306,12 @@ func main() {
 		os.Exit(1)
 	}
 
-	if err := conf.Populate(ctx, authRepo, flagRepo, segmentRepo); err != nil {
-		logger.Error("failed to populate repos with config", "err", err)
-		os.Exit(1)
+	// Read replicas don't need to care about populating the repos with config
+	if !readReplica {
+		if err := conf.Populate(ctx, authRepo, flagRepo, segmentRepo); err != nil {
+			logger.Error("failed to populate repos with config", "err", err)
+			os.Exit(1)
+		}
 	}
 
 	gpc := gripcontrol.NewGripPubControl([]map[string]interface{}{
@@ -323,10 +326,16 @@ func main() {
 	)
 
 	if readReplica {
-		// If we're running  in read replica mode the only thing we need to do is forward events on
-		// to pushpin so create a StreamForwader with a NoOpMessageHandler to ensure we always
-		// attempt to forward the event on to pushpin
-		messageHandler = stream.NewForwarder(logger, pushpinStream, domain.NoOpMessageHandler{})
+		// If we're running  in read replica mode we need to subscribe to the redis stream that
+		// the Writer will be forwarding events to and forward these on to pushpin so any connected
+		// SDKs get the events
+		redisSSEEventStream := stream.NewStream(
+			logger,
+			"proxy:sse_events",
+			stream.NewRedisStream(redisClient),
+			stream.NewForwarder(logger, pushpinStream, domain.NoOpMessageHandler{}),
+		)
+		redisSSEEventStream.Subscribe(ctx)
 	} else {
 		// If we're running as a 'write' replica Proxy then we need our message handler to forward events
 		// on to redis, pushpin and refresh the cache. These types all implement the MessageHandler interface,
@@ -349,8 +358,13 @@ func main() {
 	if !readReplica {
 		streamURL := fmt.Sprintf("%s/stream", clientService)
 		sseClient := stream.NewSSEClient(logger, streamURL, proxyKey, conf.Token())
-		clientServiceStream := clientservice.NewStream(logger, sseClient, messageHandler)
-		clientServiceStream.Start(ctx)
+		clientServiceStream := stream.NewStream(
+			logger,
+			"*",
+			sseClient,
+			messageHandler,
+		)
+		clientServiceStream.Subscribe(ctx)
 	}
 
 	metricSvc := createMetricsService(ctx, logger, conf, promReg, readReplica, redisClient)
