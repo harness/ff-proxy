@@ -1,5 +1,7 @@
 package domain
 
+import jsoniter "github.com/json-iterator/go"
+
 // SSEMessage is basic object for marshalling data from ff stream
 type SSEMessage struct {
 	Event        string   `json:"event"`
@@ -8,6 +10,11 @@ type SSEMessage struct {
 	Version      int      `json:"version"`
 	Environment  string   `json:"environment"`
 	Environments []string `json:"environments,omitempty"`
+}
+
+// MarshalBinary makes SSEMessage implement the BinaryMarshaler interface
+func (s SSEMessage) MarshalBinary() ([]byte, error) {
+	return jsoniter.Marshal(s)
 }
 
 const (

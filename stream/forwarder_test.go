@@ -22,6 +22,9 @@ type mockPublisher struct {
 func (m *mockPublisher) Pub(ctx context.Context, channel string, value interface{}) error {
 	m.Lock()
 	defer m.Unlock()
+	if err := m.pub(); err != nil {
+		return err
+	}
 	m.eventsForwarded++
 	return m.pub()
 }
@@ -125,7 +128,7 @@ func TestForwarder_HandleMesssage(t *testing.T) {
 				}},
 			},
 			expected: expected{
-				eventsForwarded: 1,
+				eventsForwarded: 0,
 			},
 			shouldErr: false,
 		},
@@ -191,6 +194,106 @@ func TestForwarder_HandleMesssage(t *testing.T) {
 			}
 
 			assert.Equal(t, tc.expected.eventsForwarded, tc.mocks.publisher.getEventsForwarded())
+		})
+	}
+}
+
+func TestMultipleForwarders(t *testing.T) {
+	type args struct {
+		message domain.SSEMessage
+	}
+
+	type mocks struct {
+		pushpinStream  *mockPublisher
+		redisStream    *mockPublisher
+		messageHandler mockMessageHandler
+	}
+
+	type expected struct {
+		redisEventsForwarded   int
+		pushpinEventsForwarded int
+	}
+
+	testCases := map[string]struct {
+		args      args
+		mocks     mocks
+		expected  expected
+		shouldErr bool
+	}{
+		"Given the RedisStreamForwarder fails we should still forward an event to Pushpin": {
+			args: args{
+				message: domain.SSEMessage{
+					Domain: domain.MsgDomainFeature,
+				},
+			},
+			mocks: mocks{
+				pushpinStream: &mockPublisher{
+					Mutex: &sync.Mutex{},
+					pub: func() error {
+						return nil
+					},
+				},
+				redisStream: &mockPublisher{
+					Mutex: &sync.Mutex{},
+					pub: func() error {
+						return errors.New("an error")
+					},
+				},
+				messageHandler: mockMessageHandler{handleMessage: func() error {
+					return nil
+				}},
+			},
+			expected: expected{
+				redisEventsForwarded:   0,
+				pushpinEventsForwarded: 1,
+			},
+			shouldErr: true,
+		},
+		"Given the PushpinStreamForwarder fails we should still forward an event to redis": {
+			args: args{
+				message: domain.SSEMessage{
+					Domain: domain.MsgDomainFeature,
+				},
+			},
+			mocks: mocks{
+				pushpinStream: &mockPublisher{
+					Mutex: &sync.Mutex{},
+					pub: func() error {
+						return errors.New("an error")
+					},
+				},
+				redisStream: &mockPublisher{
+					Mutex: &sync.Mutex{},
+					pub: func() error {
+						return nil
+					},
+				},
+				messageHandler: mockMessageHandler{handleMessage: func() error {
+					return nil
+				}},
+			},
+			expected: expected{
+				redisEventsForwarded:   1,
+				pushpinEventsForwarded: 0,
+			},
+			shouldErr: true,
+		},
+	}
+
+	for desc, tc := range testCases {
+		desc := desc
+		tc := tc
+
+		t.Run(desc, func(t *testing.T) {
+
+			redisForwarder := NewForwarder(log.NewNoOpLogger(), tc.mocks.redisStream, domain.NoOpMessageHandler{})
+			pushpinForwarder := NewForwarder(log.NewNoOpLogger(), tc.mocks.pushpinStream, redisForwarder)
+
+			err := pushpinForwarder.HandleMessage(context.Background(), tc.args.message)
+			assert.Nil(t, err)
+
+			assert.Equal(t, tc.expected.redisEventsForwarded, tc.mocks.redisStream.getEventsForwarded())
+			assert.Equal(t, tc.expected.pushpinEventsForwarded, tc.mocks.pushpinStream.getEventsForwarded())
 		})
 	}
 }

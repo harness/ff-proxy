@@ -8,22 +8,36 @@ import (
 	"github.com/harness/ff-proxy/v2/log"
 )
 
+// WithStreamName is an optional func for configuring the name of the Stream we want
+// to forward the message on to
+func WithStreamName(name string) func(*Forwarder) {
+	return func(f *Forwarder) {
+		f.streamName = name
+	}
+}
+
 // Forwarder is a type that can be used to handle messages from a stream and
 // forward them on to another stream
 type Forwarder struct {
-	log    log.Logger
-	next   domain.MessageHandler
-	stream Publisher
+	log        log.Logger
+	next       domain.MessageHandler
+	streamName string
+	stream     Publisher
 }
 
 // NewForwarder creates a Forwarder
-func NewForwarder(l log.Logger, stream Publisher, next domain.MessageHandler) Forwarder {
+func NewForwarder(l log.Logger, stream Publisher, next domain.MessageHandler, options ...func(*Forwarder)) Forwarder {
 	l = l.With("component", "Forwarder")
-	return Forwarder{
+	f := &Forwarder{
 		log:    l,
 		next:   next,
 		stream: stream,
 	}
+
+	for _, opt := range options {
+		opt(f)
+	}
+	return *f
 }
 
 // HandleMessage makes Forwarder implement the MessageHandler interface. It calls the decorated
@@ -41,7 +55,10 @@ func (s Forwarder) HandleMessage(ctx context.Context, msg domain.SSEMessage) (er
 			return
 		}
 
-		topic := msg.Environment
+		topic := s.streamName
+		if topic == "" {
+			topic = msg.Environment
+		}
 
 		if err := s.stream.Pub(ctx, topic, msg); err != nil {
 			s.log.Error("failed to forward SSEEvent to channel=%s: %s", "", err)

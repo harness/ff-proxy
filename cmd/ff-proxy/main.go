@@ -333,9 +333,15 @@ func main() {
 		// meaning they're essentially middlewares that we can layer one after the other.
 		//
 		// Layering them in this order means that the first thing we'll do when we receive an SSE message
-		// is attempt to refresh the cache, then if that's successful we'll forward the event on to Pushpin and Redis
+		// is attempt to refresh the cache, then if that's successful we'll forward the event on to Redis and Pushpin
 		cacheRefresher := cache.NewRefresher(logger)
-		messageHandler = stream.NewForwarder(logger, pushpinStream, cacheRefresher)
+		redisForwarder := stream.NewForwarder(
+			logger,
+			stream.NewRedisStream(redisClient),
+			cacheRefresher,
+			stream.WithStreamName("proxy:sse_events"),
+		)
+		messageHandler = stream.NewForwarder(logger, pushpinStream, redisForwarder)
 	}
 
 	// If this isn't a read replica Proxy then we'll want to start up a stream with the client
