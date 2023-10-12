@@ -27,6 +27,9 @@ func NewSSEClient(l log.Logger, url string, key string, token string) *SSEClient
 		"Authorization": fmt.Sprintf("Bearer %s", token),
 		"API-Key":       key,
 	}
+
+	// don't use the default exponentialBackoff strategy - we'll have our own disconnect logic
+	// that we'll implement
 	c.ReconnectStrategy = &backoff.StopBackOff{}
 
 	return &SSEClient{

@@ -10,6 +10,7 @@ import (
 	"github.com/harness/ff-proxy/v2/log"
 	jsoniter "github.com/json-iterator/go"
 	"github.com/r3labs/sse/v2"
+	"gopkg.in/cenkalti/backoff.v1"
 )
 
 var (
@@ -32,23 +33,48 @@ type Subscriber interface {
 // HandleMessageFn is the function that gets called whenever a subscriber receives a message on a stream
 type HandleMessageFn func(id string, v interface{}) error
 
+// WithOnDisconnect is an optional func for setting the onDisconnect field
+func WithOnDisconnect(fn func()) func(s *Stream) {
+	return func(s *Stream) {
+		s.onDisconnect = fn
+	}
+}
+
+// WithBackoff is an optional func for seeting the backoff duration
+func WithBackoff(b backoff.BackOff) func(s *Stream) {
+	return func(s *Stream) {
+		s.backoff = b
+	}
+}
+
 // Stream defines a type that can subscribe to a stream and handle events that come off it
 type Stream struct {
 	log            log.Logger
 	topic          string
 	subscriber     Subscriber
 	messageHandler domain.MessageHandler
+	onDisconnect   func()
+	backoff        backoff.BackOff
 }
 
 // NewStream opens a subscription to the client service's stream endpoint
-func NewStream(l log.Logger, topic string, s Subscriber, m domain.MessageHandler) Stream {
+func NewStream(l log.Logger, topic string, s Subscriber, m domain.MessageHandler, options ...func(s *Stream)) Stream {
 	l = l.With("component", "Stream", "topic", topic)
-	return Stream{
+	stream := &Stream{
 		log:            l,
 		topic:          topic,
 		subscriber:     s,
 		messageHandler: m,
 	}
+
+	for _, opt := range options {
+		opt(stream)
+	}
+
+	if stream.backoff == nil {
+		stream.backoff = backoff.NewConstantBackOff(1 * time.Minute)
+	}
+	return *stream
 }
 
 // Subscribe connects to the stream and registers a handler to handle events coming off the stream.
@@ -79,10 +105,15 @@ func (s Stream) Subscribe(ctx context.Context) {
 					if errors.Is(err, context.Canceled) {
 						return
 					}
-
-					s.log.Warn("disconnected from stream, backing off and retrying in 30 seconds: %s", err)
-					time.Sleep(30 * time.Second)
 				}
+
+				if s.onDisconnect != nil {
+					s.onDisconnect()
+				}
+
+				backoffDuration := s.backoff.NextBackOff()
+				s.log.Warn("disconnected from stream, backing off and retrying", "backoff_duration", backoffDuration, "err", err)
+				time.Sleep(backoffDuration)
 			}
 		}
 	}()

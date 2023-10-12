@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/harness/ff-proxy/v2/domain"
+	"gopkg.in/cenkalti/backoff.v1"
 
 	"github.com/fanout/go-gripcontrol"
 
@@ -334,6 +335,10 @@ func main() {
 			"proxy:sse_events",
 			stream.NewRedisStream(redisClient),
 			stream.NewForwarder(logger, pushpinStream, domain.NoOpMessageHandler{}),
+			stream.WithOnDisconnect(func() {
+				logger.Info("disconnected from redis stream")
+			}),
+			stream.WithBackoff(backoff.NewConstantBackOff(1*time.Minute)),
 		)
 		redisSSEEventStream.Subscribe(ctx)
 	} else {
@@ -358,11 +363,22 @@ func main() {
 	if !readReplica {
 		streamURL := fmt.Sprintf("%s/stream", clientService)
 		sseClient := stream.NewSSEClient(logger, streamURL, proxyKey, conf.Token())
+
 		clientServiceStream := stream.NewStream(
 			logger,
 			"*",
 			sseClient,
 			messageHandler,
+			stream.WithOnDisconnect(func() {
+				ctx, cancel := context.WithTimeout(context.Background(), 1*time.Minute)
+				defer cancel()
+
+				if err := conf.Populate(ctx, authRepo, flagRepo, segmentRepo); err != nil {
+					logger.Error("SSE stream disconnected, failed to poll for new config", "err", err)
+					return
+				}
+				logger.Info("successfully polled Harness SaaS for changes")
+			}),
 		)
 		clientServiceStream.Subscribe(ctx)
 	}
