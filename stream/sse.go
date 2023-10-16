@@ -39,8 +39,8 @@ func NewSSEClient(l log.Logger, url string, key string, token string) *SSEClient
 }
 
 // Sub makes SSEClient implement the Stream & Subscriber interfaces
-func (c *SSEClient) Sub(ctx context.Context, channel string, _ string, fn HandleMessageFn) error {
-	err := c.sse.SubscribeWithContext(ctx, channel, func(msg *sse.Event) {
+func (s *SSEClient) Sub(ctx context.Context, channel string, _ string, fn HandleMessageFn) error {
+	err := s.sse.SubscribeWithContext(ctx, channel, func(msg *sse.Event) {
 		// If we get a message with no data we just want to carry on and receive the next message
 		if len(msg.Data) <= 0 {
 			return
@@ -49,7 +49,7 @@ func (c *SSEClient) Sub(ctx context.Context, channel string, _ string, fn Handle
 		// If the callback handling the message errors we probably don't want to bubble
 		// the error up and kill the subscription so just log it and carry on
 		if err := fn("", msg); err != nil {
-			c.log.Warn("failed to handle message", "err", err)
+			s.log.Warn("failed to handle message", "err", err)
 		}
 	})
 	if err != nil {
