@@ -33,6 +33,12 @@ type Subscriber interface {
 // HandleMessageFn is the function that gets called whenever a subscriber receives a message on a stream
 type HandleMessageFn func(id string, v interface{}) error
 
+func WithOnConnect(fn func()) func(s *Stream) {
+	return func(s *Stream) {
+		s.onConnect = fn
+	}
+}
+
 // WithOnDisconnect is an optional func for setting the onDisconnect field
 func WithOnDisconnect(fn func()) func(s *Stream) {
 	return func(s *Stream) {
@@ -54,6 +60,7 @@ type Stream struct {
 	subscriber     Subscriber
 	messageHandler domain.MessageHandler
 	onDisconnect   func()
+	onConnect      func()
 	backoff        backoff.BackOff
 }
 
@@ -86,37 +93,45 @@ func (s Stream) Subscribe(ctx context.Context) {
 			case <-ctx.Done():
 				return
 			default:
-				msgID := ""
-				err := s.subscriber.Sub(ctx, s.topic, msgID, func(id string, v interface{}) error {
-					msg, err := parseMessage(v)
-					if err != nil {
-						return nil
-					}
-
-					msgID = id
-
-					if err := s.messageHandler.HandleMessage(ctx, msg); err != nil {
-						return nil
-					}
-
-					return nil
-				})
-				if err != nil {
-					if errors.Is(err, context.Canceled) {
-						return
-					}
-				}
-
-				if s.onDisconnect != nil {
-					s.onDisconnect()
-				}
-
-				backoffDuration := s.backoff.NextBackOff()
-				s.log.Warn("disconnected from stream, backing off and retrying", "backoff_duration", backoffDuration, "err", err)
-				time.Sleep(backoffDuration)
+				s.subscribe(ctx)
 			}
 		}
 	}()
+}
+
+func (s Stream) subscribe(ctx context.Context) {
+	if s.onConnect != nil {
+		s.onConnect()
+	}
+
+	msgID := ""
+	err := s.subscriber.Sub(ctx, s.topic, msgID, func(id string, v interface{}) error {
+		msg, err := parseMessage(v)
+		if err != nil {
+			return nil
+		}
+
+		msgID = id
+
+		if err := s.messageHandler.HandleMessage(ctx, msg); err != nil {
+			return nil
+		}
+
+		return nil
+	})
+	if err != nil {
+		if errors.Is(err, context.Canceled) {
+			return
+		}
+	}
+
+	if s.onDisconnect != nil {
+		s.onDisconnect()
+	}
+
+	backoffDuration := s.backoff.NextBackOff()
+	s.log.Warn("disconnected from stream, backing off and retrying", "backoff_duration", backoffDuration, "err", err)
+	time.Sleep(backoffDuration)
 }
 
 // This logic should maybe move to be inside the specific messageHandler implementations, that way we could

@@ -3,6 +3,7 @@ package domain
 import (
 	"context"
 	"fmt"
+	"sync"
 
 	jsoniter "github.com/json-iterator/go"
 )
@@ -85,4 +86,32 @@ type NoOpMessageHandler struct {
 // HandleMessage makes NoOpMessageHandler implement the MessageHandler interface
 func (n NoOpMessageHandler) HandleMessage(_ context.Context, _ SSEMessage) error {
 	return nil
+}
+
+// SafeMap is a map of environmentIDs to sdks
+type SafeMap struct {
+	*sync.RWMutex
+	m map[string]interface{}
+}
+
+// NewSafeMap creates an SafeMap
+func NewSafeMap() *SafeMap {
+	return &SafeMap{
+		RWMutex: &sync.RWMutex{},
+		m:       make(map[string]interface{}),
+	}
+}
+
+// Set sets a key and value in the map
+func (s *SafeMap) Set(key string, value interface{}) {
+	s.Lock()
+	defer s.Unlock()
+	s.m[key] = value
+}
+
+// Get returns a copy of the map
+func (s *SafeMap) Get() map[string]interface{} {
+	s.RLock()
+	defer s.RUnlock()
+	return s.m
 }

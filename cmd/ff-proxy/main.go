@@ -321,6 +321,7 @@ func main() {
 		},
 	})
 	pushpinStream := stream.NewPushpin(gpc)
+	sassToProxyStreamHealth := stream.NewHealth("ffproxy_saas_stream_health", sdkCache)
 
 	var (
 		messageHandler domain.MessageHandler
@@ -358,6 +359,8 @@ func main() {
 		messageHandler = stream.NewForwarder(logger, pushpinStream, redisForwarder)
 	}
 
+	connectedStreams := domain.NewSafeMap()
+
 	// If this isn't a read replica Proxy then we'll want to start up a stream with the client
 	// service and receive events
 	if !readReplica {
@@ -370,14 +373,34 @@ func main() {
 			sseClient,
 			messageHandler,
 			stream.WithOnDisconnect(func() {
+				logger.Info("disconnected from Harness SaaS SSE Stream")
+
+				// Set to false so the ProxyService will reject any /stream requests from SDKs until we've reconnected
+				_ = sassToProxyStreamHealth.SetUnhealthy(ctx)
+
 				ctx, cancel := context.WithTimeout(context.Background(), 1*time.Minute)
 				defer cancel()
 
+				// Poll latest config from SaaS, this is to make sure we don't miss any changes that could have
+				// happened while the stream was disconnected
 				if err := conf.Populate(ctx, authRepo, flagRepo, segmentRepo); err != nil {
 					logger.Error("SSE stream disconnected, failed to poll for new config", "err", err)
-					return
+				} else {
+					logger.Info("successfully polled Harness SaaS for changes")
 				}
-				logger.Info("successfully polled Harness SaaS for changes")
+
+				// Close any open stream between this Proxy and SDKs. This is to force SDKs to poll the Proxy for
+				// changes until we've a healthy SaaS -> Proxy stream to make sure they don't miss out on changes
+				// the Proxy may have pulled down while the Proxy -> Saas stream was down.
+				for envID := range connectedStreams.Get() {
+					if err := pushpinStream.CloseStream(envID); err != nil {
+						logger.Error("failed to close Proxy->SDK stream", "environment", envID, "err", err)
+					}
+				}
+			}),
+			stream.WithOnConnect(func() {
+				logger.Info("connected to Harness SaaS SSE Stream")
+				_ = sassToProxyStreamHealth.SetHealthy(ctx)
 			}),
 		)
 		clientServiceStream.Subscribe(ctx)
@@ -411,6 +434,17 @@ func main() {
 		MetricService: metricSvc,
 		Offline:       offline,
 		Hasher:        apiKeyHasher,
+		HealthySaasStream: func() bool {
+			b, err := sassToProxyStreamHealth.StreamHealthy(ctx)
+			if err != nil {
+				logger.Error("failed to check status of saas -> proxy stream health", "err", err)
+				return b
+			}
+			return b
+		},
+		SDKStreamConnected: func(envID string) {
+			connectedStreams.Set(envID, "")
+		},
 	})
 
 	// Configure endpoints and server

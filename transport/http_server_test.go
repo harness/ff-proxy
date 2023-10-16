@@ -7,16 +7,13 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"net"
 	"net/http"
 	"net/http/httptest"
 	"os"
-	"reflect"
 	"testing"
 	"time"
 
 	"github.com/alicebob/miniredis/v2"
-	"github.com/fanout/go-gripcontrol"
 	"github.com/go-redis/redis/v8"
 	sdkstream "github.com/harness/ff-golang-server-sdk/stream"
 	"github.com/harness/ff-proxy/v2/cache"
@@ -28,7 +25,6 @@ import (
 	"github.com/harness/ff-proxy/v2/middleware"
 	proxyservice "github.com/harness/ff-proxy/v2/proxy-service"
 	"github.com/harness/ff-proxy/v2/repository"
-	"github.com/harness/ff-proxy/v2/stream"
 	"github.com/harness/ff-proxy/v2/token"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/r3labs/sse"
@@ -100,7 +96,6 @@ type setupConfig struct {
 	cacheHealthFn proxyservice.CacheHealthFn
 	envHealthFn   proxyservice.EnvHealthFn
 	clientService *mockClientService
-	streamWorker  stream.Worker
 	eventListener sdkstream.EventStreamListener
 	cache         cache.Cache
 	metricService *mockMetricService
@@ -266,18 +261,19 @@ func setupHTTPServer(t *testing.T, bypassAuth bool, opts ...setupOpts) *HTTPServ
 
 	var service proxyservice.ProxyService
 	service = proxyservice.NewService(proxyservice.Config{
-		Logger:           log.NewNoOpContextualLogger(),
-		FeatureRepo:      *setupConfig.featureRepo,
-		TargetRepo:       *setupConfig.targetRepo,
-		SegmentRepo:      *setupConfig.segmentRepo,
-		AuthRepo:         *setupConfig.authRepo,
-		CacheHealthFn:    setupConfig.cacheHealthFn,
-		AuthFn:           tokenSource.GenerateToken,
-		ClientService:    setupConfig.clientService,
-		MetricService:    setupConfig.metricService,
-		Offline:          false,
-		Hasher:           hash.NewSha256(),
-		StreamingEnabled: true,
+		Logger:             log.NewNoOpContextualLogger(),
+		FeatureRepo:        *setupConfig.featureRepo,
+		TargetRepo:         *setupConfig.targetRepo,
+		SegmentRepo:        *setupConfig.segmentRepo,
+		AuthRepo:           *setupConfig.authRepo,
+		CacheHealthFn:      setupConfig.cacheHealthFn,
+		AuthFn:             tokenSource.GenerateToken,
+		ClientService:      setupConfig.clientService,
+		MetricService:      setupConfig.metricService,
+		Offline:            false,
+		Hasher:             hash.NewSha256(),
+		HealthySaasStream:  func() bool { return true },
+		SDKStreamConnected: func(envID string) {},
 	})
 	endpoints := NewEndpoints(service)
 
@@ -1378,225 +1374,225 @@ func TestHTTPServer_Stream(t *testing.T) {
 	}
 }
 
-func TestHTTPServer_StreamIntegration(t *testing.T) {
-	// Skip this test until we've implemented the new streaming logic
-	t.Skip()
-
-	if !testing.Short() {
-		t.Skipf("skipping test %s, requires redis & pushpin to be running and will only be run if the -short flag is passed", t.Name())
-	}
-
-	const (
-		apiKey1     = "apikey1"
-		apiKey2     = "apikey2"
-		apiKey3     = "apikey3"
-		apiKey1Hash = "d4f79b313f8106f5af108ad96ff516222dbfd5a0ab52f4308e4b1ad1d740de60"
-		apiKey2Hash = "15fac8fa1c99022568b008b9df07b04b45354ac5ca4740041d904cd3cf2b39e3"
-		apiKey3Hash = "35ab1e0411c4cc6ecaaa676a4c7fef259798799ed40ad09fb07adae902bd0c7a"
-
-		envID = "1234"
-	)
-
-	rc := redis.NewClient(&redis.Options{
-		Addr: "localhost:6379",
-	})
-
-	// Make sure we start and finish with a fresh cache
-	cache := cache.NewKeyValCache(rc, cache.WithMarshalFunc(json.Marshal), cache.WithUnmarshalFunc(json.Unmarshal))
-
-	authRepo := repository.NewAuthRepo(cache)
-
-	// setup HTTPServer & service with auth bypassed
-	server := setupHTTPServer(
-		t,
-		true,
-		setupWithCache(cache),
-		setupWithAuthRepo(authRepo),
-	)
-	testServer := httptest.NewUnstartedServer(server)
-
-	// Configure the test server to listen on port 8000
-	// which is where pushpin proxies request to
-	l, err := net.Listen("tcp", "127.0.0.1:8000")
-	if err != nil {
-		t.Fatal(err)
-	}
-	testServer.Listener = l
-	testServer.Start()
-	defer testServer.Close()
-
-	logger := log.NewNoOpLogger()
-
-	sdkEvents := []sdkstream.Event{
-		{
-			Environment: envID,
-			SSEEvent: &sse.Event{
-				ID:   []byte("1"),
-				Data: []byte("hello world"),
-			},
-		},
-		{
-			Environment: envID,
-			SSEEvent: &sse.Event{
-				ID:   []byte("2"),
-				Data: []byte("foo bar"),
-			},
-		},
-		{
-			Environment: envID,
-			SSEEvent: &sse.Event{
-				ID:   []byte("3"),
-				Data: []byte("fizz buzz"),
-			},
-		},
-		// Send a message with an EOF string in the data so as we have some
-		// way to signal in our test that this is the last event and we're done
-		{
-			Environment: envID,
-			SSEEvent: &sse.Event{
-				ID:   []byte("4"),
-				Data: []byte("EOF"),
-			},
-		},
-	}
-
-	expectedSSEEvents := []*sse.Event{
-		{
-			Event: []byte("*"),
-			Data:  []byte("hello world"),
-		},
-		{
-			Event: []byte("*"),
-			Data:  []byte("foo bar"),
-		},
-		{
-			Event: []byte("*"),
-			Data:  []byte("fizz buzz"),
-		},
-	}
-
-	testCases := map[string]struct {
-		apiKeys            []string
-		topics             []string
-		numClients         int
-		sdkEvents          []sdkstream.Event
-		expectedEvents     []*sse.Event
-		expectedStatusCode int
-	}{
-		"Given I have one client that makes a stream request and three events come in via the sdk": {
-			apiKeys:            []string{apiKey1},
-			topics:             []string{envID},
-			numClients:         1,
-			sdkEvents:          sdkEvents,
-			expectedEvents:     expectedSSEEvents,
-			expectedStatusCode: http.StatusOK,
-		},
-		"Given I have three clients making the same stream request and three events comes in via the sdk": {
-			apiKeys:            []string{apiKey1},
-			topics:             []string{envID},
-			numClients:         3,
-			sdkEvents:          sdkEvents,
-			expectedEvents:     expectedSSEEvents,
-			expectedStatusCode: http.StatusOK,
-		},
-		"Given I have three clients making stream requests with different apiKeys and three events comes in via the sdk": {
-			apiKeys:            []string{apiKey1, apiKey2, apiKey3},
-			topics:             []string{envID},
-			numClients:         3,
-			sdkEvents:          sdkEvents,
-			expectedEvents:     expectedSSEEvents,
-			expectedStatusCode: http.StatusOK,
-		},
-	}
-
-	for desc, tc := range testCases {
-		tc := tc
-		t.Run(desc, func(t *testing.T) {
-			ctx, cancel := context.WithCancel(context.Background())
-			defer cancel()
-
-			gpc := gripcontrol.NewGripPubControl([]map[string]interface{}{
-				{
-					"control_uri": "http://localhost:5561",
-				},
-			})
-
-			streamWorker := stream.NewWorker(logger, gpc, prometheus.NewRegistry())
-
-			requests := []*http.Request{}
-			for _, apiKey := range tc.apiKeys {
-				req, err := http.NewRequest(http.MethodGet, "http://localhost:7000/stream", nil)
-				if err != nil {
-					t.Errorf("(%s) failed to create request: %s", desc, err)
-				}
-				req.Header.Add("API-Key", apiKey)
-				requests = append(requests, req)
-			}
-
-			responseBodies := map[string]io.Reader{}
-
-			for _, req := range requests {
-				for i := 1; i <= tc.numClients; i++ {
-					resp, err := testServer.Client().Do(req)
-					if err != nil {
-						t.Errorf("(%s) failed making stream response: %s", desc, err)
-					}
-					defer resp.Body.Close()
-
-					t.Logf("Then the status code with be %d", tc.expectedStatusCode)
-					assert.Equal(t, tc.expectedStatusCode, resp.StatusCode)
-
-					key := fmt.Sprintf("client-%d", i)
-					responseBodies[key] = resp.Body
-				}
-			}
-
-			t.Log("And when the EventListener receives an event from the SDK")
-			// Now that we've got an open stream with the server we can mimic
-			// events from the embedded SDK coming in
-			for _, apiKey := range tc.apiKeys {
-				for _, sdkEvent := range tc.sdkEvents {
-					sdkEvent.APIKey = apiKey
-					if err := streamWorker.Pub(ctx, sdkEvent); err != nil {
-						t.Errorf("(%s) eventListener failed to publish mocked sse event from sdk: %s", desc, err)
-					}
-				}
-			}
-
-			for key, body := range responseBodies {
-				// And then we should expect to see these events being written to
-				// the response body
-				sseReader := sse.NewEventStreamReader(body)
-				actualEvents := []*sse.Event{}
-
-				done := false
-				for !done {
-					b, err := sseReader.ReadEvent()
-					if err != nil {
-						t.Errorf("(%s) failed reading sse event stream: %s", desc, err)
-					}
-
-					actualSSEEvent, err := parseRawSSEEvent(b)
-					if err != nil {
-						t.Errorf("(%s) failed parsing sse event: %s", desc, err)
-					}
-
-					if reflect.DeepEqual(actualSSEEvent.Data, []byte("EOF")) {
-						done = true
-						continue
-					}
-
-					actualEvents = append(actualEvents, actualSSEEvent)
-				}
-				cancel()
-
-				t.Logf("Then %s will receive the event(s)", key)
-				assert.ElementsMatch(t, tc.expectedEvents, actualEvents)
-
-			}
-		})
-	}
-}
+//func TestHTTPServer_StreamIntegration(t *testing.T) {
+//	// Skip this test until we've implemented the new streaming logic
+//	t.Skip()
+//
+//	if !testing.Short() {
+//		t.Skipf("skipping test %s, requires redis & pushpin to be running and will only be run if the -short flag is passed", t.Name())
+//	}
+//
+//	const (
+//		apiKey1     = "apikey1"
+//		apiKey2     = "apikey2"
+//		apiKey3     = "apikey3"
+//		apiKey1Hash = "d4f79b313f8106f5af108ad96ff516222dbfd5a0ab52f4308e4b1ad1d740de60"
+//		apiKey2Hash = "15fac8fa1c99022568b008b9df07b04b45354ac5ca4740041d904cd3cf2b39e3"
+//		apiKey3Hash = "35ab1e0411c4cc6ecaaa676a4c7fef259798799ed40ad09fb07adae902bd0c7a"
+//
+//		envID = "1234"
+//	)
+//
+//	rc := redis.NewClient(&redis.Options{
+//		Addr: "localhost:6379",
+//	})
+//
+//	// Make sure we start and finish with a fresh cache
+//	cache := cache.NewKeyValCache(rc, cache.WithMarshalFunc(json.Marshal), cache.WithUnmarshalFunc(json.Unmarshal))
+//
+//	authRepo := repository.NewAuthRepo(cache)
+//
+//	// setup HTTPServer & service with auth bypassed
+//	server := setupHTTPServer(
+//		t,
+//		true,
+//		setupWithCache(cache),
+//		setupWithAuthRepo(authRepo),
+//	)
+//	testServer := httptest.NewUnstartedServer(server)
+//
+//	// Configure the test server to listen on port 8000
+//	// which is where pushpin proxies request to
+//	l, err := net.Listen("tcp", "127.0.0.1:8000")
+//	if err != nil {
+//		t.Fatal(err)
+//	}
+//	testServer.Listener = l
+//	testServer.Start()
+//	defer testServer.Close()
+//
+//	logger := log.NewNoOpLogger()
+//
+//	sdkEvents := []sdkstream.Event{
+//		{
+//			Environment: envID,
+//			SSEEvent: &sse.Event{
+//				ID:   []byte("1"),
+//				Data: []byte("hello world"),
+//			},
+//		},
+//		{
+//			Environment: envID,
+//			SSEEvent: &sse.Event{
+//				ID:   []byte("2"),
+//				Data: []byte("foo bar"),
+//			},
+//		},
+//		{
+//			Environment: envID,
+//			SSEEvent: &sse.Event{
+//				ID:   []byte("3"),
+//				Data: []byte("fizz buzz"),
+//			},
+//		},
+//		// Send a message with an EOF string in the data so as we have some
+//		// way to signal in our test that this is the last event and we're done
+//		{
+//			Environment: envID,
+//			SSEEvent: &sse.Event{
+//				ID:   []byte("4"),
+//				Data: []byte("EOF"),
+//			},
+//		},
+//	}
+//
+//	expectedSSEEvents := []*sse.Event{
+//		{
+//			Event: []byte("*"),
+//			Data:  []byte("hello world"),
+//		},
+//		{
+//			Event: []byte("*"),
+//			Data:  []byte("foo bar"),
+//		},
+//		{
+//			Event: []byte("*"),
+//			Data:  []byte("fizz buzz"),
+//		},
+//	}
+//
+//	testCases := map[string]struct {
+//		apiKeys            []string
+//		topics             []string
+//		numClients         int
+//		sdkEvents          []sdkstream.Event
+//		expectedEvents     []*sse.Event
+//		expectedStatusCode int
+//	}{
+//		"Given I have one client that makes a stream request and three events come in via the sdk": {
+//			apiKeys:            []string{apiKey1},
+//			topics:             []string{envID},
+//			numClients:         1,
+//			sdkEvents:          sdkEvents,
+//			expectedEvents:     expectedSSEEvents,
+//			expectedStatusCode: http.StatusOK,
+//		},
+//		"Given I have three clients making the same stream request and three events comes in via the sdk": {
+//			apiKeys:            []string{apiKey1},
+//			topics:             []string{envID},
+//			numClients:         3,
+//			sdkEvents:          sdkEvents,
+//			expectedEvents:     expectedSSEEvents,
+//			expectedStatusCode: http.StatusOK,
+//		},
+//		"Given I have three clients making stream requests with different apiKeys and three events comes in via the sdk": {
+//			apiKeys:            []string{apiKey1, apiKey2, apiKey3},
+//			topics:             []string{envID},
+//			numClients:         3,
+//			sdkEvents:          sdkEvents,
+//			expectedEvents:     expectedSSEEvents,
+//			expectedStatusCode: http.StatusOK,
+//		},
+//	}
+//
+//	for desc, tc := range testCases {
+//		tc := tc
+//		t.Run(desc, func(t *testing.T) {
+//			ctx, cancel := context.WithCancel(context.Background())
+//			defer cancel()
+//
+//			gpc := gripcontrol.NewGripPubControl([]map[string]interface{}{
+//				{
+//					"control_uri": "http://localhost:5561",
+//				},
+//			})
+//
+//			streamWorker := stream.NewWorker(logger, gpc, prometheus.NewRegistry())
+//
+//			requests := []*http.Request{}
+//			for _, apiKey := range tc.apiKeys {
+//				req, err := http.NewRequest(http.MethodGet, "http://localhost:7000/stream", nil)
+//				if err != nil {
+//					t.Errorf("(%s) failed to create request: %s", desc, err)
+//				}
+//				req.Header.Add("API-Key", apiKey)
+//				requests = append(requests, req)
+//			}
+//
+//			responseBodies := map[string]io.Reader{}
+//
+//			for _, req := range requests {
+//				for i := 1; i <= tc.numClients; i++ {
+//					resp, err := testServer.Client().Do(req)
+//					if err != nil {
+//						t.Errorf("(%s) failed making stream response: %s", desc, err)
+//					}
+//					defer resp.Body.Close()
+//
+//					t.Logf("Then the status code with be %d", tc.expectedStatusCode)
+//					assert.Equal(t, tc.expectedStatusCode, resp.StatusCode)
+//
+//					key := fmt.Sprintf("client-%d", i)
+//					responseBodies[key] = resp.Body
+//				}
+//			}
+//
+//			t.Log("And when the EventListener receives an event from the SDK")
+//			// Now that we've got an open stream with the server we can mimic
+//			// events from the embedded SDK coming in
+//			for _, apiKey := range tc.apiKeys {
+//				for _, sdkEvent := range tc.sdkEvents {
+//					sdkEvent.APIKey = apiKey
+//					if err := streamWorker.Pub(ctx, sdkEvent); err != nil {
+//						t.Errorf("(%s) eventListener failed to publish mocked sse event from sdk: %s", desc, err)
+//					}
+//				}
+//			}
+//
+//			for key, body := range responseBodies {
+//				// And then we should expect to see these events being written to
+//				// the response body
+//				sseReader := sse.NewEventStreamReader(body)
+//				actualEvents := []*sse.Event{}
+//
+//				done := false
+//				for !done {
+//					b, err := sseReader.ReadEvent()
+//					if err != nil {
+//						t.Errorf("(%s) failed reading sse event stream: %s", desc, err)
+//					}
+//
+//					actualSSEEvent, err := parseRawSSEEvent(b)
+//					if err != nil {
+//						t.Errorf("(%s) failed parsing sse event: %s", desc, err)
+//					}
+//
+//					if reflect.DeepEqual(actualSSEEvent.Data, []byte("EOF")) {
+//						done = true
+//						continue
+//					}
+//
+//					actualEvents = append(actualEvents, actualSSEEvent)
+//				}
+//				cancel()
+//
+//				t.Logf("Then %s will receive the event(s)", key)
+//				assert.ElementsMatch(t, tc.expectedEvents, actualEvents)
+//
+//			}
+//		})
+//	}
+//}
 
 func parseRawSSEEvent(msg []byte) (event *sse.Event, err error) {
 	var e sse.Event

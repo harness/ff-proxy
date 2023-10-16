@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/fanout/go-gripcontrol"
 	jsoniter "github.com/json-iterator/go"
 
 	"github.com/fanout/go-pubcontrol"
@@ -46,4 +47,10 @@ func (p Pushpin) Pub(_ context.Context, channel string, value interface{}) error
 		return fmt.Errorf("PushpinStream: %w: %s", ErrPublishing, err)
 	}
 	return nil
+}
+
+func (p Pushpin) CloseStream(channel string) error {
+	item := pubcontrol.NewItem([]pubcontrol.Formatter{&gripcontrol.HttpStreamFormat{Close: true}}, "", "")
+
+	return p.stream.Publish(channel, item)
 }

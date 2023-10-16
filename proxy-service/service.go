@@ -98,53 +98,58 @@ type SDKClients interface {
 
 // Config is the config for a Service
 type Config struct {
-	Logger           log.ContextualLogger
-	FeatureRepo      repository.FeatureFlagRepo
-	TargetRepo       repository.TargetRepo
-	SegmentRepo      repository.SegmentRepo
-	AuthRepo         repository.AuthRepo
-	CacheHealthFn    CacheHealthFn
-	AuthFn           authTokenFn
-	ClientService    clientService
-	MetricService    MetricService
-	Offline          bool
-	Hasher           hash.Hasher
-	StreamingEnabled bool
+	Logger        log.ContextualLogger
+	FeatureRepo   repository.FeatureFlagRepo
+	TargetRepo    repository.TargetRepo
+	SegmentRepo   repository.SegmentRepo
+	AuthRepo      repository.AuthRepo
+	CacheHealthFn CacheHealthFn
+	AuthFn        authTokenFn
+	ClientService clientService
+	MetricService MetricService
+	Offline       bool
+	Hasher        hash.Hasher
+
+	HealthySaasStream func() bool
+
+	// SDKStreamConnected is a callback that we call whenee
+	SDKStreamConnected func(envID string)
 }
 
 // Service is the proxy service implementation
 type Service struct {
-	logger           log.ContextualLogger
-	featureRepo      repository.FeatureFlagRepo
-	targetRepo       repository.TargetRepo
-	segmentRepo      repository.SegmentRepo
-	authRepo         repository.AuthRepo
-	cacheHealthFn    CacheHealthFn
-	authFn           authTokenFn
-	clientService    clientService
-	metricService    MetricService
-	offline          bool
-	hasher           hash.Hasher
-	streamingEnabled bool
-	sdkClients       SDKClients
+	logger             log.ContextualLogger
+	featureRepo        repository.FeatureFlagRepo
+	targetRepo         repository.TargetRepo
+	segmentRepo        repository.SegmentRepo
+	authRepo           repository.AuthRepo
+	cacheHealthFn      CacheHealthFn
+	authFn             authTokenFn
+	clientService      clientService
+	metricService      MetricService
+	offline            bool
+	hasher             hash.Hasher
+	healthySassStream  func() bool
+	sdkStreamConnected func(envID string)
 }
 
 // NewService creates and returns a ProxyService
 func NewService(c Config) Service {
 	l := c.Logger.With("component", "ProxyService")
 	return Service{
-		logger:           l,
-		featureRepo:      c.FeatureRepo,
-		targetRepo:       c.TargetRepo,
-		segmentRepo:      c.SegmentRepo,
-		authRepo:         c.AuthRepo,
-		cacheHealthFn:    c.CacheHealthFn,
-		authFn:           c.AuthFn,
-		clientService:    c.ClientService,
-		metricService:    c.MetricService,
-		offline:          c.Offline,
-		hasher:           c.Hasher,
-		streamingEnabled: c.StreamingEnabled,
+		logger:             l,
+		featureRepo:        c.FeatureRepo,
+		targetRepo:         c.TargetRepo,
+		segmentRepo:        c.SegmentRepo,
+		authRepo:           c.AuthRepo,
+		cacheHealthFn:      c.CacheHealthFn,
+		authFn:             c.AuthFn,
+		clientService:      c.ClientService,
+		metricService:      c.MetricService,
+		offline:            c.Offline,
+		hasher:             c.Hasher,
+		healthySassStream:  c.HealthySaasStream,
+		sdkStreamConnected: c.SDKStreamConnected,
 	}
 }
 
@@ -355,13 +360,25 @@ func (s Service) EvaluationsByFeature(ctx context.Context, req domain.Evaluation
 // Stream does a lookup for the environmentID for the APIKey in the StreamRequest
 // and returns it as the GripChannel.
 func (s Service) Stream(ctx context.Context, req domain.StreamRequest) (domain.StreamResponse, error) {
+	// We only want to allow streaming connections from SDKs if the Proxy has a healthy stream with SaaS.
+	// This is because when the Saas -> Proxy stream is down the Proxy Polls for changes. Changes fetched
+	// during a polling operation don't have an SSE event associated with them so there's no way to notify
+	// connected SDKs that a change has happened. Refusing stream requests when this stream is down forces
+	// SDKs to poll the Proxy for changes until the stream is healthy again, meaning SDKs won't miss out on
+	// changes pulled down via polling.
+	if !s.healthySassStream() {
+		return domain.StreamResponse{}, fmt.Errorf("%w: streaming endpoint disabled", ErrNotImplemented)
+	}
+
 	hashedAPIKey := s.hasher.Hash(req.APIKey)
-	repoKey, ok := s.authRepo.Get(ctx, domain.NewAuthAPIKey(hashedAPIKey))
+	envID, ok := s.authRepo.Get(ctx, domain.NewAuthAPIKey(hashedAPIKey))
 	if !ok {
 		return domain.StreamResponse{}, fmt.Errorf("%w: no environment found for apiKey %q", ErrNotFound, req.APIKey)
 	}
 
-	return domain.StreamResponse{GripChannel: repoKey}, nil
+	s.sdkStreamConnected(envID)
+
+	return domain.StreamResponse{GripChannel: envID}, nil
 }
 
 // Metrics forwards metrics to the analytics service
