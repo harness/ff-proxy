@@ -20,6 +20,11 @@ var (
 	ErrSubscribing = errors.New("failed to subscribe to stream")
 )
 
+type stream interface {
+	Publisher
+	Subscriber
+}
+
 // Publisher defines the interface for publishing to a stream
 type Publisher interface {
 	Pub(ctx context.Context, channel string, value interface{}) error
@@ -57,7 +62,7 @@ func WithBackoff(b backoff.BackOff) func(s *Stream) {
 type Stream struct {
 	log            log.Logger
 	topic          string
-	subscriber     Subscriber
+	stream         stream
 	messageHandler domain.MessageHandler
 	onDisconnect   func()
 	onConnect      func()
@@ -65,12 +70,12 @@ type Stream struct {
 }
 
 // NewStream opens a subscription to the client service's stream endpoint
-func NewStream(l log.Logger, topic string, s Subscriber, m domain.MessageHandler, options ...func(s *Stream)) Stream {
+func NewStream(l log.Logger, topic string, s stream, m domain.MessageHandler, options ...func(s *Stream)) Stream {
 	l = l.With("component", "Stream", "topic", topic)
 	stream := &Stream{
 		log:            l,
 		topic:          topic,
-		subscriber:     s,
+		stream:         s,
 		messageHandler: m,
 	}
 
@@ -82,6 +87,11 @@ func NewStream(l log.Logger, topic string, s Subscriber, m domain.MessageHandler
 		stream.backoff = backoff.NewConstantBackOff(1 * time.Minute)
 	}
 	return *stream
+}
+
+// Publish publishes a message to the stream.
+func (s Stream) Publish(ctx context.Context, msg interface{}) error {
+	return s.stream.Pub(ctx, s.topic, msg)
 }
 
 // Subscribe connects to the stream and registers a handler to handle events coming off the stream.
@@ -105,7 +115,7 @@ func (s Stream) subscribe(ctx context.Context) {
 	}
 
 	msgID := ""
-	err := s.subscriber.Sub(ctx, s.topic, msgID, func(id string, v interface{}) error {
+	err := s.stream.Sub(ctx, s.topic, msgID, func(id string, v interface{}) error {
 		msg, err := parseMessage(v)
 		if err != nil {
 			return nil
@@ -113,11 +123,7 @@ func (s Stream) subscribe(ctx context.Context) {
 
 		msgID = id
 
-		if err := s.messageHandler.HandleMessage(ctx, msg); err != nil {
-			return nil
-		}
-
-		return nil
+		return s.messageHandler.HandleMessage(ctx, msg)
 	})
 	if err != nil {
 		if errors.Is(err, context.Canceled) {
