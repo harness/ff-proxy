@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+
 	"github.com/harness/ff-proxy/v2/domain"
 	"github.com/harness/ff-proxy/v2/log"
 )
@@ -97,7 +98,7 @@ func (s Refresher) handleProxyMessage(ctx context.Context, msg domain.SSEMessage
 	return nil
 }
 
-//handleAddEnvironmentEvent fetches proxyConfig for all added environments and sets them on.
+// handleAddEnvironmentEvent fetches proxyConfig for all added environments and sets them on.
 func (s Refresher) handleAddEnvironmentEvent(ctx context.Context, environments []string) error {
 	for _, env := range environments {
 		input := domain.GetProxyConfigInput{
