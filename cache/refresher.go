@@ -110,13 +110,10 @@ func (s Refresher) handleAddEnvironmentEvent(ctx context.Context, environments [
 			PageSize:          10,
 		}
 		// fetch the proxy config.
-		proxyConfig, err := s.clientService.PageProxyConfig(ctx, input)
+		_, err := s.clientService.PageProxyConfig(ctx, input)
 		if err != nil {
 			s.log.Error("unable to fetch config for the environment: ", env)
 			return err
-		}
-		if len(proxyConfig) > 0 {
-			// todo set proxy config.
 		}
 	}
 	return nil
