@@ -80,7 +80,7 @@ func (s Refresher) handleProxyMessage(ctx context.Context, msg domain.SSEMessage
 		return nil
 	case domain.EventEnvironmentAdded:
 		if err := s.handleAddEnvironmentEvent(ctx, msg.Environments); err != nil {
-			s.log.Error(err.Error())
+			s.log.Error("failed to handle addEnvironmentEvent", "err", err)
 			return err
 		}
 	case domain.EventEnvironmentRemoved:
@@ -112,7 +112,7 @@ func (s Refresher) handleAddEnvironmentEvent(ctx context.Context, environments [
 		// fetch the proxy config.
 		_, err := s.clientService.PageProxyConfig(ctx, input)
 		if err != nil {
-			s.log.Error("unable to fetch config for the environment: ", env)
+			s.log.Error("unable to fetch config for the environment", "environment", env)
 			return err
 		}
 	}
