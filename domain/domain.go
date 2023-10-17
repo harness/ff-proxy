@@ -1,7 +1,6 @@
 package domain
 
 import (
-	"context"
 	"fmt"
 	"sync"
 
@@ -72,20 +71,6 @@ func SafePtrDereference[T any](t *T) T {
 		return d
 	}
 	return *t
-}
-
-// MessageHandler defines the interface for handling an SSE message
-type MessageHandler interface {
-	HandleMessage(ctx context.Context, m SSEMessage) error
-}
-
-// NoOpMessageHandler is a message handler that does nothing
-type NoOpMessageHandler struct {
-}
-
-// HandleMessage makes NoOpMessageHandler implement the MessageHandler interface
-func (n NoOpMessageHandler) HandleMessage(_ context.Context, _ SSEMessage) error {
-	return nil
 }
 
 // SafeMap is a map of environmentIDs to sdks
