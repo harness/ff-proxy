@@ -75,6 +75,7 @@ func handleSegmentMessage(_ context.Context, msg domain.SSEMessage) error {
 func (s Refresher) handleProxyMessage(ctx context.Context, msg domain.SSEMessage) error {
 	switch msg.Event {
 	case domain.EventProxyKeyDeleted:
+		// todo
 		return nil
 	case domain.EventEnvironmentAdded:
 		if err := s.handleAddEnvironmentEvent(ctx, msg.Environments); err != nil {
@@ -82,10 +83,13 @@ func (s Refresher) handleProxyMessage(ctx context.Context, msg domain.SSEMessage
 			return err
 		}
 	case domain.EventEnvironmentRemoved:
+		// todo
 		return nil
 	case domain.EventAPIKeyAdded:
+		// todo
 		return nil
 	case domain.EventAPIKeyRemoved:
+		// todo
 		return nil
 	default:
 		return fmt.Errorf("%w %q for Proxymessage", ErrUnexpectedEventType, msg.Event)
