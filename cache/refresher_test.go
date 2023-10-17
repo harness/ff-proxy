@@ -3,12 +3,14 @@ package cache
 import (
 	"context"
 	"errors"
-	"github.com/google/uuid"
 	"testing"
+
+	"github.com/google/uuid"
+
+	"github.com/stretchr/testify/assert"
 
 	"github.com/harness/ff-proxy/v2/domain"
 	"github.com/harness/ff-proxy/v2/log"
-	"github.com/stretchr/testify/assert"
 )
 
 func TestRefresher_HandleMessage(t *testing.T) {
@@ -181,13 +183,16 @@ func TestRefresher_HandleMessage(t *testing.T) {
 		},
 	}
 
+	authRepo := mockAuthRepo{}
+	flagRepo := mockFlagRepo{}
+	segmentRepo := mockSegmentRepo{}
 	for desc, tc := range testCases {
 		desc := desc
 		tc := tc
 
 		t.Run(desc, func(t *testing.T) {
 
-			r := NewRefresher(log.NewNoOpLogger(), "test_proxy_key", "test_auth_token", "1", mockClient)
+			r := NewRefresher(log.NewNoOpLogger(), "test_proxy_key", "test_auth_token", "1", mockClient, authRepo, flagRepo, segmentRepo)
 			err := r.HandleMessage(context.Background(), tc.args.message)
 			if tc.shouldErr {
 				assert.NotNil(t, err)
@@ -249,12 +254,16 @@ func TestRefresher_handleAddEnvironmentEvent(t *testing.T) {
 		},
 	}
 
+	authRepo := mockAuthRepo{}
+	flagRepo := mockFlagRepo{}
+	segmentRepo := mockSegmentRepo{}
+
 	for desc, tc := range testCases {
 		desc := desc
 		tc := tc
 
 		t.Run(desc, func(t *testing.T) {
-			r := NewRefresher(log.NewNoOpLogger(), "test_proxy_key", "test_auth_token", "1", tc.args.clientService)
+			r := NewRefresher(log.NewNoOpLogger(), "test_proxy_key", "test_auth_token", "1", tc.args.clientService, authRepo, flagRepo, segmentRepo)
 			err := r.HandleMessage(context.Background(), tc.args.message)
 			if tc.shouldErr {
 				assert.NotNil(t, err)
@@ -264,6 +273,30 @@ func TestRefresher_handleAddEnvironmentEvent(t *testing.T) {
 			}
 		})
 	}
+}
+
+type mockAuthRepo struct {
+	addfn func(ctx context.Context, values ...domain.AuthConfig) error
+}
+
+func (m mockAuthRepo) Add(ctx context.Context, values ...domain.AuthConfig) error {
+	return m.addfn(ctx, values...)
+}
+
+type mockFlagRepo struct {
+	addfn func(ctx context.Context, values ...domain.FlagConfig) error
+}
+
+func (m mockFlagRepo) Add(ctx context.Context, values ...domain.FlagConfig) error {
+	return m.addfn(ctx, values...)
+}
+
+type mockSegmentRepo struct {
+	addfn func(ctx context.Context, values ...domain.SegmentConfig) error
+}
+
+func (m mockSegmentRepo) Add(ctx context.Context, values ...domain.SegmentConfig) error {
+	return m.addfn(ctx, values...)
 }
 
 type mockClientService struct {

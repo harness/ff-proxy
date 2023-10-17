@@ -25,14 +25,14 @@ type Refresher struct {
 	log               log.Logger
 	clientService     domain.ClientService
 	authRepo          domain.AuthRepo
-	featureRepo       domain.FeatureFlag
+	flagRepo          domain.FlagRepo
 	segmentRepo       domain.SegmentRepo
 }
 
 // NewRefresher creates a Refresher
-func NewRefresher(l log.Logger, proxyKey, authToken, clusterIdentifier string, client domain.ClientService) Refresher {
+func NewRefresher(l log.Logger, proxyKey, authToken, clusterIdentifier string, client domain.ClientService, authRepo domain.AuthRepo, flagRepo domain.FlagRepo, segmentRepo domain.SegmentRepo) Refresher {
 	l = l.With("component", "Refresher")
-	return Refresher{log: l, proxyKey: proxyKey, authToken: authToken, clusterIdentifier: clusterIdentifier, clientService: client}
+	return Refresher{log: l, proxyKey: proxyKey, authToken: authToken, clusterIdentifier: clusterIdentifier, clientService: client, authRepo: authRepo, flagRepo: flagRepo, segmentRepo: segmentRepo}
 }
 
 // HandleMessage makes Refresher implement the MessageHandler interface
@@ -109,11 +109,46 @@ func (s Refresher) handleAddEnvironmentEvent(ctx context.Context, environments [
 			PageNumber:        0,
 			PageSize:          10,
 		}
-		// fetch the proxy config.
-		_, err := s.clientService.PageProxyConfig(ctx, input)
+
+		proxyConfig, err := s.clientService.PageProxyConfig(ctx, input)
 		if err != nil {
 			s.log.Error("unable to fetch config for the environment", "environment", env)
 			return err
+		}
+
+		authConfig := make([]domain.AuthConfig, 0, len(proxyConfig))
+		flagConfig := make([]domain.FlagConfig, 0, len(proxyConfig))
+		segmentConfig := make([]domain.SegmentConfig, 0, len(proxyConfig))
+
+		for _, cfg := range proxyConfig {
+			for _, environment := range cfg.Environments {
+				for _, apiKey := range environment.APIKeys {
+					authConfig = append(authConfig, domain.AuthConfig{
+						APIKey:        domain.NewAuthAPIKey(apiKey),
+						EnvironmentID: domain.EnvironmentID(environment.ID.String()),
+					})
+				}
+
+				flagConfig = append(flagConfig, domain.FlagConfig{
+					EnvironmentID:  environment.ID.String(),
+					FeatureConfigs: environment.FeatureConfigs,
+				})
+				segmentConfig = append(segmentConfig, domain.SegmentConfig{
+					EnvironmentID: environment.ID.String(),
+					Segments:      environment.Segments,
+				})
+			}
+			if err := s.authRepo.Add(ctx, authConfig...); err != nil {
+				return fmt.Errorf("failed to add auth config to cache: %s", err)
+			}
+
+			if err := s.flagRepo.Add(ctx, flagConfig...); err != nil {
+				return fmt.Errorf("failed to add flag config to cache: %s", err)
+			}
+
+			if err := s.segmentRepo.Add(ctx, segmentConfig...); err != nil {
+				return fmt.Errorf("failed to add segment config to cache: %s", err)
+			}
 		}
 	}
 	return nil
