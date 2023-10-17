@@ -11,10 +11,14 @@ import (
 	"strings"
 	"time"
 
-	"github.com/harness/ff-proxy/v2/domain"
 	"gopkg.in/cenkalti/backoff.v1"
 
+	"github.com/harness/ff-proxy/v2/domain"
+
 	"github.com/fanout/go-gripcontrol"
+
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/collectors"
 
 	"github.com/harness/ff-proxy/v2/build"
 	clientservice "github.com/harness/ff-proxy/v2/clients/client_service"
@@ -23,10 +27,6 @@ import (
 	"github.com/harness/ff-proxy/v2/health"
 	"github.com/harness/ff-proxy/v2/stream"
 	"github.com/harness/ff-proxy/v2/token"
-	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/client_golang/prometheus/collectors"
-
-	_ "net/http/pprof" //#nosec
 
 	"cloud.google.com/go/profiler"
 
@@ -374,7 +374,7 @@ func main() {
 		//
 		// Layering them in this order means that the first thing we'll do when we receive an SSE message
 		// is attempt to refresh the cache, then if that's successful we'll forward the event on to Redis and Pushpin
-		cacheRefresher := cache.NewRefresher(logger, proxyKey, conf.Token(), conf.ClusterIdentifier(), clientSvc)
+		cacheRefresher := cache.NewRefresher(logger, proxyKey, conf.Token(), conf.ClusterIdentifier(), clientSvc, authRepo, flagRepo, segmentRepo)
 		redisForwarder := stream.NewForwarder(logger, redisStream, cacheRefresher, stream.WithStreamName(sseStreamTopic))
 		messageHandler = stream.NewForwarder(logger, pushpinStream, redisForwarder)
 	}
