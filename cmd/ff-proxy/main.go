@@ -12,7 +12,6 @@ import (
 	"time"
 
 	"github.com/harness/ff-proxy/v2/domain"
-	"github.com/harness/ff-proxy/v2/export"
 	"gopkg.in/cenkalti/backoff.v1"
 
 	"github.com/fanout/go-gripcontrol"
@@ -20,6 +19,7 @@ import (
 	"github.com/harness/ff-proxy/v2/build"
 	clientservice "github.com/harness/ff-proxy/v2/clients/client_service"
 	metricsservice "github.com/harness/ff-proxy/v2/clients/metrics_service"
+	"github.com/harness/ff-proxy/v2/export"
 	"github.com/harness/ff-proxy/v2/health"
 	"github.com/harness/ff-proxy/v2/stream"
 	"github.com/harness/ff-proxy/v2/token"
@@ -374,7 +374,7 @@ func main() {
 		//
 		// Layering them in this order means that the first thing we'll do when we receive an SSE message
 		// is attempt to refresh the cache, then if that's successful we'll forward the event on to Redis and Pushpin
-		cacheRefresher := cache.NewRefresher(logger)
+		cacheRefresher := cache.NewRefresher(logger, proxyKey, conf.Token(), conf.ClusterIdentifier(), clientSvc)
 		redisForwarder := stream.NewForwarder(logger, redisStream, cacheRefresher, stream.WithStreamName(sseStreamTopic))
 		messageHandler = stream.NewForwarder(logger, pushpinStream, redisForwarder)
 	}

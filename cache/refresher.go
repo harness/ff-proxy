@@ -5,9 +5,8 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/harness/ff-proxy/v2/log"
-
 	"github.com/harness/ff-proxy/v2/domain"
+	"github.com/harness/ff-proxy/v2/log"
 )
 
 var (
@@ -20,13 +19,20 @@ var (
 
 // Refresher is a type for handling SSE events from Harness Saas
 type Refresher struct {
-	log log.Logger
+	proxyKey          string
+	authToken         string
+	clusterIdentifier string
+	log               log.Logger
+	clientService     domain.ClientService
+	authRepo          domain.AuthRepo
+	featureRepo       domain.FeatureFlag
+	segmentRepo       domain.SegmentRepo
 }
 
 // NewRefresher creates a Refresher
-func NewRefresher(l log.Logger) Refresher {
+func NewRefresher(l log.Logger, proxyKey, authToken, clusterIdentifier string, client domain.ClientService) Refresher {
 	l = l.With("component", "Refresher")
-	return Refresher{log: l}
+	return Refresher{log: l, proxyKey: proxyKey, authToken: authToken, clusterIdentifier: clusterIdentifier, clientService: client}
 }
 
 // HandleMessage makes Refresher implement the MessageHandler interface
@@ -37,7 +43,7 @@ func (s Refresher) HandleMessage(ctx context.Context, msg domain.SSEMessage) err
 	case domain.MsgDomainSegment:
 		return handleSegmentMessage(ctx, msg)
 	case domain.MsgDomainProxy:
-		return handleProxyMessage(ctx, msg)
+		return s.handleProxyMessage(ctx, msg)
 	default:
 		return fmt.Errorf("%w: %s", ErrUnexpectedMessageDomain, msg.Domain)
 	}
@@ -47,6 +53,7 @@ func (s Refresher) HandleMessage(ctx context.Context, msg domain.SSEMessage) err
 func handleFeatureMessage(_ context.Context, msg domain.SSEMessage) error {
 	switch msg.Event {
 	case domain.EventDelete:
+		// delete from the cache
 	case domain.EventPatch, domain.EventCreate:
 
 	default:
@@ -66,15 +73,48 @@ func handleSegmentMessage(_ context.Context, msg domain.SSEMessage) error {
 	return nil
 }
 
-func handleProxyMessage(_ context.Context, msg domain.SSEMessage) error {
+func (s Refresher) handleProxyMessage(ctx context.Context, msg domain.SSEMessage) error {
 	switch msg.Event {
 	case domain.EventProxyKeyDeleted:
+		// todo
+		return nil
 	case domain.EventEnvironmentAdded:
+		if err := s.handleAddEnvironmentEvent(ctx, msg.Environments); err != nil {
+			s.log.Error("failed to handle addEnvironmentEvent", "err", err)
+			return err
+		}
 	case domain.EventEnvironmentRemoved:
+		// todo
+		return nil
 	case domain.EventAPIKeyAdded:
+		// todo
+		return nil
 	case domain.EventAPIKeyRemoved:
+		// todo
+		return nil
 	default:
 		return fmt.Errorf("%w %q for Proxymessage", ErrUnexpectedEventType, msg.Event)
+	}
+	return nil
+}
+
+// handleAddEnvironmentEvent fetches proxyConfig for all added environments and sets them on.
+func (s Refresher) handleAddEnvironmentEvent(ctx context.Context, environments []string) error {
+	for _, env := range environments {
+		input := domain.GetProxyConfigInput{
+			Key:               s.proxyKey,
+			EnvID:             env,
+			AuthToken:         s.authToken,
+			ClusterIdentifier: s.clusterIdentifier,
+			PageNumber:        0,
+			PageSize:          10,
+		}
+		// fetch the proxy config.
+		_, err := s.clientService.PageProxyConfig(ctx, input)
+		if err != nil {
+			s.log.Error("unable to fetch config for the environment", "environment", env)
+			return err
+		}
 	}
 	return nil
 }
