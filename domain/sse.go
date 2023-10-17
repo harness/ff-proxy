@@ -36,7 +36,8 @@ const (
 	// EventCreate identifies a create event from the SSE stream
 	EventCreate = "create"
 
-	EventProxyKeyDeleted    = "proxyKeyDeleted"
+	// Events for proxy
+	EventProxyKeyDeleted    = "deleteProxyKey"
 	EventEnvironmentAdded   = "environmentsAdded"
 	EventEnvironmentRemoved = "environmentsRemoved"
 	EventAPIKeyAdded        = "apiKeyAdded"
