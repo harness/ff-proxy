@@ -57,3 +57,11 @@ func (s *SSEClient) Sub(ctx context.Context, channel string, _ string, fn Handle
 	}
 	return nil
 }
+
+// Pub ...
+// TODO: Temporarily adding this to make this type implement the Stream interface. There's some
+// cleaner refactoring I can do around this and the pushpin type but I don't want to make this
+// PR bigger than it needs to be.
+func (s *SSEClient) Pub(_ context.Context, _ string, _ interface{}) error {
+	return nil
+}

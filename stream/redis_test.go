@@ -3,6 +3,7 @@ package stream
 import (
 	"context"
 	"errors"
+	"io"
 	"testing"
 
 	"github.com/alicebob/miniredis/v2"
@@ -134,6 +135,17 @@ func TestRedisStream_Sub(t *testing.T) {
 			expected: expected{
 				messages: []interface{}{"foo", "bar"},
 				err:      context.Canceled,
+			},
+		},
+		"Given I have two messages and the callback errors with EOF then I will NOT get both messages": {
+			stream:      "test-stream",
+			messages:    []string{"foo", "bar"},
+			callbackErr: io.EOF,
+
+			shouldErr: true,
+			expected: expected{
+				messages: []interface{}{"foo"},
+				err:      io.EOF,
 			},
 		},
 		"Given I have two messages and redis doesn't error": {

@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/harness/ff-proxy/v2/domain"
+	"github.com/harness/ff-proxy/v2/export"
 	"gopkg.in/cenkalti/backoff.v1"
 
 	"github.com/fanout/go-gripcontrol"
@@ -19,7 +20,6 @@ import (
 	"github.com/harness/ff-proxy/v2/build"
 	clientservice "github.com/harness/ff-proxy/v2/clients/client_service"
 	metricsservice "github.com/harness/ff-proxy/v2/clients/metrics_service"
-	"github.com/harness/ff-proxy/v2/export"
 	"github.com/harness/ff-proxy/v2/health"
 	"github.com/harness/ff-proxy/v2/stream"
 	"github.com/harness/ff-proxy/v2/token"
@@ -315,99 +315,7 @@ func main() {
 		}
 	}
 
-	gpc := gripcontrol.NewGripPubControl([]map[string]interface{}{
-		{
-			"control_uri": "http://localhost:5565",
-		},
-	})
-	pushpinStream := stream.NewPushpin(gpc)
-	sassToProxyStreamHealth := stream.NewHealth("ffproxy_saas_stream_health", sdkCache)
-
-	var (
-		messageHandler domain.MessageHandler
-	)
-
-	if readReplica {
-		// If we're running  in read replica mode we need to subscribe to the redis stream that
-		// the Writer will be forwarding events to and forward these on to pushpin so any connected
-		// SDKs get the events
-		redisSSEEventStream := stream.NewStream(
-			logger,
-			"proxy:sse_events",
-			stream.NewRedisStream(redisClient),
-			stream.NewForwarder(logger, pushpinStream, domain.NoOpMessageHandler{}),
-			stream.WithOnDisconnect(func() {
-				logger.Info("disconnected from redis stream")
-			}),
-			stream.WithBackoff(backoff.NewConstantBackOff(1*time.Minute)),
-		)
-		redisSSEEventStream.Subscribe(ctx)
-	} else {
-		// If we're running as a 'write' replica Proxy then we need our message handler to forward events
-		// on to redis, pushpin and refresh the cache. These types all implement the MessageHandler interface,
-		// meaning they're essentially middlewares that we can layer one after the other.
-		//
-		// Layering them in this order means that the first thing we'll do when we receive an SSE message
-		// is attempt to refresh the cache, then if that's successful we'll forward the event on to Redis and Pushpin
-		cacheRefresher := cache.NewRefresher(logger)
-		redisForwarder := stream.NewForwarder(
-			logger,
-			stream.NewRedisStream(redisClient),
-			cacheRefresher,
-			stream.WithStreamName("proxy:sse_events"),
-		)
-		messageHandler = stream.NewForwarder(logger, pushpinStream, redisForwarder)
-	}
-
-	connectedStreams := domain.NewSafeMap()
-
-	// If this isn't a read replica Proxy then we'll want to start up a stream with the client
-	// service and receive events
-	if !readReplica {
-		streamURL := fmt.Sprintf("%s/stream", clientService)
-		sseClient := stream.NewSSEClient(logger, streamURL, proxyKey, conf.Token())
-
-		clientServiceStream := stream.NewStream(
-			logger,
-			"*",
-			sseClient,
-			messageHandler,
-			stream.WithOnDisconnect(func() {
-				logger.Info("disconnected from Harness SaaS SSE Stream")
-
-				// Set to false so the ProxyService will reject any /stream requests from SDKs until we've reconnected
-				_ = sassToProxyStreamHealth.SetUnhealthy(ctx)
-
-				ctx, cancel := context.WithTimeout(context.Background(), 1*time.Minute)
-				defer cancel()
-
-				// Poll latest config from SaaS, this is to make sure we don't miss any changes that could have
-				// happened while the stream was disconnected
-				if err := conf.Populate(ctx, authRepo, flagRepo, segmentRepo); err != nil {
-					logger.Error("SSE stream disconnected, failed to poll for new config", "err", err)
-				} else {
-					logger.Info("successfully polled Harness SaaS for changes")
-				}
-
-				// Close any open stream between this Proxy and SDKs. This is to force SDKs to poll the Proxy for
-				// changes until we've a healthy SaaS -> Proxy stream to make sure they don't miss out on changes
-				// the Proxy may have pulled down while the Proxy -> Saas stream was down.
-				for envID := range connectedStreams.Get() {
-					if err := pushpinStream.CloseStream(envID); err != nil {
-						logger.Error("failed to close Proxy->SDK stream", "environment", envID, "err", err)
-					}
-				}
-			}),
-			stream.WithOnConnect(func() {
-				logger.Info("connected to Harness SaaS SSE Stream")
-				_ = sassToProxyStreamHealth.SetHealthy(ctx)
-			}),
-		)
-		clientServiceStream.Subscribe(ctx)
-	}
-
-	metricSvc := createMetricsService(ctx, logger, conf, promReg, readReplica, redisClient)
-
+	// If the generateOfflineConfig flag is provided then we can just export the config and exit
 	if generateOfflineConfig {
 		exportService := export.NewService(logger, flagRepo, targetRepo, segmentRepo, authRepo, nil, configDir)
 		err = exportService.Persist(ctx)
@@ -417,6 +325,86 @@ func main() {
 		}
 		os.Exit(0)
 	}
+
+	var (
+		messageHandler domain.MessageHandler
+
+		gpc = gripcontrol.NewGripPubControl([]map[string]interface{}{
+			{
+				"control_uri": "http://localhost:5565",
+			},
+		})
+		pushpinStream    = stream.NewPushpin(gpc)
+		saasStreamHealth = stream.NewHealth("ffproxy_saas_stream_health", sdkCache)
+		connectedStreams = domain.NewSafeMap()
+
+		getConnectedStreams = func() map[string]interface{} {
+			return connectedStreams.Get()
+		}
+
+		reloadConfig = func() error {
+			return conf.Populate(ctx, authRepo, flagRepo, segmentRepo)
+		}
+
+		redisStream = stream.NewRedisStream(redisClient)
+	)
+
+	const (
+		sseStreamTopic = "proxy:sse_events"
+	)
+
+	readReplicaSSEStream := stream.NewStream(
+		logger,
+		sseStreamTopic,
+		redisStream,
+		stream.NewForwarder(logger, pushpinStream, domain.NewReadReplicaMessageHandler()),
+		stream.WithOnDisconnect(stream.ReadReplicaSSEStreamOnDisconnect(logger, pushpinStream, getConnectedStreams)),
+		stream.WithBackoff(backoff.NewConstantBackOff(1*time.Minute)),
+	)
+
+	if readReplica {
+		// If we're running  in read replica mode we need to subscribe to the redis stream that
+		// the Writer will be forwarding events to and forward these on to pushpin so any connected
+		// SDKs get the events
+		readReplicaSSEStream.Subscribe(ctx)
+	} else {
+		// If we're running as a 'write' replica Proxy then we need our message handler to forward events
+		// on to redis, pushpin and refresh the cache. These types all implement the MessageHandler interface,
+		// meaning they're essentially middlewares that we can layer one after the other.
+		//
+		// Layering them in this order means that the first thing we'll do when we receive an SSE message
+		// is attempt to refresh the cache, then if that's successful we'll forward the event on to Redis and Pushpin
+		cacheRefresher := cache.NewRefresher(logger)
+		redisForwarder := stream.NewForwarder(logger, redisStream, cacheRefresher, stream.WithStreamName(sseStreamTopic))
+		messageHandler = stream.NewForwarder(logger, pushpinStream, redisForwarder)
+	}
+
+	// If this is the 'Writer' proxy then open up a stream to Harness Saas
+	// so the Proxy can be notified of changes
+	if !readReplica {
+		streamURL := fmt.Sprintf("%s/stream", clientService)
+		sseClient := stream.NewSSEClient(logger, streamURL, proxyKey, conf.Token())
+
+		saasStream := stream.NewStream(
+			logger,
+			"*",
+			sseClient,
+			messageHandler,
+			stream.WithOnConnect(stream.SaasStreamOnConnect(logger, saasStreamHealth)),
+			stream.WithOnDisconnect(
+				stream.SaasStreamOnDisconnect(
+					logger,
+					saasStreamHealth,
+					pushpinStream,
+					readReplicaSSEStream,
+					getConnectedStreams,
+					reloadConfig,
+				)),
+		)
+		saasStream.Subscribe(ctx)
+	}
+
+	metricSvc := createMetricsService(ctx, logger, conf, promReg, readReplica, redisClient)
 
 	apiKeyHasher := hash.NewSha256()
 	tokenSource := token.NewSource(logger, authRepo, apiKeyHasher, []byte(authSecret))
@@ -435,7 +423,7 @@ func main() {
 		Offline:       offline,
 		Hasher:        apiKeyHasher,
 		HealthySaasStream: func() bool {
-			b, err := sassToProxyStreamHealth.StreamHealthy(ctx)
+			b, err := saasStreamHealth.StreamHealthy(ctx)
 			if err != nil {
 				logger.Error("failed to check status of saas -> proxy stream health", "err", err)
 				return b

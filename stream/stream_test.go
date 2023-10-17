@@ -26,6 +26,8 @@ func (m *mockSubscriber) Sub(ctx context.Context, channel string, id string, fn 
 	return fn("", v)
 }
 
+func (m *mockSubscriber) Pub(ctx context.Context, channel string, msg interface{}) error { return nil }
+
 type mockMsgHandler struct {
 	msg chan struct{}
 }
