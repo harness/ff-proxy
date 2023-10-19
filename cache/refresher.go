@@ -103,6 +103,11 @@ func (s Refresher) handleProxyMessage(ctx context.Context, msg domain.SSEMessage
 
 // handleAddEnvironmentEvent fetches proxyConfig for all added environments and sets them on.
 func (s Refresher) handleAddEnvironmentEvent(ctx context.Context, environments []string) error {
+	// clean the proxyConfig after we are done setting it.
+	defer func() {
+		s.config.SetProxyConfig([]domain.ProxyConfig{})
+	}()
+
 	for _, env := range environments {
 		input := domain.GetProxyConfigInput{
 			Key:               s.config.Key(),
@@ -118,10 +123,6 @@ func (s Refresher) handleAddEnvironmentEvent(ctx context.Context, environments [
 			s.log.Error("unable to fetch config for the environment", "environment", env)
 			return err
 		}
-		defer func() {
-			s.config.SetProxyConfig([]domain.ProxyConfig{})
-		}()
-
 		s.config.SetProxyConfig(proxyConfig)
 		if err := s.config.Populate(ctx, s.authRepo, s.flagRepo, s.segmentRepo); err != nil {
 			return err
