@@ -118,6 +118,10 @@ func (s Refresher) handleAddEnvironmentEvent(ctx context.Context, environments [
 			s.log.Error("unable to fetch config for the environment", "environment", env)
 			return err
 		}
+		defer func() {
+			s.config.SetProxyConfig([]domain.ProxyConfig{})
+		}()
+
 		s.config.SetProxyConfig(proxyConfig)
 		if err := s.config.Populate(ctx, s.authRepo, s.flagRepo, s.segmentRepo); err != nil {
 			return err
