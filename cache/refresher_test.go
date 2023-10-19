@@ -283,6 +283,8 @@ func TestRefresher_handleAddEnvironmentEvent(t *testing.T) {
 }
 
 type mockConfig struct {
+	fetchAndPopulate func(ctx context.Context, authRepo domain.AuthRepo, flagRepo domain.FlagRepo, segmentRepo domain.SegmentRepo) error
+
 	populate func(ctx context.Context, authRepo domain.AuthRepo, flagRepo domain.FlagRepo, segmentRepo domain.SegmentRepo) error
 	// Key returns proxyKey
 	key func() string
@@ -295,6 +297,10 @@ type mockConfig struct {
 
 	// SetProxyConfig the member
 	setProxyConfig func(proxyConfig []domain.ProxyConfig)
+}
+
+func (m mockConfig) FetchAndPopulate(ctx context.Context, authRepo domain.AuthRepo, flagRepo domain.FlagRepo, segmentRepo domain.SegmentRepo) error {
+	return m.fetchAndPopulate(ctx, authRepo, flagRepo, segmentRepo)
 }
 
 func (m mockConfig) Populate(ctx context.Context, authRepo domain.AuthRepo, flagRepo domain.FlagRepo, segmentRepo domain.SegmentRepo) error {
