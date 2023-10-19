@@ -13,15 +13,15 @@ type Config struct {
 	key               string
 	token             string
 	clusterIdentifier string
-
-	clientService domain.ClientService
+	proxyConfig       []domain.ProxyConfig
+	ClientService     domain.ClientService
 }
 
 // NewConfig creates a new Config
 func NewConfig(key string, cs domain.ClientService) *Config {
 	c := &Config{
 		key:           key,
-		clientService: cs,
+		ClientService: cs,
 	}
 	return c
 }
@@ -36,25 +36,42 @@ func (c *Config) ClusterIdentifier() string {
 	return c.clusterIdentifier
 }
 
-// Populate populates repositories with the config
-func (c *Config) Populate(ctx context.Context, authRepo domain.AuthRepo, flagRepo domain.FlagRepo, segmentRepo domain.SegmentRepo) error {
-	authResp, err := authenticate(c.key, c.clientService)
+// Key returns proxyKey
+func (c *Config) Key() string {
+	return c.key
+}
+
+// SetProxyConfig sets the proxy config member
+func (c *Config) SetProxyConfig(proxyConfig []domain.ProxyConfig) {
+	c.proxyConfig = proxyConfig
+}
+
+// FetchAndPopulate Fetches and populates repositories with the config
+func (c *Config) FetchAndPopulate(ctx context.Context, authRepo domain.AuthRepo, flagRepo domain.FlagRepo, segmentRepo domain.SegmentRepo) error {
+
+	authResp, err := authenticate(c.key, c.ClientService)
 	if err != nil {
 		return err
 	}
 	c.token = authResp.Token
 	c.clusterIdentifier = authResp.ClusterIdentifier
 
-	proxyConfig, err := retrieveConfig(c.key, authResp.Token, authResp.ClusterIdentifier, c.clientService)
+	proxyConfig, err := retrieveConfig(c.key, authResp.Token, authResp.ClusterIdentifier, c.ClientService)
 	if err != nil {
 		return err
 	}
+	c.proxyConfig = proxyConfig
+	return c.Populate(ctx, authRepo, flagRepo, segmentRepo)
+}
 
-	authConfig := make([]domain.AuthConfig, 0, len(proxyConfig))
-	flagConfig := make([]domain.FlagConfig, 0, len(proxyConfig))
-	segmentConfig := make([]domain.SegmentConfig, 0, len(proxyConfig))
+// Populate populates repositories with the config
+func (c *Config) Populate(ctx context.Context, authRepo domain.AuthRepo, flagRepo domain.FlagRepo, segmentRepo domain.SegmentRepo) error {
 
-	for _, cfg := range proxyConfig {
+	authConfig := make([]domain.AuthConfig, 0, len(c.proxyConfig))
+	flagConfig := make([]domain.FlagConfig, 0, len(c.proxyConfig))
+	segmentConfig := make([]domain.SegmentConfig, 0, len(c.proxyConfig))
+
+	for _, cfg := range c.proxyConfig {
 
 		for _, env := range cfg.Environments {
 			for _, apiKey := range env.APIKeys {
@@ -80,7 +97,6 @@ func (c *Config) Populate(ctx context.Context, authRepo domain.AuthRepo, flagRep
 	if err := segmentRepo.Add(ctx, segmentConfig...); err != nil {
 		return fmt.Errorf("failed to add segment config to cache: %s", err)
 	}
-
 	return nil
 }
 
