@@ -186,13 +186,15 @@ func TestRefresher_HandleMessage(t *testing.T) {
 	authRepo := mockAuthRepo{}
 	flagRepo := mockFlagRepo{}
 	segmentRepo := mockSegmentRepo{}
+	config := mockConfig{}
+
 	for desc, tc := range testCases {
 		desc := desc
 		tc := tc
 
 		t.Run(desc, func(t *testing.T) {
 
-			r := NewRefresher(log.NewNoOpLogger(), "test_proxy_key", "test_auth_token", "1", mockClient, authRepo, flagRepo, segmentRepo)
+			r := NewRefresher(log.NewNoOpLogger(), config, mockClient, authRepo, flagRepo, segmentRepo)
 			err := r.HandleMessage(context.Background(), tc.args.message)
 			if tc.shouldErr {
 				assert.NotNil(t, err)
@@ -257,13 +259,18 @@ func TestRefresher_handleAddEnvironmentEvent(t *testing.T) {
 	authRepo := mockAuthRepo{}
 	flagRepo := mockFlagRepo{}
 	segmentRepo := mockSegmentRepo{}
+	config := mockConfig{
+		populate: func(ctx context.Context, authRepo domain.AuthRepo, flagRepo domain.FlagRepo, segmentRepo domain.SegmentRepo) error {
+			return nil
+		},
+	}
 
 	for desc, tc := range testCases {
 		desc := desc
 		tc := tc
 
 		t.Run(desc, func(t *testing.T) {
-			r := NewRefresher(log.NewNoOpLogger(), "test_proxy_key", "test_auth_token", "1", tc.args.clientService, authRepo, flagRepo, segmentRepo)
+			r := NewRefresher(log.NewNoOpLogger(), config, tc.args.clientService, authRepo, flagRepo, segmentRepo)
 			err := r.HandleMessage(context.Background(), tc.args.message)
 			if tc.shouldErr {
 				assert.NotNil(t, err)
@@ -273,6 +280,39 @@ func TestRefresher_handleAddEnvironmentEvent(t *testing.T) {
 			}
 		})
 	}
+}
+
+type mockConfig struct {
+	populate func(ctx context.Context, authRepo domain.AuthRepo, flagRepo domain.FlagRepo, segmentRepo domain.SegmentRepo) error
+	// Key returns proxyKey
+	key func() string
+
+	// Token returns the authToken that the Config uses to communicate with Harness SaaS
+	token func() string
+
+	// ClusterIdentifier returns the identifier of the cluster that the Config authenticated against
+	clusterIdentifier func() string
+
+	// SetProxyConfig the member
+	setProxyConfig func(proxyConfig []domain.ProxyConfig)
+}
+
+func (m mockConfig) Populate(ctx context.Context, authRepo domain.AuthRepo, flagRepo domain.FlagRepo, segmentRepo domain.SegmentRepo) error {
+	return m.populate(ctx, authRepo, flagRepo, segmentRepo)
+}
+
+func (m mockConfig) Key() string {
+	return "key"
+}
+func (m mockConfig) Token() string {
+	return "token"
+}
+func (m mockConfig) ClusterIdentifier() string {
+	return "1"
+}
+
+func (m mockConfig) SetProxyConfig(proxyConfig []domain.ProxyConfig) {
+
 }
 
 type mockAuthRepo struct {

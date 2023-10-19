@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/harness/ff-proxy/v2/config"
 	"github.com/harness/ff-proxy/v2/domain"
 	"github.com/harness/ff-proxy/v2/log"
 )
@@ -24,15 +25,17 @@ type Refresher struct {
 	clusterIdentifier string
 	log               log.Logger
 	clientService     domain.ClientService
+	config            config.Config
+	proxyConfig       []domain.ProxyConfig
 	authRepo          domain.AuthRepo
 	flagRepo          domain.FlagRepo
 	segmentRepo       domain.SegmentRepo
 }
 
 // NewRefresher creates a Refresher
-func NewRefresher(l log.Logger, proxyKey, authToken, clusterIdentifier string, client domain.ClientService, authRepo domain.AuthRepo, flagRepo domain.FlagRepo, segmentRepo domain.SegmentRepo) Refresher {
+func NewRefresher(l log.Logger, config config.Config, client domain.ClientService, authRepo domain.AuthRepo, flagRepo domain.FlagRepo, segmentRepo domain.SegmentRepo) Refresher {
 	l = l.With("component", "Refresher")
-	return Refresher{log: l, proxyKey: proxyKey, authToken: authToken, clusterIdentifier: clusterIdentifier, clientService: client, authRepo: authRepo, flagRepo: flagRepo, segmentRepo: segmentRepo}
+	return Refresher{log: l, config: config, clientService: client, authRepo: authRepo, flagRepo: flagRepo, segmentRepo: segmentRepo}
 }
 
 // HandleMessage makes Refresher implement the MessageHandler interface
@@ -102,10 +105,10 @@ func (s Refresher) handleProxyMessage(ctx context.Context, msg domain.SSEMessage
 func (s Refresher) handleAddEnvironmentEvent(ctx context.Context, environments []string) error {
 	for _, env := range environments {
 		input := domain.GetProxyConfigInput{
-			Key:               s.proxyKey,
+			Key:               s.config.Key(),
 			EnvID:             env,
-			AuthToken:         s.authToken,
-			ClusterIdentifier: s.clusterIdentifier,
+			AuthToken:         s.config.Token(),
+			ClusterIdentifier: s.config.ClusterIdentifier(),
 			PageNumber:        0,
 			PageSize:          10,
 		}
@@ -115,40 +118,9 @@ func (s Refresher) handleAddEnvironmentEvent(ctx context.Context, environments [
 			s.log.Error("unable to fetch config for the environment", "environment", env)
 			return err
 		}
-
-		authConfig := make([]domain.AuthConfig, 0, len(proxyConfig))
-		flagConfig := make([]domain.FlagConfig, 0, len(proxyConfig))
-		segmentConfig := make([]domain.SegmentConfig, 0, len(proxyConfig))
-
-		for _, cfg := range proxyConfig {
-			for _, environment := range cfg.Environments {
-				for _, apiKey := range environment.APIKeys {
-					authConfig = append(authConfig, domain.AuthConfig{
-						APIKey:        domain.NewAuthAPIKey(apiKey),
-						EnvironmentID: domain.EnvironmentID(environment.ID.String()),
-					})
-				}
-
-				flagConfig = append(flagConfig, domain.FlagConfig{
-					EnvironmentID:  environment.ID.String(),
-					FeatureConfigs: environment.FeatureConfigs,
-				})
-				segmentConfig = append(segmentConfig, domain.SegmentConfig{
-					EnvironmentID: environment.ID.String(),
-					Segments:      environment.Segments,
-				})
-			}
-			if err := s.authRepo.Add(ctx, authConfig...); err != nil {
-				return fmt.Errorf("failed to add auth config to cache: %s", err)
-			}
-
-			if err := s.flagRepo.Add(ctx, flagConfig...); err != nil {
-				return fmt.Errorf("failed to add flag config to cache: %s", err)
-			}
-
-			if err := s.segmentRepo.Add(ctx, segmentConfig...); err != nil {
-				return fmt.Errorf("failed to add segment config to cache: %s", err)
-			}
+		s.config.SetProxyConfig(proxyConfig)
+		if err := s.config.Populate(ctx, s.authRepo, s.flagRepo, s.segmentRepo); err != nil {
+			return err
 		}
 	}
 	return nil
