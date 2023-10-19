@@ -58,7 +58,7 @@ func (c Config) Key() string {
 }
 
 // SetProxyConfig sets the proxyConfig member
-func (c Config) SetProxyConfig(proxyConfig []domain.ProxyConfig) {
+func (c Config) SetProxyConfig(_q []domain.ProxyConfig) {
 
 }
 
