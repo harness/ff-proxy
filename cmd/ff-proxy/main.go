@@ -309,7 +309,7 @@ func main() {
 
 	// Read replicas don't need to care about populating the repos with config
 	if !readReplica {
-		if err := conf.Populate(ctx, authRepo, flagRepo, segmentRepo); err != nil {
+		if err := conf.FetchAndPopulate(ctx, authRepo, flagRepo, segmentRepo); err != nil {
 			logger.Error("failed to populate repos with config", "err", err)
 			os.Exit(1)
 		}
