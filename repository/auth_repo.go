@@ -27,24 +27,24 @@ func NewAuthRepo(c cache.Cache) AuthRepo {
 func (a AuthRepo) Add(ctx context.Context, values ...domain.AuthConfig) error {
 
 	var key APIConfigsKey
-	apikeys := make([]string, 0, len(values))
+	apiKeys := make([]string, 0, len(values))
 
 	if len(values) > 0 {
-		key = NewApiConfigsKey(string(values[0].EnvironmentID))
+		key = NewAPIConfigsKey(string(values[0].EnvironmentID))
 	}
 
 	errs := []error{}
 	for i := 0; i < len(values); i++ {
 		value := values[i]
-		apikeys = append(apikeys, string(value.APIKey))
+		apiKeys = append(apiKeys, string(value.APIKey))
 		if err := a.cache.Set(ctx, string(value.APIKey), &value.EnvironmentID); err != nil {
 			errs = append(errs, addError{string(value.APIKey), string(value.APIKey), err})
 		}
 	}
 	// set the all keys for the env
-	if len(apikeys) > 0 {
-		if err := a.cache.Set(ctx, string(key), apikeys); err != nil {
-			errs = append(errs, addError{string(key), strings.Join(apikeys, ","), err})
+	if len(apiKeys) > 0 {
+		if err := a.cache.Set(ctx, string(key), apiKeys); err != nil {
+			errs = append(errs, addError{string(key), strings.Join(apiKeys, ","), err})
 		}
 	}
 	if len(errs) > 0 {
@@ -73,11 +73,11 @@ func (a AuthRepo) Get(ctx context.Context, key domain.AuthAPIKey) (string, bool)
 }
 
 // GetKeysForEnvironment gets all the apikey keys associated with environment id
-func (a AuthRepo) GetKeysForEnvironment(ctx context.Context, envId string) ([]string, bool) {
+func (a AuthRepo) GetKeysForEnvironment(ctx context.Context, envID string) ([]string, bool) {
 
 	var apiKeys []string
 
-	key := NewApiConfigsKey(envId)
+	key := NewAPIConfigsKey(envID)
 	if err := a.cache.Get(ctx, string(key), &apiKeys); err != nil {
 		return apiKeys, false
 	}
@@ -86,23 +86,20 @@ func (a AuthRepo) GetKeysForEnvironment(ctx context.Context, envId string) ([]st
 }
 
 // RemoveAllKeysForEnvironment all api keys for given environment
-func (a AuthRepo) RemoveAllKeysForEnvironment(ctx context.Context, envId string) error {
+func (a AuthRepo) RemoveAllKeysForEnvironment(ctx context.Context, envID string) error {
 
-	apiKeys, ok := a.GetKeysForEnvironment(ctx, envId)
+	apiKeys, ok := a.GetKeysForEnvironment(ctx, envID)
 	if !ok {
-		return fmt.Errorf("unable to get apiKeys for environment %s: %v", envId)
+		return fmt.Errorf("unable to get apiKeys for environment: %v", envID)
 	}
 
 	// append the entry for the list of keys assocaited with environments
 	// we do that to delete them all in the next step.
-	key := NewApiConfigsKey(envId)
+	key := NewAPIConfigsKey(envID)
 	apiKeys = append(apiKeys, string(key))
 
 	//remove entries for all keys associated with environments
-	if err := a.Remove(ctx, apiKeys); err != nil {
-		return err
-	}
-	return nil
+	return a.Remove(ctx, apiKeys)
 }
 
 // Remove removes from cache all provided keys
@@ -118,6 +115,6 @@ func (a AuthRepo) Remove(ctx context.Context, keys []string) error {
 
 type APIConfigsKey string
 
-func NewApiConfigsKey(envID string) APIConfigsKey {
+func NewAPIConfigsKey(envID string) APIConfigsKey {
 	return APIConfigsKey(fmt.Sprintf("env-%s-api-configs", envID))
 }
