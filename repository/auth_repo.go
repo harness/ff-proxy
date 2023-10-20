@@ -56,3 +56,13 @@ func (a AuthRepo) Get(ctx context.Context, key domain.AuthAPIKey) (string, bool)
 
 	return string(environment), true
 }
+
+// Remove removes from cache all provided keys
+func (a AuthRepo) Remove(ctx context.Context, keys []string) error {
+	for _, k := range keys {
+		if err := a.cache.Delete(ctx, k); err != nil {
+			return err
+		}
+	}
+	return nil
+}
