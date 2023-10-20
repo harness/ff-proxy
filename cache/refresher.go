@@ -87,8 +87,10 @@ func (s Refresher) handleProxyMessage(ctx context.Context, msg domain.SSEMessage
 			return err
 		}
 	case domain.EventEnvironmentRemoved:
-		// todo
-		return nil
+		if err := s.handleRemoveEnvironmentEvent(ctx, msg.Environments); err != nil {
+			s.log.Error("failed to handle addEnvironmentEvent", "err", err)
+			return err
+		}
 	case domain.EventAPIKeyAdded:
 		// todo
 		return nil
@@ -126,6 +128,28 @@ func (s Refresher) handleAddEnvironmentEvent(ctx context.Context, environments [
 		s.config.SetProxyConfig(proxyConfig)
 		if err := s.config.Populate(ctx, s.authRepo, s.flagRepo, s.segmentRepo); err != nil {
 			return err
+		}
+	}
+	return nil
+}
+
+// handleRemoveEnvironmentEvent removes proxyConfig for all removed environments from cache.
+func (s Refresher) handleRemoveEnvironmentEvent(ctx context.Context, environments []string) error {
+	for _, env := range environments {
+		s.log.Debug("removing entries for env", "environment", env)
+
+		//TODO fish auth keys to delete.
+
+		//if err := s.authRepo.Remove(ctx, env); err != nil {
+		//	return fmt.Errorf("failed to remove auth config from cache: %s", err)
+		//}
+
+		if err := s.flagRepo.Remove(ctx, env); err != nil {
+			return fmt.Errorf("failed to remove flag config from cache: %s", err)
+		}
+
+		if err := s.segmentRepo.Remove(ctx, env); err != nil {
+			return fmt.Errorf("failed to remove segment config from cache: %s", err)
 		}
 	}
 	return nil
