@@ -52,6 +52,20 @@ func (c Config) ClusterIdentifier() string {
 	return ""
 }
 
+// Key returns proxyKey
+func (c Config) Key() string {
+	return ""
+}
+
+// SetProxyConfig sets the proxyConfig member
+func (c Config) SetProxyConfig(_ []domain.ProxyConfig) {
+
+}
+
+func (c Config) FetchAndPopulate(_ context.Context, _ domain.AuthRepo, _ domain.FlagRepo, _ domain.SegmentRepo) error {
+	return nil
+}
+
 // Populate populates the repos with the config loaded from the file system
 func (c Config) Populate(ctx context.Context, authRepo domain.AuthRepo, flagRepo domain.FlagRepo, segmentRepo domain.SegmentRepo) error {
 	authConfig := make([]domain.AuthConfig, 0, len(c.config))

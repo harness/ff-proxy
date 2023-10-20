@@ -6,11 +6,12 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/harness/ff-proxy/v2/domain"
-	"github.com/harness/ff-proxy/v2/log"
 	jsoniter "github.com/json-iterator/go"
 	"github.com/r3labs/sse/v2"
 	"gopkg.in/cenkalti/backoff.v1"
+
+	"github.com/harness/ff-proxy/v2/domain"
+	"github.com/harness/ff-proxy/v2/log"
 )
 
 var (
@@ -125,6 +126,7 @@ func (s Stream) subscribe(ctx context.Context) {
 
 		return s.messageHandler.HandleMessage(ctx, msg)
 	})
+
 	if err != nil {
 		if errors.Is(err, context.Canceled) {
 			return

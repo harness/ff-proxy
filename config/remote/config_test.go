@@ -6,9 +6,10 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
+
 	clientservice "github.com/harness/ff-proxy/v2/clients/client_service"
 	"github.com/harness/ff-proxy/v2/domain"
-	"github.com/stretchr/testify/assert"
 )
 
 type mockAuthRepo struct {
@@ -327,7 +328,7 @@ func TestConfig_Populate(t *testing.T) {
 		t.Run(desc, func(t *testing.T) {
 			c := NewConfig(tc.args.key, tc.mocks.clientService)
 
-			err := c.Populate(context.Background(), tc.mocks.authRepo, tc.mocks.flagRepo, tc.mocks.segmentRepo)
+			err := c.FetchAndPopulate(context.Background(), tc.mocks.authRepo, tc.mocks.flagRepo, tc.mocks.segmentRepo)
 			if tc.shouldErr {
 				assert.NotNil(t, err)
 			} else {

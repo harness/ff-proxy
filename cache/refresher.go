@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/harness/ff-proxy/v2/config"
 	"github.com/harness/ff-proxy/v2/domain"
 	"github.com/harness/ff-proxy/v2/log"
 )
@@ -24,15 +25,17 @@ type Refresher struct {
 	clusterIdentifier string
 	log               log.Logger
 	clientService     domain.ClientService
+	config            config.Config
+	proxyConfig       []domain.ProxyConfig
 	authRepo          domain.AuthRepo
-	featureRepo       domain.FeatureFlag
+	flagRepo          domain.FlagRepo
 	segmentRepo       domain.SegmentRepo
 }
 
 // NewRefresher creates a Refresher
-func NewRefresher(l log.Logger, proxyKey, authToken, clusterIdentifier string, client domain.ClientService) Refresher {
+func NewRefresher(l log.Logger, config config.Config, client domain.ClientService, authRepo domain.AuthRepo, flagRepo domain.FlagRepo, segmentRepo domain.SegmentRepo) Refresher {
 	l = l.With("component", "Refresher")
-	return Refresher{log: l, proxyKey: proxyKey, authToken: authToken, clusterIdentifier: clusterIdentifier, clientService: client}
+	return Refresher{log: l, config: config, clientService: client, authRepo: authRepo, flagRepo: flagRepo, segmentRepo: segmentRepo}
 }
 
 // HandleMessage makes Refresher implement the MessageHandler interface
@@ -100,19 +103,28 @@ func (s Refresher) handleProxyMessage(ctx context.Context, msg domain.SSEMessage
 
 // handleAddEnvironmentEvent fetches proxyConfig for all added environments and sets them on.
 func (s Refresher) handleAddEnvironmentEvent(ctx context.Context, environments []string) error {
+	// clean the proxyConfig after we are done setting it.
+	defer func() {
+		s.config.SetProxyConfig([]domain.ProxyConfig{})
+	}()
+
 	for _, env := range environments {
 		input := domain.GetProxyConfigInput{
-			Key:               s.proxyKey,
+			Key:               s.config.Key(),
 			EnvID:             env,
-			AuthToken:         s.authToken,
-			ClusterIdentifier: s.clusterIdentifier,
+			AuthToken:         s.config.Token(),
+			ClusterIdentifier: s.config.ClusterIdentifier(),
 			PageNumber:        0,
 			PageSize:          10,
 		}
-		// fetch the proxy config.
-		_, err := s.clientService.PageProxyConfig(ctx, input)
+
+		proxyConfig, err := s.clientService.PageProxyConfig(ctx, input)
 		if err != nil {
 			s.log.Error("unable to fetch config for the environment", "environment", env)
+			return err
+		}
+		s.config.SetProxyConfig(proxyConfig)
+		if err := s.config.Populate(ctx, s.authRepo, s.flagRepo, s.segmentRepo); err != nil {
 			return err
 		}
 	}
