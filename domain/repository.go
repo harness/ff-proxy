@@ -6,6 +6,7 @@ import "context"
 type AuthRepo interface {
 	Add(ctx context.Context, config ...AuthConfig) error
 	Remove(ctx context.Context, id []string) error
+	RemoveAllKeysForEnvironment(ctx context.Context, envId string) error
 }
 
 // FlagRepo is the interface for the FlagRepository

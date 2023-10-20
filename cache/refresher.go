@@ -110,12 +110,17 @@ func (s Refresher) handleAddEnvironmentEvent(ctx context.Context, environments [
 		s.config.SetProxyConfig([]domain.ProxyConfig{})
 	}()
 
+	clusterIdentifier := s.config.ClusterIdentifier()
+	if clusterIdentifier == "" {
+		clusterIdentifier = "1"
+	}
+
 	for _, env := range environments {
 		input := domain.GetProxyConfigInput{
 			Key:               s.config.Key(),
 			EnvID:             env,
 			AuthToken:         s.config.Token(),
-			ClusterIdentifier: s.config.ClusterIdentifier(),
+			ClusterIdentifier: clusterIdentifier,
 			PageNumber:        0,
 			PageSize:          10,
 		}
@@ -138,18 +143,16 @@ func (s Refresher) handleRemoveEnvironmentEvent(ctx context.Context, environment
 	for _, env := range environments {
 		s.log.Debug("removing entries for env", "environment", env)
 
-		//TODO fish auth keys to delete.
-
-		//if err := s.authRepo.Remove(ctx, env); err != nil {
-		//	return fmt.Errorf("failed to remove auth config from cache: %s", err)
-		//}
+		if err := s.authRepo.RemoveAllKeysForEnvironment(ctx, env); err != nil {
+			return fmt.Errorf("failed to remove apikey configs from cache for environment %s with error %s", env, err)
+		}
 
 		if err := s.flagRepo.Remove(ctx, env); err != nil {
-			return fmt.Errorf("failed to remove flag config from cache: %s", err)
+			return fmt.Errorf("failed to remove flag config from cache for environment %s with error %s", env, err)
 		}
 
 		if err := s.segmentRepo.Remove(ctx, env); err != nil {
-			return fmt.Errorf("failed to remove segment config from cache: %s", err)
+			return fmt.Errorf("failed to remove segment config from cache for environment %s with error %s", env, err)
 		}
 	}
 	return nil
