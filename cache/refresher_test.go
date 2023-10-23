@@ -303,6 +303,89 @@ func TestRefresher_handleAddEnvironmentEvent(t *testing.T) {
 	}
 }
 
+func TestRefresher_handleRemoveEnvironmentEvent(t *testing.T) {
+	internalErr := errors.New("internal error")
+	type args struct {
+		message       domain.SSEMessage
+		clientService mockClientService
+	}
+
+	type expected struct {
+		err error
+	}
+
+	testCases := map[string]struct {
+		args      args
+		expected  expected
+		shouldErr bool
+	}{
+		"Given I have error while attempting to fetch proxyConfig": {
+			args: args{
+				message: domain.SSEMessage{
+					Domain:       domain.MsgDomainProxy,
+					Event:        domain.EventEnvironmentAdded,
+					Environments: []string{uuid.NewString(), uuid.NewString()},
+				},
+				clientService: mockClientService{
+					PageProxyConfigFn: func(ctx context.Context, input domain.GetProxyConfigInput) ([]domain.ProxyConfig, error) {
+						return []domain.ProxyConfig{}, internalErr
+					},
+				},
+			},
+			expected:  expected{err: internalErr},
+			shouldErr: true,
+		},
+		"Given I have an environment list not empty fetch proxyConfig": {
+			args: args{
+				message: domain.SSEMessage{
+					Domain:       domain.MsgDomainProxy,
+					Event:        domain.EventEnvironmentAdded,
+					Environments: []string{uuid.NewString(), uuid.NewString()},
+				},
+				clientService: mockClientService{
+					PageProxyConfigFn: func(ctx context.Context, input domain.GetProxyConfigInput) ([]domain.ProxyConfig, error) {
+						return []domain.ProxyConfig{}, nil
+					},
+				},
+			},
+			expected:  expected{err: nil},
+			shouldErr: false,
+		},
+	}
+
+	authRepo := mockAuthRepo{
+		addfn: func(ctx context.Context, values ...domain.AuthConfig) error {
+			return nil
+		},
+		patchAPIConfigForEnvironmentfn: func(ctx context.Context, envID, apikey, action string) error {
+			return nil
+		},
+	}
+	flagRepo := mockFlagRepo{}
+	segmentRepo := mockSegmentRepo{}
+	config := mockConfig{
+		populate: func(ctx context.Context, authRepo domain.AuthRepo, flagRepo domain.FlagRepo, segmentRepo domain.SegmentRepo) error {
+			return nil
+		},
+	}
+
+	for desc, tc := range testCases {
+		desc := desc
+		tc := tc
+
+		t.Run(desc, func(t *testing.T) {
+			r := NewRefresher(log.NewNoOpLogger(), config, tc.args.clientService, authRepo, flagRepo, segmentRepo)
+			err := r.HandleMessage(context.Background(), tc.args.message)
+			if tc.shouldErr {
+				assert.NotNil(t, err)
+				assert.True(t, errors.Is(err, tc.expected.err))
+			} else {
+				assert.Nil(t, err)
+			}
+		})
+	}
+}
+
 type mockConfig struct {
 	fetchAndPopulate func(ctx context.Context, authRepo domain.AuthRepo, flagRepo domain.FlagRepo, segmentRepo domain.SegmentRepo) error
 
