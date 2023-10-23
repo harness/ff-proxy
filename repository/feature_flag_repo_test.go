@@ -276,12 +276,12 @@ func TestFeatureFlagRepo_Remove(t *testing.T) {
 		repoConfig []domain.FlagConfig
 		shouldErr  bool
 	}{
-		"Given I call Remove with and the config does not exist": {
+		"Given I call Remove with and the Feature config does not exist": {
 			cache:      cache.NewMemCache(),
 			repoConfig: emptyConfig,
 			shouldErr:  true,
 		},
-		"Given I call Remove with and config does exist": {
+		"Given I call Remove with and the Feature config does exist": {
 			cache:      cache.NewMemCache(),
 			repoConfig: populatedConfig,
 			shouldErr:  false,

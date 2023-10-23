@@ -182,7 +182,7 @@ func TestSegmentRepo_Remove(t *testing.T) {
 			repoConfig: emptyConfig,
 			shouldErr:  true,
 		},
-		"Given I call Remove with and Segment config does exist": {
+		"Given I call Remove with and the Segment config does exist": {
 			cache:      cache.NewMemCache(),
 			repoConfig: populatedConfig,
 			shouldErr:  false,
