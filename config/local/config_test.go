@@ -29,6 +29,11 @@ type mockAuthRepo struct {
 	add func(ctx context.Context, config ...domain.AuthConfig) error
 }
 
+func (m *mockAuthRepo) PatchAPIConfigForEnvironment(ctx context.Context, envID, apikey, action string) error {
+	//TODO implement me
+	panic("implement me")
+}
+
 func (m *mockAuthRepo) Remove(ctx context.Context, id []string) error {
 	//TODO implement me
 	panic("implement me")

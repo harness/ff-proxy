@@ -157,8 +157,10 @@ func TestRefresher_HandleMessage(t *testing.T) {
 		"Given I have an SSEMessage with the domain 'proxy' event 'apiKeyAdded'": {
 			args: args{
 				message: domain.SSEMessage{
-					Domain: domain.MsgDomainProxy,
-					Event:  domain.EventAPIKeyAdded,
+					Domain:       domain.MsgDomainProxy,
+					Event:        domain.EventAPIKeyAdded,
+					Environments: []string{"test_env"},
+					APIKey:       "test_apikey",
 				},
 			},
 			expected:  expected{err: nil},
@@ -167,8 +169,10 @@ func TestRefresher_HandleMessage(t *testing.T) {
 		"Given I have an SSEMessage with the domain 'proxy' event 'apiKeyRemoved'": {
 			args: args{
 				message: domain.SSEMessage{
-					Domain: domain.MsgDomainProxy,
-					Event:  domain.EventAPIKeyRemoved,
+					Domain:       domain.MsgDomainProxy,
+					Event:        domain.EventAPIKeyRemoved,
+					Environments: []string{"test_env"},
+					APIKey:       "test_apikey",
 				},
 			},
 			expected:  expected{err: nil},
@@ -183,7 +187,17 @@ func TestRefresher_HandleMessage(t *testing.T) {
 		},
 	}
 
-	authRepo := mockAuthRepo{}
+	authRepo := mockAuthRepo{
+		addfn: func(ctx context.Context, values ...domain.AuthConfig) error {
+			return nil
+		},
+		removefn: func(ctx context.Context, id []string) error {
+			return nil
+		},
+		patchAPIConfigForEnvironmentfn: func(ctx context.Context, envID, apikey, action string) error {
+			return nil
+		},
+	}
 	flagRepo := mockFlagRepo{}
 	segmentRepo := mockSegmentRepo{}
 	config := mockConfig{}
@@ -256,7 +270,14 @@ func TestRefresher_handleAddEnvironmentEvent(t *testing.T) {
 		},
 	}
 
-	authRepo := mockAuthRepo{}
+	authRepo := mockAuthRepo{
+		addfn: func(ctx context.Context, values ...domain.AuthConfig) error {
+			return nil
+		},
+		patchAPIConfigForEnvironmentfn: func(ctx context.Context, envID, apikey, action string) error {
+			return nil
+		},
+	}
 	flagRepo := mockFlagRepo{}
 	segmentRepo := mockSegmentRepo{}
 	config := mockConfig{
@@ -322,12 +343,17 @@ func (m mockConfig) SetProxyConfig(proxyConfig []domain.ProxyConfig) {
 }
 
 type mockAuthRepo struct {
-	addfn func(ctx context.Context, values ...domain.AuthConfig) error
+	addfn                          func(ctx context.Context, values ...domain.AuthConfig) error
+	patchAPIConfigForEnvironmentfn func(ctx context.Context, envID, apikey, action string) error
+	removefn                       func(ctx context.Context, id []string) error
+}
+
+func (m mockAuthRepo) PatchAPIConfigForEnvironment(ctx context.Context, envID, apikey, action string) error {
+	return m.patchAPIConfigForEnvironmentfn(ctx, envID, apikey, action)
 }
 
 func (m mockAuthRepo) Remove(ctx context.Context, id []string) error {
-	//TODO implement me
-	panic("implement me")
+	return m.removefn(ctx, id)
 }
 
 func (m mockAuthRepo) RemoveAllKeysForEnvironment(ctx context.Context, envID string) error {
