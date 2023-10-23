@@ -325,6 +325,16 @@ type mockAuthRepo struct {
 	addfn func(ctx context.Context, values ...domain.AuthConfig) error
 }
 
+func (m mockAuthRepo) Remove(ctx context.Context, id []string) error {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (m mockAuthRepo) RemoveAllKeysForEnvironment(ctx context.Context, envID string) error {
+	//TODO implement me
+	panic("implement me")
+}
+
 func (m mockAuthRepo) Add(ctx context.Context, values ...domain.AuthConfig) error {
 	return m.addfn(ctx, values...)
 }
@@ -333,12 +343,22 @@ type mockFlagRepo struct {
 	addfn func(ctx context.Context, values ...domain.FlagConfig) error
 }
 
+func (m mockFlagRepo) Remove(ctx context.Context, id string) error {
+	//TODO implement me
+	panic("implement me")
+}
+
 func (m mockFlagRepo) Add(ctx context.Context, values ...domain.FlagConfig) error {
 	return m.addfn(ctx, values...)
 }
 
 type mockSegmentRepo struct {
 	addfn func(ctx context.Context, values ...domain.SegmentConfig) error
+}
+
+func (m mockSegmentRepo) Remove(ctx context.Context, id string) error {
+	//TODO implement me
+	panic("implement me")
 }
 
 func (m mockSegmentRepo) Add(ctx context.Context, values ...domain.SegmentConfig) error {

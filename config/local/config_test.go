@@ -6,9 +6,10 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+
 	"github.com/harness/ff-proxy/v2/domain"
 	clientgen "github.com/harness/ff-proxy/v2/gen/client"
-	"github.com/stretchr/testify/assert"
 )
 
 var (
@@ -28,6 +29,16 @@ type mockAuthRepo struct {
 	add func(ctx context.Context, config ...domain.AuthConfig) error
 }
 
+func (m *mockAuthRepo) Remove(ctx context.Context, id []string) error {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (m *mockAuthRepo) RemoveAllKeysForEnvironment(ctx context.Context, envID string) error {
+	//TODO implement me
+	panic("implement me")
+}
+
 func (m *mockAuthRepo) Add(ctx context.Context, config ...domain.AuthConfig) error {
 	if err := m.add(ctx, config...); err != nil {
 		return err
@@ -42,6 +53,11 @@ type mockSegmentRepo struct {
 	add func(ctx context.Context, config ...domain.SegmentConfig) error
 }
 
+func (m *mockSegmentRepo) Remove(ctx context.Context, id string) error {
+	//TODO implement me
+	panic("implement me")
+}
+
 func (m *mockSegmentRepo) Add(ctx context.Context, config ...domain.SegmentConfig) error {
 	if err := m.add(ctx, config...); err != nil {
 		return err
@@ -54,6 +70,11 @@ type mockFlagRepo struct {
 	config []domain.FlagConfig
 
 	add func(ctx context.Context, config ...domain.FlagConfig) error
+}
+
+func (m *mockFlagRepo) Remove(ctx context.Context, id string) error {
+	//TODO implement me
+	panic("implement me")
 }
 
 func (m *mockFlagRepo) Add(ctx context.Context, config ...domain.FlagConfig) error {
