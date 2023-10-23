@@ -5,9 +5,10 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+
 	"github.com/harness/ff-proxy/v2/cache"
 	clientgen "github.com/harness/ff-proxy/v2/gen/client"
-	"github.com/stretchr/testify/assert"
 
 	"github.com/harness/ff-proxy/v2/domain"
 )
@@ -253,6 +254,56 @@ func TestFeatureFlagRepo_Get(t *testing.T) {
 			}
 
 			assert.ElementsMatch(t, tc.expected, actual)
+		})
+	}
+}
+
+func TestFeatureFlagRepo_Remove(t *testing.T) {
+	emptyConfig := []domain.FlagConfig{}
+
+	populatedConfig := []domain.FlagConfig{
+		{
+			EnvironmentID: "123",
+			FeatureConfigs: []domain.FeatureFlag{
+				featureFlagFoo,
+				featureFlagBar,
+			},
+		},
+	}
+
+	testCases := map[string]struct {
+		cache      cache.MemCache
+		repoConfig []domain.FlagConfig
+		shouldErr  bool
+	}{
+		"Given I call Remove with and the config does not exist": {
+			cache:      cache.NewMemCache(),
+			repoConfig: emptyConfig,
+			shouldErr:  true,
+		},
+		"Given I call Remove with and config does exist": {
+			cache:      cache.NewMemCache(),
+			repoConfig: populatedConfig,
+			shouldErr:  false,
+		},
+	}
+	for desc, tc := range testCases {
+		tc := tc
+		t.Run(desc, func(t *testing.T) {
+			ctx := context.Background()
+			repo := NewFeatureFlagRepo(tc.cache)
+
+			if tc.shouldErr {
+				assert.Error(t, repo.Remove(ctx, "123"))
+
+			} else {
+				assert.Nil(t, repo.Add(ctx, tc.repoConfig...))
+				assert.Nil(t, repo.Remove(ctx, "123"))
+				flags, err := repo.Get(ctx, "123")
+				assert.Equal(t, flags, []domain.FeatureFlag{})
+				assert.Error(t, err)
+
+			}
 		})
 	}
 }

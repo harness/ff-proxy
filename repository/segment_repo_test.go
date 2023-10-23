@@ -5,10 +5,11 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+
 	"github.com/harness/ff-proxy/v2/cache"
 	"github.com/harness/ff-proxy/v2/domain"
 	clientgen "github.com/harness/ff-proxy/v2/gen/client"
-	"github.com/stretchr/testify/assert"
 )
 
 var (
@@ -158,6 +159,52 @@ func TestSegmentRepoGet(t *testing.T) {
 			}
 
 			assert.ElementsMatch(t, tc.expected, actual)
+		})
+	}
+}
+
+func TestSegmentRepo_Remove(t *testing.T) {
+	emptyConfig := []domain.SegmentConfig{}
+	populatedConfig := []domain.SegmentConfig{
+		{
+			EnvironmentID: "123",
+			Segments:      []domain.Segment{segmentFoo, segmentBar},
+		},
+	}
+
+	testCases := map[string]struct {
+		cache      cache.MemCache
+		repoConfig []domain.SegmentConfig
+		shouldErr  bool
+	}{
+		"Given I call Remove with and the Segment config does not exist": {
+			cache:      cache.NewMemCache(),
+			repoConfig: emptyConfig,
+			shouldErr:  true,
+		},
+		"Given I call Remove with and Segment config does exist": {
+			cache:      cache.NewMemCache(),
+			repoConfig: populatedConfig,
+			shouldErr:  false,
+		},
+	}
+	for desc, tc := range testCases {
+		tc := tc
+		t.Run(desc, func(t *testing.T) {
+			ctx := context.Background()
+			repo := NewSegmentRepo(tc.cache)
+
+			if tc.shouldErr {
+				assert.Error(t, repo.Remove(ctx, "123"))
+
+			} else {
+				assert.Nil(t, repo.Add(ctx, tc.repoConfig...))
+				assert.Nil(t, repo.Remove(ctx, "123"))
+				flags, err := repo.Get(ctx, "123")
+				assert.Equal(t, flags, []domain.Segment{})
+				assert.Error(t, err)
+
+			}
 		})
 	}
 }
