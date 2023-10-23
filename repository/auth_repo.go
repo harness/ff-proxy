@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"strings"
 
+	"golang.org/x/exp/slices"
+
 	"github.com/harness/ff-proxy/v2/cache"
 	"github.com/harness/ff-proxy/v2/domain"
 )
@@ -111,4 +113,50 @@ func (a AuthRepo) Remove(ctx context.Context, keys []string) error {
 		}
 	}
 	return nil
+}
+
+// PatchAPIConfigForEnvironment Updates the list of keys for given environment
+func (a AuthRepo) PatchAPIConfigForEnvironment(ctx context.Context, envID, key, action string) error {
+	apiKey := string(domain.NewAuthAPIKey(key))
+	apiConfigsKey := domain.NewAPIConfigsKey(envID)
+	apiConfigsValue, _ := a.GetKeysForEnvironment(ctx, envID)
+
+	switch action {
+	case domain.EventAPIKeyAdded:
+		// 1. Environment config does not exist - excellent, create apiConfigsKey entry
+		if len(apiConfigsValue) < 1 {
+			apiConfigsValue = append(apiConfigsValue, apiKey)
+			return a.cache.Set(ctx, string(apiConfigsKey), apiConfigsValue)
+		}
+		// 2. Environment configs exist but already contains the target_key - do nothing
+		if slices.Contains(apiConfigsValue, apiKey) {
+			return nil
+		}
+		// 3. Environment config exits and does not contain the keys - add key
+		apiConfigsValue = append(apiConfigsValue, apiKey)
+		return a.cache.Set(ctx, string(apiConfigsKey), apiConfigsValue)
+
+	case domain.EventAPIKeyRemoved:
+		//1. Environment config does not exit - do nothing
+		if len(apiConfigsValue) < 1 {
+			return nil
+		}
+		// 2. Environment config does exist but does not contain the target_key - do nothing
+		if len(apiConfigsValue) > 0 && !slices.Contains(apiConfigsValue, apiKey) {
+			return nil
+		}
+		// 3. Environment config does exist and only contains key to remove - delete apiConfigsKey entry
+		if len(apiConfigsValue) == 1 && slices.Contains(apiConfigsValue, apiKey) {
+			return a.cache.Delete(ctx, string(apiConfigsKey))
+		}
+		//4. Environment config does exist and contains key to remove - remove the key entry and reset apiConfigsKey
+		newApiKeys := make([]string, 0, len(apiConfigsValue)-1)
+		for _, v := range apiConfigsValue {
+			if v != apiKey {
+				newApiKeys = append(newApiKeys, v)
+			}
+		}
+		return a.cache.Set(ctx, string(apiConfigsKey), newApiKeys)
+	}
+	return fmt.Errorf("action %v is not permitted", action)
 }

@@ -10,6 +10,7 @@ type SSEMessage struct {
 	Version      int      `json:"version"`
 	Environment  string   `json:"environment"`
 	Environments []string `json:"environments,omitempty"`
+	APIKey       string   `json:"apiKey"`
 }
 
 // MarshalBinary makes SSEMessage implement the BinaryMarshaler interface
