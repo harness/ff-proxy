@@ -26,11 +26,11 @@ func NewAuthRepo(c cache.Cache) AuthRepo {
 // Add adds environment api key hash pairs to the cache
 func (a AuthRepo) Add(ctx context.Context, values ...domain.AuthConfig) error {
 
-	var key APIConfigsKey
+	var key domain.APIConfigsKey
 	apiKeys := make([]string, 0, len(values))
 
 	if len(values) > 0 {
-		key = NewAPIConfigsKey(string(values[0].EnvironmentID))
+		key = domain.NewAPIConfigsKey(string(values[0].EnvironmentID))
 	}
 
 	errs := []error{}
@@ -77,7 +77,7 @@ func (a AuthRepo) GetKeysForEnvironment(ctx context.Context, envID string) ([]st
 
 	var apiKeys []string
 
-	key := NewAPIConfigsKey(envID)
+	key := domain.NewAPIConfigsKey(envID)
 	if err := a.cache.Get(ctx, string(key), &apiKeys); err != nil {
 		return apiKeys, false
 	}
@@ -95,7 +95,7 @@ func (a AuthRepo) RemoveAllKeysForEnvironment(ctx context.Context, envID string)
 
 	// append the entry for the list of keys assocaited with environments
 	// we do that to delete them all in the next step.
-	key := NewAPIConfigsKey(envID)
+	key := domain.NewAPIConfigsKey(envID)
 	apiKeys = append(apiKeys, string(key))
 
 	//remove entries for all keys associated with environments
@@ -111,10 +111,4 @@ func (a AuthRepo) Remove(ctx context.Context, keys []string) error {
 		}
 	}
 	return nil
-}
-
-type APIConfigsKey string
-
-func NewAPIConfigsKey(envID string) APIConfigsKey {
-	return APIConfigsKey(fmt.Sprintf("env-%s-api-configs", envID))
 }
