@@ -95,7 +95,7 @@ func (s SegmentRepo) Remove(ctx context.Context, id string) error {
 	// remove all individual segment entries for environment
 	for _, segment := range segments {
 
-		key := domain.NewFeatureConfigKey(id, segment.Identifier)
+		key := domain.NewSegmentKey(id, segment.Identifier)
 		if err := s.cache.Delete(ctx, string(key)); err != nil {
 			return err
 		}
