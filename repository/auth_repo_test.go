@@ -110,6 +110,7 @@ func TestAPIRepo_Remove(t *testing.T) {
 
 			} else {
 				assert.Nil(t, repo.Add(ctx, tc.repoConfig...))
+				assert.Nil(t, repo.AddAPIConfigsForEnvironment(ctx, "env-approved", []string{"apikey-foo", "apikey-bar"}))
 				assert.Nil(t, repo.RemoveAllKeysForEnvironment(ctx, "env-approved"))
 
 			}

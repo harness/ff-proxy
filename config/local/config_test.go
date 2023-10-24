@@ -26,7 +26,12 @@ const (
 type mockAuthRepo struct {
 	config []domain.AuthConfig
 
-	add func(ctx context.Context, config ...domain.AuthConfig) error
+	add                           func(ctx context.Context, config ...domain.AuthConfig) error
+	addAPIConfigsForEnvironmentFn func(ctx context.Context, envID string, apiKeys []string) error
+}
+
+func (m mockAuthRepo) AddAPIConfigsForEnvironment(ctx context.Context, envID string, apiKeys []string) error {
+	return m.addAPIConfigsForEnvironmentFn(ctx, envID, apiKeys)
 }
 
 func (m *mockAuthRepo) PatchAPIConfigForEnvironment(ctx context.Context, envID, apikey, action string) error {
