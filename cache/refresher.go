@@ -76,6 +76,7 @@ func handleSegmentMessage(_ context.Context, msg domain.SSEMessage) error {
 	return nil
 }
 
+//nolint:cyclop
 func (s Refresher) handleProxyMessage(ctx context.Context, msg domain.SSEMessage) error {
 	switch msg.Event {
 	case domain.EventProxyKeyDeleted:
@@ -101,8 +102,10 @@ func (s Refresher) handleProxyMessage(ctx context.Context, msg domain.SSEMessage
 			s.log.Error("failed to handle removeApiKeyEvent", "err", err)
 			return err
 		}
+	default:
+		return fmt.Errorf("%w %q for Proxymessage", ErrUnexpectedEventType, msg.Event)
 	}
-	return fmt.Errorf("%w %q for Proxymessage", ErrUnexpectedEventType, msg.Event)
+	return nil
 }
 
 // handleAddEnvironmentEvent fetches proxyConfig for all added environments and sets them on.
@@ -137,6 +140,7 @@ func (s Refresher) handleAddEnvironmentEvent(ctx context.Context, environments [
 			return err
 		}
 	}
+
 	return nil
 }
 

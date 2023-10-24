@@ -137,8 +137,9 @@ func TestRefresher_HandleMessage(t *testing.T) {
 		"Given I have an SSEMessage with the domain 'proxy' event 'environmentsAdded'": {
 			args: args{
 				message: domain.SSEMessage{
-					Domain: domain.MsgDomainProxy,
-					Event:  domain.EventEnvironmentAdded,
+					Domain:       domain.MsgDomainProxy,
+					Event:        domain.EventEnvironmentAdded,
+					Environments: []string{"123"},
 				},
 			},
 			expected:  expected{err: nil},
@@ -147,8 +148,9 @@ func TestRefresher_HandleMessage(t *testing.T) {
 		"Given I have an SSEMessage with the domain 'proxy' event 'environmentsRemoved'": {
 			args: args{
 				message: domain.SSEMessage{
-					Domain: domain.MsgDomainProxy,
-					Event:  domain.EventEnvironmentRemoved,
+					Domain:       domain.MsgDomainProxy,
+					Event:        domain.EventEnvironmentRemoved,
+					Environments: []string{"123"},
 				},
 			},
 			expected:  expected{err: nil},
@@ -188,19 +190,35 @@ func TestRefresher_HandleMessage(t *testing.T) {
 	}
 
 	authRepo := mockAuthRepo{
-		addfn: func(ctx context.Context, values ...domain.AuthConfig) error {
+		addFn: func(ctx context.Context, values ...domain.AuthConfig) error {
 			return nil
 		},
-		removefn: func(ctx context.Context, id []string) error {
+		removeFn: func(ctx context.Context, id []string) error {
 			return nil
 		},
-		patchAPIConfigForEnvironmentfn: func(ctx context.Context, envID, apikey, action string) error {
+		patchAPIConfigForEnvironmentFn: func(ctx context.Context, envID, apikey, action string) error {
+			return nil
+		},
+		removeAllKeysForEnvironmentFn: func(ctx context.Context, envID string) error {
 			return nil
 		},
 	}
-	flagRepo := mockFlagRepo{}
-	segmentRepo := mockSegmentRepo{}
-	config := mockConfig{}
+	flagRepo := mockFlagRepo{
+		removeFn: func(ctx context.Context, id string) error {
+			return nil
+		},
+	}
+	segmentRepo := mockSegmentRepo{
+		removeFn: func(ctx context.Context, id string) error {
+			return nil
+		},
+	}
+	config := mockConfig{
+		populate: func(ctx context.Context, authRepo domain.AuthRepo, flagRepo domain.FlagRepo, segmentRepo domain.SegmentRepo) error {
+			return nil
+		},
+		setProxyConfigFn: func(proxyConfig []domain.ProxyConfig) {},
+	}
 
 	for desc, tc := range testCases {
 		desc := desc
@@ -271,10 +289,10 @@ func TestRefresher_handleAddEnvironmentEvent(t *testing.T) {
 	}
 
 	authRepo := mockAuthRepo{
-		addfn: func(ctx context.Context, values ...domain.AuthConfig) error {
+		addFn: func(ctx context.Context, values ...domain.AuthConfig) error {
 			return nil
 		},
-		patchAPIConfigForEnvironmentfn: func(ctx context.Context, envID, apikey, action string) error {
+		patchAPIConfigForEnvironmentFn: func(ctx context.Context, envID, apikey, action string) error {
 			return nil
 		},
 	}
@@ -283,6 +301,9 @@ func TestRefresher_handleAddEnvironmentEvent(t *testing.T) {
 	config := mockConfig{
 		populate: func(ctx context.Context, authRepo domain.AuthRepo, flagRepo domain.FlagRepo, segmentRepo domain.SegmentRepo) error {
 			return nil
+		},
+		setProxyConfigFn: func(proxyConfig []domain.ProxyConfig) {
+
 		},
 	}
 
@@ -354,10 +375,13 @@ func TestRefresher_handleRemoveEnvironmentEvent(t *testing.T) {
 	}
 
 	authRepo := mockAuthRepo{
-		addfn: func(ctx context.Context, values ...domain.AuthConfig) error {
+		addFn: func(ctx context.Context, values ...domain.AuthConfig) error {
 			return nil
 		},
-		patchAPIConfigForEnvironmentfn: func(ctx context.Context, envID, apikey, action string) error {
+		patchAPIConfigForEnvironmentFn: func(ctx context.Context, envID, apikey, action string) error {
+			return nil
+		},
+		removeAllKeysForEnvironmentFn: func(ctx context.Context, envID string) error {
 			return nil
 		},
 	}
@@ -366,6 +390,9 @@ func TestRefresher_handleRemoveEnvironmentEvent(t *testing.T) {
 	config := mockConfig{
 		populate: func(ctx context.Context, authRepo domain.AuthRepo, flagRepo domain.FlagRepo, segmentRepo domain.SegmentRepo) error {
 			return nil
+		},
+		setProxyConfigFn: func(proxyConfig []domain.ProxyConfig) {
+
 		},
 	}
 
@@ -400,7 +427,7 @@ type mockConfig struct {
 	clusterIdentifier func() string
 
 	// SetProxyConfig the member
-	setProxyConfig func(proxyConfig []domain.ProxyConfig)
+	setProxyConfigFn func(proxyConfig []domain.ProxyConfig)
 }
 
 func (m mockConfig) FetchAndPopulate(ctx context.Context, authRepo domain.AuthRepo, flagRepo domain.FlagRepo, segmentRepo domain.SegmentRepo) error {
@@ -422,56 +449,56 @@ func (m mockConfig) ClusterIdentifier() string {
 }
 
 func (m mockConfig) SetProxyConfig(proxyConfig []domain.ProxyConfig) {
-
+	m.setProxyConfigFn(proxyConfig)
 }
 
 type mockAuthRepo struct {
-	addfn                          func(ctx context.Context, values ...domain.AuthConfig) error
-	patchAPIConfigForEnvironmentfn func(ctx context.Context, envID, apikey, action string) error
-	removefn                       func(ctx context.Context, id []string) error
+	addFn                          func(ctx context.Context, values ...domain.AuthConfig) error
+	patchAPIConfigForEnvironmentFn func(ctx context.Context, envID, apikey, action string) error
+	removeFn                       func(ctx context.Context, id []string) error
+	removeAllKeysForEnvironmentFn  func(ctx context.Context, envID string) error
 }
 
 func (m mockAuthRepo) PatchAPIConfigForEnvironment(ctx context.Context, envID, apikey, action string) error {
-	return m.patchAPIConfigForEnvironmentfn(ctx, envID, apikey, action)
+	return m.patchAPIConfigForEnvironmentFn(ctx, envID, apikey, action)
 }
 
 func (m mockAuthRepo) Remove(ctx context.Context, id []string) error {
-	return m.removefn(ctx, id)
+	return m.removeFn(ctx, id)
 }
 
 func (m mockAuthRepo) RemoveAllKeysForEnvironment(ctx context.Context, envID string) error {
-	//TODO implement me
-	panic("implement me")
+	return m.removeAllKeysForEnvironmentFn(ctx, envID)
 }
 
 func (m mockAuthRepo) Add(ctx context.Context, values ...domain.AuthConfig) error {
-	return m.addfn(ctx, values...)
+	return m.addFn(ctx, values...)
 }
 
 type mockFlagRepo struct {
-	addfn func(ctx context.Context, values ...domain.FlagConfig) error
+	addFn    func(ctx context.Context, values ...domain.FlagConfig) error
+	removeFn func(ctx context.Context, id string) error
 }
 
 func (m mockFlagRepo) Remove(ctx context.Context, id string) error {
-	//TODO implement me
-	panic("implement me")
+	return m.removeFn(ctx, id)
 }
 
 func (m mockFlagRepo) Add(ctx context.Context, values ...domain.FlagConfig) error {
-	return m.addfn(ctx, values...)
+	return m.addFn(ctx, values...)
 }
 
 type mockSegmentRepo struct {
-	addfn func(ctx context.Context, values ...domain.SegmentConfig) error
+	addFn    func(ctx context.Context, values ...domain.SegmentConfig) error
+	removeFn func(ctx context.Context, id string) error
 }
 
 func (m mockSegmentRepo) Remove(ctx context.Context, id string) error {
-	//TODO implement me
-	panic("implement me")
+	return m.removeFn(ctx, id)
 }
 
 func (m mockSegmentRepo) Add(ctx context.Context, values ...domain.SegmentConfig) error {
-	return m.addfn(ctx, values...)
+	return m.addFn(ctx, values...)
 }
 
 type mockClientService struct {
