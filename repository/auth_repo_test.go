@@ -116,3 +116,105 @@ func TestAPIRepo_Remove(t *testing.T) {
 		})
 	}
 }
+
+func TestAPIRepo_PatchAPIConfigForEnvironment(t *testing.T) {
+
+	populatedConfig := []domain.AuthConfig{
+		{
+			APIKey:        domain.AuthAPIKey("auth-key-apikey-foo"),
+			EnvironmentID: domain.EnvironmentID("env-approved"),
+		},
+		{
+			APIKey:        domain.AuthAPIKey("auth-key-apikey-bar"),
+			EnvironmentID: domain.EnvironmentID("env-approved"),
+		},
+	}
+
+	oneKeyConfig := []domain.AuthConfig{
+		{
+			APIKey:        domain.AuthAPIKey("auth-key-apikey-foo"),
+			EnvironmentID: domain.EnvironmentID("env-approved"),
+		},
+	}
+	emptyConfig := []domain.AuthConfig{}
+
+	testCases := map[string]struct {
+		action     string
+		key        string
+		cache      cache.MemCache
+		repoConfig []domain.AuthConfig
+		shouldErr  bool
+	}{
+		"Given I call PatchAPIConfigForEnvironment with 'invalid'": {
+			action:     "invalid",
+			cache:      cache.NewMemCache(),
+			repoConfig: populatedConfig,
+			shouldErr:  true,
+		},
+		"Given I call PatchAPIConfigForEnvironment with 'apiKeyAdded' action and config does not exist": {
+			action:     "apiKeyAdded",
+			key:        "apikey-foo",
+			cache:      cache.NewMemCache(),
+			repoConfig: emptyConfig,
+			shouldErr:  false,
+		},
+		"Given I call PatchAPIConfigForEnvironment with 'apiKeyAdded' action and config does exist but already contains key": {
+			action:     "apiKeyAdded",
+			key:        "apikey-foo",
+			cache:      cache.NewMemCache(),
+			repoConfig: populatedConfig,
+			shouldErr:  false,
+		},
+		"Given I call PatchAPIConfigForEnvironment with 'apiKeyAdded' action and config does and does not contain key": {
+			action:     "apiKeyAdded",
+			key:        "apikey-baz",
+			cache:      cache.NewMemCache(),
+			repoConfig: populatedConfig,
+			shouldErr:  false,
+		},
+
+		"Given I call PatchAPIConfigForEnvironment with 'apiKeyRemoved' action and config does not exist": {
+			action:     "apiKeyRemoved",
+			key:        "apikey-foo",
+			cache:      cache.NewMemCache(),
+			repoConfig: emptyConfig,
+			shouldErr:  false,
+		},
+
+		"Given I call PatchAPIConfigForEnvironment with 'apiKeyRemoved' action and config does exist but does not contain key": {
+			action:     "apiKeyRemoved",
+			key:        "apikey-baz",
+			cache:      cache.NewMemCache(),
+			repoConfig: populatedConfig,
+			shouldErr:  false,
+		},
+		"Given I call PatchAPIConfigForEnvironment with 'apiKeyRemoved' action and config does and contains key only one key": {
+			action:     "apiKeyRemoved",
+			key:        "apikey-foo",
+			cache:      cache.NewMemCache(),
+			repoConfig: oneKeyConfig,
+			shouldErr:  false,
+		},
+		"Given I call PatchAPIConfigForEnvironment with 'apiKeyRemoved' action and config does exit and contains target key": {
+			action:     "apiKeyRemoved",
+			key:        "apikey-foo",
+			cache:      cache.NewMemCache(),
+			repoConfig: populatedConfig,
+			shouldErr:  false,
+		},
+	}
+	for desc, tc := range testCases {
+		tc := tc
+		t.Run(desc, func(t *testing.T) {
+			ctx := context.Background()
+			repo := NewAuthRepo(tc.cache)
+
+			if tc.shouldErr {
+				assert.Error(t, repo.PatchAPIConfigForEnvironment(ctx, "123", "key12", tc.action))
+			} else {
+				assert.Nil(t, repo.Add(ctx, tc.repoConfig...))
+				assert.Nil(t, repo.PatchAPIConfigForEnvironment(ctx, "env-approved", tc.key, tc.action))
+			}
+		})
+	}
+}

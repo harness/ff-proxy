@@ -7,6 +7,7 @@ type AuthRepo interface {
 	Add(ctx context.Context, config ...AuthConfig) error
 	Remove(ctx context.Context, id []string) error
 	RemoveAllKeysForEnvironment(ctx context.Context, envID string) error
+	PatchAPIConfigForEnvironment(ctx context.Context, envID, apikey, action string) error
 }
 
 // FlagRepo is the interface for the FlagRepository

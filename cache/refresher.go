@@ -76,6 +76,7 @@ func handleSegmentMessage(_ context.Context, msg domain.SSEMessage) error {
 	return nil
 }
 
+//nolint:cyclop
 func (s Refresher) handleProxyMessage(ctx context.Context, msg domain.SSEMessage) error {
 	switch msg.Event {
 	case domain.EventProxyKeyDeleted:
@@ -92,11 +93,15 @@ func (s Refresher) handleProxyMessage(ctx context.Context, msg domain.SSEMessage
 			return err
 		}
 	case domain.EventAPIKeyAdded:
-		// todo
-		return nil
+		if err := s.handleAddAPIKeyEvent(ctx, msg.Environments[0], msg.APIKey); err != nil {
+			s.log.Error("failed to handle addApiKeyEvent", "err", err)
+			return err
+		}
 	case domain.EventAPIKeyRemoved:
-		// todo
-		return nil
+		if err := s.handleRemoveAPIKeyEvent(ctx, msg.Environments[0], msg.APIKey); err != nil {
+			s.log.Error("failed to handle removeApiKeyEvent", "err", err)
+			return err
+		}
 	default:
 		return fmt.Errorf("%w %q for Proxymessage", ErrUnexpectedEventType, msg.Event)
 	}
@@ -135,6 +140,7 @@ func (s Refresher) handleAddEnvironmentEvent(ctx context.Context, environments [
 			return err
 		}
 	}
+
 	return nil
 }
 
@@ -156,4 +162,31 @@ func (s Refresher) handleRemoveEnvironmentEvent(ctx context.Context, environment
 		}
 	}
 	return nil
+}
+
+// handleAddApiKeyEvent adds apiKeys to the cache as well as update apikey list for environment.
+func (s Refresher) handleAddAPIKeyEvent(ctx context.Context, env, apiKey string) error {
+	s.log.Debug("adding apikey entry for env", "environment", env)
+
+	authConfig := []domain.AuthConfig{{
+		APIKey:        domain.NewAuthAPIKey(apiKey),
+		EnvironmentID: domain.EnvironmentID(env),
+	},
+	}
+	// set the key first
+	if err := s.authRepo.Add(ctx, authConfig...); err != nil {
+		return err
+	}
+	return s.authRepo.PatchAPIConfigForEnvironment(ctx, env, apiKey, domain.EventAPIKeyAdded)
+}
+
+// handleRemoveApiKeyEvent removes apiKeys from cache as well as removes the key from the list of keys for given environment.
+func (s Refresher) handleRemoveAPIKeyEvent(ctx context.Context, env, apiKey string) error {
+	s.log.Debug("removing apikey entry for env", "environment", env)
+
+	k := fmt.Sprintf("auth-key-%s", apiKey)
+	if err := s.authRepo.Remove(ctx, []string{k}); err != nil {
+		return err
+	}
+	return s.authRepo.PatchAPIConfigForEnvironment(ctx, env, apiKey, domain.EventAPIKeyRemoved)
 }

@@ -67,27 +67,25 @@ func (c *Config) FetchAndPopulate(ctx context.Context, authRepo domain.AuthRepo,
 // Populate populates repositories with the config
 func (c *Config) Populate(ctx context.Context, authRepo domain.AuthRepo, flagRepo domain.FlagRepo, segmentRepo domain.SegmentRepo) error {
 
-	authConfig := make([]domain.AuthConfig, 0, len(c.proxyConfig))
 	flagConfig := make([]domain.FlagConfig, 0, len(c.proxyConfig))
 	segmentConfig := make([]domain.SegmentConfig, 0, len(c.proxyConfig))
 
 	for _, cfg := range c.proxyConfig {
 
 		for _, env := range cfg.Environments {
+			authConfig := make([]domain.AuthConfig, 0, len(env.APIKeys))
 			for _, apiKey := range env.APIKeys {
 				authConfig = append(authConfig, domain.AuthConfig{
 					APIKey:        domain.NewAuthAPIKey(apiKey),
 					EnvironmentID: domain.EnvironmentID(env.ID.String()),
 				})
+			} //this has to be created inserted in line with environment.
+			if err := authRepo.Add(ctx, authConfig...); err != nil {
+				return fmt.Errorf("failed to add auth config to cache: %s", err)
 			}
-
 			flagConfig = append(flagConfig, makeFlagConfig(env))
 			segmentConfig = append(segmentConfig, makeSegmentConfig(env))
 		}
-	}
-
-	if err := authRepo.Add(ctx, authConfig...); err != nil {
-		return fmt.Errorf("failed to add auth config to cache: %s", err)
 	}
 
 	if err := flagRepo.Add(ctx, flagConfig...); err != nil {
