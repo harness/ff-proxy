@@ -209,7 +209,7 @@ func main() {
 
 	if pprofEnabled {
 		go func() {
-			// #nosec
+			//nolint:gosec
 			if err := http.ListenAndServe(":6060", nil); err != nil {
 				stdlog.Printf("failed to start pprof server: %s \n", err)
 			}

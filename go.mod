@@ -26,6 +26,7 @@ require (
 	github.com/sirupsen/logrus v1.8.1
 	github.com/stretchr/testify v1.7.1
 	go.uber.org/zap v1.19.1
+	golang.org/x/exp v0.0.0-20231006140011-7918f672742d
 	gopkg.in/cenkalti/backoff.v1 v1.1.0
 	gopkg.in/yaml.v2 v2.4.0
 )
@@ -79,7 +80,6 @@ require (
 	go.uber.org/atomic v1.9.0 // indirect
 	go.uber.org/multierr v1.7.0 // indirect
 	golang.org/x/crypto v0.0.0-20220513210258-46612604a0f9 // indirect
-	golang.org/x/exp v0.0.0-20231006140011-7918f672742d // indirect
 	golang.org/x/net v0.7.0 // indirect
 	golang.org/x/oauth2 v0.0.0-20221014153046-6fdb5e3db783 // indirect
 	golang.org/x/sync v0.1.0 // indirect

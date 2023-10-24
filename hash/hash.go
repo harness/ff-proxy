@@ -8,7 +8,7 @@ import (
 
 // Hasher an interface for generating a hash
 type Hasher interface {
-	Hash(string) string
+	Hash(s string) string
 }
 
 // Sha256 is a Hasher that generates a sha256 hash
