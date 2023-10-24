@@ -93,7 +93,7 @@ func (s Refresher) handleProxyMessage(ctx context.Context, msg domain.SSEMessage
 		}
 	case domain.EventAPIKeyAdded:
 		if err := s.handleAddApiKeyEvent(ctx, msg.Environments[0], msg.APIKey); err != nil {
-			s.log.Error("failed to handle removeApiKeyEvent", "err", err)
+			s.log.Error("failed to handle addApiKeyEvent", "err", err)
 			return err
 		}
 	case domain.EventAPIKeyRemoved:
@@ -164,7 +164,7 @@ func (s Refresher) handleRemoveEnvironmentEvent(ctx context.Context, environment
 
 // handleAddApiKeyEvent adds apiKeys to the cache as well as update apikey list for environment.
 func (s Refresher) handleAddApiKeyEvent(ctx context.Context, env, apiKey string) error {
-	s.log.Debug("adding apikey entry for env", "environment", env, "apiKey", apiKey)
+	s.log.Debug("adding apikey entry for env", "environment", env)
 
 	authConfig := []domain.AuthConfig{domain.AuthConfig{
 		APIKey:        domain.NewAuthAPIKey(apiKey),
@@ -180,7 +180,7 @@ func (s Refresher) handleAddApiKeyEvent(ctx context.Context, env, apiKey string)
 
 // handleRemoveApiKeyEvent removes apiKeys from cache as well as removes the key from the list of keys for given environment.
 func (s Refresher) handleRemoveApiKeyEvent(ctx context.Context, env, apiKey string) error {
-	s.log.Debug("removing apikey entry for env", "environment", env, "apiKey", apiKey)
+	s.log.Debug("removing apikey entry for env", "environment", env)
 
 	k := fmt.Sprintf("auth-key-%s", apiKey)
 	if err := s.authRepo.Remove(ctx, []string{k}); err != nil {
