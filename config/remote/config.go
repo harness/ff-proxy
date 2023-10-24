@@ -74,13 +74,24 @@ func (c *Config) Populate(ctx context.Context, authRepo domain.AuthRepo, flagRep
 
 		for _, env := range cfg.Environments {
 			authConfig := make([]domain.AuthConfig, 0, len(env.APIKeys))
+			apiKeys := make([]string, 0, len(env.APIKeys))
+
 			for _, apiKey := range env.APIKeys {
+				apiKeys = append(apiKeys, string(domain.NewAuthAPIKey(apiKey)))
+
 				authConfig = append(authConfig, domain.AuthConfig{
 					APIKey:        domain.NewAuthAPIKey(apiKey),
 					EnvironmentID: domain.EnvironmentID(env.ID.String()),
 				})
-			} //this has to be created inserted in line with environment.
+
+			}
+
+			// add apiKeys to cache.
 			if err := authRepo.Add(ctx, authConfig...); err != nil {
+				return fmt.Errorf("failed to add auth config to cache: %s", err)
+			}
+			// add list of apiKeys for environment
+			if err := authRepo.AddAPIConfigsForEnvironment(ctx, env.ID.String(), apiKeys); err != nil {
 				return fmt.Errorf("failed to add auth config to cache: %s", err)
 			}
 			flagConfig = append(flagConfig, makeFlagConfig(env))

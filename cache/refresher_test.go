@@ -457,6 +457,11 @@ type mockAuthRepo struct {
 	patchAPIConfigForEnvironmentFn func(ctx context.Context, envID, apikey, action string) error
 	removeFn                       func(ctx context.Context, id []string) error
 	removeAllKeysForEnvironmentFn  func(ctx context.Context, envID string) error
+	addAPIConfigsForEnvironmentFn  func(ctx context.Context, envID string, apiKeys []string) error
+}
+
+func (m mockAuthRepo) AddAPIConfigsForEnvironment(ctx context.Context, envID string, apiKeys []string) error {
+	return m.addAPIConfigsForEnvironmentFn(ctx, envID, apiKeys)
 }
 
 func (m mockAuthRepo) PatchAPIConfigForEnvironment(ctx context.Context, envID, apikey, action string) error {

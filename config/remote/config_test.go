@@ -15,9 +15,13 @@ import (
 type mockAuthRepo struct {
 	config []domain.AuthConfig
 
-	add func(ctx context.Context, config ...domain.AuthConfig) error
+	add                           func(ctx context.Context, config ...domain.AuthConfig) error
+	addAPIConfigsForEnvironmentFn func(ctx context.Context, envID string, apiKeys []string) error
 }
 
+func (m mockAuthRepo) AddAPIConfigsForEnvironment(ctx context.Context, envID string, apiKeys []string) error {
+	return m.addAPIConfigsForEnvironmentFn(ctx, envID, apiKeys)
+}
 func (m *mockAuthRepo) PatchAPIConfigForEnvironment(ctx context.Context, envID, apikey, action string) error {
 	//TODO implement me
 	panic("implement me")
@@ -254,6 +258,9 @@ func TestConfig_Populate(t *testing.T) {
 					add: func(ctx context.Context, config ...domain.AuthConfig) error {
 						return nil
 					},
+					addAPIConfigsForEnvironmentFn: func(ctx context.Context, envID string, apiKeys []string) error {
+						return nil
+					},
 				},
 				flagRepo: &mockFlagRepo{
 					add: func(ctx context.Context, config ...domain.FlagConfig) error {
@@ -289,6 +296,9 @@ func TestConfig_Populate(t *testing.T) {
 					add: func(ctx context.Context, config ...domain.AuthConfig) error {
 						return nil
 					},
+					addAPIConfigsForEnvironmentFn: func(ctx context.Context, envID string, apiKeys []string) error {
+						return nil
+					},
 				},
 				flagRepo: &mockFlagRepo{
 					add: func(ctx context.Context, config ...domain.FlagConfig) error {
@@ -322,6 +332,9 @@ func TestConfig_Populate(t *testing.T) {
 				},
 				authRepo: &mockAuthRepo{
 					add: func(ctx context.Context, config ...domain.AuthConfig) error {
+						return nil
+					},
+					addAPIConfigsForEnvironmentFn: func(ctx context.Context, envID string, apiKeys []string) error {
 						return nil
 					},
 				},

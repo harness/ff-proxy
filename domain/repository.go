@@ -5,6 +5,7 @@ import "context"
 // AuthRepo is the interface for the AuthRepository
 type AuthRepo interface {
 	Add(ctx context.Context, config ...AuthConfig) error
+	AddAPIConfigsForEnvironment(ctx context.Context, envID string, apiKeys []string) error
 	Remove(ctx context.Context, id []string) error
 	RemoveAllKeysForEnvironment(ctx context.Context, envID string) error
 	PatchAPIConfigForEnvironment(ctx context.Context, envID, apikey, action string) error

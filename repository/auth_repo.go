@@ -3,7 +3,6 @@ package repository
 import (
 	"context"
 	"fmt"
-	"strings"
 
 	"golang.org/x/exp/slices"
 
@@ -27,14 +26,7 @@ func NewAuthRepo(c cache.Cache) AuthRepo {
 
 // Add adds environment api key hash pairs to the cache
 func (a AuthRepo) Add(ctx context.Context, values ...domain.AuthConfig) error {
-
-	var key domain.APIConfigsKey
 	apiKeys := make([]string, 0, len(values))
-
-	if len(values) > 0 {
-		key = domain.NewAPIConfigsKey(string(values[0].EnvironmentID))
-	}
-
 	errs := []error{}
 	for i := 0; i < len(values); i++ {
 		value := values[i]
@@ -43,16 +35,16 @@ func (a AuthRepo) Add(ctx context.Context, values ...domain.AuthConfig) error {
 			errs = append(errs, addError{string(value.APIKey), string(value.APIKey), err})
 		}
 	}
-	// set the all keys for the env
-	if len(apiKeys) > 0 {
-		if err := a.cache.Set(ctx, string(key), apiKeys); err != nil {
-			errs = append(errs, addError{string(key), strings.Join(apiKeys, ","), err})
-		}
-	}
 	if len(errs) > 0 {
 		return fmt.Errorf("failed to add authConfig(s) to repo: %v", errs)
 	}
 	return nil
+}
+
+// AddAPIConfigsForEnvironment adds/overrides the list of api keys on populate.
+func (a AuthRepo) AddAPIConfigsForEnvironment(ctx context.Context, envID string, apiKeys []string) error {
+	key := domain.NewAPIConfigsKey(envID)
+	return a.cache.Set(ctx, string(key), apiKeys)
 }
 
 // Get gets the environmentID for the passed api key hash
