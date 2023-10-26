@@ -298,7 +298,7 @@ func TestFeatureFlagRepo_Remove(t *testing.T) {
 
 			} else {
 				assert.Nil(t, repo.Add(ctx, tc.repoConfig...))
-				assert.Nil(t, repo.Remove(ctx, "123", "12345"))
+				assert.Nil(t, repo.RemoveAllFeaturesForEnvironment(ctx, "123"))
 				flags, err := repo.Get(ctx, "123")
 				assert.Equal(t, flags, []domain.FeatureFlag{})
 				assert.Error(t, err)
