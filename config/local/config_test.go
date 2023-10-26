@@ -86,7 +86,7 @@ func (m *mockFlagRepo) RemoveAllFeaturesForEnvironment(ctx context.Context, id s
 	panic("implement me")
 }
 
-func (m *mockFlagRepo) Remove(ctx context.Context, id string) error {
+func (m *mockFlagRepo) Remove(ctx context.Context, env, id string) error {
 	//TODO implement me
 	panic("implement me")
 }

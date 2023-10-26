@@ -69,7 +69,7 @@ type mockFlagRepo struct {
 	config []domain.FlagConfig
 
 	addFn                             func(ctx context.Context, config ...domain.FlagConfig) error
-	removeFn                          func(ctx context.Context, id string) error
+	removeFn                          func(ctx context.Context, env, id string) error
 	removeAllFeaturesForEnvironmentFn func(ctx context.Context, id string) error
 }
 
@@ -78,7 +78,7 @@ func (m *mockFlagRepo) RemoveAllFeaturesForEnvironment(ctx context.Context, id s
 	panic("implement me")
 }
 
-func (m *mockFlagRepo) Remove(ctx context.Context, id string) error {
+func (m *mockFlagRepo) Remove(ctx context.Context, env, id string) error {
 	//TODO implement me
 	panic("implement me")
 }

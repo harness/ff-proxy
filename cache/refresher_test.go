@@ -212,7 +212,7 @@ func TestRefresher_HandleMessage(t *testing.T) {
 		removeAllFeaturesForEnvironmentFn: func(ctx context.Context, id string) error {
 			return nil
 		},
-		removeFn: func(ctx context.Context, id string) error {
+		removeFn: func(ctx context.Context, env, id string) error {
 			return nil
 		},
 		addFn: func(ctx context.Context, values ...domain.FlagConfig) error {
@@ -493,7 +493,7 @@ func (m mockAuthRepo) Add(ctx context.Context, values ...domain.AuthConfig) erro
 
 type mockFlagRepo struct {
 	addFn                             func(ctx context.Context, values ...domain.FlagConfig) error
-	removeFn                          func(ctx context.Context, id string) error
+	removeFn                          func(ctx context.Context, env, id string) error
 	removeAllFeaturesForEnvironmentFn func(ctx context.Context, id string) error
 }
 
@@ -501,8 +501,8 @@ func (m mockFlagRepo) RemoveAllFeaturesForEnvironment(ctx context.Context, id st
 	return m.removeAllFeaturesForEnvironmentFn(ctx, id)
 }
 
-func (m mockFlagRepo) Remove(ctx context.Context, id string) error {
-	return m.removeFn(ctx, id)
+func (m mockFlagRepo) Remove(ctx context.Context, env, id string) error {
+	return m.removeFn(ctx, env, id)
 }
 func (m mockFlagRepo) Add(ctx context.Context, values ...domain.FlagConfig) error {
 	return m.addFn(ctx, values...)

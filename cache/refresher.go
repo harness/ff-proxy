@@ -236,5 +236,5 @@ func (s Refresher) handleDeleteFeatureEvent(ctx context.Context, env, identifier
 		return err
 	}
 	// remove deleted flag entry.
-	return s.flagRepo.Remove(ctx, identifier)
+	return s.flagRepo.Remove(ctx, env, identifier)
 }
