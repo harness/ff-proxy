@@ -42,7 +42,7 @@ func NewRefresher(l log.Logger, config config.Config, client domain.ClientServic
 func (s Refresher) HandleMessage(ctx context.Context, msg domain.SSEMessage) error {
 	switch msg.Domain {
 	case domain.MsgDomainFeature:
-		return handleFeatureMessage(ctx, msg)
+		return s.handleFeatureMessage(ctx, msg)
 	case domain.MsgDomainSegment:
 		return handleSegmentMessage(ctx, msg)
 	case domain.MsgDomainProxy:
@@ -53,12 +53,18 @@ func (s Refresher) HandleMessage(ctx context.Context, msg domain.SSEMessage) err
 
 }
 
-func handleFeatureMessage(_ context.Context, msg domain.SSEMessage) error {
+func (s Refresher) handleFeatureMessage(ctx context.Context, msg domain.SSEMessage) error {
 	switch msg.Event {
 	case domain.EventDelete:
-		// delete from the cache
+		if err := s.handleDeleteFeatureEvent(ctx, msg.Environment, msg.Identifier); err != nil {
+			s.log.Error("failed to handle feature delete event", "err", err)
+			return err
+		}
 	case domain.EventPatch, domain.EventCreate:
-
+		if err := s.handleFetchFeatureEvent(ctx, msg.Environment, msg.Identifier); err != nil {
+			s.log.Error("failed to handle feature update event", "err", err)
+			return err
+		}
 	default:
 		return fmt.Errorf("%w %q for FeatureMessage", ErrUnexpectedEventType, msg.Event)
 	}
@@ -153,7 +159,7 @@ func (s Refresher) handleRemoveEnvironmentEvent(ctx context.Context, environment
 			return fmt.Errorf("failed to remove apikey configs from cache for environment %s with error %s", env, err)
 		}
 
-		if err := s.flagRepo.Remove(ctx, env); err != nil {
+		if err := s.flagRepo.RemoveAllFeaturesForEnvironment(ctx, env); err != nil {
 			return fmt.Errorf("failed to remove flag config from cache for environment %s with error %s", env, err)
 		}
 
@@ -189,4 +195,46 @@ func (s Refresher) handleRemoveAPIKeyEvent(ctx context.Context, env, apiKey stri
 		return err
 	}
 	return s.authRepo.PatchAPIConfigForEnvironment(ctx, env, apiKey, domain.EventAPIKeyRemoved)
+}
+
+func (s Refresher) handleFetchFeatureEvent(ctx context.Context, env, id string) error {
+	s.log.Debug("updating featureConfig entry", "environment", env, "identifier", id)
+
+	featureConfigs, err := s.clientService.FetchFeatureConfigForEnvironment(ctx, s.config.Token(), env)
+	if err != nil {
+		return err
+	}
+	features := make([]domain.FeatureFlag, 0, len(featureConfigs))
+	for _, v := range featureConfigs {
+		features = append(features, domain.FeatureFlag(v))
+	}
+
+	// set the config
+	return s.flagRepo.Add(ctx, domain.FlagConfig{
+		EnvironmentID:  env,
+		FeatureConfigs: features,
+	})
+}
+
+func (s Refresher) handleDeleteFeatureEvent(ctx context.Context, env, identifier string) error {
+	s.log.Debug("removing featureConfig entry", "environment", env, "identifier", identifier)
+	// fetch and reset config map and delete the entry.
+	featureConfigs, err := s.clientService.FetchFeatureConfigForEnvironment(ctx, s.config.Token(), env)
+	if err != nil {
+		return err
+	}
+	features := make([]domain.FeatureFlag, 0, len(featureConfigs))
+	for _, v := range featureConfigs {
+		features = append(features, domain.FeatureFlag(v))
+	}
+
+	// set the config
+	if err := s.flagRepo.Add(ctx, domain.FlagConfig{
+		EnvironmentID:  env,
+		FeatureConfigs: features,
+	}); err != nil {
+		return err
+	}
+	// remove deleted flag entry.
+	return s.flagRepo.Remove(ctx, env, identifier)
 }

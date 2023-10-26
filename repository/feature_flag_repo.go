@@ -88,10 +88,16 @@ func (f FeatureFlagRepo) Add(ctx context.Context, config ...domain.FlagConfig) e
 	return nil
 }
 
-// Remove removes all feature entries for given environment id
-func (f FeatureFlagRepo) Remove(ctx context.Context, id string) error {
+// Remove removes the feature entry from the cache
+func (f FeatureFlagRepo) Remove(ctx context.Context, env, identifier string) error {
+	fcKey := domain.NewFeatureConfigKey(env, identifier)
+	return f.cache.Delete(ctx, string(fcKey))
+}
 
-	//get all the feature for given key
+// RemoveAllFeaturesForEnvironment removes all feature entries for given environment id
+func (f FeatureFlagRepo) RemoveAllFeaturesForEnvironment(ctx context.Context, id string) error {
+
+	// get all the feature for given key
 	flags, err := f.Get(ctx, id)
 	if err != nil {
 		return err

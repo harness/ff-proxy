@@ -14,7 +14,8 @@ type AuthRepo interface {
 // FlagRepo is the interface for the FlagRepository
 type FlagRepo interface {
 	Add(ctx context.Context, config ...FlagConfig) error
-	Remove(ctx context.Context, id string) error
+	Remove(ctx context.Context, envID, id string) error
+	RemoveAllFeaturesForEnvironment(ctx context.Context, id string) error
 }
 
 // SegmentRepo is the interface for the SegmentRepository

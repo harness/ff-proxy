@@ -78,11 +78,15 @@ func (m *mockSegmentRepo) Add(ctx context.Context, config ...domain.SegmentConfi
 
 type mockFlagRepo struct {
 	config []domain.FlagConfig
-
-	add func(ctx context.Context, config ...domain.FlagConfig) error
+	add    func(ctx context.Context, config ...domain.FlagConfig) error
 }
 
-func (m *mockFlagRepo) Remove(ctx context.Context, id string) error {
+func (m *mockFlagRepo) RemoveAllFeaturesForEnvironment(ctx context.Context, id string) error {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (m *mockFlagRepo) Remove(ctx context.Context, env, id string) error {
 	//TODO implement me
 	panic("implement me")
 }

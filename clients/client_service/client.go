@@ -8,11 +8,12 @@ import (
 	"strings"
 
 	"github.com/golang-jwt/jwt"
+	jsoniter "github.com/json-iterator/go"
+
 	"github.com/harness/ff-proxy/v2/domain"
 	clientgen "github.com/harness/ff-proxy/v2/gen/client"
 	"github.com/harness/ff-proxy/v2/log"
 	"github.com/harness/ff-proxy/v2/token"
-	jsoniter "github.com/json-iterator/go"
 )
 
 var (
@@ -212,6 +213,26 @@ func (c Client) getProxyConfig(ctx context.Context, input domain.GetProxyConfigI
 			return clientgen.ProxyConfig{}, ErrInternal
 		}
 		return clientgen.ProxyConfig{}, err
+	}
+
+	return *resp.JSON200, nil
+}
+
+func (c Client) FetchFeatureConfigForEnvironment(ctx context.Context, authToken, envID string) ([]clientgen.FeatureConfig, error) {
+	resp, err := c.client.GetFeatureConfigWithResponse(ctx, envID, &clientgen.GetFeatureConfigParams{}, func(ctx context.Context, req *http.Request) error {
+		req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", authToken))
+		return nil
+	})
+	if err != nil {
+		return []clientgen.FeatureConfig{}, fmt.Errorf("%w: %s", ErrInternal, err)
+	}
+
+	if resp.JSON200 == nil {
+		err, ok := statusCodeToErr[resp.StatusCode()]
+		if !ok {
+			return []clientgen.FeatureConfig{}, ErrInternal
+		}
+		return []clientgen.FeatureConfig{}, err
 	}
 
 	return *resp.JSON200, nil
