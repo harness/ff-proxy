@@ -10,6 +10,7 @@ import (
 
 	clientservice "github.com/harness/ff-proxy/v2/clients/client_service"
 	"github.com/harness/ff-proxy/v2/domain"
+	clientgen "github.com/harness/ff-proxy/v2/gen/client"
 )
 
 type mockAuthRepo struct {
@@ -67,7 +68,14 @@ func (m *mockSegmentRepo) Add(ctx context.Context, config ...domain.SegmentConfi
 type mockFlagRepo struct {
 	config []domain.FlagConfig
 
-	add func(ctx context.Context, config ...domain.FlagConfig) error
+	addFn                             func(ctx context.Context, config ...domain.FlagConfig) error
+	removeFn                          func(ctx context.Context, id string) error
+	removeAllFeaturesForEnvironmentFn func(ctx context.Context, id string) error
+}
+
+func (m *mockFlagRepo) RemoveAllFeaturesForEnvironment(ctx context.Context, id string) error {
+	//TODO implement me
+	panic("implement me")
 }
 
 func (m *mockFlagRepo) Remove(ctx context.Context, id string) error {
@@ -76,7 +84,7 @@ func (m *mockFlagRepo) Remove(ctx context.Context, id string) error {
 }
 
 func (m *mockFlagRepo) Add(ctx context.Context, config ...domain.FlagConfig) error {
-	if err := m.add(ctx, config...); err != nil {
+	if err := m.addFn(ctx, config...); err != nil {
 		return err
 	}
 	m.config = append(m.config, config...)
@@ -86,6 +94,11 @@ func (m *mockFlagRepo) Add(ctx context.Context, config ...domain.FlagConfig) err
 type mockClientService struct {
 	authProxyKey    func() (domain.AuthenticateProxyKeyResponse, error)
 	pageProxyConfig func() ([]domain.ProxyConfig, error)
+}
+
+func (m mockClientService) FetchFeatureConfigForEnvironment(ctx context.Context, authToken, envId string) ([]clientgen.FeatureConfig, error) {
+	//TODO implement me
+	panic("implement me")
 }
 
 func (m mockClientService) AuthenticateProxyKey(ctx context.Context, key string) (domain.AuthenticateProxyKeyResponse, error) {
@@ -263,7 +276,7 @@ func TestConfig_Populate(t *testing.T) {
 					},
 				},
 				flagRepo: &mockFlagRepo{
-					add: func(ctx context.Context, config ...domain.FlagConfig) error {
+					addFn: func(ctx context.Context, config ...domain.FlagConfig) error {
 						return errors.New("an error")
 					},
 				},
@@ -301,7 +314,7 @@ func TestConfig_Populate(t *testing.T) {
 					},
 				},
 				flagRepo: &mockFlagRepo{
-					add: func(ctx context.Context, config ...domain.FlagConfig) error {
+					addFn: func(ctx context.Context, config ...domain.FlagConfig) error {
 						return nil
 					},
 				},
@@ -339,7 +352,7 @@ func TestConfig_Populate(t *testing.T) {
 					},
 				},
 				flagRepo: &mockFlagRepo{
-					add: func(ctx context.Context, config ...domain.FlagConfig) error {
+					addFn: func(ctx context.Context, config ...domain.FlagConfig) error {
 						return nil
 					},
 				},
