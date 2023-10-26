@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/harness/ff-proxy/v2/domain"
+	clientgen "github.com/harness/ff-proxy/v2/gen/client"
 	"github.com/harness/ff-proxy/v2/log"
 )
 
@@ -187,6 +188,10 @@ func TestRefresher_HandleMessage(t *testing.T) {
 		PageProxyConfigFn: func(ctx context.Context, input domain.GetProxyConfigInput) ([]domain.ProxyConfig, error) {
 			return []domain.ProxyConfig{}, nil
 		},
+
+		FetchFeatureConfigForEnvironmentFn: func(ctx context.Context, authToken, envId string) ([]clientgen.FeatureConfig, error) {
+			return []clientgen.FeatureConfig{}, nil
+		},
 	}
 
 	authRepo := mockAuthRepo{
@@ -204,7 +209,13 @@ func TestRefresher_HandleMessage(t *testing.T) {
 		},
 	}
 	flagRepo := mockFlagRepo{
+		removeAllFeaturesForEnvironmentFn: func(ctx context.Context, id string) error {
+			return nil
+		},
 		removeFn: func(ctx context.Context, id string) error {
+			return nil
+		},
+		addFn: func(ctx context.Context, values ...domain.FlagConfig) error {
 			return nil
 		},
 	}
@@ -481,14 +492,18 @@ func (m mockAuthRepo) Add(ctx context.Context, values ...domain.AuthConfig) erro
 }
 
 type mockFlagRepo struct {
-	addFn    func(ctx context.Context, values ...domain.FlagConfig) error
-	removeFn func(ctx context.Context, id string) error
+	addFn                             func(ctx context.Context, values ...domain.FlagConfig) error
+	removeFn                          func(ctx context.Context, id string) error
+	removeAllFeaturesForEnvironmentFn func(ctx context.Context, id string) error
+}
+
+func (m mockFlagRepo) RemoveAllFeaturesForEnvironment(ctx context.Context, id string) error {
+	return m.removeAllFeaturesForEnvironmentFn(ctx, id)
 }
 
 func (m mockFlagRepo) Remove(ctx context.Context, id string) error {
 	return m.removeFn(ctx, id)
 }
-
 func (m mockFlagRepo) Add(ctx context.Context, values ...domain.FlagConfig) error {
 	return m.addFn(ctx, values...)
 }
@@ -507,7 +522,12 @@ func (m mockSegmentRepo) Add(ctx context.Context, values ...domain.SegmentConfig
 }
 
 type mockClientService struct {
-	PageProxyConfigFn func(ctx context.Context, input domain.GetProxyConfigInput) ([]domain.ProxyConfig, error)
+	PageProxyConfigFn                  func(ctx context.Context, input domain.GetProxyConfigInput) ([]domain.ProxyConfig, error)
+	FetchFeatureConfigForEnvironmentFn func(ctx context.Context, authToken, envId string) ([]clientgen.FeatureConfig, error)
+}
+
+func (c mockClientService) FetchFeatureConfigForEnvironment(ctx context.Context, authToken, envId string) ([]clientgen.FeatureConfig, error) {
+	return c.FetchFeatureConfigForEnvironmentFn(ctx, authToken, envId)
 }
 
 func (c mockClientService) AuthenticateProxyKey(ctx context.Context, key string) (domain.AuthenticateProxyKeyResponse, error) {
