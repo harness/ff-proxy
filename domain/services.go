@@ -10,5 +10,5 @@ import (
 type ClientService interface {
 	AuthenticateProxyKey(ctx context.Context, key string) (AuthenticateProxyKeyResponse, error)
 	PageProxyConfig(ctx context.Context, input GetProxyConfigInput) ([]ProxyConfig, error)
-	FetchFeatureConfigForEnvironment(ctx context.Context, authToken, envId string) ([]clientgen.FeatureConfig, error)
+	FetchFeatureConfigForEnvironment(ctx context.Context, authToken, envID string) ([]clientgen.FeatureConfig, error)
 }

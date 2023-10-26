@@ -218,8 +218,8 @@ func (c Client) getProxyConfig(ctx context.Context, input domain.GetProxyConfigI
 	return *resp.JSON200, nil
 }
 
-func (c Client) FetchFeatureConfigForEnvironment(ctx context.Context, authToken, envId string) ([]clientgen.FeatureConfig, error) {
-	resp, err := c.client.GetFeatureConfigWithResponse(ctx, envId, &clientgen.GetFeatureConfigParams{}, func(ctx context.Context, req *http.Request) error {
+func (c Client) FetchFeatureConfigForEnvironment(ctx context.Context, authToken, envID string) ([]clientgen.FeatureConfig, error) {
+	resp, err := c.client.GetFeatureConfigWithResponse(ctx, envID, &clientgen.GetFeatureConfigParams{}, func(ctx context.Context, req *http.Request) error {
 		req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", authToken))
 		return nil
 	})
