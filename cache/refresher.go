@@ -210,14 +210,10 @@ func (s Refresher) handleFetchFeatureEvent(ctx context.Context, env, id string) 
 	}
 
 	// set the config
-	if err := s.flagRepo.Add(ctx, domain.FlagConfig{
+	return s.flagRepo.Add(ctx, domain.FlagConfig{
 		EnvironmentID:  env,
 		FeatureConfigs: features,
-	}); err != nil {
-		return err
-	}
-
-	return nil
+	})
 }
 
 func (s Refresher) handleDeleteFeatureEvent(ctx context.Context, env, identifier string) error {
