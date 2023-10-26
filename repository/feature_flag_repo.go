@@ -89,8 +89,8 @@ func (f FeatureFlagRepo) Add(ctx context.Context, config ...domain.FlagConfig) e
 }
 
 // Remove removes the feature entry from the cache
-func (f FeatureFlagRepo) Remove(ctx context.Context, identifier string) error {
-	fcKey := domain.NewFeatureConfigsKey(identifier)
+func (f FeatureFlagRepo) Remove(ctx context.Context, env, identifier string) error {
+	fcKey := domain.NewFeatureConfigKey(env, identifier)
 	return f.cache.Delete(ctx, string(fcKey))
 }
 
