@@ -192,6 +192,9 @@ func TestRefresher_HandleMessage(t *testing.T) {
 		FetchFeatureConfigForEnvironmentFn: func(ctx context.Context, authToken, envId string) ([]clientgen.FeatureConfig, error) {
 			return []clientgen.FeatureConfig{}, nil
 		},
+		FetchSegmentConfigForEnvironmentFn: func(ctx context.Context, authToken, envId string) ([]clientgen.Segment, error) {
+			return []clientgen.Segment{}, nil
+		},
 	}
 
 	authRepo := mockAuthRepo{
@@ -218,10 +221,23 @@ func TestRefresher_HandleMessage(t *testing.T) {
 		addFn: func(ctx context.Context, values ...domain.FlagConfig) error {
 			return nil
 		},
+		getFeatureConfigForEnvironmentFn: func(ctx context.Context, envID string) ([]domain.FeatureFlag, bool) {
+			return []domain.FeatureFlag{}, true
+		},
 	}
 	segmentRepo := mockSegmentRepo{
-		removeFn: func(ctx context.Context, id string) error {
+
+		addFn: func(ctx context.Context, values ...domain.SegmentConfig) error {
 			return nil
+		},
+		removeFn: func(ctx context.Context, env, id string) error {
+			return nil
+		},
+		removeAllSegmentsForEnvironmentFn: func(ctx context.Context, id string) error {
+			return nil
+		},
+		getSegmentsForEnvironmentFn: func(ctx context.Context, envID string) ([]domain.Segment, bool) {
+			return []domain.Segment{}, true
 		},
 	}
 	config := mockConfig{
@@ -495,6 +511,11 @@ type mockFlagRepo struct {
 	addFn                             func(ctx context.Context, values ...domain.FlagConfig) error
 	removeFn                          func(ctx context.Context, env, id string) error
 	removeAllFeaturesForEnvironmentFn func(ctx context.Context, id string) error
+	getFeatureConfigForEnvironmentFn  func(ctx context.Context, envID string) ([]domain.FeatureFlag, bool)
+}
+
+func (m mockFlagRepo) GetFeatureConfigForEnvironment(ctx context.Context, envID string) ([]domain.FeatureFlag, bool) {
+	return m.getFeatureConfigForEnvironmentFn(ctx, envID)
 }
 
 func (m mockFlagRepo) RemoveAllFeaturesForEnvironment(ctx context.Context, id string) error {
@@ -509,12 +530,22 @@ func (m mockFlagRepo) Add(ctx context.Context, values ...domain.FlagConfig) erro
 }
 
 type mockSegmentRepo struct {
-	addFn    func(ctx context.Context, values ...domain.SegmentConfig) error
-	removeFn func(ctx context.Context, id string) error
+	addFn                             func(ctx context.Context, values ...domain.SegmentConfig) error
+	removeFn                          func(ctx context.Context, env, id string) error
+	removeAllSegmentsForEnvironmentFn func(ctx context.Context, envID string) error
+	getSegmentsForEnvironmentFn       func(ctx context.Context, envID string) ([]domain.Segment, bool)
 }
 
-func (m mockSegmentRepo) Remove(ctx context.Context, id string) error {
-	return m.removeFn(ctx, id)
+func (m mockSegmentRepo) GetSegmentsForEnvironment(ctx context.Context, envID string) ([]domain.Segment, bool) {
+	return m.getSegmentsForEnvironmentFn(ctx, envID)
+}
+
+func (m mockSegmentRepo) Remove(ctx context.Context, envID, id string) error {
+	return m.removeFn(ctx, envID, id)
+}
+
+func (m mockSegmentRepo) RemoveAllSegmentsForEnvironment(ctx context.Context, id string) error {
+	return m.removeAllSegmentsForEnvironmentFn(ctx, id)
 }
 
 func (m mockSegmentRepo) Add(ctx context.Context, values ...domain.SegmentConfig) error {
@@ -524,6 +555,11 @@ func (m mockSegmentRepo) Add(ctx context.Context, values ...domain.SegmentConfig
 type mockClientService struct {
 	PageProxyConfigFn                  func(ctx context.Context, input domain.GetProxyConfigInput) ([]domain.ProxyConfig, error)
 	FetchFeatureConfigForEnvironmentFn func(ctx context.Context, authToken, envId string) ([]clientgen.FeatureConfig, error)
+	FetchSegmentConfigForEnvironmentFn func(ctx context.Context, authToken, envId string) ([]clientgen.Segment, error)
+}
+
+func (c mockClientService) FetchSegmentConfigForEnvironment(ctx context.Context, authToken, envId string) ([]clientgen.Segment, error) {
+	return c.FetchSegmentConfigForEnvironmentFn(ctx, authToken, envId)
 }
 
 func (c mockClientService) FetchFeatureConfigForEnvironment(ctx context.Context, authToken, envId string) ([]clientgen.FeatureConfig, error) {

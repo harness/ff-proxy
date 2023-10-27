@@ -195,11 +195,11 @@ func TestSegmentRepo_Remove(t *testing.T) {
 			repo := NewSegmentRepo(tc.cache)
 
 			if tc.shouldErr {
-				assert.Error(t, repo.Remove(ctx, "123"))
+				assert.Error(t, repo.RemoveAllSegmentsForEnvironment(ctx, "123"))
 
 			} else {
 				assert.Nil(t, repo.Add(ctx, tc.repoConfig...))
-				assert.Nil(t, repo.Remove(ctx, "123"))
+				assert.Nil(t, repo.RemoveAllSegmentsForEnvironment(ctx, "123"))
 				flags, err := repo.Get(ctx, "123")
 				assert.Equal(t, flags, []domain.Segment{})
 				assert.Error(t, err)

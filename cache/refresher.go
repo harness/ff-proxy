@@ -44,7 +44,7 @@ func (s Refresher) HandleMessage(ctx context.Context, msg domain.SSEMessage) err
 	case domain.MsgDomainFeature:
 		return s.handleFeatureMessage(ctx, msg)
 	case domain.MsgDomainSegment:
-		return handleSegmentMessage(ctx, msg)
+		return s.handleSegmentMessage(ctx, msg)
 	case domain.MsgDomainProxy:
 		return s.handleProxyMessage(ctx, msg)
 	default:
@@ -71,11 +71,18 @@ func (s Refresher) handleFeatureMessage(ctx context.Context, msg domain.SSEMessa
 	return nil
 }
 
-func handleSegmentMessage(_ context.Context, msg domain.SSEMessage) error {
+func (s Refresher) handleSegmentMessage(ctx context.Context, msg domain.SSEMessage) error {
 	switch msg.Event {
 	case domain.EventDelete:
+		if err := s.handleDeleteSegmentEvent(ctx, msg.Environment, msg.Identifier); err != nil {
+			s.log.Error("failed to handle segment delete event", "err", err)
+			return err
+		}
 	case domain.EventPatch, domain.EventCreate:
-
+		if err := s.handleFetchSegmentEvent(ctx, msg.Environment, msg.Identifier); err != nil {
+			s.log.Error("failed to handle segment update event", "err", err)
+			return err
+		}
 	default:
 		return fmt.Errorf("%w %q for SegmentMessage", ErrUnexpectedEventType, msg.Event)
 	}
@@ -163,7 +170,7 @@ func (s Refresher) handleRemoveEnvironmentEvent(ctx context.Context, environment
 			return fmt.Errorf("failed to remove flag config from cache for environment %s with error %s", env, err)
 		}
 
-		if err := s.segmentRepo.Remove(ctx, env); err != nil {
+		if err := s.segmentRepo.RemoveAllSegmentsForEnvironment(ctx, env); err != nil {
 			return fmt.Errorf("failed to remove segment config from cache for environment %s with error %s", env, err)
 		}
 	}
@@ -219,22 +226,64 @@ func (s Refresher) handleFetchFeatureEvent(ctx context.Context, env, id string) 
 func (s Refresher) handleDeleteFeatureEvent(ctx context.Context, env, identifier string) error {
 	s.log.Debug("removing featureConfig entry", "environment", env, "identifier", identifier)
 	// fetch and reset config map and delete the entry.
-	featureConfigs, err := s.clientService.FetchFeatureConfigForEnvironment(ctx, s.config.Token(), env)
+	features, _ := s.flagRepo.GetFeatureConfigForEnvironment(ctx, env)
+	if len(features) > 0 {
+		//delete the identifier
+		updatedFeatures := make([]domain.FeatureFlag, 0, len(features))
+		for _, f := range features {
+			if f.Feature != identifier {
+				updatedFeatures = append(updatedFeatures, f)
+			}
+		}
+		if err := s.flagRepo.Add(ctx, domain.FlagConfig{
+			EnvironmentID:  env,
+			FeatureConfigs: updatedFeatures,
+		}); err != nil {
+			return err
+		}
+	}
+	// remove deleted flag entry.
+	return s.flagRepo.Remove(ctx, env, identifier)
+}
+
+func (s Refresher) handleFetchSegmentEvent(ctx context.Context, env, id string) error {
+	s.log.Debug("updating featureConfig entry", "environment", env, "identifier", id)
+
+	segmentConfig, err := s.clientService.FetchSegmentConfigForEnvironment(ctx, s.config.Token(), env)
 	if err != nil {
 		return err
 	}
-	features := make([]domain.FeatureFlag, 0, len(featureConfigs))
-	for _, v := range featureConfigs {
-		features = append(features, domain.FeatureFlag(v))
+	segments := make([]domain.Segment, 0, len(segmentConfig))
+	for _, v := range segmentConfig {
+		segments = append(segments, domain.Segment(v))
 	}
 
 	// set the config
-	if err := s.flagRepo.Add(ctx, domain.FlagConfig{
-		EnvironmentID:  env,
-		FeatureConfigs: features,
+	return s.segmentRepo.Add(ctx, domain.SegmentConfig{
+		EnvironmentID: env,
+		Segments:      segments,
+	})
+}
+
+func (s Refresher) handleDeleteSegmentEvent(ctx context.Context, env, identifier string) error {
+	s.log.Debug("removing featureConfig entry", "environment", env, "identifier", identifier)
+	// get the segment entry for the environment and update it.
+	segments, _ := s.segmentRepo.GetSegmentsForEnvironment(ctx, env)
+	if len(segments) > 0 {
+		//delete the identifier
+		updatedSegment := make([]domain.Segment, 0, len(segments))
+		for _, s := range segments {
+			if s.Identifier != identifier {
+				updatedSegment = append(updatedSegment, s)
+			}
+		}
+	}
+	if err := s.segmentRepo.Add(ctx, domain.SegmentConfig{
+		EnvironmentID: env,
+		Segments:      segments,
 	}); err != nil {
 		return err
 	}
 	// remove deleted flag entry.
-	return s.flagRepo.Remove(ctx, env, identifier)
+	return s.segmentRepo.Remove(ctx, env, identifier)
 }

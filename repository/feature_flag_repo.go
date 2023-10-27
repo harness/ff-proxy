@@ -88,6 +88,17 @@ func (f FeatureFlagRepo) Add(ctx context.Context, config ...domain.FlagConfig) e
 	return nil
 }
 
+// GetFeatureConfigForEnvironment gets the feature config for environment from cache.
+func (f FeatureFlagRepo) GetFeatureConfigForEnvironment(ctx context.Context, envID string) ([]domain.FeatureFlag, bool) {
+	var features []domain.FeatureFlag
+	key := domain.NewFeatureConfigsKey(envID)
+	if err := f.cache.Get(ctx, string(key), &features); err != nil {
+		return features, false
+	}
+
+	return features, true
+}
+
 // Remove removes the feature entry from the cache
 func (f FeatureFlagRepo) Remove(ctx context.Context, env, identifier string) error {
 	fcKey := domain.NewFeatureConfigKey(env, identifier)
