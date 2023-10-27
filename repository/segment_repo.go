@@ -103,7 +103,7 @@ func (s SegmentRepo) RemoveAllSegmentsForEnvironment(ctx context.Context, id str
 }
 
 // Remove removes the Segment entry from the cache
-func (f SegmentRepo) Remove(ctx context.Context, env, identifier string) error {
+func (s SegmentRepo) Remove(ctx context.Context, env, identifier string) error {
 	sKey := domain.NewSegmentKey(env, identifier)
-	return f.cache.Delete(ctx, string(sKey))
+	return s.cache.Delete(ctx, string(sKey))
 }
