@@ -60,12 +60,17 @@ func (m *mockAuthRepo) Add(ctx context.Context, config ...domain.AuthConfig) err
 type mockSegmentRepo struct {
 	config []domain.SegmentConfig
 
-	add func(ctx context.Context, config ...domain.SegmentConfig) error
+	add                               func(ctx context.Context, config ...domain.SegmentConfig) error
+	removeFn                          func(ctx context.Context, env, id string) error
+	removeAllSegmentsForEnvironmentFn func(ctx context.Context, id string) error
 }
 
-func (m *mockSegmentRepo) Remove(ctx context.Context, id string) error {
-	//TODO implement me
-	panic("implement me")
+func (m *mockSegmentRepo) RemoveAllSegmentsForEnvironment(ctx context.Context, id string) error {
+	return m.removeAllSegmentsForEnvironmentFn(ctx, id)
+}
+
+func (m *mockSegmentRepo) Remove(ctx context.Context, env, id string) error {
+	return m.removeFn(ctx, env, id)
 }
 
 func (m *mockSegmentRepo) Add(ctx context.Context, config ...domain.SegmentConfig) error {

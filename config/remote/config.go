@@ -33,6 +33,9 @@ func (c *Config) Token() string {
 
 // ClusterIdentifier returns the identifier of the cluster that the Config authenticated against
 func (c *Config) ClusterIdentifier() string {
+	if c.clusterIdentifier == "" {
+		return "1"
+	}
 	return c.clusterIdentifier
 }
 

@@ -192,6 +192,9 @@ func TestRefresher_HandleMessage(t *testing.T) {
 		FetchFeatureConfigForEnvironmentFn: func(ctx context.Context, authToken, envId string) ([]clientgen.FeatureConfig, error) {
 			return []clientgen.FeatureConfig{}, nil
 		},
+		FetchSegmentConfigForEnvironmentFn: func(ctx context.Context, authToken, envId string) ([]clientgen.Segment, error) {
+			return []clientgen.Segment{}, nil
+		},
 	}
 
 	authRepo := mockAuthRepo{
@@ -220,7 +223,14 @@ func TestRefresher_HandleMessage(t *testing.T) {
 		},
 	}
 	segmentRepo := mockSegmentRepo{
-		removeFn: func(ctx context.Context, id string) error {
+
+		addFn: func(ctx context.Context, values ...domain.SegmentConfig) error {
+			return nil
+		},
+		removeFn: func(ctx context.Context, env, id string) error {
+			return nil
+		},
+		removeAllSegmentsForEnvironmentFn: func(ctx context.Context, id string) error {
 			return nil
 		},
 	}
@@ -509,12 +519,17 @@ func (m mockFlagRepo) Add(ctx context.Context, values ...domain.FlagConfig) erro
 }
 
 type mockSegmentRepo struct {
-	addFn    func(ctx context.Context, values ...domain.SegmentConfig) error
-	removeFn func(ctx context.Context, id string) error
+	addFn                             func(ctx context.Context, values ...domain.SegmentConfig) error
+	removeFn                          func(ctx context.Context, env, id string) error
+	removeAllSegmentsForEnvironmentFn func(ctx context.Context, id string) error
 }
 
-func (m mockSegmentRepo) Remove(ctx context.Context, id string) error {
-	return m.removeFn(ctx, id)
+func (m mockSegmentRepo) Remove(ctx context.Context, envID, id string) error {
+	return m.removeFn(ctx, envID, id)
+}
+
+func (m mockSegmentRepo) RemoveAllSegmentsForEnvironment(ctx context.Context, id string) error {
+	return m.removeAllSegmentsForEnvironmentFn(ctx, id)
 }
 
 func (m mockSegmentRepo) Add(ctx context.Context, values ...domain.SegmentConfig) error {
@@ -524,6 +539,11 @@ func (m mockSegmentRepo) Add(ctx context.Context, values ...domain.SegmentConfig
 type mockClientService struct {
 	PageProxyConfigFn                  func(ctx context.Context, input domain.GetProxyConfigInput) ([]domain.ProxyConfig, error)
 	FetchFeatureConfigForEnvironmentFn func(ctx context.Context, authToken, envId string) ([]clientgen.FeatureConfig, error)
+	FetchSegmentConfigForEnvironmentFn func(ctx context.Context, authToken, envId string) ([]clientgen.Segment, error)
+}
+
+func (c mockClientService) FetchSegmentConfigForEnvironment(ctx context.Context, authToken, envId string) ([]clientgen.Segment, error) {
+	return c.FetchSegmentConfigForEnvironmentFn(ctx, authToken, envId)
 }
 
 func (c mockClientService) FetchFeatureConfigForEnvironment(ctx context.Context, authToken, envId string) ([]clientgen.FeatureConfig, error) {

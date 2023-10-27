@@ -79,9 +79,8 @@ func (s SegmentRepo) Add(ctx context.Context, config ...domain.SegmentConfig) er
 	return nil
 }
 
-// Remove removes all segment entries for given environment id
-func (s SegmentRepo) Remove(ctx context.Context, id string) error {
-
+// RemoveAllSegmentsForEnvironment removes all segments entries for given environment id
+func (s SegmentRepo) RemoveAllSegmentsForEnvironment(ctx context.Context, id string) error {
 	//get all the segments for given key
 	segments, err := s.Get(ctx, id)
 	if err != nil {
@@ -101,4 +100,10 @@ func (s SegmentRepo) Remove(ctx context.Context, id string) error {
 		}
 	}
 	return nil
+}
+
+// Remove removes the Segment entry from the cache
+func (f SegmentRepo) Remove(ctx context.Context, env, identifier string) error {
+	sKey := domain.NewSegmentKey(env, identifier)
+	return f.cache.Delete(ctx, string(sKey))
 }

@@ -49,12 +49,17 @@ func (m *mockAuthRepo) Add(ctx context.Context, config ...domain.AuthConfig) err
 type mockSegmentRepo struct {
 	config []domain.SegmentConfig
 
-	add func(ctx context.Context, config ...domain.SegmentConfig) error
+	add                               func(ctx context.Context, config ...domain.SegmentConfig) error
+	removeFn                          func(ctx context.Context, env, id string) error
+	removeAllSegmentsForEnvironmentFn func(ctx context.Context, id string) error
 }
 
-func (m *mockSegmentRepo) Remove(ctx context.Context, id string) error {
-	//TODO implement me
-	panic("implement me")
+func (m *mockSegmentRepo) RemoveAllSegmentsForEnvironment(ctx context.Context, id string) error {
+	return m.removeAllSegmentsForEnvironmentFn(ctx, id)
+}
+
+func (m *mockSegmentRepo) Remove(ctx context.Context, env, id string) error {
+	return m.removeFn(ctx, env, id)
 }
 
 func (m *mockSegmentRepo) Add(ctx context.Context, config ...domain.SegmentConfig) error {
@@ -94,6 +99,11 @@ func (m *mockFlagRepo) Add(ctx context.Context, config ...domain.FlagConfig) err
 type mockClientService struct {
 	authProxyKey    func() (domain.AuthenticateProxyKeyResponse, error)
 	pageProxyConfig func() ([]domain.ProxyConfig, error)
+}
+
+func (m mockClientService) FetchSegmentConfigForEnvironment(ctx context.Context, authToken, envID string) ([]clientgen.Segment, error) {
+	//TODO implement me
+	panic("implement me")
 }
 
 func (m mockClientService) FetchFeatureConfigForEnvironment(ctx context.Context, authToken, envId string) ([]clientgen.FeatureConfig, error) {

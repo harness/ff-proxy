@@ -237,3 +237,24 @@ func (c Client) FetchFeatureConfigForEnvironment(ctx context.Context, authToken,
 
 	return *resp.JSON200, nil
 }
+
+func (c Client) FetchSegmentConfigForEnvironment(ctx context.Context, authToken, envID string) ([]clientgen.Segment, error) {
+
+	resp, err := c.client.GetAllSegmentsWithResponse(ctx, envID, &clientgen.GetAllSegmentsParams{}, func(ctx context.Context, req *http.Request) error {
+		req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", authToken))
+		return nil
+	})
+	if err != nil {
+		return []clientgen.Segment{}, fmt.Errorf("%w: %s", ErrInternal, err)
+	}
+
+	if resp.JSON200 == nil {
+		err, ok := statusCodeToErr[resp.StatusCode()]
+		if !ok {
+			return []clientgen.Segment{}, ErrInternal
+		}
+		return []clientgen.Segment{}, err
+	}
+
+	return *resp.JSON200, nil
+}
