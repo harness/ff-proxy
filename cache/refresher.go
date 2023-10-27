@@ -226,21 +226,21 @@ func (s Refresher) handleFetchFeatureEvent(ctx context.Context, env, id string) 
 func (s Refresher) handleDeleteFeatureEvent(ctx context.Context, env, identifier string) error {
 	s.log.Debug("removing featureConfig entry", "environment", env, "identifier", identifier)
 	// fetch and reset config map and delete the entry.
-	featureConfigs, err := s.clientService.FetchFeatureConfigForEnvironment(ctx, s.config.Token(), env)
-	if err != nil {
-		return err
-	}
-	features := make([]domain.FeatureFlag, 0, len(featureConfigs))
-	for _, v := range featureConfigs {
-		features = append(features, domain.FeatureFlag(v))
-	}
-
-	// set the config
-	if err := s.flagRepo.Add(ctx, domain.FlagConfig{
-		EnvironmentID:  env,
-		FeatureConfigs: features,
-	}); err != nil {
-		return err
+	features, _ := s.flagRepo.GetFeatureConfigForEnvironment(ctx, env)
+	if len(features) > 0 {
+		//delete the identifier
+		updatedFeatures := make([]domain.FeatureFlag, 0, len(features))
+		for _, f := range features {
+			if f.Feature != identifier {
+				updatedFeatures = append(updatedFeatures, f)
+			}
+		}
+		if err := s.flagRepo.Add(ctx, domain.FlagConfig{
+			EnvironmentID:  env,
+			FeatureConfigs: updatedFeatures,
+		}); err != nil {
+			return err
+		}
 	}
 	// remove deleted flag entry.
 	return s.flagRepo.Remove(ctx, env, identifier)
@@ -267,17 +267,17 @@ func (s Refresher) handleFetchSegmentEvent(ctx context.Context, env, id string) 
 
 func (s Refresher) handleDeleteSegmentEvent(ctx context.Context, env, identifier string) error {
 	s.log.Debug("removing featureConfig entry", "environment", env, "identifier", identifier)
-	// fetch and reset config map and delete the entry.
-	segmentConfig, err := s.clientService.FetchSegmentConfigForEnvironment(ctx, s.config.Token(), env)
-	if err != nil {
-		return err
+	// get the segment entry for the environment and update it.
+	segments, _ := s.segmentRepo.GetSegmentsForEnvironment(ctx, env)
+	if len(segments) > 0 {
+		//delete the identifier
+		updatedSegment := make([]domain.Segment, 0, len(segments))
+		for _, s := range segments {
+			if s.Identifier != identifier {
+				updatedSegment = append(updatedSegment, s)
+			}
+		}
 	}
-	segments := make([]domain.Segment, 0, len(segmentConfig))
-	for _, v := range segmentConfig {
-		segments = append(segments, domain.Segment(v))
-	}
-
-	// set the config
 	if err := s.segmentRepo.Add(ctx, domain.SegmentConfig{
 		EnvironmentID: env,
 		Segments:      segments,

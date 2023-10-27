@@ -79,6 +79,16 @@ func (s SegmentRepo) Add(ctx context.Context, config ...domain.SegmentConfig) er
 	return nil
 }
 
+// GetSegmentsForEnvironment gets all the segments associated with environment id
+func (s SegmentRepo) GetSegmentsForEnvironment(ctx context.Context, envID string) ([]domain.Segment, bool) {
+	var segments []domain.Segment
+	key := domain.NewSegmentsKey(envID)
+	if err := s.cache.Get(ctx, string(key), &segments); err != nil {
+		return segments, false
+	}
+	return segments, true
+}
+
 // RemoveAllSegmentsForEnvironment removes all segments entries for given environment id
 func (s SegmentRepo) RemoveAllSegmentsForEnvironment(ctx context.Context, id string) error {
 	//get all the segments for given key

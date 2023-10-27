@@ -221,6 +221,9 @@ func TestRefresher_HandleMessage(t *testing.T) {
 		addFn: func(ctx context.Context, values ...domain.FlagConfig) error {
 			return nil
 		},
+		getFeatureConfigForEnvironmentFn: func(ctx context.Context, envID string) ([]domain.FeatureFlag, bool) {
+			return []domain.FeatureFlag{}, true
+		},
 	}
 	segmentRepo := mockSegmentRepo{
 
@@ -232,6 +235,9 @@ func TestRefresher_HandleMessage(t *testing.T) {
 		},
 		removeAllSegmentsForEnvironmentFn: func(ctx context.Context, id string) error {
 			return nil
+		},
+		getSegmentsForEnvironmentFn: func(ctx context.Context, envID string) ([]domain.Segment, bool) {
+			return []domain.Segment{}, true
 		},
 	}
 	config := mockConfig{
@@ -505,6 +511,11 @@ type mockFlagRepo struct {
 	addFn                             func(ctx context.Context, values ...domain.FlagConfig) error
 	removeFn                          func(ctx context.Context, env, id string) error
 	removeAllFeaturesForEnvironmentFn func(ctx context.Context, id string) error
+	getFeatureConfigForEnvironmentFn  func(ctx context.Context, envID string) ([]domain.FeatureFlag, bool)
+}
+
+func (m mockFlagRepo) GetFeatureConfigForEnvironment(ctx context.Context, envID string) ([]domain.FeatureFlag, bool) {
+	return m.getFeatureConfigForEnvironmentFn(ctx, envID)
 }
 
 func (m mockFlagRepo) RemoveAllFeaturesForEnvironment(ctx context.Context, id string) error {
@@ -521,7 +532,12 @@ func (m mockFlagRepo) Add(ctx context.Context, values ...domain.FlagConfig) erro
 type mockSegmentRepo struct {
 	addFn                             func(ctx context.Context, values ...domain.SegmentConfig) error
 	removeFn                          func(ctx context.Context, env, id string) error
-	removeAllSegmentsForEnvironmentFn func(ctx context.Context, id string) error
+	removeAllSegmentsForEnvironmentFn func(ctx context.Context, envID string) error
+	getSegmentsForEnvironmentFn       func(ctx context.Context, envID string) ([]domain.Segment, bool)
+}
+
+func (m mockSegmentRepo) GetSegmentsForEnvironment(ctx context.Context, envID string) ([]domain.Segment, bool) {
+	return m.getSegmentsForEnvironmentFn(ctx, envID)
 }
 
 func (m mockSegmentRepo) Remove(ctx context.Context, envID, id string) error {
