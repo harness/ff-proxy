@@ -73,6 +73,8 @@ func (c *Config) FetchAndPopulate(ctx context.Context, inventory domain.Inventor
 }
 
 // Populate populates repositories with the config
+//
+//nolint:gocognit,cyclop
 func (c *Config) Populate(ctx context.Context, authRepo domain.AuthRepo, flagRepo domain.FlagRepo, segmentRepo domain.SegmentRepo) error {
 	for _, cfg := range c.proxyConfig {
 		for _, env := range cfg.Environments {
@@ -103,7 +105,6 @@ func (c *Config) Populate(ctx context.Context, authRepo domain.AuthRepo, flagRep
 					return fmt.Errorf("failed to add auth config to cache: %s", err)
 				}
 			}
-
 			if len(env.FeatureConfigs) > 0 {
 				if err := flagRepo.Add(ctx, domain.FlagConfig{
 					EnvironmentID:  env.ID.String(),

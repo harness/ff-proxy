@@ -7,7 +7,7 @@ type InventoryRepo interface {
 	Add(ctx context.Context, key string, assets map[string]string) error
 	Remove(ctx context.Context, key string) error
 	Get(ctx context.Context, key string) (map[string]string, error)
-	Patch(ctx context.Context, key string, assets []string) error
+	Patch(ctx context.Context, key string, assets map[string]string) error
 	BuildAssetListFromConfig(config []ProxyConfig) (map[string]string, error)
 	Cleanup(ctx context.Context, key string, config []ProxyConfig) error
 }

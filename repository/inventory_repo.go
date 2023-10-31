@@ -25,7 +25,7 @@ func (i InventoryRepo) Add(ctx context.Context, key string, assets map[string]st
 	return i.cache.Set(ctx, string(domain.NewKeyInventory(key)), assets)
 }
 
-func (i InventoryRepo) Remove(_ context.Context, key string) error {
+func (i InventoryRepo) Remove(_ context.Context, _ string) error {
 	return nil
 }
 func (i InventoryRepo) Get(ctx context.Context, key string) (map[string]string, error) {
@@ -36,7 +36,7 @@ func (i InventoryRepo) Get(ctx context.Context, key string) (map[string]string, 
 	}
 	return inventory, nil
 }
-func (i InventoryRepo) Patch(_ context.Context, key string, assets []string) error {
+func (i InventoryRepo) Patch(_ context.Context, _ string, _ map[string]string) error {
 	return nil
 }
 
@@ -54,7 +54,7 @@ func (i InventoryRepo) Cleanup(ctx context.Context, key string, config []domain.
 	}
 
 	// work out assets to delete
-	for k, _ := range oldAssets {
+	for k := range oldAssets {
 		// if the key exists in the new assets we don't want to delete it.
 		if _, ok := newAssets[k]; ok {
 			delete(oldAssets, k)
@@ -62,7 +62,7 @@ func (i InventoryRepo) Cleanup(ctx context.Context, key string, config []domain.
 	}
 
 	// what's left of old values. we want to delete.
-	for key, _ := range oldAssets {
+	for key := range oldAssets {
 		err := i.cache.Delete(ctx, key)
 		if err != nil {
 			return err
