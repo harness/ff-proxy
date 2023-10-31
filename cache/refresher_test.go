@@ -441,7 +441,7 @@ func TestRefresher_handleRemoveEnvironmentEvent(t *testing.T) {
 }
 
 type mockConfig struct {
-	fetchAndPopulate func(ctx context.Context, authRepo domain.AuthRepo, flagRepo domain.FlagRepo, segmentRepo domain.SegmentRepo) error
+	fetchAndPopulate func(ctx context.Context, inventoryRepo domain.InventoryRepo, authRepo domain.AuthRepo, flagRepo domain.FlagRepo, segmentRepo domain.SegmentRepo) error
 
 	populate func(ctx context.Context, authRepo domain.AuthRepo, flagRepo domain.FlagRepo, segmentRepo domain.SegmentRepo) error
 	// Key returns proxyKey
@@ -457,8 +457,17 @@ type mockConfig struct {
 	setProxyConfigFn func(proxyConfig []domain.ProxyConfig)
 }
 
-func (m mockConfig) FetchAndPopulate(ctx context.Context, authRepo domain.AuthRepo, flagRepo domain.FlagRepo, segmentRepo domain.SegmentRepo) error {
-	return m.fetchAndPopulate(ctx, authRepo, flagRepo, segmentRepo)
+type mockInventoryRepo struct {
+	addFn                      func(ctx context.Context, key string, assets map[string]string) error
+	removeFn                   func(ctx context.Context, key string) error
+	getFn                      func(ctx context.Context, key string) (map[string]string, error)
+	patchFn                    func(ctx context.Context, key string, assets []string) error
+	buildAssetListFromConfigFn func(config []domain.ProxyConfig) (map[string]string, error)
+	cleanupFn                  func(ctx context.Context, key string, config []domain.ProxyConfig) error
+}
+
+func (m mockConfig) FetchAndPopulate(ctx context.Context, inventory domain.InventoryRepo, authRepo domain.AuthRepo, flagRepo domain.FlagRepo, segmentRepo domain.SegmentRepo) error {
+	return m.fetchAndPopulate(ctx, inventory, authRepo, flagRepo, segmentRepo)
 }
 
 func (m mockConfig) Populate(ctx context.Context, authRepo domain.AuthRepo, flagRepo domain.FlagRepo, segmentRepo domain.SegmentRepo) error {
