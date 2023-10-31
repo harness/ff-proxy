@@ -22,7 +22,7 @@ func NewInventoryRepo(c cache.Cache) InventoryRepo {
 
 // Add sets the inventory for proxy config - list of assets for the key.
 func (i InventoryRepo) Add(ctx context.Context, key string, assets map[string]string) error {
-	return i.cache.Set(ctx, string(domain.NewProxyConfigsKey(key)), assets)
+	return i.cache.Set(ctx, string(domain.NewKeyInventory(key)), assets)
 }
 
 func (i InventoryRepo) Remove(_ context.Context, key string) error {
@@ -30,7 +30,7 @@ func (i InventoryRepo) Remove(_ context.Context, key string) error {
 }
 func (i InventoryRepo) Get(ctx context.Context, key string) (map[string]string, error) {
 	var inventory map[string]string
-	err := i.cache.Get(ctx, string(domain.NewProxyConfigsKey(key)), &inventory)
+	err := i.cache.Get(ctx, string(domain.NewKeyInventory(key)), &inventory)
 	if err != nil && !errors.Is(err, domain.ErrCacheNotFound) {
 		return inventory, err
 	}

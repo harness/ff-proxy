@@ -62,7 +62,7 @@ func (c Config) SetProxyConfig(_ []domain.ProxyConfig) {
 
 }
 
-func (c Config) FetchAndPopulate(_ context.Context, _ domain.AuthRepo, _ domain.FlagRepo, _ domain.SegmentRepo) error {
+func (c Config) FetchAndPopulate(_ context.Context, _ domain.InventoryRepo, _ domain.AuthRepo, _ domain.FlagRepo, _ domain.SegmentRepo) error {
 	return nil
 }
 

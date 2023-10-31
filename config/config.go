@@ -13,7 +13,7 @@ import (
 // Config defines the interface for populating repositories with configuration data
 type Config interface {
 	// FetchAndPopulate authenticates, fetches and populates the config.
-	FetchAndPopulate(ctx context.Context, authRepo domain.AuthRepo, flagRepo domain.FlagRepo, segmentRepo domain.SegmentRepo) error
+	FetchAndPopulate(ctx context.Context, inventoryRepo domain.InventoryRepo, authRepo domain.AuthRepo, flagRepo domain.FlagRepo, segmentRepo domain.SegmentRepo) error
 
 	// Populate populates the repos with the config
 	Populate(ctx context.Context, authRepo domain.AuthRepo, flagRepo domain.FlagRepo, segmentRepo domain.SegmentRepo) error
