@@ -11,8 +11,6 @@ import (
 
 	jsoniter "github.com/json-iterator/go"
 
-	"github.com/harness/ff-proxy/v2/stream"
-
 	"github.com/harness/ff-proxy/v2/domain"
 	clientgen "github.com/harness/ff-proxy/v2/gen/client"
 	"github.com/harness/ff-proxy/v2/log"
@@ -51,14 +49,14 @@ type Client struct {
 	metrics     map[string]domain.MetricsRequest
 	token       func() string
 	metricsLock *sync.Mutex
-	subscriber  stream.Subscriber
+	subscriber  domain.Subscriber
 
 	sdkUsage         counter
 	metricsForwarded counter
 }
 
 // NewClient creates a MetricService
-func NewClient(l log.Logger, addr string, token func() string, enabled bool, reg *prometheus.Registry, subscriber stream.Subscriber) (Client, error) {
+func NewClient(l log.Logger, addr string, token func() string, enabled bool, reg *prometheus.Registry, subscriber domain.Subscriber) (Client, error) {
 	l = l.With("component", "MetricServiceClient")
 	client, err := clientgen.NewClientWithResponses(
 		addr,

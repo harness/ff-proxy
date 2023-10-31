@@ -17,7 +17,7 @@ type mockSubscriber struct {
 	sub func() (interface{}, error)
 }
 
-func (m *mockSubscriber) Sub(ctx context.Context, channel string, id string, fn HandleMessageFn) error {
+func (m *mockSubscriber) Sub(ctx context.Context, channel string, id string, fn domain.HandleMessageFn) error {
 	v, err := m.sub()
 	if err != nil {
 		return err

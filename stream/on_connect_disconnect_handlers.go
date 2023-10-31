@@ -41,7 +41,7 @@ func SaasStreamOnDisconnect(l log.Logger, streamHealth Health, pp Pushpin, redis
 		// changes until we've a healthy SaaS -> Proxy stream to make sure they don't miss out on changes
 		// the Proxy may have pulled down while the Proxy -> Saas stream was down.
 		for streamID := range streams() {
-			if err := pp.CloseStream(streamID); err != nil {
+			if err := pp.Close(streamID); err != nil {
 				l.Error("failed to close Proxy->SDK stream", "streamID", streamID, "err", err)
 			}
 		}
@@ -90,7 +90,7 @@ func ReadReplicaSSEStreamOnDisconnect(l log.Logger, pp Pushpin, streams getConne
 		// changes until we've a healthy SaaS -> Proxy stream to make sure they don't miss out on changes
 		// the Proxy may have pulled down while the Proxy -> Saas stream was down.
 		for streamID := range streams() {
-			if err := pp.CloseStream(streamID); err != nil {
+			if err := pp.Close(streamID); err != nil {
 				l.Error("failed to close Proxy->SDK stream", "streamID", streamID, "err", err)
 			}
 		}

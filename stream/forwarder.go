@@ -22,11 +22,11 @@ type Forwarder struct {
 	log        log.Logger
 	next       domain.MessageHandler
 	streamName string
-	stream     Publisher
+	stream     domain.Publisher
 }
 
 // NewForwarder creates a Forwarder
-func NewForwarder(l log.Logger, stream Publisher, next domain.MessageHandler, options ...func(*Forwarder)) Forwarder {
+func NewForwarder(l log.Logger, stream domain.Publisher, next domain.MessageHandler, options ...func(*Forwarder)) Forwarder {
 	l = l.With("component", "Forwarder")
 	f := &Forwarder{
 		log:    l,
