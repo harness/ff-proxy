@@ -17,7 +17,7 @@ type mockInventoryRepo struct {
 	addFn                      func(ctx context.Context, key string, assets map[string]string) error
 	removeFn                   func(ctx context.Context, key string) error
 	getFn                      func(ctx context.Context, key string) (map[string]string, error)
-	patchFn                    func(ctx context.Context, key string, assets []string) error
+	patchFn                    func(ctx context.Context, key string, assets map[string]string) error
 	buildAssetListFromConfigFn func(config []domain.ProxyConfig) (map[string]string, error)
 	cleanupFn                  func(ctx context.Context, key string, config []domain.ProxyConfig) error
 }
@@ -34,7 +34,7 @@ func (m mockInventoryRepo) Get(ctx context.Context, key string) (map[string]stri
 	return m.getFn(ctx, key)
 }
 
-func (m mockInventoryRepo) Patch(ctx context.Context, key string, assets []string) error {
+func (m mockInventoryRepo) Patch(ctx context.Context, key string, assets map[string]string) error {
 	return m.patchFn(ctx, key, assets)
 }
 
@@ -464,7 +464,7 @@ func TestConfig_Populate(t *testing.T) {
 		getFn: func(ctx context.Context, key string) (map[string]string, error) {
 			return map[string]string{}, nil
 		},
-		patchFn: func(ctx context.Context, key string, assets []string) error {
+		patchFn: func(ctx context.Context, key string, assets map[string]string) error {
 			return nil
 		},
 		buildAssetListFromConfigFn: func(config []domain.ProxyConfig) (map[string]string, error) {
