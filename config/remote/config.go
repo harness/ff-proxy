@@ -73,12 +73,9 @@ func (c *Config) FetchAndPopulate(ctx context.Context, inventory domain.Inventor
 }
 
 // Populate populates repositories with the config
-//
-//nolint:gocognit,cyclop
 func (c *Config) Populate(ctx context.Context, authRepo domain.AuthRepo, flagRepo domain.FlagRepo, segmentRepo domain.SegmentRepo) error {
 	for _, cfg := range c.proxyConfig {
 		for _, env := range cfg.Environments {
-
 			authConfig := make([]domain.AuthConfig, 0, len(env.APIKeys))
 			apiKeys := make([]string, 0, len(env.APIKeys))
 
@@ -91,40 +88,49 @@ func (c *Config) Populate(ctx context.Context, authRepo domain.AuthRepo, flagRep
 				})
 
 			}
+			err := populate(ctx, authRepo, flagRepo, segmentRepo, apiKeys, authConfig, env)
+			if err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
 
-			// add apiKeys to cache.
-			if len(apiKeys) > 0 {
-				if err := authRepo.Add(ctx, authConfig...); err != nil {
-					return fmt.Errorf("failed to add auth config to cache: %s", err)
-				}
-			}
+// func extracted to satisfy lint complexity metrics.
+func populate(ctx context.Context, authRepo domain.AuthRepo, flagRepo domain.FlagRepo, segmentRepo domain.SegmentRepo, apiKeys []string, authConfig []domain.AuthConfig, env domain.Environments) error {
 
-			// add list of apiKeys for environment
-			if len(authConfig) > 0 {
-				if err := authRepo.AddAPIConfigsForEnvironment(ctx, env.ID.String(), apiKeys); err != nil {
-					return fmt.Errorf("failed to add auth config to cache: %s", err)
-				}
-			}
-			if len(env.FeatureConfigs) > 0 {
-				if err := flagRepo.Add(ctx, domain.FlagConfig{
-					EnvironmentID:  env.ID.String(),
-					FeatureConfigs: env.FeatureConfigs,
-				}); err != nil {
-					return fmt.Errorf("failed to add flag config to cache: %s", err)
-				}
-			}
-			if len(env.Segments) > 0 {
-				if err := segmentRepo.Add(ctx, domain.SegmentConfig{
-					EnvironmentID: env.ID.String(),
-					Segments:      env.Segments,
-				}); err != nil {
-					return fmt.Errorf("failed to add segment config to cache: %s", err)
-				}
-			}
-
+	// check for len is important to ensure we do not insert empty keys.
+	// add apiKeys to cache.
+	if len(apiKeys) > 0 {
+		if err := authRepo.Add(ctx, authConfig...); err != nil {
+			return fmt.Errorf("failed to add auth config to cache: %s", err)
 		}
 	}
 
+	// add list of apiKeys for environment
+	if len(authConfig) > 0 {
+		if err := authRepo.AddAPIConfigsForEnvironment(ctx, env.ID.String(), apiKeys); err != nil {
+			return fmt.Errorf("failed to add auth config to cache: %s", err)
+		}
+	}
+
+	if len(env.FeatureConfigs) > 0 {
+		if err := flagRepo.Add(ctx, domain.FlagConfig{
+			EnvironmentID:  env.ID.String(),
+			FeatureConfigs: env.FeatureConfigs,
+		}); err != nil {
+			return fmt.Errorf("failed to add flag config to cache: %s", err)
+		}
+	}
+	if len(env.Segments) > 0 {
+		if err := segmentRepo.Add(ctx, domain.SegmentConfig{
+			EnvironmentID: env.ID.String(),
+			Segments:      env.Segments,
+		}); err != nil {
+			return fmt.Errorf("failed to add segment config to cache: %s", err)
+		}
+	}
 	return nil
 }
 
