@@ -266,16 +266,8 @@ func (s Refresher) handleDeleteFeatureEvent(ctx context.Context, env, identifier
 
 	if len(features) > 1 {
 		//delete the identifier
-		updatedFeatures := make([]domain.FeatureFlag, 0, len(features))
-		for _, f := range features {
-			if f.Feature != identifier {
-				updatedFeatures = append(updatedFeatures, f)
-			}
-		}
-		if err := s.flagRepo.Add(ctx, domain.FlagConfig{
-			EnvironmentID:  env,
-			FeatureConfigs: updatedFeatures,
-		}); err != nil {
+		err := s.updateFeatureConfigsEntry(ctx, env, identifier, features)
+		if err != nil {
 			return err
 		}
 	}
@@ -304,6 +296,22 @@ func (s Refresher) handleDeleteFeatureEvent(ctx context.Context, env, identifier
 		return assets, nil
 
 	})
+}
+
+func (s Refresher) updateFeatureConfigsEntry(ctx context.Context, env string, identifier string, features []domain.FeatureFlag) error {
+	updatedFeatures := make([]domain.FeatureFlag, 0, len(features))
+	for _, f := range features {
+		if f.Feature != identifier {
+			updatedFeatures = append(updatedFeatures, f)
+		}
+	}
+	if err := s.flagRepo.Add(ctx, domain.FlagConfig{
+		EnvironmentID:  env,
+		FeatureConfigs: updatedFeatures,
+	}); err != nil {
+		return err
+	}
+	return nil
 }
 
 func (s Refresher) handleFetchSegmentEvent(ctx context.Context, env, id string) error {
@@ -340,19 +348,12 @@ func (s Refresher) handleDeleteSegmentEvent(ctx context.Context, env, identifier
 	segments, _ := s.segmentRepo.GetSegmentsForEnvironment(ctx, env)
 	if len(segments) > 1 {
 		//delete the identifier
-		updatedSegment := make([]domain.Segment, 0, len(segments))
-		for _, s := range segments {
-			if s.Identifier != identifier {
-				updatedSegment = append(updatedSegment, s)
-			}
+		err := s.updateSegmentConfigsEntry(ctx, env, identifier, segments)
+		if err != nil {
+			return err
 		}
 	}
-	if err := s.segmentRepo.Add(ctx, domain.SegmentConfig{
-		EnvironmentID: env,
-		Segments:      segments,
-	}); err != nil {
-		return err
-	}
+
 	// remove deleted flag entry.
 	if err := s.segmentRepo.Remove(ctx, identifier); err != nil {
 		return err
@@ -376,6 +377,22 @@ func (s Refresher) handleDeleteSegmentEvent(ctx context.Context, env, identifier
 		return assets, nil
 	})
 
+}
+
+func (s Refresher) updateSegmentConfigsEntry(ctx context.Context, env string, identifier string, segments []domain.Segment) error {
+	updatedSegment := make([]domain.Segment, 0, len(segments))
+	for _, s := range segments {
+		if s.Identifier != identifier {
+			updatedSegment = append(updatedSegment, s)
+		}
+	}
+	if err := s.segmentRepo.Add(ctx, domain.SegmentConfig{
+		EnvironmentID: env,
+		Segments:      updatedSegment,
+	}); err != nil {
+		return err
+	}
+	return nil
 }
 
 func (s Refresher) addItems(assets map[string]string, configKey, configsKey string) (map[string]string, error) {
