@@ -27,15 +27,16 @@ type Refresher struct {
 	clientService     domain.ClientService
 	config            config.Config
 	proxyConfig       []domain.ProxyConfig
+	inventory         domain.InventoryRepo
 	authRepo          domain.AuthRepo
 	flagRepo          domain.FlagRepo
 	segmentRepo       domain.SegmentRepo
 }
 
 // NewRefresher creates a Refresher
-func NewRefresher(l log.Logger, config config.Config, client domain.ClientService, authRepo domain.AuthRepo, flagRepo domain.FlagRepo, segmentRepo domain.SegmentRepo) Refresher {
+func NewRefresher(l log.Logger, config config.Config, client domain.ClientService, inventory domain.InventoryRepo, authRepo domain.AuthRepo, flagRepo domain.FlagRepo, segmentRepo domain.SegmentRepo) Refresher {
 	l = l.With("component", "Refresher")
-	return Refresher{log: l, config: config, clientService: client, authRepo: authRepo, flagRepo: flagRepo, segmentRepo: segmentRepo}
+	return Refresher{log: l, config: config, clientService: client, inventory: inventory, authRepo: authRepo, flagRepo: flagRepo, segmentRepo: segmentRepo}
 }
 
 // HandleMessage makes Refresher implement the MessageHandler interface

@@ -375,7 +375,7 @@ func main() {
 		//
 		// Layering them in this order means that the first thing we'll do when we receive an SSE message
 		// is attempt to refresh the cache, then if that's successful we'll forward the event on to Redis and Pushpin
-		cacheRefresher := cache.NewRefresher(logger, conf, clientSvc, authRepo, flagRepo, segmentRepo)
+		cacheRefresher := cache.NewRefresher(logger, conf, clientSvc, inventoryRepo, authRepo, flagRepo, segmentRepo)
 		redisForwarder := stream.NewForwarder(logger, redisStream, cacheRefresher, stream.WithStreamName(sseStreamTopic))
 		messageHandler = stream.NewForwarder(logger, pushpinStream, redisForwarder)
 	}
