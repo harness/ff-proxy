@@ -6,8 +6,9 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/harness/ff-proxy/v2/domain"
 	"github.com/prometheus/client_golang/prometheus"
+
+	"github.com/harness/ff-proxy/v2/domain"
 )
 
 type counter interface {
@@ -32,6 +33,10 @@ type MetricsCache struct {
 	writeCount  counter
 	readCount   counter
 	deleteCount counter
+}
+
+func (c MetricsCache) Scan(ctx context.Context, key string) (map[string]string, error) {
+	return c.next.Scan(ctx, key)
 }
 
 // NewMetricsCache creates a MetricsCache
