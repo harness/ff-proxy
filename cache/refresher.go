@@ -305,13 +305,10 @@ func (s Refresher) updateFeatureConfigsEntry(ctx context.Context, env string, id
 			updatedFeatures = append(updatedFeatures, f)
 		}
 	}
-	if err := s.flagRepo.Add(ctx, domain.FlagConfig{
+	return s.flagRepo.Add(ctx, domain.FlagConfig{
 		EnvironmentID:  env,
 		FeatureConfigs: updatedFeatures,
-	}); err != nil {
-		return err
-	}
-	return nil
+	})
 }
 
 func (s Refresher) handleFetchSegmentEvent(ctx context.Context, env, id string) error {
@@ -386,13 +383,10 @@ func (s Refresher) updateSegmentConfigsEntry(ctx context.Context, env string, id
 			updatedSegment = append(updatedSegment, s)
 		}
 	}
-	if err := s.segmentRepo.Add(ctx, domain.SegmentConfig{
+	return s.segmentRepo.Add(ctx, domain.SegmentConfig{
 		EnvironmentID: env,
 		Segments:      updatedSegment,
-	}); err != nil {
-		return err
-	}
-	return nil
+	})
 }
 
 func (s Refresher) addItems(assets map[string]string, configKey, configsKey string) (map[string]string, error) {
