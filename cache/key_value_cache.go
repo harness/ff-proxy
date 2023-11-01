@@ -127,7 +127,6 @@ func (k *KeyValCache) Scan(ctx context.Context, key string) (map[string]string, 
 	scan := make(map[string]string)
 	iter := k.redisClient.Scan(ctx, 0, "*"+key+"*", 0).Iterator()
 	for iter.Next(ctx) {
-		//fmt.Println("keys", iter.Val())
 		scan[iter.Val()] = ""
 	}
 	if err := iter.Err(); err != nil {

@@ -351,7 +351,7 @@ func (s Refresher) handleDeleteSegmentEvent(ctx context.Context, env, identifier
 		}
 	}
 
-	// remove deleted flag entry.
+	// remove deleted segment entry.
 	if err := s.segmentRepo.Remove(ctx, identifier); err != nil {
 		return err
 	}
