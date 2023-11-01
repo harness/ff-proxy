@@ -61,7 +61,7 @@ type mockSegmentRepo struct {
 	config []domain.SegmentConfig
 
 	add                               func(ctx context.Context, config ...domain.SegmentConfig) error
-	removeFn                          func(ctx context.Context, env, id string) error
+	removeFn                          func(ctx context.Context, id string) error
 	removeAllSegmentsForEnvironmentFn func(ctx context.Context, id string) error
 	getSegmentsForEnvironmentFn       func(ctx context.Context, envID string) ([]domain.Segment, bool)
 }
@@ -75,8 +75,8 @@ func (m *mockSegmentRepo) RemoveAllSegmentsForEnvironment(ctx context.Context, i
 	return m.removeAllSegmentsForEnvironmentFn(ctx, id)
 }
 
-func (m *mockSegmentRepo) Remove(ctx context.Context, env, id string) error {
-	return m.removeFn(ctx, env, id)
+func (m *mockSegmentRepo) Remove(ctx context.Context, id string) error {
+	return m.removeFn(ctx, id)
 }
 
 func (m *mockSegmentRepo) Add(ctx context.Context, config ...domain.SegmentConfig) error {
@@ -102,9 +102,8 @@ func (m *mockFlagRepo) RemoveAllFeaturesForEnvironment(ctx context.Context, id s
 	panic("implement me")
 }
 
-func (m *mockFlagRepo) Remove(ctx context.Context, env, id string) error {
-	//TODO implement me
-	panic("implement me")
+func (m *mockFlagRepo) Remove(ctx context.Context, id string) error {
+	return m.Remove(ctx, id)
 }
 
 func (m *mockFlagRepo) Add(ctx context.Context, config ...domain.FlagConfig) error {

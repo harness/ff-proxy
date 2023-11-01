@@ -215,7 +215,7 @@ func TestRefresher_HandleMessage(t *testing.T) {
 		removeAllFeaturesForEnvironmentFn: func(ctx context.Context, id string) error {
 			return nil
 		},
-		removeFn: func(ctx context.Context, env, id string) error {
+		removeFn: func(ctx context.Context, id string) error {
 			return nil
 		},
 		addFn: func(ctx context.Context, values ...domain.FlagConfig) error {
@@ -230,7 +230,7 @@ func TestRefresher_HandleMessage(t *testing.T) {
 		addFn: func(ctx context.Context, values ...domain.SegmentConfig) error {
 			return nil
 		},
-		removeFn: func(ctx context.Context, env, id string) error {
+		removeFn: func(ctx context.Context, id string) error {
 			return nil
 		},
 		removeAllSegmentsForEnvironmentFn: func(ctx context.Context, id string) error {
@@ -246,14 +246,33 @@ func TestRefresher_HandleMessage(t *testing.T) {
 		},
 		setProxyConfigFn: func(proxyConfig []domain.ProxyConfig) {},
 	}
-
+	inventoryRepo := mockInventoryRepo{
+		addFn: func(ctx context.Context, key string, assets map[string]string) error {
+			return nil
+		},
+		removeFn: func(ctx context.Context, key string) error {
+			return nil
+		},
+		getFn: func(ctx context.Context, key string) (map[string]string, error) {
+			return map[string]string{}, nil
+		},
+		patchFn: func(ctx context.Context, key string, patch func(assets map[string]string) (map[string]string, error)) error {
+			return nil
+		},
+		buildAssetListFromConfigFn: func(config []domain.ProxyConfig) (map[string]string, error) {
+			return map[string]string{}, nil
+		},
+		cleanupFn: func(ctx context.Context, key string, config []domain.ProxyConfig) error {
+			return nil
+		},
+	}
 	for desc, tc := range testCases {
 		desc := desc
 		tc := tc
 
 		t.Run(desc, func(t *testing.T) {
 
-			r := NewRefresher(log.NewNoOpLogger(), config, mockClient, authRepo, flagRepo, segmentRepo)
+			r := NewRefresher(log.NewNoOpLogger(), config, mockClient, inventoryRepo, authRepo, flagRepo, segmentRepo)
 			err := r.HandleMessage(context.Background(), tc.args.message)
 			if tc.shouldErr {
 				assert.NotNil(t, err)
@@ -334,12 +353,13 @@ func TestRefresher_handleAddEnvironmentEvent(t *testing.T) {
 		},
 	}
 
+	inventoryRepo := mockInventoryRepo{}
 	for desc, tc := range testCases {
 		desc := desc
 		tc := tc
 
 		t.Run(desc, func(t *testing.T) {
-			r := NewRefresher(log.NewNoOpLogger(), config, tc.args.clientService, authRepo, flagRepo, segmentRepo)
+			r := NewRefresher(log.NewNoOpLogger(), config, tc.args.clientService, inventoryRepo, authRepo, flagRepo, segmentRepo)
 			err := r.HandleMessage(context.Background(), tc.args.message)
 			if tc.shouldErr {
 				assert.NotNil(t, err)
@@ -422,13 +442,14 @@ func TestRefresher_handleRemoveEnvironmentEvent(t *testing.T) {
 
 		},
 	}
+	inventoryRepo := mockInventoryRepo{}
 
 	for desc, tc := range testCases {
 		desc := desc
 		tc := tc
 
 		t.Run(desc, func(t *testing.T) {
-			r := NewRefresher(log.NewNoOpLogger(), config, tc.args.clientService, authRepo, flagRepo, segmentRepo)
+			r := NewRefresher(log.NewNoOpLogger(), config, tc.args.clientService, inventoryRepo, authRepo, flagRepo, segmentRepo)
 			err := r.HandleMessage(context.Background(), tc.args.message)
 			if tc.shouldErr {
 				assert.NotNil(t, err)
@@ -461,9 +482,43 @@ type mockInventoryRepo struct {
 	addFn                      func(ctx context.Context, key string, assets map[string]string) error
 	removeFn                   func(ctx context.Context, key string) error
 	getFn                      func(ctx context.Context, key string) (map[string]string, error)
-	patchFn                    func(ctx context.Context, key string, assets []string) error
+	patchFn                    func(ctx context.Context, key string, patch func(assets map[string]string) (map[string]string, error)) error
 	buildAssetListFromConfigFn func(config []domain.ProxyConfig) (map[string]string, error)
 	cleanupFn                  func(ctx context.Context, key string, config []domain.ProxyConfig) error
+	keyExistsFn                func(ctx context.Context, key string) bool
+	getKeysForEnvironmentFn    func(ctx context.Context, env string) (map[string]string, error)
+}
+
+func (m mockInventoryRepo) Add(ctx context.Context, key string, assets map[string]string) error {
+	return m.addFn(ctx, key, assets)
+}
+
+func (m mockInventoryRepo) Remove(ctx context.Context, key string) error {
+	return m.removeFn(ctx, key)
+}
+
+func (m mockInventoryRepo) Get(ctx context.Context, key string) (map[string]string, error) {
+	return m.getFn(ctx, key)
+}
+
+func (m mockInventoryRepo) Patch(ctx context.Context, key string, patch func(assets map[string]string) (map[string]string, error)) error {
+	return m.patchFn(ctx, key, patch)
+}
+
+func (m mockInventoryRepo) BuildAssetListFromConfig(config []domain.ProxyConfig) (map[string]string, error) {
+	return m.buildAssetListFromConfigFn(config)
+}
+
+func (m mockInventoryRepo) Cleanup(ctx context.Context, key string, config []domain.ProxyConfig) error {
+	return m.cleanupFn(ctx, key, config)
+}
+
+func (m mockInventoryRepo) KeyExists(ctx context.Context, key string) bool {
+	return m.keyExistsFn(ctx, key)
+}
+
+func (m mockInventoryRepo) GetKeysForEnvironment(ctx context.Context, env string) (map[string]string, error) {
+	return m.getKeysForEnvironmentFn(ctx, env)
 }
 
 func (m mockConfig) FetchAndPopulate(ctx context.Context, inventory domain.InventoryRepo, authRepo domain.AuthRepo, flagRepo domain.FlagRepo, segmentRepo domain.SegmentRepo) error {
@@ -518,7 +573,7 @@ func (m mockAuthRepo) Add(ctx context.Context, values ...domain.AuthConfig) erro
 
 type mockFlagRepo struct {
 	addFn                             func(ctx context.Context, values ...domain.FlagConfig) error
-	removeFn                          func(ctx context.Context, env, id string) error
+	removeFn                          func(ctx context.Context, id string) error
 	removeAllFeaturesForEnvironmentFn func(ctx context.Context, id string) error
 	getFeatureConfigForEnvironmentFn  func(ctx context.Context, envID string) ([]domain.FeatureFlag, bool)
 }
@@ -531,8 +586,8 @@ func (m mockFlagRepo) RemoveAllFeaturesForEnvironment(ctx context.Context, id st
 	return m.removeAllFeaturesForEnvironmentFn(ctx, id)
 }
 
-func (m mockFlagRepo) Remove(ctx context.Context, env, id string) error {
-	return m.removeFn(ctx, env, id)
+func (m mockFlagRepo) Remove(ctx context.Context, id string) error {
+	return m.removeFn(ctx, id)
 }
 func (m mockFlagRepo) Add(ctx context.Context, values ...domain.FlagConfig) error {
 	return m.addFn(ctx, values...)
@@ -540,7 +595,7 @@ func (m mockFlagRepo) Add(ctx context.Context, values ...domain.FlagConfig) erro
 
 type mockSegmentRepo struct {
 	addFn                             func(ctx context.Context, values ...domain.SegmentConfig) error
-	removeFn                          func(ctx context.Context, env, id string) error
+	removeFn                          func(ctx context.Context, id string) error
 	removeAllSegmentsForEnvironmentFn func(ctx context.Context, envID string) error
 	getSegmentsForEnvironmentFn       func(ctx context.Context, envID string) ([]domain.Segment, bool)
 }
@@ -549,8 +604,8 @@ func (m mockSegmentRepo) GetSegmentsForEnvironment(ctx context.Context, envID st
 	return m.getSegmentsForEnvironmentFn(ctx, envID)
 }
 
-func (m mockSegmentRepo) Remove(ctx context.Context, envID, id string) error {
-	return m.removeFn(ctx, envID, id)
+func (m mockSegmentRepo) Remove(ctx context.Context, id string) error {
+	return m.removeFn(ctx, id)
 }
 
 func (m mockSegmentRepo) RemoveAllSegmentsForEnvironment(ctx context.Context, id string) error {

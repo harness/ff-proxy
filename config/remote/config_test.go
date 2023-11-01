@@ -17,9 +17,11 @@ type mockInventoryRepo struct {
 	addFn                      func(ctx context.Context, key string, assets map[string]string) error
 	removeFn                   func(ctx context.Context, key string) error
 	getFn                      func(ctx context.Context, key string) (map[string]string, error)
-	patchFn                    func(ctx context.Context, key string, assets map[string]string) error
+	patchFn                    func(ctx context.Context, key string, patch func(assets map[string]string) (map[string]string, error)) error
 	buildAssetListFromConfigFn func(config []domain.ProxyConfig) (map[string]string, error)
 	cleanupFn                  func(ctx context.Context, key string, config []domain.ProxyConfig) error
+	keyExistsFn                func(ctx context.Context, key string) bool
+	getKeysForEnvironmentFn    func(ctx context.Context, env string) (map[string]string, error)
 }
 
 func (m mockInventoryRepo) Add(ctx context.Context, key string, assets map[string]string) error {
@@ -34,8 +36,8 @@ func (m mockInventoryRepo) Get(ctx context.Context, key string) (map[string]stri
 	return m.getFn(ctx, key)
 }
 
-func (m mockInventoryRepo) Patch(ctx context.Context, key string, assets map[string]string) error {
-	return m.patchFn(ctx, key, assets)
+func (m mockInventoryRepo) Patch(ctx context.Context, key string, patch func(assets map[string]string) (map[string]string, error)) error {
+	return m.patchFn(ctx, key, patch)
 }
 
 func (m mockInventoryRepo) BuildAssetListFromConfig(config []domain.ProxyConfig) (map[string]string, error) {
@@ -44,6 +46,14 @@ func (m mockInventoryRepo) BuildAssetListFromConfig(config []domain.ProxyConfig)
 
 func (m mockInventoryRepo) Cleanup(ctx context.Context, key string, config []domain.ProxyConfig) error {
 	return m.cleanupFn(ctx, key, config)
+}
+
+func (m mockInventoryRepo) KeyExists(ctx context.Context, key string) bool {
+	return m.keyExistsFn(ctx, key)
+}
+
+func (m mockInventoryRepo) GetKeysForEnvironment(ctx context.Context, env string) (map[string]string, error) {
+	return m.getKeysForEnvironmentFn(ctx, env)
 }
 
 type mockAuthRepo struct {
@@ -103,7 +113,7 @@ type mockSegmentRepo struct {
 	config []domain.SegmentConfig
 
 	add                               func(ctx context.Context, config ...domain.SegmentConfig) error
-	removeFn                          func(ctx context.Context, env, id string) error
+	removeFn                          func(ctx context.Context, id string) error
 	removeAllSegmentsForEnvironmentFn func(ctx context.Context, id string) error
 	getSegmentsForEnvironmentFn       func(ctx context.Context, envID string) ([]domain.Segment, bool)
 }
@@ -126,8 +136,8 @@ func (m *mockSegmentRepo) RemoveAllSegmentsForEnvironment(ctx context.Context, i
 	return m.removeAllSegmentsForEnvironmentFn(ctx, id)
 }
 
-func (m *mockSegmentRepo) Remove(ctx context.Context, env, id string) error {
-	return m.removeFn(ctx, env, id)
+func (m *mockSegmentRepo) Remove(ctx context.Context, id string) error {
+	return m.removeFn(ctx, id)
 }
 
 func (m *mockSegmentRepo) Add(ctx context.Context, config ...domain.SegmentConfig) error {
@@ -142,7 +152,7 @@ type mockFlagRepo struct {
 	config []domain.FlagConfig
 
 	addFn                             func(ctx context.Context, config ...domain.FlagConfig) error
-	removeFn                          func(ctx context.Context, env, id string) error
+	removeFn                          func(ctx context.Context, id string) error
 	removeAllFeaturesForEnvironmentFn func(ctx context.Context, id string) error
 	getFeatureConfigForEnvironmentFn  func(ctx context.Context, envID string) ([]domain.FeatureFlag, bool)
 }
@@ -155,8 +165,8 @@ func (m *mockFlagRepo) RemoveAllFeaturesForEnvironment(ctx context.Context, id s
 	return m.removeAllFeaturesForEnvironmentFn(ctx, id)
 }
 
-func (m *mockFlagRepo) Remove(ctx context.Context, env, id string) error {
-	return m.removeFn(ctx, env, id)
+func (m *mockFlagRepo) Remove(ctx context.Context, id string) error {
+	return m.removeFn(ctx, id)
 }
 
 func (m *mockFlagRepo) Add(ctx context.Context, config ...domain.FlagConfig) error {
@@ -464,7 +474,7 @@ func TestConfig_Populate(t *testing.T) {
 		getFn: func(ctx context.Context, key string) (map[string]string, error) {
 			return map[string]string{}, nil
 		},
-		patchFn: func(ctx context.Context, key string, assets map[string]string) error {
+		patchFn: func(ctx context.Context, key string, patch func(assets map[string]string) (map[string]string, error)) error {
 			return nil
 		},
 		buildAssetListFromConfigFn: func(config []domain.ProxyConfig) (map[string]string, error) {
