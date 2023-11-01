@@ -191,7 +191,18 @@ func (s Refresher) handleAddAPIKeyEvent(ctx context.Context, env, apiKey string)
 	if err := s.authRepo.Add(ctx, authConfig...); err != nil {
 		return err
 	}
-	return s.authRepo.PatchAPIConfigForEnvironment(ctx, env, apiKey, domain.EventAPIKeyAdded)
+
+	if err := s.authRepo.PatchAPIConfigForEnvironment(ctx, env, apiKey, domain.EventAPIKeyAdded); err != nil {
+		return err
+	}
+
+	// add key to the invetnory if does not exits
+	return s.inventory.Patch(ctx, s.config.Key(), func(assets map[string]string) (map[string]string, error) {
+		apiKeyEntry := string(domain.NewAuthAPIKey(apiKey))
+		apiConfigsEntry := string(domain.NewAPIConfigsKey(env))
+		return s.addItems(assets, apiKeyEntry, apiConfigsEntry)
+	})
+
 }
 
 // handleRemoveApiKeyEvent removes apiKeys from cache as well as removes the key from the list of keys for given environment.
@@ -202,7 +213,15 @@ func (s Refresher) handleRemoveAPIKeyEvent(ctx context.Context, env, apiKey stri
 	if err := s.authRepo.Remove(ctx, []string{k}); err != nil {
 		return err
 	}
-	return s.authRepo.PatchAPIConfigForEnvironment(ctx, env, apiKey, domain.EventAPIKeyRemoved)
+	if err := s.authRepo.PatchAPIConfigForEnvironment(ctx, env, apiKey, domain.EventAPIKeyRemoved); err != nil {
+		return err
+	}
+
+	return s.inventory.Patch(ctx, s.config.Key(), func(assets map[string]string) (map[string]string, error) {
+		apiKeyEntry := string(domain.NewAuthAPIKey(apiKey))
+		apiConfigsEntry := string(domain.NewAPIConfigsKey(env))
+		return s.removeItems(ctx, assets, apiKeyEntry, apiConfigsEntry)
+	})
 }
 
 func (s Refresher) handleFetchFeatureEvent(ctx context.Context, env, id string) error {
@@ -218,9 +237,17 @@ func (s Refresher) handleFetchFeatureEvent(ctx context.Context, env, id string) 
 	}
 
 	// set the config
-	return s.flagRepo.Add(ctx, domain.FlagConfig{
+	if err := s.flagRepo.Add(ctx, domain.FlagConfig{
 		EnvironmentID:  env,
 		FeatureConfigs: features,
+	}); err != nil {
+		return err
+	}
+	// patch the inventory
+	return s.inventory.Patch(ctx, s.config.Key(), func(assets map[string]string) (map[string]string, error) {
+		featureConfigEntry := string(domain.NewFeatureConfigKey(env, id))
+		featureConfigsEntry := string(domain.NewFeatureConfigsKey(env))
+		return s.addItems(assets, featureConfigEntry, featureConfigsEntry)
 	})
 }
 
@@ -228,7 +255,8 @@ func (s Refresher) handleDeleteFeatureEvent(ctx context.Context, env, identifier
 	s.log.Debug("removing featureConfig entry", "environment", env, "identifier", identifier)
 	// fetch and reset config map and delete the entry.
 	features, _ := s.flagRepo.GetFeatureConfigForEnvironment(ctx, env)
-	if len(features) > 0 {
+
+	if len(features) > 1 {
 		//delete the identifier
 		updatedFeatures := make([]domain.FeatureFlag, 0, len(features))
 		for _, f := range features {
@@ -244,7 +272,27 @@ func (s Refresher) handleDeleteFeatureEvent(ctx context.Context, env, identifier
 		}
 	}
 	// remove deleted flag entry.
-	return s.flagRepo.Remove(ctx, env, identifier)
+	if err := s.flagRepo.
+		Remove(ctx, env, identifier); err != nil {
+		return err
+	}
+	//delete config.
+
+	return s.inventory.Patch(ctx, s.config.Key(), func(assets map[string]string) (map[string]string, error) {
+		featureConfigEntry := string(domain.NewFeatureConfigKey(env, identifier))
+		featureConfigsEntry := string(domain.NewFeatureConfigsKey(env))
+
+		_, ok := assets[featureConfigEntry]
+		if ok {
+			delete(assets, featureConfigEntry)
+		}
+		// if we only had one element in featureConfigs and its the one deleted we remove config.
+		if len(features) == 1 && features[0].Feature == identifier {
+			delete(assets, featureConfigsEntry)
+		}
+		return assets, nil
+
+	})
 }
 
 func (s Refresher) handleFetchSegmentEvent(ctx context.Context, env, id string) error {
@@ -259,10 +307,17 @@ func (s Refresher) handleFetchSegmentEvent(ctx context.Context, env, id string) 
 		segments = append(segments, domain.Segment(v))
 	}
 
-	// set the config
-	return s.segmentRepo.Add(ctx, domain.SegmentConfig{
+	if err := s.segmentRepo.Add(ctx, domain.SegmentConfig{
 		EnvironmentID: env,
 		Segments:      segments,
+	}); err != nil {
+		return err
+	}
+	// patch the inventory
+	return s.inventory.Patch(ctx, s.config.Key(), func(assets map[string]string) (map[string]string, error) {
+		segmentConfigEntry := string(domain.NewSegmentKey(env, id))
+		segmentConfigsEntry := string(domain.NewSegmentsKey(env))
+		return s.addItems(assets, segmentConfigEntry, segmentConfigsEntry)
 	})
 }
 
@@ -286,5 +341,38 @@ func (s Refresher) handleDeleteSegmentEvent(ctx context.Context, env, identifier
 		return err
 	}
 	// remove deleted flag entry.
-	return s.segmentRepo.Remove(ctx, env, identifier)
+	if err := s.segmentRepo.Remove(ctx, env, identifier); err != nil {
+		return err
+	}
+
+	return s.inventory.Patch(ctx, s.config.Key(), func(assets map[string]string) (map[string]string, error) {
+		segmentConfig := string(domain.NewSegmentKey(env, identifier))
+		segmentConfigs := string(domain.NewSegmentsKey(env))
+		return s.removeItems(ctx, assets, segmentConfig, segmentConfigs)
+	})
+
+}
+
+func (s Refresher) addItems(assets map[string]string, configKey, configsKey string) (map[string]string, error) {
+	_, ok := assets[configKey]
+	if !ok {
+		assets[configKey] = ""
+	}
+	_, ok = assets[configsKey]
+	if !ok {
+		assets[configsKey] = ""
+	}
+	return assets, nil
+}
+
+func (s Refresher) removeItems(ctx context.Context, assets map[string]string, configKey, configsKeys string) (map[string]string, error) {
+	_, ok := assets[configKey]
+	if ok {
+		delete(assets, configKey)
+	}
+	// exists, val := s.inventory.KeyExists(ctx, configsKeys)
+	//if exists && len(val) == 0 {
+	//	delete(assets, configsKeys)
+	//}
+	return assets, nil
 }

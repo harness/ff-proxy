@@ -120,7 +120,7 @@ func (i InventoryRepo) BuildAssetListFromConfig(config []domain.ProxyConfig) (ma
 // KeyExists check if the given key exists in cache.
 func (i InventoryRepo) KeyExists(ctx context.Context, key string) bool {
 	var val interface{}
-	err := i.cache.Get(ctx, key, val)
+	err := i.cache.Get(ctx, key, &val)
 	if err != nil && errors.Is(err, domain.ErrCacheNotFound) {
 		return false
 	}
