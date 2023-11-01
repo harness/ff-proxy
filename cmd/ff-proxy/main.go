@@ -299,6 +299,7 @@ func main() {
 	flagRepo := repository.NewFeatureFlagRepo(sdkCache)
 	segmentRepo := repository.NewSegmentRepo(sdkCache)
 	authRepo := repository.NewAuthRepo(sdkCache)
+	inventoryRepo := repository.NewInventoryRepo(sdkCache)
 
 	// Create config that we'll use to populate our repos
 	conf, err := config.NewConfig(offline, configDir, proxyKey, clientSvc)
@@ -309,7 +310,7 @@ func main() {
 
 	// Read replicas don't need to care about populating the repos with config
 	if !readReplica {
-		if err := conf.FetchAndPopulate(ctx, authRepo, flagRepo, segmentRepo); err != nil {
+		if err := conf.FetchAndPopulate(ctx, inventoryRepo, authRepo, flagRepo, segmentRepo); err != nil {
 			logger.Error("failed to populate repos with config", "err", err)
 			os.Exit(1)
 		}

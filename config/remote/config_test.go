@@ -13,6 +13,39 @@ import (
 	clientgen "github.com/harness/ff-proxy/v2/gen/client"
 )
 
+type mockInventoryRepo struct {
+	addFn                      func(ctx context.Context, key string, assets map[string]string) error
+	removeFn                   func(ctx context.Context, key string) error
+	getFn                      func(ctx context.Context, key string) (map[string]string, error)
+	patchFn                    func(ctx context.Context, key string, assets map[string]string) error
+	buildAssetListFromConfigFn func(config []domain.ProxyConfig) (map[string]string, error)
+	cleanupFn                  func(ctx context.Context, key string, config []domain.ProxyConfig) error
+}
+
+func (m mockInventoryRepo) Add(ctx context.Context, key string, assets map[string]string) error {
+	return m.addFn(ctx, key, assets)
+}
+
+func (m mockInventoryRepo) Remove(ctx context.Context, key string) error {
+	return m.removeFn(ctx, key)
+}
+
+func (m mockInventoryRepo) Get(ctx context.Context, key string) (map[string]string, error) {
+	return m.getFn(ctx, key)
+}
+
+func (m mockInventoryRepo) Patch(ctx context.Context, key string, assets map[string]string) error {
+	return m.patchFn(ctx, key, assets)
+}
+
+func (m mockInventoryRepo) BuildAssetListFromConfig(config []domain.ProxyConfig) (map[string]string, error) {
+	return m.buildAssetListFromConfigFn(config)
+}
+
+func (m mockInventoryRepo) Cleanup(ctx context.Context, key string, config []domain.ProxyConfig) error {
+	return m.cleanupFn(ctx, key, config)
+}
+
 type mockAuthRepo struct {
 	config []domain.AuthConfig
 
@@ -20,15 +53,35 @@ type mockAuthRepo struct {
 	addAPIConfigsForEnvironmentFn func(ctx context.Context, envID string, apiKeys []string) error
 }
 
-func (m mockAuthRepo) AddAPIConfigsForEnvironment(ctx context.Context, envID string, apiKeys []string) error {
-	return m.addAPIConfigsForEnvironmentFn(ctx, envID, apiKeys)
-}
-func (m *mockAuthRepo) PatchAPIConfigForEnvironment(ctx context.Context, envID, apikey, action string) error {
+func (m mockAuthRepo) Remove(ctx context.Context, id []string) error {
 	//TODO implement me
 	panic("implement me")
 }
 
-func (m *mockAuthRepo) Remove(ctx context.Context, id []string) error {
+func (m mockAuthRepo) Get(ctx context.Context, key string) (map[string]string, error) {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (m mockAuthRepo) Patch(ctx context.Context, key string, assets []string) error {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (m mockAuthRepo) BuildAssetListFromConfig(config []domain.ProxyConfig) (map[string]string, error) {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (m mockAuthRepo) Cleanup(ctx context.Context, key string, config []domain.ProxyConfig) error {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (m mockAuthRepo) AddAPIConfigsForEnvironment(ctx context.Context, envID string, apiKeys []string) error {
+	return m.addAPIConfigsForEnvironmentFn(ctx, envID, apiKeys)
+}
+func (m *mockAuthRepo) PatchAPIConfigForEnvironment(ctx context.Context, envID, apikey, action string) error {
 	//TODO implement me
 	panic("implement me")
 }
@@ -53,6 +106,16 @@ type mockSegmentRepo struct {
 	removeFn                          func(ctx context.Context, env, id string) error
 	removeAllSegmentsForEnvironmentFn func(ctx context.Context, id string) error
 	getSegmentsForEnvironmentFn       func(ctx context.Context, envID string) ([]domain.Segment, bool)
+}
+
+func (m *mockSegmentRepo) RemoveAllFeaturesForEnvironment(ctx context.Context, id string) error {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (m *mockSegmentRepo) GetFeatureConfigForEnvironment(ctx context.Context, envID string) ([]domain.FeatureFlag, bool) {
+	//TODO implement me
+	panic("implement me")
 }
 
 func (m *mockSegmentRepo) GetSegmentsForEnvironment(ctx context.Context, envID string) ([]domain.Segment, bool) {
@@ -323,6 +386,7 @@ func TestConfig_Populate(t *testing.T) {
 						return proxyConfig, nil
 					},
 				},
+
 				authRepo: &mockAuthRepo{
 					add: func(ctx context.Context, config ...domain.AuthConfig) error {
 						return nil
@@ -390,6 +454,27 @@ func TestConfig_Populate(t *testing.T) {
 		},
 	}
 
+	inventoryRepo := mockInventoryRepo{
+		addFn: func(ctx context.Context, key string, assets map[string]string) error {
+			return nil
+		},
+		removeFn: func(ctx context.Context, key string) error {
+			return nil
+		},
+		getFn: func(ctx context.Context, key string) (map[string]string, error) {
+			return map[string]string{}, nil
+		},
+		patchFn: func(ctx context.Context, key string, assets map[string]string) error {
+			return nil
+		},
+		buildAssetListFromConfigFn: func(config []domain.ProxyConfig) (map[string]string, error) {
+			return map[string]string{}, nil
+		},
+		cleanupFn: func(ctx context.Context, key string, config []domain.ProxyConfig) error {
+			return nil
+		},
+	}
+
 	for desc, tc := range testCases {
 		desc := desc
 		tc := tc
@@ -397,7 +482,7 @@ func TestConfig_Populate(t *testing.T) {
 		t.Run(desc, func(t *testing.T) {
 			c := NewConfig(tc.args.key, tc.mocks.clientService)
 
-			err := c.FetchAndPopulate(context.Background(), tc.mocks.authRepo, tc.mocks.flagRepo, tc.mocks.segmentRepo)
+			err := c.FetchAndPopulate(context.Background(), inventoryRepo, tc.mocks.authRepo, tc.mocks.flagRepo, tc.mocks.segmentRepo)
 			if tc.shouldErr {
 				assert.NotNil(t, err)
 			} else {
