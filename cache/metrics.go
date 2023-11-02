@@ -110,9 +110,11 @@ func NewMetricsCache(label string, reg prometheus.Registerer, next Cache) Metric
 		c.writeDuration,
 		c.readDuration,
 		c.deleteDuration,
+		c.scanDuration,
 		c.writeCount,
 		c.readCount,
 		c.deleteCount,
+		c.scanCount,
 	)
 	return c
 }
