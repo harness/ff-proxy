@@ -130,7 +130,7 @@ func (k *KeyValCache) Scan(ctx context.Context, key string) (map[string]string, 
 		scan[iter.Val()] = ""
 	}
 	if err := iter.Err(); err != nil {
-		panic(err)
+		return scan, fmt.Errorf("%w: KeyValCache.Scan failed to iterate over keset for key %q", err, key)
 	}
 	return scan, nil
 }

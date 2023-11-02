@@ -1,7 +1,6 @@
 package cache
 
 import (
-	"context"
 	"crypto/md5" //#nosec G501
 	"fmt"
 	"reflect"
@@ -55,12 +54,6 @@ func NewMemoizeCache(rc redis.UniversalClient, defaultExpiration, cleanupInterva
 	)
 
 	return mc
-}
-
-// Scan all the keys for given key
-func (m memoizeCache) Scan(cxt context.Context, key string) (map[string]string, error) {
-	//TODO
-	return m.Cache.Scan(cxt, key)
 }
 
 func (m memoizeCache) makeMarshalFunc(ffCache internalCache) func(interface{}) ([]byte, error) {
