@@ -28,6 +28,11 @@ type mockAuthRepo struct {
 
 	add                           func(ctx context.Context, config ...domain.AuthConfig) error
 	addAPIConfigsForEnvironmentFn func(ctx context.Context, envID string, apiKeys []string) error
+	getKeysForEnvironmentFn       func(ctx context.Context, envID string) ([]string, bool)
+}
+
+func (m mockAuthRepo) GetKeysForEnvironment(ctx context.Context, envID string) ([]string, bool) {
+	return m.getKeysForEnvironmentFn(ctx, envID)
 }
 
 func (m mockAuthRepo) AddAPIConfigsForEnvironment(ctx context.Context, envID string, apiKeys []string) error {

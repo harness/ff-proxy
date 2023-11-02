@@ -68,6 +68,7 @@ func (c *Config) FetchAndPopulate(ctx context.Context, inventory domain.Inventor
 	if err := inventory.Cleanup(ctx, c.key, proxyConfig); err != nil {
 		return err
 	}
+
 	c.proxyConfig = proxyConfig
 	return c.Populate(ctx, authRepo, flagRepo, segmentRepo)
 }

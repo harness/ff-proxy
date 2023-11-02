@@ -210,6 +210,9 @@ func TestRefresher_HandleMessage(t *testing.T) {
 		removeAllKeysForEnvironmentFn: func(ctx context.Context, envID string) error {
 			return nil
 		},
+		getKeysForEnvironmentFn: func(ctx context.Context, envID string) ([]string, bool) {
+			return []string{}, true
+		},
 	}
 	flagRepo := mockFlagRepo{
 		removeAllFeaturesForEnvironmentFn: func(ctx context.Context, id string) error {
@@ -264,6 +267,9 @@ func TestRefresher_HandleMessage(t *testing.T) {
 		},
 		cleanupFn: func(ctx context.Context, key string, config []domain.ProxyConfig) error {
 			return nil
+		},
+		getKeysForEnvironmentFn: func(ctx context.Context, env string) (map[string]string, error) {
+			return map[string]string{}, nil
 		},
 	}
 	for desc, tc := range testCases {
@@ -353,7 +359,15 @@ func TestRefresher_handleAddEnvironmentEvent(t *testing.T) {
 		},
 	}
 
-	inventoryRepo := mockInventoryRepo{}
+	inventoryRepo := mockInventoryRepo{
+		patchFn: func(ctx context.Context, key string, patch func(assets map[string]string) (map[string]string, error)) error {
+			return nil
+		},
+
+		buildAssetListFromConfigFn: func(config []domain.ProxyConfig) (map[string]string, error) {
+			return map[string]string{}, nil
+		},
+	}
 	for desc, tc := range testCases {
 		desc := desc
 		tc := tc
@@ -441,8 +455,18 @@ func TestRefresher_handleRemoveEnvironmentEvent(t *testing.T) {
 		setProxyConfigFn: func(proxyConfig []domain.ProxyConfig) {
 
 		},
+		key: func() string {
+			return "key"
+		},
 	}
-	inventoryRepo := mockInventoryRepo{}
+	inventoryRepo := mockInventoryRepo{
+		patchFn: func(ctx context.Context, key string, patch func(assets map[string]string) (map[string]string, error)) error {
+			return nil
+		},
+		buildAssetListFromConfigFn: func(config []domain.ProxyConfig) (map[string]string, error) {
+			return map[string]string{}, nil
+		},
+	}
 
 	for desc, tc := range testCases {
 		desc := desc
@@ -549,6 +573,11 @@ type mockAuthRepo struct {
 	removeFn                       func(ctx context.Context, id []string) error
 	removeAllKeysForEnvironmentFn  func(ctx context.Context, envID string) error
 	addAPIConfigsForEnvironmentFn  func(ctx context.Context, envID string, apiKeys []string) error
+	getKeysForEnvironmentFn        func(ctx context.Context, envID string) ([]string, bool)
+}
+
+func (m mockAuthRepo) GetKeysForEnvironment(ctx context.Context, envID string) ([]string, bool) {
+	return m.getKeysForEnvironmentFn(ctx, envID)
 }
 
 func (m mockAuthRepo) AddAPIConfigsForEnvironment(ctx context.Context, envID string, apiKeys []string) error {
