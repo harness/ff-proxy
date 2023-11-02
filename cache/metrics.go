@@ -40,7 +40,7 @@ type MetricsCache struct {
 func (c MetricsCache) Scan(ctx context.Context, key string) (m map[string]string, err error) {
 	start := time.Now()
 	defer func() {
-		trackHistogram(start, c.scanDuration)
+		trackHistogram(start, c.scanDuration, key)
 		trackCounter(c.scanCount, key, getErrorLabel(err))
 	}()
 	return c.next.Scan(ctx, key)
