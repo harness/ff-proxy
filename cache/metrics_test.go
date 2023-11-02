@@ -13,6 +13,11 @@ type mockCache struct {
 	set    func() error
 	get    func() error
 	delete func() error
+	scan   func() (map[string]string, error)
+}
+
+func (m mockCache) Scan(ctx context.Context, key string) (map[string]string, error) {
+	return m.scan()
 }
 
 func (m mockCache) Set(ctx context.Context, key string, value interface{}) error {

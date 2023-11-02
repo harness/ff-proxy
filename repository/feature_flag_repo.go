@@ -100,9 +100,8 @@ func (f FeatureFlagRepo) GetFeatureConfigForEnvironment(ctx context.Context, env
 }
 
 // Remove removes the feature entry from the cache
-func (f FeatureFlagRepo) Remove(ctx context.Context, env, identifier string) error {
-	fcKey := domain.NewFeatureConfigKey(env, identifier)
-	return f.cache.Delete(ctx, string(fcKey))
+func (f FeatureFlagRepo) Remove(ctx context.Context, identifier string) error {
+	return f.cache.Delete(ctx, identifier)
 }
 
 // RemoveAllFeaturesForEnvironment removes all feature entries for given environment id

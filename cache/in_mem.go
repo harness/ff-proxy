@@ -7,8 +7,9 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/harness/ff-proxy/v2/domain"
 	jsoniter "github.com/json-iterator/go"
+
+	"github.com/harness/ff-proxy/v2/domain"
 )
 
 // MemCache is an in memory cache that stores a map of keys to a map of fields
@@ -16,6 +17,12 @@ import (
 type MemCache struct {
 	*sync.RWMutex
 	data map[string][]byte
+}
+
+// Scan all the keys for given key
+func (m MemCache) Scan(_ context.Context, _ string) (map[string]string, error) {
+	//TODO implement equivalent.
+	return map[string]string{}, nil
 }
 
 // NewMemCache creates an initialised MemCache

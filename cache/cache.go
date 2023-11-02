@@ -18,4 +18,7 @@ type Cache interface {
 
 	// HealthCheck checks cache health
 	HealthCheck(ctx context.Context) error
+
+	// Scan all the keys for given key
+	Scan(ctx context.Context, key string) (map[string]string, error)
 }

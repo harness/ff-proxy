@@ -36,8 +36,18 @@ func (i InventoryRepo) Get(ctx context.Context, key string) (map[string]string, 
 	}
 	return inventory, nil
 }
-func (i InventoryRepo) Patch(_ context.Context, _ string, _ map[string]string) error {
-	return nil
+
+func (i InventoryRepo) Patch(ctx context.Context, key string, updateInventory func(assets map[string]string) (map[string]string, error)) error {
+	oldAssets, err := i.Get(ctx, key)
+	if err != nil {
+		return err
+	}
+	//logic is different for every case.
+	newAssets, err := updateInventory(oldAssets)
+	if err != nil {
+		return err
+	}
+	return i.Add(ctx, key, newAssets)
 }
 
 // Cleanup removes all entries for the key which are in the old config but not in the new one
@@ -105,4 +115,23 @@ func (i InventoryRepo) BuildAssetListFromConfig(config []domain.ProxyConfig) (ma
 	}
 
 	return inventory, nil
+}
+
+// KeyExists check if the given key exists in cache.
+func (i InventoryRepo) KeyExists(ctx context.Context, key string) bool {
+	var val interface{}
+	err := i.cache.Get(ctx, key, &val)
+	if err != nil && errors.Is(err, domain.ErrCacheNotFound) {
+		return false
+	}
+	return true
+}
+
+// GetKeysForEnvironment get the map of keys for environment
+func (i InventoryRepo) GetKeysForEnvironment(ctx context.Context, env string) (map[string]string, error) {
+	scan, err := i.cache.Scan(ctx, env)
+	if err != nil {
+		return scan, err
+	}
+	return scan, nil
 }

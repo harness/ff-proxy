@@ -7,8 +7,9 @@ import (
 
 	"github.com/go-redis/cache/v8"
 	"github.com/go-redis/redis/v8"
-	"github.com/harness/ff-proxy/v2/domain"
 	jsoniter "github.com/json-iterator/go"
+
+	"github.com/harness/ff-proxy/v2/domain"
 )
 
 // DoFn returns the item to be cached
@@ -119,4 +120,17 @@ func (k *KeyValCache) Keys(ctx context.Context, key string) ([]string, error) {
 // HealthCheck pings the underlying redis cache
 func (k *KeyValCache) HealthCheck(ctx context.Context) error {
 	return k.redisClient.Ping(ctx).Err()
+}
+
+// Scan returns a map of keys that match the pattern
+func (k *KeyValCache) Scan(ctx context.Context, key string) (map[string]string, error) {
+	scan := make(map[string]string)
+	iter := k.redisClient.Scan(ctx, 0, "*"+key+"*", 0).Iterator()
+	for iter.Next(ctx) {
+		scan[iter.Val()] = ""
+	}
+	if err := iter.Err(); err != nil {
+		return scan, fmt.Errorf("%w: KeyValCache.Scan failed to iterate over keset for key %q", err, key)
+	}
+	return scan, nil
 }
