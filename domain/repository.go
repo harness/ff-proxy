@@ -20,6 +20,7 @@ type AuthRepo interface {
 	AddAPIConfigsForEnvironment(ctx context.Context, envID string, apiKeys []string) error
 	Remove(ctx context.Context, id []string) error
 	RemoveAllKeysForEnvironment(ctx context.Context, envID string) error
+	GetKeysForEnvironment(ctx context.Context, envID string) ([]string, bool)
 	PatchAPIConfigForEnvironment(ctx context.Context, envID, apikey, action string) error
 }
 

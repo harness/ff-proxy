@@ -332,7 +332,7 @@ func main() {
 
 		gpc = gripcontrol.NewGripPubControl([]map[string]interface{}{
 			{
-				"control_uri": "http://localhost:5565",
+				"control_uri": "http://localhost:5561",
 			},
 		})
 		pushpinStream    = stream.NewPushpin(gpc)

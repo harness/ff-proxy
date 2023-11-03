@@ -149,12 +149,28 @@ func (s Refresher) handleAddEnvironmentEvent(ctx context.Context, environments [
 			s.log.Error("unable to fetch config for the environment", "environment", env)
 			return err
 		}
+
 		s.config.SetProxyConfig(proxyConfig)
 		if err := s.config.Populate(ctx, s.authRepo, s.flagRepo, s.segmentRepo); err != nil {
 			return err
 		}
-	}
+		// update key inventory for environment.
+		if err := s.inventory.Patch(ctx, s.config.Key(), func(assets map[string]string) (map[string]string, error) {
+			newAssets, err := s.inventory.BuildAssetListFromConfig(proxyConfig)
+			if err != nil {
+				return newAssets, err
+			}
+			for k := range newAssets {
+				if _, ok := assets[k]; !ok {
+					assets[k] = ""
+				}
+			}
+			return assets, nil
+		}); err != nil {
+			return err
+		}
 
+	}
 	return nil
 }
 
@@ -162,6 +178,12 @@ func (s Refresher) handleAddEnvironmentEvent(ctx context.Context, environments [
 func (s Refresher) handleRemoveEnvironmentEvent(ctx context.Context, environments []string) error {
 	for _, env := range environments {
 		s.log.Debug("removing entries for env", "environment", env)
+
+		// lest grab the keys we are about to delete from cache.
+		assetsToDelete, err := s.getAssetsToBeDeletedForEnvironment(ctx, env)
+		if err != nil {
+			return err
+		}
 
 		if err := s.authRepo.RemoveAllKeysForEnvironment(ctx, env); err != nil {
 			return fmt.Errorf("failed to remove apikey configs from cache for environment %s with error %s", env, err)
@@ -174,8 +196,34 @@ func (s Refresher) handleRemoveEnvironmentEvent(ctx context.Context, environment
 		if err := s.segmentRepo.RemoveAllSegmentsForEnvironment(ctx, env); err != nil {
 			return fmt.Errorf("failed to remove segment config from cache for environment %s with error %s", env, err)
 		}
+
+		if err := s.inventory.Patch(ctx, s.config.Key(), func(assets map[string]string) (map[string]string, error) {
+			// remove deleted keys from the assets
+			for k := range assetsToDelete {
+				delete(assets, k)
+
+			}
+			return assets, nil
+		}); err != nil {
+			return err
+		}
+
 	}
 	return nil
+}
+
+func (s Refresher) getAssetsToBeDeletedForEnvironment(ctx context.Context, env string) (map[string]string, error) {
+	apiKeys, _ := s.authRepo.GetKeysForEnvironment(ctx, env)
+	assetsToDelete, err := s.inventory.GetKeysForEnvironment(ctx, env)
+	if err != nil {
+		return nil, err
+	}
+	// insert all APIKeys to the map.
+	for _, key := range apiKeys {
+		assetsToDelete[key] = ""
+
+	}
+	return assetsToDelete, nil
 }
 
 // handleAddApiKeyEvent adds apiKeys to the cache as well as update apikey list for environment.
