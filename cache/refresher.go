@@ -94,8 +94,10 @@ func (s Refresher) handleSegmentMessage(ctx context.Context, msg domain.SSEMessa
 func (s Refresher) handleProxyMessage(ctx context.Context, msg domain.SSEMessage) error {
 	switch msg.Event {
 	case domain.EventProxyKeyDeleted:
-		// todo
-		return nil
+		if err := s.handleDeleteProxyKeyEvent(ctx); err != nil {
+			s.log.Error("failed to handle deleteKeyEvent", "err", err)
+			return err
+		}
 	case domain.EventEnvironmentAdded:
 		if err := s.handleAddEnvironmentEvent(ctx, msg.Environments); err != nil {
 			s.log.Error("failed to handle addEnvironmentEvent", "err", err)
@@ -447,4 +449,26 @@ func (s Refresher) addItems(assets map[string]string, configKey, configsKey stri
 		assets[configsKey] = ""
 	}
 	return assets, nil
+}
+
+// NOTE: This is currently working with assumption that there is a single redis instance for proxy.
+// logic will have to be chanced if redis instance is shared between proxy instances.
+func (s Refresher) handleDeleteProxyKeyEvent(ctx context.Context) error {
+	// function will delete all the keys for the proxy key deleted.
+	proxyKey := s.config.Key()
+	//delete all the assets
+	inventory, err := s.inventory.Get(ctx, proxyKey)
+	if err != nil {
+		return err
+	}
+
+	for k := range inventory {
+		err := s.inventory.Remove(ctx, k)
+		if err != nil {
+			return err
+		}
+	}
+	keyInventoryEntry := string(domain.NewKeyInventory(proxyKey))
+	return s.inventory.Remove(ctx, keyInventoryEntry)
+
 }
