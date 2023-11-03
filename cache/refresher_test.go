@@ -181,6 +181,16 @@ func TestRefresher_HandleMessage(t *testing.T) {
 			expected:  expected{err: nil},
 			shouldErr: false,
 		},
+		"Given I have an SSEMessage with the domain 'proxy' event 'deleteProxyKey'": {
+			args: args{
+				message: domain.SSEMessage{
+					Domain: domain.MsgDomainProxy,
+					Event:  domain.EventProxyKeyDeleted,
+				},
+			},
+			expected:  expected{err: nil},
+			shouldErr: false,
+		},
 	}
 
 	mockClient := mockClientService{
