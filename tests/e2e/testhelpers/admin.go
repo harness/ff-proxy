@@ -6,8 +6,7 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/harness/ff-proxy/v2/domain"
-	admin "github.com/harness/ff-proxy/v2/gen/admin"
+	"github.com/harness/ff-proxy/v2/gen/admin"
 )
 
 // DefaultClient returns the default admin client
@@ -33,6 +32,11 @@ func AddAuthToken(ctx context.Context, req *http.Request) error {
 	return nil
 }
 
+func AddProxyAuthToken(_ context.Context, req *http.Request) error {
+	req.Header.Set("authorization", GetProxyAuthToken())
+	return nil
+}
+
 // DeleteProject ...
 func DeleteProject(identifier string) (*http.Response, error) {
 	return DeleteProjectRemote(identifier)
@@ -49,18 +53,50 @@ func DeleteProjectRemote(identifier string) (*http.Response, error) {
 	return client.Client.Do(req)
 }
 
-func CreateProxyKey(ctx context.Context, account string, org string, identifier string, environments []string) (string, error) {
+func DeleteProxyKey(ctx context.Context, account, keyIdentifier string) error {
+	c := DefaultClient()
+
+	params := &admin.DeleteProxyKeyParams{
+		AccountIdentifier: admin.AccountQueryParam(account),
+	}
+
+	identifier := admin.Identifier(keyIdentifier)
+
+	//TODO add token her
+	resp, err := c.DeleteProxyKey(ctx, identifier, params, AddProxyAuthToken)
+	if err != nil {
+		return err
+	}
+
+	fmt.Println(resp)
+
+	return nil
+}
+
+func CreateProxyKey(ctx context.Context, projectIdentifier, account string, org string, identifier string, environments []string) (string, error) {
 	c := DefaultClient()
 
 	params := &admin.CreateProxyKeyParams{
 		AccountIdentifier: admin.AccountQueryParam(account),
-		OrgIdentifier:     admin.OrgQueryParam(org),
 	}
 
 	body := admin.CreateProxyKeyJSONRequestBody{
-		Environments: domain.ToPtr(environments),
-		Identifier:   domain.ToPtr(identifier),
-		Name:         domain.ToPtr(identifier),
+		Identifier: identifier,
+		Name:       identifier,
+		Organizations: admin.OrganizationDictionary{
+			AdditionalProperties: map[string]admin.ProjectDictionary{
+				org: {
+					Projects: &admin.ProjectDictionary_Projects{
+						AdditionalProperties: map[string]admin.ProxyKeyProject{
+							projectIdentifier: {
+								Environments: &environments,
+								Scope:        "selected",
+							},
+						},
+					},
+				},
+			},
+		},
 	}
 
 	resp, err := c.CreateProxyKey(ctx, params, body, AddAuthToken)

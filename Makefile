@@ -35,6 +35,8 @@ PHONY+= generate
 generate: ## Generates the client for the ff-servers client service
 	oapi-codegen --config ./ff-api/config/ff-proxy/client-client.yaml ./ff-api/docs/release/client-v1.yaml > gen/client/services.gen.go
 	oapi-codegen --config ./ff-api/config/ff-proxy/client-types.yaml ./ff-api/docs/release/client-v1.yaml > gen/client/types.gen.go
+	oapi-codegen --config ./ff-api/config/ff-proxy/admin-client.yaml  ./ff-api/docs/release/admin-v1.yaml > gen/admin/services.gen.go
+	oapi-codegen --config ./ff-api/config/ff-proxy/admin-types.yaml ./ff-api/docs/release/admin-v1.yaml > gen/admin/types.gen.go
 
 
 PHONY+= build

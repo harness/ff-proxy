@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"flag"
 	"fmt"
 	"io"
@@ -94,9 +95,20 @@ func main() {
 		projects = append(projects, project)
 	}
 
-	//proxyKey, _, err := testhelpers.CreateProxyKeyAndAuth(context.Background(), project.Account, project.Organization, "ProxyE2ETestsProxyKey", environments)
+	project := projects[0]
+	environments := []string{project.Environment.Identifier}
+
+	key, token, err := testhelpers.CreateProxyKeyAndAuth(context.Background(), project.ProjectIdentifier, project.Account, project.Organization, "ProxyE2ETestsProxyKey", environments)
+	if err != nil {
+		log.Fatalf("failed to create proxy key: %s", err)
+	}
+
+	fmt.Printf("created key? [%v] [%v] ", key, token)
+
+	//testhelpers.SetProxyAuthToken(token)
+	//err = testhelpers.DeleteProxyKey(context.Background(), project.ProjectIdentifier, "ProxyE2ETestsProxyKey")
 	//if err != nil {
-	//	log.Fatalf("failed to create proxy key: %s", err)
+	//	return
 	//}
 
 	// write .env for online test config
@@ -126,16 +138,16 @@ func main() {
 	//}
 
 	// write .env for proxy online redis mode
-	onlineProxyRedisFile, err := os.OpenFile(fmt.Sprintf(onlineRedisProxy), os.O_CREATE|os.O_WRONLY, createFilePermissionLevel)
-	if err != nil {
-		onlineProxyRedisFile.Close()
-		log.Fatalf("failed to open %s: %s", onlineRedisProxy, err)
-	}
-
-	_, err = io.WriteString(onlineProxyRedisFile, fmt.Sprintf(onlineProxyRedisTemplate, testhelpers.GetDefaultAccount(), projects[0].Organization, projects[1].Organization, "todo-proxykey"))
-	if err != nil {
-		log.Fatalf("failed to write to %s: %s", onlineRedisProxy, err)
-	}
+	//onlineProxyRedisFile, err := os.OpenFile(fmt.Sprintf(onlineRedisProxy), os.O_CREATE|os.O_WRONLY, createFilePermissionLevel)
+	//if err != nil {
+	//	onlineProxyRedisFile.Close()
+	//	log.Fatalf("failed to open %s: %s", onlineRedisProxy, err)
+	//}
+	//
+	//_, err = io.WriteString(onlineProxyRedisFile, fmt.Sprintf(onlineProxyRedisTemplate, testhelpers.GetDefaultAccount(), projects[0].Organization, projects[1].Organization, "todo-proxykey"))
+	//if err != nil {
+	//	log.Fatalf("failed to write to %s: %s", onlineRedisProxy, err)
+	//}
 
 	// We also don't care about supporting offline mode atm
 	//

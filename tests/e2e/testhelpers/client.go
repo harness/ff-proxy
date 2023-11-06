@@ -13,6 +13,7 @@ import (
 	log "github.com/sirupsen/logrus"
 
 	"github.com/golang-jwt/jwt"
+
 	"github.com/harness/ff-proxy/v2/domain"
 	"github.com/harness/ff-proxy/v2/gen/client"
 )
@@ -49,10 +50,17 @@ func Authenticate(apiKey string, url string, target *client.Target) (*client.Aut
 func DefaultEvaluationClient(url string) *client.Client {
 	log.Infof("Connecting client to %s", url)
 	c, err := client.NewClient(url)
+
+	//if this is the devspace project.
+	if strings.Contains(url, "pr2") {
+		return c
+	}
+
 	// if we're connecting in https mode we should trust the self-signed certs used by the tests
 	if strings.Contains(url, "https") {
 		c.Client = GetCertClient()
 	}
+
 	if err != nil {
 		return nil
 	}
@@ -147,7 +155,9 @@ func marshallClaims(claims jwt.Claims) (domain.Claims, error) {
 }
 
 func AuthenticateProxyKey(ctx context.Context, key string) (string, error) {
-	c := DefaultEvaluationClient(GetClientURL())
+
+	clientURL := GetClientURL()
+	c := DefaultEvaluationClient(clientURL)
 
 	body := client.AuthenticateProxyKeyJSONRequestBody{
 		ProxyKey: key,
@@ -166,8 +176,8 @@ func AuthenticateProxyKey(ctx context.Context, key string) (string, error) {
 	return r.JSON200.AuthToken, nil
 }
 
-func CreateProxyKeyAndAuth(ctx context.Context, account string, org string, identifier string, environments []string) (string, string, error) {
-	key, err := CreateProxyKey(ctx, account, org, identifier, environments)
+func CreateProxyKeyAndAuth(ctx context.Context, projectIdentifier, account string, org string, identifier string, environments []string) (string, string, error) {
+	key, err := CreateProxyKey(ctx, projectIdentifier, account, org, identifier, environments)
 	if err != nil {
 		return "", "", nil
 	}
