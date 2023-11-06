@@ -145,3 +145,37 @@ func marshallClaims(claims jwt.Claims) (domain.Claims, error) {
 
 	return clientClaims, nil
 }
+
+func AuthenticateProxyKey(ctx context.Context, key string) (string, error) {
+	c := DefaultEvaluationClient(GetClientURL())
+
+	body := client.AuthenticateProxyKeyJSONRequestBody{
+		ProxyKey: key,
+	}
+
+	resp, err := c.AuthenticateProxyKey(ctx, body, AddAuthToken)
+	if err != nil {
+		return "", err
+	}
+
+	r, err := client.ParseAuthenticateResponse(resp)
+	if err != nil {
+		return "", err
+	}
+
+	return r.JSON200.AuthToken, nil
+}
+
+func CreateProxyKeyAndAuth(ctx context.Context, account string, org string, identifier string, environments []string) (string, string, error) {
+	key, err := CreateProxyKey(ctx, account, org, identifier, environments)
+	if err != nil {
+		return "", "", nil
+	}
+
+	token, err := AuthenticateProxyKey(ctx, key)
+	if err != nil {
+		return "", "", nil
+	}
+
+	return key, token, nil
+}

@@ -30,6 +30,11 @@ func GetDefaultOrg() string {
 	return os.Getenv("DEFAULT_ORG")
 }
 
+// GetSecondaryOrg ...
+func GetSecondaryOrg() string {
+	return os.Getenv("SECONDARY_ORG")
+}
+
 // GetDefaultEnvironment ...
 func GetDefaultEnvironment() string {
 	return os.Getenv("DEFAULT_ENVIRONMENT")
