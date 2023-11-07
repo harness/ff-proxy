@@ -104,12 +104,15 @@ func main() {
 	}
 
 	fmt.Printf("created key? [%v] [%v] ", key, token)
+	testhelpers.SetProxyAuthToken(token)
 
-	//testhelpers.SetProxyAuthToken(token)
-	//err = testhelpers.DeleteProxyKey(context.Background(), project.ProjectIdentifier, "ProxyE2ETestsProxyKey")
-	//if err != nil {
-	//	return
-	//}
+	defer func() {
+		// Clean the key after a run.
+		err = testhelpers.DeleteProxyKey(context.Background(), testhelpers.GetDefaultAccount(), "ProxyE2ETestsProxyKey")
+		if err != nil {
+			return
+		}
+	}()
 
 	// write .env for online test config
 	onlineTestFile, err := os.OpenFile(fmt.Sprintf(onlineTestFileName), os.O_CREATE|os.O_WRONLY, createFilePermissionLevel)
@@ -138,16 +141,16 @@ func main() {
 	//}
 
 	// write .env for proxy online redis mode
-	//onlineProxyRedisFile, err := os.OpenFile(fmt.Sprintf(onlineRedisProxy), os.O_CREATE|os.O_WRONLY, createFilePermissionLevel)
-	//if err != nil {
-	//	onlineProxyRedisFile.Close()
-	//	log.Fatalf("failed to open %s: %s", onlineRedisProxy, err)
-	//}
-	//
-	//_, err = io.WriteString(onlineProxyRedisFile, fmt.Sprintf(onlineProxyRedisTemplate, testhelpers.GetDefaultAccount(), projects[0].Organization, projects[1].Organization, "todo-proxykey"))
-	//if err != nil {
-	//	log.Fatalf("failed to write to %s: %s", onlineRedisProxy, err)
-	//}
+	onlineProxyRedisFile, err := os.OpenFile(fmt.Sprintf(onlineRedisProxy), os.O_CREATE|os.O_WRONLY, createFilePermissionLevel)
+	if err != nil {
+		onlineProxyRedisFile.Close()
+		log.Fatalf("failed to open %s: %s", onlineRedisProxy, err)
+	}
+
+	_, err = io.WriteString(onlineProxyRedisFile, fmt.Sprintf(onlineProxyRedisTemplate, testhelpers.GetDefaultAccount(), projects[0].Organization, projects[1].Organization, "todo-proxykey"))
+	if err != nil {
+		log.Fatalf("failed to write to %s: %s", onlineRedisProxy, err)
+	}
 
 	// We also don't care about supporting offline mode atm
 	//

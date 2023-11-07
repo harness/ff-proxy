@@ -55,21 +55,15 @@ func DeleteProjectRemote(identifier string) (*http.Response, error) {
 
 func DeleteProxyKey(ctx context.Context, account, keyIdentifier string) error {
 	c := DefaultClient()
-
+	identifier := admin.Identifier(keyIdentifier)
 	params := &admin.DeleteProxyKeyParams{
 		AccountIdentifier: admin.AccountQueryParam(account),
 	}
 
-	identifier := admin.Identifier(keyIdentifier)
-
-	//TODO add token her
-	resp, err := c.DeleteProxyKey(ctx, identifier, params, AddProxyAuthToken)
+	_, err := c.DeleteProxyKey(ctx, identifier, params, AddProxyAuthToken)
 	if err != nil {
 		return err
 	}
-
-	fmt.Println(resp)
-
 	return nil
 }
 
