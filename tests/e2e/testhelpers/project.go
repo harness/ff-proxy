@@ -119,6 +119,30 @@ func SetupTestProject(org string) (TestProject, error) {
 	}, nil
 }
 
+// SetupTestEmptyProject creates a new project and environment for the tests
+func SetupTestEmptyProject(org string) (TestProject, error) {
+	log.Debug("Setup Test data")
+	// create project and environment
+	projectIdentifier, err := CreateDefaultProject(org)
+	if err != nil {
+		return TestProject{}, err
+	}
+	if projectIdentifier == "" {
+		return TestProject{}, fmt.Errorf("empty project identifier")
+	}
+	env1, err := setupEnvironment(org, projectIdentifier, GetDefaultEnvironment(), "Primary Env")
+	if err != nil {
+		return TestProject{}, err
+	}
+
+	return TestProject{
+		Account:           GetDefaultAccount(),
+		Organization:      org,
+		ProjectIdentifier: projectIdentifier,
+		Environment:       env1,
+	}, nil
+}
+
 func setupEnvironment(org string, projectIdentifier, environmentIdentifier, environmentName string) (Environment, error) {
 	env1, id, err := CreateEnvironment(org, projectIdentifier, environmentIdentifier, environmentName)
 	if err != nil {

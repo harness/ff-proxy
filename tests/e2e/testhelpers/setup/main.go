@@ -30,13 +30,16 @@ REMOTE_URL=%s
 ACCOUNT_IDENTIFIER=%s
 ORG_IDENTIFIER=%s
 SECONDARY_ORG_IDENTIFIER=%s
+
 PROJECT_IDENTIFIER=%s
 SECONDARY_PROJECT_IDENTIFIER=%s
+
 ENVIRONMENT_IDENTIFIER=%s
 CLIENT_URL=https://app.harness.io/gateway/cf
 PROXY_KEY=%s
 PROXY_AUTH_KEY=%s
-API_KEY=%s`
+API_KEY=%s
+EMPTY_PROJECT_API_KEY=%s`
 
 // var onlineProxyInMemTemplate = `ACCOUNT_IDENTIFIER=%s
 // ORG_IDENTIFIER=%s
@@ -55,7 +58,8 @@ PORT=9000
 TARGET_POLL_DURATION=0
 PROXY_KEY=%s
 PROXY_AUTH_KEY=%s
-API_KEY=%s`
+API_KEY=%s
+EMPTY_PROJECT_API_KEY=%s`
 
 //var generateOfflineConfigTemplate = `ACCOUNT_IDENTIFIER=%s
 //ORG_IDENTIFIER=%s
@@ -94,15 +98,30 @@ func main() {
 			log.Errorf(err.Error())
 			os.Exit(1)
 		}
-
 		projects = append(projects, project)
 	}
 
+	// setup empty project
+	empty, err := testhelpers.SetupTestEmptyProject(orgs[0])
+	if err != nil {
+		log.Errorf(err.Error())
+		os.Exit(1)
+	}
+	//append empty ptoject
+	projects = append(projects, empty)
+
+	//setup empty project
 	proxyKeyIdentifier := "ProxyE2ETestsProxyKey"
 	project := projects[0]
-	environments := []string{project.Environment.Identifier}
+	//environments := []string{project.Environment.Identifier}
+	//authenticate for both orgs and empty.
 
-	proxyKey, proxyAuthToken, err := testhelpers.CreateProxyKeyAndAuth(context.Background(), project.ProjectIdentifier, project.Account, project.Organization, proxyKeyIdentifier, environments)
+	//proxyKey, proxyAuthToken, err := testhelpers.CreateProxyKeyAndAuth(context.Background(), project.ProjectIdentifier, project.Account, project.Organization, proxyKeyIdentifier, environments)
+	//if err != nil {
+	//	log.Fatalf("failed to create proxy key: %s", err)
+	//}
+
+	proxyKey, proxyAuthToken, err := testhelpers.CreateProxyKeyAndAuthForMultipleOrgs(context.Background(), proxyKeyIdentifier, projects)
 	if err != nil {
 		log.Fatalf("failed to create proxy key: %s", err)
 	}
@@ -125,7 +144,7 @@ func main() {
 		log.Fatalf("failed to open %s: %s", onlineTestFileName, err)
 	}
 
-	_, err = io.WriteString(onlineTestFile, fmt.Sprintf(onlineTestTemplate, testhelpers.GetClientURL(), projects[0].Account, projects[0].Organization, projects[1].Organization, projects[0].ProjectIdentifier, projects[1].ProjectIdentifier, projects[0].Environment.Identifier, projects[1].Environment.Identifier, proxyKey, proxyAuthToken, project.Environment.Keys[0].ApiKey))
+	_, err = io.WriteString(onlineTestFile, fmt.Sprintf(onlineTestTemplate, testhelpers.GetClientURL(), projects[0].Account, projects[0].Organization, projects[1].Organization, projects[0].ProjectIdentifier, projects[1].ProjectIdentifier, projects[0].Environment.Identifier, projects[1].Environment.Identifier, proxyKey, proxyAuthToken, project.Environment.Keys[0].ApiKey, empty.Environment.Keys[0].ApiKey))
 	if err != nil {
 		log.Fatalf("failed to write to %s: %s", onlineTestFileName, err)
 	}
@@ -151,7 +170,7 @@ func main() {
 		log.Fatalf("failed to open %s: %s", onlineRedisProxy, err)
 	}
 
-	_, err = io.WriteString(onlineProxyRedisFile, fmt.Sprintf(onlineProxyRedisTemplate, testhelpers.GetDefaultAccount(), projects[0].Organization, projects[1].Organization, proxyKey, proxyAuthToken, project.Environment.Keys[0].ApiKey))
+	_, err = io.WriteString(onlineProxyRedisFile, fmt.Sprintf(onlineProxyRedisTemplate, testhelpers.GetDefaultAccount(), projects[0].Organization, projects[1].Organization, proxyKey, proxyAuthToken, project.Environment.Keys[0].ApiKey, empty.Environment.Keys[0].ApiKey))
 	if err != nil {
 		log.Fatalf("failed to write to %s: %s", onlineRedisProxy, err)
 	}

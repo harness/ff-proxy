@@ -113,3 +113,61 @@ func CreateProxyKey(ctx context.Context, projectIdentifier, account string, org 
 
 	return *p.JSON201.Key, nil
 }
+
+func CreateProxyKeyForMultipleOrgs(ctx context.Context, keyIdentifier, account, org1, org2, project1, project2, emptyProject string) (string, error) {
+	c := DefaultClient()
+
+	params := &admin.CreateProxyKeyParams{
+		AccountIdentifier: admin.AccountQueryParam(account),
+	}
+
+	body := admin.CreateProxyKeyJSONRequestBody{
+		Identifier: keyIdentifier,
+		Name:       keyIdentifier,
+		Organizations: admin.OrganizationDictionary{
+			AdditionalProperties: map[string]admin.ProjectDictionary{
+				org1: {
+					Projects: &admin.ProjectDictionary_Projects{
+						AdditionalProperties: map[string]admin.ProxyKeyProject{
+							project1: {
+								Scope: "all",
+							},
+							emptyProject: {
+								Scope: "all",
+							},
+						},
+					},
+				},
+				org2: {
+					Projects: &admin.ProjectDictionary_Projects{
+						AdditionalProperties: map[string]admin.ProxyKeyProject{
+							project2: {
+								Scope: "all",
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	resp, err := c.CreateProxyKey(ctx, params, body, AddAuthToken)
+	if err != nil {
+		return "", err
+	}
+
+	p, err := admin.ParseCreateProxyKeyResponse(resp)
+	if err != nil {
+		return "", err
+	}
+
+	if p.JSON201 == nil {
+		return "", fmt.Errorf("non 200 response creating ProxyKey: %v", p.StatusCode())
+	}
+
+	if p.JSON201.Key == nil {
+		return "", errors.New("nil proxy key returned")
+	}
+
+	return *p.JSON201.Key, nil
+}

@@ -10,9 +10,8 @@ import (
 	"net/http"
 	"strings"
 
-	log "github.com/sirupsen/logrus"
-
 	"github.com/golang-jwt/jwt"
+	log "github.com/sirupsen/logrus"
 
 	"github.com/harness/ff-proxy/v2/domain"
 	"github.com/harness/ff-proxy/v2/gen/client"
@@ -178,6 +177,28 @@ func AuthenticateProxyKey(ctx context.Context, key string) (string, error) {
 
 func CreateProxyKeyAndAuth(ctx context.Context, projectIdentifier, account string, org string, identifier string, environments []string) (string, string, error) {
 	key, err := CreateProxyKey(ctx, projectIdentifier, account, org, identifier, environments)
+	if err != nil {
+		return "", "", nil
+	}
+
+	token, err := AuthenticateProxyKey(ctx, key)
+	if err != nil {
+		return "", "", nil
+	}
+
+	return key, token, nil
+}
+
+func CreateProxyKeyAndAuthForMultipleOrgs(ctx context.Context, keyIdentifier string, projects []TestProject) (string, string, error) {
+
+	account := projects[0].Account
+	org1 := projects[0].Organization
+	org2 := projects[1].Organization
+	project1 := projects[0].ProjectIdentifier
+	project2 := projects[1].ProjectIdentifier
+	emptyProject := projects[2].ProjectIdentifier
+
+	key, err := CreateProxyKeyForMultipleOrgs(ctx, keyIdentifier, account, org1, org2, project1, project2, emptyProject)
 	if err != nil {
 		return "", "", nil
 	}
