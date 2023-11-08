@@ -150,17 +150,17 @@ func main() {
 
 	//We don't care about supporting inMem atm in v2
 	//write .env for proxy online in memory mode
-	onlineInMemProxyFile, err := os.OpenFile(fmt.Sprintf(onlineInMemoryProxy), os.O_CREATE|os.O_WRONLY, createFilePermissionLevel)
-	if err != nil {
-		onlineInMemProxyFile.Close()
-		log.Fatalf("failed to open %s: %s", onlineInMemoryProxy, err)
-	}
-	//
-	//We don't care about supporting inMem atm in v2
-	_, err = io.WriteString(onlineInMemProxyFile, fmt.Sprintf(onlineProxyInMemTemplate, testhelpers.GetDefaultAccount(), testhelpers.GetDefaultOrg(), "todo-proxykey"))
-	if err != nil {
-		log.Fatalf("failed to write to %s: %s", onlineInMemoryProxy, err)
-	}
+	//onlineInMemProxyFile, err := os.OpenFile(fmt.Sprintf(onlineInMemoryProxy), os.O_CREATE|os.O_WRONLY, createFilePermissionLevel)
+	//if err != nil {
+	//	onlineInMemProxyFile.Close()
+	//	log.Fatalf("failed to open %s: %s", onlineInMemoryProxy, err)
+	//}
+	////
+	////We don't care about supporting inMem atm in v2
+	//_, err = io.WriteString(onlineInMemProxyFile, fmt.Sprintf(onlineProxyInMemTemplate, testhelpers.GetDefaultAccount(), testhelpers.GetDefaultOrg(), "todo-proxykey"))
+	//if err != nil {
+	//	log.Fatalf("failed to write to %s: %s", onlineInMemoryProxy, err)
+	//}
 
 	// write .env for proxy online redis mode
 	onlineProxyRedisFile, err := os.OpenFile(fmt.Sprintf(onlineRedisProxy), os.O_CREATE|os.O_WRONLY, createFilePermissionLevel)
