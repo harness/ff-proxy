@@ -34,7 +34,9 @@ PROJECT_IDENTIFIER=%s
 SECONDARY_PROJECT_IDENTIFIER=%s
 ENVIRONMENT_IDENTIFIER=%s
 CLIENT_URL=https://app.harness.io/gateway/cf
-PROXY_KEY=%s`
+PROXY_KEY=%s
+PROXY_AUTH_KEY=%s
+API_KEY=%s`
 
 // var onlineProxyInMemTemplate = `ACCOUNT_IDENTIFIER=%s
 // ORG_IDENTIFIER=%s
@@ -51,7 +53,9 @@ AUTH_SECRET=my_secret
 REDIS_ADDRESS=redis:6379
 PORT=9000
 TARGET_POLL_DURATION=0
-PROXY_KEY=%s`
+PROXY_KEY=%s
+PROXY_AUTH_KEY=%s
+API_KEY=%s`
 
 //var generateOfflineConfigTemplate = `ACCOUNT_IDENTIFIER=%s
 //ORG_IDENTIFIER=%s
@@ -82,7 +86,6 @@ func main() {
 	testhelpers.SetupAuth()
 
 	orgs := []string{testhelpers.GetDefaultOrg(), testhelpers.GetSecondaryOrg()}
-
 	projects := []testhelpers.TestProject{}
 
 	for _, org := range orgs {
@@ -95,24 +98,25 @@ func main() {
 		projects = append(projects, project)
 	}
 
+	proxyKeyIdentifier := "ProxyE2ETestsProxyKey"
 	project := projects[0]
 	environments := []string{project.Environment.Identifier}
 
-	key, token, err := testhelpers.CreateProxyKeyAndAuth(context.Background(), project.ProjectIdentifier, project.Account, project.Organization, "ProxyE2ETestsProxyKey", environments)
+	proxyKey, proxyAuthToken, err := testhelpers.CreateProxyKeyAndAuth(context.Background(), project.ProjectIdentifier, project.Account, project.Organization, proxyKeyIdentifier, environments)
 	if err != nil {
 		log.Fatalf("failed to create proxy key: %s", err)
 	}
 
-	fmt.Printf("created key? [%v] [%v] ", key, token)
-	testhelpers.SetProxyAuthToken(token)
+	fmt.Printf("created key? [%v] [%v] ", proxyKey, proxyAuthToken)
+	testhelpers.SetProxyAuthToken(proxyKey)
 
-	defer func() {
-		// Clean the key after a run.
-		err = testhelpers.DeleteProxyKey(context.Background(), testhelpers.GetDefaultAccount(), "ProxyE2ETestsProxyKey")
-		if err != nil {
-			return
-		}
-	}()
+	//defer func() {
+	//	// Clean the key after a run.
+	//	err = testhelpers.DeleteProxyKey(context.Background(), testhelpers.GetDefaultAccount(), "ProxyE2ETestsProxyKey")
+	//	if err != nil {
+	//		return
+	//	}
+	//}()
 
 	// write .env for online test config
 	onlineTestFile, err := os.OpenFile(fmt.Sprintf(onlineTestFileName), os.O_CREATE|os.O_WRONLY, createFilePermissionLevel)
@@ -121,7 +125,7 @@ func main() {
 		log.Fatalf("failed to open %s: %s", onlineTestFileName, err)
 	}
 
-	_, err = io.WriteString(onlineTestFile, fmt.Sprintf(onlineTestTemplate, testhelpers.GetClientURL(), projects[0].Account, projects[0].Organization, projects[1].Organization, projects[0].ProjectIdentifier, projects[1].ProjectIdentifier, projects[0].Environment.Identifier, projects[1].Environment.Identifier, "Todo-proxykey"))
+	_, err = io.WriteString(onlineTestFile, fmt.Sprintf(onlineTestTemplate, testhelpers.GetClientURL(), projects[0].Account, projects[0].Organization, projects[1].Organization, projects[0].ProjectIdentifier, projects[1].ProjectIdentifier, projects[0].Environment.Identifier, projects[1].Environment.Identifier, proxyKey, proxyAuthToken, project.Environment.Keys[0].ApiKey))
 	if err != nil {
 		log.Fatalf("failed to write to %s: %s", onlineTestFileName, err)
 	}
@@ -147,7 +151,7 @@ func main() {
 		log.Fatalf("failed to open %s: %s", onlineRedisProxy, err)
 	}
 
-	_, err = io.WriteString(onlineProxyRedisFile, fmt.Sprintf(onlineProxyRedisTemplate, testhelpers.GetDefaultAccount(), projects[0].Organization, projects[1].Organization, "todo-proxykey"))
+	_, err = io.WriteString(onlineProxyRedisFile, fmt.Sprintf(onlineProxyRedisTemplate, testhelpers.GetDefaultAccount(), projects[0].Organization, projects[1].Organization, proxyKey, proxyAuthToken, project.Environment.Keys[0].ApiKey))
 	if err != nil {
 		log.Fatalf("failed to write to %s: %s", onlineRedisProxy, err)
 	}
