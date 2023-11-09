@@ -36,7 +36,7 @@ ENVIRONMENT_IDENTIFIER=%s
 CLIENT_URL=https://app.harness.io/gateway/cf
 PROXY_KEY=%s
 PROXY_AUTH_KEY=%s
-API_KEY=%s
+SERVER_API_KEY=%s
 EMPTY_PROJECT_API_KEY=%s`
 
 // var onlineProxyInMemTemplate = `ACCOUNT_IDENTIFIER=%s
