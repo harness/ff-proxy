@@ -1,7 +1,7 @@
 version: "3.9"
 services:
   proxy:
-    image: "harness/ff-proxy:latest"
+    image: "harness/ff-proxy:v2.0.0-rc.1"
     environment:
       - DEBUG=${DEBUG}
       - OFFLINE=${OFFLINE}
@@ -24,6 +24,10 @@ services:
       - TLS_ENABLED=${TLS_ENABLED}
       - TLS_CERT=${TLS_CERT}
       - TLS_KEY=${TLS_KEY}
+      - PROXY_KEY=${PROXY_KEY}
+      - AUTH_SECRET=foobar
+      - CLIENT_SERVICE=https://aszostak.pr2.harness.io/gateway/sdk/api/1.0
+      - METRIC_SERVICE=https://aszostak.pr2.harness.io/gateway/sdk/api/1.0
     build:
       context: ./
       dockerfile: ./Dockerfile
@@ -31,7 +35,7 @@ services:
       - ${CONFIG_VOLUME:-./config:/config}
       - ./tests/e2e/certs:/certs
     ports:
-      - 7000:${PORT:-7000}
+      - 7999:${PORT:-7999}
 
   redis:
     image: "redis:latest"
@@ -41,7 +45,7 @@ services:
   pushpin:
     image: fanout/pushpin
     ports:
-      - "7000:7000"
+      - "7999:7999"
       - "5560-5563:5560-5563"
       - "5555:5555"
     volumes:
