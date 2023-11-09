@@ -35,7 +35,7 @@ services:
       - ${CONFIG_VOLUME:-./config:/config}
       - ./tests/e2e/certs:/certs
     ports:
-      - 7999:${PORT:-7999}
+      - 7000:${PORT:-7000}
 
   redis:
     image: "redis:latest"
