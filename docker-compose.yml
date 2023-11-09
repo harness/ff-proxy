@@ -45,7 +45,7 @@ services:
   pushpin:
     image: fanout/pushpin
     ports:
-      - "7999:7999"
+      - "7000:7000"
       - "5560-5563:5560-5563"
       - "5555:5555"
     volumes:
