@@ -344,7 +344,7 @@ func main() {
 		}
 
 		reloadConfig = func() error {
-			return conf.Populate(ctx, authRepo, flagRepo, segmentRepo)
+			return conf.FetchAndPopulate(ctx, inventoryRepo, authRepo, flagRepo, segmentRepo)
 		}
 
 		redisStream = stream.NewRedisStream(redisClient)
