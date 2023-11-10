@@ -11,8 +11,9 @@ import (
 	"time"
 
 	"github.com/avast/retry-go"
-	v1 "github.com/harness/ff-proxy/v2/gen/admin"
 	log "github.com/sirupsen/logrus"
+
+	v1 "github.com/harness/ff-proxy/v2/gen/admin"
 )
 
 // DefaultProjectIdentifier ...
@@ -287,6 +288,9 @@ func CreateProjectRemote(org string, identifier string) (*http.Response, error) 
 	// ensure project is created within cf
 	err = retry.Do(
 		func() error {
+
+			fmt.Print("attempting to fetch " + identifier + " ")
+			fmt.Println(time.Parse(time.RFC3339, "2006-01-02T15:04:05Z"))
 			projectResponse, err := ReadProject(org, v1.Identifier(identifier))
 			if err != nil || projectResponse.StatusCode() != http.StatusOK {
 				return errors.New("project not found")
