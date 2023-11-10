@@ -84,6 +84,8 @@ e2e-cleanup: ## Generates the .env files needed to run the e2e tests below
 
 generate-e2e-env-files: ## Generates the .env files needed to run the e2e tests below
 	go run tests/e2e/testhelpers/setup/main.go
+	sleep 10m
+
 
 e2e-offline-redis: ## brings up offline proxy in redis mode and runs e2e sdk tests against it
 	OFFLINE=true AUTH_SECRET=my_secret REDIS_ADDRESS=redis:6379 CONFIG_VOLUME=./tests/e2e/testdata/config:/config docker-compose -f ./docker-compose.yml up -d --remove-orphans proxy redis
