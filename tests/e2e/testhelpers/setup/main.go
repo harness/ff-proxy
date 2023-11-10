@@ -2,10 +2,13 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"flag"
 	"fmt"
 	"io"
+	"math/rand"
 	"os"
+	"time"
 
 	"github.com/harness/ff-proxy/v2/tests/e2e/testhelpers"
 
@@ -17,6 +20,7 @@ import (
 const (
 	createFilePermissionLevel = 0644
 	onlineTestFileName        = "tests/e2e/env/.env.online"
+	cleanupTestFileName       = "tests/e2e/env/.env.cleanup"
 	onlineInMemoryProxy       = ".env.online_in_mem"
 	onlineRedisProxy          = ".env.online_redis"
 	generateOfflineConfig     = ".env.generate_offline"
@@ -73,6 +77,7 @@ func main() {
 	// setup
 	log.Infof("Global Test Setup")
 	var env string
+	cleanUpAssets := make(map[string]string)
 	// default to .env.local file if none specified
 	flag.StringVar(&env, "env", ".env.setup", "env file name")
 	flag.Parse()
@@ -108,33 +113,23 @@ func main() {
 	}
 	//append empty ptoject
 	projects = append(projects, empty)
-
 	//setup empty project
-	proxyKeyIdentifier := "ProxyE2ETestsProxyKey"
+	proxyKeyIdentifier := fmt.Sprintf("%s-%d", "ProxyE2ETestsProxyKey", rand.Intn(1000))
 	project := projects[0]
-	//environments := []string{project.Environment.Identifier}
-	//authenticate for both orgs and empty.
-
-	//proxyKey, proxyAuthToken, err := testhelpers.CreateProxyKeyAndAuth(context.Background(), project.ProjectIdentifier, project.Account, project.Organization, proxyKeyIdentifier, environments)
-	//if err != nil {
-	//	log.Fatalf("failed to create proxy key: %s", err)
-	//}
 
 	proxyKey, proxyAuthToken, err := testhelpers.CreateProxyKeyAndAuthForMultipleOrgs(context.Background(), proxyKeyIdentifier, projects)
 	if err != nil {
 		log.Fatalf("failed to create proxy key: %s", err)
 	}
-
 	fmt.Printf("created key? [%v] [%v] ", proxyKey, proxyAuthToken)
 	testhelpers.SetProxyAuthToken(proxyKey)
 
-	//defer func() {
-	//	// Clean the key after a run.
-	//	err = testhelpers.DeleteProxyKey(context.Background(), testhelpers.GetDefaultAccount(), "ProxyE2ETestsProxyKey")
-	//	if err != nil {
-	//		return
-	//	}
-	//}()
+	cleanUpAssets["ProxyKey"] = proxyKeyIdentifier
+	for _, p := range projects {
+		cleanUpAssets[p.ProjectIdentifier] = p.Organization
+	}
+	//dump the projects for a cleanup.
+	saveFilesForCleanup(cleanUpAssets)
 
 	// write .env for online test config
 	onlineTestFile, err := os.OpenFile(fmt.Sprintf(onlineTestFileName), os.O_CREATE|os.O_WRONLY, createFilePermissionLevel)
@@ -199,4 +194,59 @@ func main() {
 	//if err != nil {
 	//	log.Fatalf("failed to write to %s: %s", offlineConfig, err)
 	//}
+}
+
+func cleanUp() error {
+	//parse the map.
+	cleanUp := getCleanupFile()
+
+	fmt.Println("Sleeping")
+	time.Sleep(time.Second * 10)
+	fmt.Println("Attempting to delete the tests")
+	err := testhelpers.DeleteProxyKey(context.Background(), testhelpers.GetDefaultAccount(), cleanUp["ProxyKey"])
+	if err != nil {
+		return err
+	}
+	//delete key from the mp
+	delete(cleanUp, "ProxyKey")
+	//delete all the projects.
+	fmt.Println("Attempting to delete the projects")
+	for k, v := range cleanUp {
+		fmt.Printf("Attempting to delete the projects %s %s", k, v)
+		resp, err := testhelpers.DeleteProjectForOrg(k, v)
+		if err != nil {
+			log.Errorf("Unable to delete project %s with code %s", err.Error(), resp.StatusCode)
+		}
+
+	}
+	return nil
+}
+
+func getCleanupFile() map[string]string {
+	content, err := os.ReadFile(cleanupTestFileName)
+	if err != nil {
+		return nil
+	}
+	strContent := string(content)
+
+	m := map[string]string{}
+	if err := json.Unmarshal([]byte(strContent), &m); err != nil {
+		panic(err)
+	}
+	fmt.Println(m)
+	return m
+}
+
+func saveFilesForCleanup(cleanupFiles map[string]string) {
+
+	jsonString, _ := json.Marshal(cleanupFiles)
+	cleanupTestFile, err := os.OpenFile(fmt.Sprintf(cleanupTestFileName), os.O_CREATE|os.O_WRONLY, createFilePermissionLevel)
+	if err != nil {
+		cleanupTestFile.Close()
+		log.Fatalf("failed to open %s: %s", onlineTestFileName, err)
+	}
+	_, err = io.WriteString(cleanupTestFile, fmt.Sprintf("%s", jsonString))
+	if err != nil {
+		log.Fatalf("failed to write to %s: %s", onlineTestFileName, err)
+	}
 }

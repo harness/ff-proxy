@@ -79,6 +79,9 @@ PHONY+= dev
 dev: ## Brings up services that the proxy uses
 	docker-compose -f ./docker-compose.yml up -d --remove-orphans redis pushpin
 
+e2e-cleanup: ## Generates the .env files needed to run the e2e tests below
+	go run tests/e2e/testhelpers/cleanup/main.go
+
 generate-e2e-env-files: ## Generates the .env files needed to run the e2e tests below
 	go run tests/e2e/testhelpers/setup/main.go
 

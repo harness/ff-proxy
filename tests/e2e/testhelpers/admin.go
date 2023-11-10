@@ -53,6 +53,21 @@ func DeleteProjectRemote(identifier string) (*http.Response, error) {
 	return client.Client.Do(req)
 }
 
+func DeleteProjectForOrg(identifier, org string) (*http.Response, error) {
+	return DeleteProjectRemoteForOrg(identifier, org)
+}
+
+// DeleteProjectRemoteForOrg ...
+func DeleteProjectRemoteForOrg(identifier, org string) (*http.Response, error) {
+	client := DefaultClient()
+	req, err := http.NewRequest("DELETE", fmt.Sprintf("%s/projects/%s?accountIdentifier=%s&orgIdentifier=%s", GetPlatformBaseURL(), identifier, GetDefaultAccount(), org), nil)
+	if err != nil {
+		return nil, err
+	}
+	AddAuthToken(context.Background(), req)
+	return client.Client.Do(req)
+}
+
 func DeleteProxyKey(ctx context.Context, account, keyIdentifier string) error {
 	c := DefaultClient()
 	identifier := admin.Identifier(keyIdentifier)
