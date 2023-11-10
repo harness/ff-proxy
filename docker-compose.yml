@@ -3,6 +3,7 @@ services:
   proxy:
     image: "harness/ff-proxy:v2.0.0-rc.1"
     environment:
+      - DEBUG=${DEBUG}
       - LOG_LEVEL=INFO
       - REDIS_ADDRESS=redis:6379
       - READ_REPLICA=false
@@ -11,6 +12,9 @@ services:
       - TLS_CERT=${TLS_CERT}
       - TLS_KEY=${TLS_KEY}
       - PROXY_KEY=${PROXY_KEY}
+      - PORT=${PORT}
+      - BYPASS_AUTH=${BYPASS_AUTH}
+      - ACCOUNT_IDENTIFIER=${ACCOUNT_IDENTIFIER}
     build:
       context: ./
       dockerfile: ./Dockerfile
