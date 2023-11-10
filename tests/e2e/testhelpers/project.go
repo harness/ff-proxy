@@ -297,7 +297,7 @@ func CreateProjectRemote(org string, identifier string) (*http.Response, error) 
 			}
 			return nil
 		},
-		retry.Attempts(5), retry.Delay(500*time.Millisecond),
+		retry.Attempts(5), retry.Delay(5*time.Second),
 	)
 
 	if err != nil {
