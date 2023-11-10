@@ -84,7 +84,7 @@ e2e-cleanup: ## Generates the .env files needed to run the e2e tests below
 
 generate-e2e-env-files: ## Generates the .env files needed to run the e2e tests below
 	go run tests/e2e/testhelpers/setup/main.go
-	sleep 10m
+
 
 
 e2e-offline-redis: ## brings up offline proxy in redis mode and runs e2e sdk tests against it

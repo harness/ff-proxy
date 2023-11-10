@@ -75,6 +75,9 @@ EMPTY_PROJECT_API_KEY=%s`
 
 func main() {
 	// setup
+	log.Info("Sleeping before the golobal test")
+	time.Sleep(time.Minute * 10)
+
 	log.Infof("Global Test Setup")
 	var env string
 	cleanUpAssets := make(map[string]string)
