@@ -55,6 +55,11 @@ func GetClientURL() string {
 	return os.Getenv("CLIENT_URL")
 }
 
+// GetClientURL ...
+func GetAdminURL() string {
+	return os.Getenv("ADMIN_URL")
+}
+
 // IsPlaformEnabled ...
 func IsPlaformEnabled() bool {
 	enabled, err := strconv.ParseBool(os.Getenv("IS_PLATFORM_ENABLED"))

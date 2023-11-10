@@ -11,7 +11,7 @@ import (
 
 // DefaultClient returns the default admin client
 func DefaultClient() *admin.Client {
-	client, err := admin.NewClient(GetClientURL())
+	client, err := admin.NewClient(GetAdminURL())
 
 	if err != nil {
 		return nil
