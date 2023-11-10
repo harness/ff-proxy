@@ -74,9 +74,6 @@ EMPTY_PROJECT_API_KEY=%s`
 //var offlineConfigTemplate = `OFFLINE=true`
 
 func main() {
-	// setup
-	log.Info("Sleeping before the golobal test")
-	time.Sleep(time.Minute * 10)
 
 	log.Infof("Global Test Setup")
 	var env string
