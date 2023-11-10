@@ -26,8 +26,6 @@ services:
       - TLS_KEY=${TLS_KEY}
       - PROXY_KEY=${PROXY_KEY}
       - AUTH_SECRET=foobar
-      - CLIENT_SERVICE=https://aszostak.pr2.harness.io/gateway/sdk/api/1.0
-      - METRIC_SERVICE=https://aszostak.pr2.harness.io/gateway/sdk/api/1.0
     build:
       context: ./
       dockerfile: ./Dockerfile
