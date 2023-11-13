@@ -89,18 +89,19 @@ const (
 )
 
 type setupConfig struct {
-	featureRepo   *repository.FeatureFlagRepo
-	targetRepo    *repository.TargetRepo
-	segmentRepo   *repository.SegmentRepo
-	authRepo      *repository.AuthRepo
-	cacheHealthFn proxyservice.CacheHealthFn
-	envHealthFn   proxyservice.EnvHealthFn
-	clientService *mockClientService
-	eventListener sdkstream.EventStreamListener
-	cache         cache.Cache
-	metricService *mockMetricService
-	promReg       prometheusRegister
-	sdkClients    *mockSDKClient
+	featureRepo       *repository.FeatureFlagRepo
+	targetRepo        *repository.TargetRepo
+	segmentRepo       *repository.SegmentRepo
+	authRepo          *repository.AuthRepo
+	cacheHealthFn     func(ctx context.Context) domain.HealthResponse
+	clientService     *mockClientService
+	eventListener     sdkstream.EventStreamListener
+	cache             cache.Cache
+	metricService     *mockMetricService
+	promReg           prometheusRegister
+	sdkClients        *mockSDKClient
+	healthFn          func(ctx context.Context) domain.HealthResponse
+	healthySaasStream func() bool
 }
 
 type setupOpts func(s *setupConfig)
@@ -141,21 +142,21 @@ func setupWithClientService(c *mockClientService) setupOpts {
 	}
 }
 
-func setupWithCacheHealthFn(fn proxyservice.CacheHealthFn) setupOpts {
+func setupHealthFn(fn func(ctx context.Context) domain.HealthResponse) setupOpts {
 	return func(s *setupConfig) {
-		s.cacheHealthFn = fn
-	}
-}
-
-func setupWithEnvHealthFn(fn proxyservice.EnvHealthFn) setupOpts {
-	return func(s *setupConfig) {
-		s.envHealthFn = fn
+		s.healthFn = fn
 	}
 }
 
 func setupWithCache(c cache.Cache) setupOpts {
 	return func(s *setupConfig) {
 		s.cache = c
+	}
+}
+
+func setupWithHealthySaasStream(fn func() bool) setupOpts {
+	return func(s *setupConfig) {
+		s.healthySaasStream = fn
 	}
 }
 
@@ -221,35 +222,24 @@ func setupHTTPServer(t *testing.T, bypassAuth bool, opts ...setupOpts) *HTTPServ
 		}}
 	}
 
-	if setupConfig.cacheHealthFn == nil {
-		setupConfig.cacheHealthFn = func(ctx context.Context) error {
-			return nil
-		}
-	}
-
-	if setupConfig.envHealthFn == nil {
-		setupConfig.envHealthFn = func() []domain.EnvironmentHealth {
-			return []domain.EnvironmentHealth{
-				{
-					ID: "env-123",
-					StreamStatus: domain.StreamStatus{
-						State: domain.StreamStateConnected,
-						Since: 1687182105,
-					},
+	if setupConfig.healthFn == nil {
+		setupConfig.healthFn = func(ctx context.Context) domain.HealthResponse {
+			return domain.HealthResponse{
+				StreamStatus: domain.StreamStatus{
+					State: domain.StreamStateConnected,
+					Since: 1699877509155,
 				},
-				{
-					ID: "env-456",
-					StreamStatus: domain.StreamStatus{
-						State: domain.StreamStateConnected,
-						Since: 1687182105,
-					},
-				},
+				CacheStatus: "healthy",
 			}
 		}
 	}
 
 	if setupConfig.sdkClients == nil {
 		setupConfig.sdkClients = &mockSDKClient{data: make(map[string]bool)}
+	}
+
+	if setupConfig.healthySaasStream == nil {
+		setupConfig.healthySaasStream = func() bool { return true }
 	}
 
 	logger := log.NoOpLogger{}
@@ -266,13 +256,13 @@ func setupHTTPServer(t *testing.T, bypassAuth bool, opts ...setupOpts) *HTTPServ
 		TargetRepo:         *setupConfig.targetRepo,
 		SegmentRepo:        *setupConfig.segmentRepo,
 		AuthRepo:           *setupConfig.authRepo,
-		CacheHealthFn:      setupConfig.cacheHealthFn,
+		Health:             setupConfig.healthFn,
 		AuthFn:             tokenSource.GenerateToken,
 		ClientService:      setupConfig.clientService,
 		MetricService:      setupConfig.metricService,
 		Offline:            false,
 		Hasher:             hash.NewSha256(),
-		HealthySaasStream:  func() bool { return true },
+		HealthySaasStream:  setupConfig.healthySaasStream,
 		SDKStreamConnected: func(envID string) {},
 	})
 	endpoints := NewEndpoints(service)
@@ -1127,44 +1117,26 @@ func TestAuthentication(t *testing.T) {
 // TestHTTPServer_Health sets up a service with health check functions
 // injects it into the HTTPServer and makes HTTP requests to the /health endpoint
 func TestHTTPServer_Health(t *testing.T) {
-	// Skip for now because we don't have a way to check stream health until we've implemented the new streaming client
-	t.Skip()
-
-	healthyResponse := []byte(`{"environments":[{"id":"env-123","streamStatus":{"state":"CONNECTED","since":1687182105}},{"id":"env-456","streamStatus":{"state":"CONNECTED","since":1687182105}}],"cacheStatus":"healthy"}
+	healthyResponse := []byte(`{"streamStatus":{"state":"CONNECTED","since":1699877509155},"cacheStatus":"healthy"}
 `)
 
-	cacheUnhealthyResponse := []byte(`{"environments":[{"id":"env-123","streamStatus":{"state":"CONNECTED","since":1687182105}},{"id":"env-456","streamStatus":{"state":"CONNECTED","since":1687182105}}],"cacheStatus":"unhealthy"}
+	unhealthyResponse := []byte(`{"streamStatus":{"state":"DISCONNECTED","since":1699877509155},"cacheStatus":"unhealthy"}
 `)
-	env456UnhealthyResponse := []byte(`{"environments":[{"id":"env-123","streamStatus":{"state":"CONNECTED","since":1687182105}},{"id":"env-456","streamStatus":{"state":"DISCONNECTED","since":1687182105}}],"cacheStatus":"healthy"}
-`)
-	cacheHealthErr := func(ctx context.Context) error {
-		return fmt.Errorf("cache is borked")
-	}
 
-	envHealthErr := func() []domain.EnvironmentHealth {
-		return []domain.EnvironmentHealth{
-			{
-				ID: "env-123",
-				StreamStatus: domain.StreamStatus{
-					State: domain.StreamStateConnected,
-					Since: 1687182105,
-				},
+	healthErr := func(ctx context.Context) domain.HealthResponse {
+		return domain.HealthResponse{
+			StreamStatus: domain.StreamStatus{
+				State: domain.StreamStateDisconnected,
+				Since: 1699877509155,
 			},
-			{
-				ID: "env-456",
-				StreamStatus: domain.StreamStatus{
-					State: domain.StreamStateDisconnected,
-					Since: 1687182105,
-				},
-			},
+			CacheStatus: "unhealthy",
 		}
 	}
 
 	testCases := map[string]struct {
 		method               string
 		url                  string
-		cacheHealthFn        proxyservice.CacheHealthFn
-		envHealthFn          proxyservice.EnvHealthFn
+		healthFn             func(ctx context.Context) domain.HealthResponse
 		expectedStatusCode   int
 		expectedResponseBody []byte
 	}{
@@ -1180,22 +1152,15 @@ func TestHTTPServer_Health(t *testing.T) {
 		"Given I make a GET request and cache is unhealthy": {
 			method:               http.MethodGet,
 			expectedStatusCode:   http.StatusOK,
-			cacheHealthFn:        cacheHealthErr,
-			expectedResponseBody: cacheUnhealthyResponse,
-		},
-		"Given I make a GET request and env 456 is unhealthy": {
-			method:               http.MethodGet,
-			expectedStatusCode:   http.StatusOK,
-			envHealthFn:          envHealthErr,
-			expectedResponseBody: env456UnhealthyResponse,
+			healthFn:             healthErr,
+			expectedResponseBody: unhealthyResponse,
 		},
 	}
 	for desc, tc := range testCases {
 		tc := tc
 		// setup HTTPServer & service with auth bypassed
 		server := setupHTTPServer(t, true,
-			setupWithCacheHealthFn(tc.cacheHealthFn),
-			setupWithEnvHealthFn(tc.envHealthFn),
+			setupHealthFn(tc.healthFn),
 		)
 		testServer := httptest.NewServer(server)
 		t.Run(desc, func(t *testing.T) {
@@ -1254,36 +1219,31 @@ func TestHTTPServer_Stream(t *testing.T) {
 
 	authRepo := repository.NewAuthRepo(cache.NewMemCache())
 
-	// setup HTTPServer & service with auth bypassed
-	server := setupHTTPServer(t, true,
-		setupWithAuthRepo(authRepo),
-		setupWithSDKClients(&mockSDKClient{
-			data: map[string]bool{
-				"1234": true,
-				"5678": false,
-			},
-		}),
-	)
-	testServer := httptest.NewServer(server)
-	defer testServer.Close()
+	healthySaasStream := func() bool {
+		return true
+	}
+
+	unhealthySaasStream := func() bool {
+		return false
+	}
 
 	testCases := map[string]struct {
 		method                  string
 		headers                 http.Header
-		url                     string
+		healthySaasStream       func() bool
 		expectedStatusCode      int
 		expectedResponseHeaders http.Header
 	}{
 		"Given I make a request that isn't a GET request": {
 			method:             http.MethodPost,
 			headers:            http.Header{},
-			url:                fmt.Sprintf("%s/stream", testServer.URL),
+			healthySaasStream:  healthySaasStream,
 			expectedStatusCode: http.StatusMethodNotAllowed,
 		},
 		"Given I make a GET request but don't have an API-Key header": {
 			method:             http.MethodGet,
 			headers:            http.Header{},
-			url:                fmt.Sprintf("%s/stream", testServer.URL),
+			healthySaasStream:  healthySaasStream,
 			expectedStatusCode: http.StatusBadRequest,
 		},
 		"Given I make a GET request and have an empty API Key header": {
@@ -1291,7 +1251,7 @@ func TestHTTPServer_Stream(t *testing.T) {
 			headers: http.Header{
 				"API-Key": []string{},
 			},
-			url:                fmt.Sprintf("%s/stream", testServer.URL),
+			healthySaasStream:  healthySaasStream,
 			expectedStatusCode: http.StatusBadRequest,
 		},
 		"Given I make a GET request and with an API Key that isn't in the AuthConfig": {
@@ -1299,55 +1259,70 @@ func TestHTTPServer_Stream(t *testing.T) {
 			headers: http.Header{
 				"API-Key": []string{"foobar"},
 			},
-			url:                fmt.Sprintf("%s/stream", testServer.URL),
+			healthySaasStream:  healthySaasStream,
 			expectedStatusCode: http.StatusNotFound,
 		},
 
 		// Disable these tests temporarily until we implement new stream client
 
-		//"Given I make a GET request with a valid API Key Header": {
-		//	method: http.MethodGet,
-		//	headers: http.Header{
-		//		"API-Key": []string{apiKey},
-		//	},
-		//	url:                fmt.Sprintf("%s/stream", testServer.URL),
-		//	expectedStatusCode: http.StatusOK,
-		//	expectedResponseHeaders: http.Header{
-		//		"Content-Type":    []string{"text/event-stream"},
-		//		"Grip-Hold":       []string{"stream"},
-		//		"Grip-Channel":    []string{envID},
-		//		"Grip-Keep-Alive": []string{"\\n; format=cstring; timeout=15"},
-		//	},
-		//},
+		"Given I make a GET request with a valid API Key Header": {
+			method: http.MethodGet,
+			headers: http.Header{
+				"API-Key": []string{apiKey},
+			},
+			healthySaasStream:  healthySaasStream,
+			expectedStatusCode: http.StatusOK,
+			expectedResponseHeaders: http.Header{
+				"Content-Type":    []string{"text/event-stream"},
+				"Grip-Hold":       []string{"stream"},
+				"Grip-Channel":    []string{envID},
+				"Grip-Keep-Alive": []string{"\\n; format=cstring; timeout=15"},
+			},
+		},
 
-		//"Given I make a GET request with an API Key Header for a stream that isn't connected": {
-		//	method: http.MethodGet,
-		//	headers: http.Header{
-		//		"API-Key": []string{"apiKey2"},
-		//	},
-		//	url:                fmt.Sprintf("%s/stream", testServer.URL),
-		//	expectedStatusCode: http.StatusServiceUnavailable,
-		//	expectedResponseHeaders: http.Header{
-		//		"Content-Type": []string{"application/json; charset=UTF-8"},
-		//	},
-		//},
+		"Given I make a GET request with an API Key Header for a stream that isn't connected": {
+			method: http.MethodGet,
+			headers: http.Header{
+				"API-Key": []string{"apiKey2"},
+			},
+			healthySaasStream:  unhealthySaasStream,
+			expectedStatusCode: http.StatusServiceUnavailable,
+			expectedResponseHeaders: http.Header{
+				"Content-Type": []string{"application/json; charset=UTF-8"},
+			},
+		},
 	}
 
 	for desc, tc := range testCases {
 		tc := tc
 		t.Run(desc, func(t *testing.T) {
+			// setup HTTPServer & service with auth bypassed
+			server := setupHTTPServer(t, true,
+				setupWithAuthRepo(authRepo),
+				setupWithSDKClients(&mockSDKClient{
+					data: map[string]bool{
+						"1234": true,
+						"5678": false,
+					},
+				}),
+				setupWithHealthySaasStream(tc.healthySaasStream),
+			)
+			testServer := httptest.NewServer(server)
+			defer testServer.Close()
 
 			var req *http.Request
 			var err error
 
+			url := fmt.Sprintf("%s/stream", testServer.URL)
+
 			switch tc.method {
 			case http.MethodPost:
-				req, err = http.NewRequest(http.MethodPost, tc.url, bytes.NewBuffer([]byte{}))
+				req, err = http.NewRequest(http.MethodPost, url, bytes.NewBuffer([]byte{}))
 				if err != nil {
 					t.Fatal(err)
 				}
 			case http.MethodGet:
-				req, err = http.NewRequest(http.MethodGet, tc.url, nil)
+				req, err = http.NewRequest(http.MethodGet, url, nil)
 				if err != nil {
 					t.Fatal(err)
 				}

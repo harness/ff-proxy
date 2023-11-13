@@ -78,9 +78,6 @@ type authTokenFn func(key string) (domain.Token, error)
 // CacheHealthFn is a function that checks the cache health
 type CacheHealthFn func(ctx context.Context) error
 
-// EnvHealthFn is a function that checks the health of all connected environments
-type EnvHealthFn func() []domain.EnvironmentHealth
-
 // clientService is the interface for interacting with the feature flag client service
 type clientService interface {
 	Authenticate(ctx context.Context, apiKey string, target domain.Target) (string, error)
@@ -103,7 +100,6 @@ type Config struct {
 	TargetRepo    repository.TargetRepo
 	SegmentRepo   repository.SegmentRepo
 	AuthRepo      repository.AuthRepo
-	CacheHealthFn CacheHealthFn
 	AuthFn        authTokenFn
 	ClientService clientService
 	MetricService MetricService
@@ -114,6 +110,8 @@ type Config struct {
 
 	// SDKStreamConnected is a callback that we call whenee
 	SDKStreamConnected func(envID string)
+
+	Health func(ctx context.Context) domain.HealthResponse
 }
 
 // Service is the proxy service implementation
@@ -123,7 +121,6 @@ type Service struct {
 	targetRepo         repository.TargetRepo
 	segmentRepo        repository.SegmentRepo
 	authRepo           repository.AuthRepo
-	cacheHealthFn      CacheHealthFn
 	authFn             authTokenFn
 	clientService      clientService
 	metricService      MetricService
@@ -131,6 +128,8 @@ type Service struct {
 	hasher             hash.Hasher
 	healthySassStream  func() bool
 	sdkStreamConnected func(envID string)
+
+	health func(ctx context.Context) domain.HealthResponse
 }
 
 // NewService creates and returns a ProxyService
@@ -142,7 +141,6 @@ func NewService(c Config) Service {
 		targetRepo:         c.TargetRepo,
 		segmentRepo:        c.SegmentRepo,
 		authRepo:           c.AuthRepo,
-		cacheHealthFn:      c.CacheHealthFn,
 		authFn:             c.AuthFn,
 		clientService:      c.ClientService,
 		metricService:      c.MetricService,
@@ -150,6 +148,7 @@ func NewService(c Config) Service {
 		hasher:             c.Hasher,
 		healthySassStream:  c.HealthySaasStream,
 		sdkStreamConnected: c.SDKStreamConnected,
+		health:             c.Health,
 	}
 }
 
@@ -367,7 +366,7 @@ func (s Service) Stream(ctx context.Context, req domain.StreamRequest) (domain.S
 	// SDKs to poll the Proxy for changes until the stream is healthy again, meaning SDKs won't miss out on
 	// changes pulled down via polling.
 	if !s.healthySassStream() {
-		return domain.StreamResponse{}, fmt.Errorf("%w: streaming endpoint disabled", ErrNotImplemented)
+		return domain.StreamResponse{}, fmt.Errorf("%w: streaming endpoint disabled", ErrStreamDisconnected)
 	}
 
 	hashedAPIKey := s.hasher.Hash(req.APIKey)
@@ -392,32 +391,7 @@ func (s Service) Metrics(ctx context.Context, req domain.MetricsRequest) error {
 func (s Service) Health(ctx context.Context) (domain.HealthResponse, error) {
 	s.logger.Debug(ctx, "got health request")
 
-	// check health functions
-	err := s.cacheHealthFn(ctx)
-	if err != nil {
-		s.logger.Error(ctx, fmt.Sprintf("cache healthcheck error: %s", err.Error()))
-	}
-
-	systemHealth := domain.HealthResponse{
-		CacheStatus: boolToHealthString(false, err == nil),
-	}
-
-	return systemHealth, nil
-}
-
-// TODO: Provide a more detailed health response for environments - FFM-8237
-func boolToHealthString(envHealth bool, healthy bool) string {
-	if envHealth {
-		if !healthy {
-			return "polling"
-		}
-	}
-
-	if !healthy {
-		return "unhealthy"
-	}
-
-	return "healthy"
+	return s.health(ctx), nil
 }
 
 func toString(variation rest.Variation, kind string) string {
