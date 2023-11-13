@@ -2,6 +2,7 @@ package domain
 
 import (
 	"github.com/google/uuid"
+
 	clientgen "github.com/harness/ff-proxy/v2/gen/client"
 )
 
@@ -21,7 +22,7 @@ type Environments struct {
 
 // ToProxyConfig is a helper for converting from the generated ProxyConfig type to our domain ProxyConfig type
 func ToProxyConfig(c clientgen.ProxyConfig) ProxyConfig {
-	if *c.Environments == nil {
+	if c.Environments == nil || *c.Environments == nil {
 		return ProxyConfig{}
 	}
 
