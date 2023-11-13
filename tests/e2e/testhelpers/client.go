@@ -167,6 +167,9 @@ func AuthenticateProxyKey(ctx context.Context, key string) (string, error) {
 		return "", err
 	}
 
+	bodyBytes, err := ioutil.ReadAll(resp.Body)
+	log.Info("auth resp body %s", bodyBytes)
+
 	r, err := client.ParseAuthenticateResponse(resp)
 	if err != nil {
 		return "", err
@@ -199,6 +202,7 @@ func CreateProxyKeyAndAuthForMultipleOrgs(ctx context.Context, keyIdentifier str
 	emptyProject := projects[2].ProjectIdentifier
 
 	key, err := CreateProxyKeyForMultipleOrgs(ctx, keyIdentifier, account, org1, org2, project1, project2, emptyProject)
+	log.Infof("key : %s\n", key)
 	if err != nil {
 		return "", "", nil
 	}
