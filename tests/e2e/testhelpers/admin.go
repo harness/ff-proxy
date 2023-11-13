@@ -136,36 +136,6 @@ func CreateProxyKeyForMultipleOrgs(ctx context.Context, keyIdentifier, account, 
 		AccountIdentifier: admin.AccountQueryParam(account),
 	}
 
-	//body := admin.CreateProxyKeyJSONRequestBody{
-	//	Identifier: keyIdentifier,
-	//	Name:       keyIdentifier,
-	//	Organizations: admin.OrganizationDictionary{
-	//		AdditionalProperties: map[string]admin.ProjectDictionary{
-	//			org1: {
-	//				Projects: &admin.ProjectDictionary_Projects{
-	//					AdditionalProperties: map[string]admin.ProxyKeyProject{
-	//						project1: {
-	//							Scope: "all",
-	//						},
-	//						emptyProject: {
-	//							Scope: "all",
-	//						},
-	//					},
-	//				},
-	//			},
-	//			org2: {
-	//				Projects: &admin.ProjectDictionary_Projects{
-	//					AdditionalProperties: map[string]admin.ProxyKeyProject{
-	//						project2: {
-	//							Scope: "all",
-	//						},
-	//					},
-	//				},
-	//			},
-	//		},
-	//	},
-	//}
-
 	body := admin.CreateProxyKeyJSONRequestBody{
 		Identifier: keyIdentifier,
 		Name:       keyIdentifier,
@@ -178,6 +148,15 @@ func CreateProxyKeyForMultipleOrgs(ctx context.Context, keyIdentifier, account, 
 								Scope: "all",
 							},
 							emptyProject: {
+								Scope: "all",
+							},
+						},
+					},
+				},
+				org2: {
+					Projects: &admin.ProjectDictionary_Projects{
+						AdditionalProperties: map[string]admin.ProxyKeyProject{
+							project2: {
 								Scope: "all",
 							},
 						},
