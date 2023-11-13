@@ -74,8 +74,8 @@ func (m *MetricsRequest) MarshalBinary() (data []byte, err error) {
 
 // HealthResponse contains the fields returned in a healthcheck response
 type HealthResponse struct {
-	Environments []EnvironmentHealth `json:"environments"`
-	CacheStatus  string              `json:"cacheStatus"`
+	StreamStatus StreamStatus `json:"streamStatus"`
+	CacheStatus  string       `json:"cacheStatus"`
 }
 
 type GetProxyConfigInput struct {

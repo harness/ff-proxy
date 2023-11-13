@@ -55,10 +55,26 @@ func SaasStreamOnDisconnect(l log.Logger, streamHealth Health, pp Pushpin, redis
 }
 
 // SaasStreamOnConnect sets the status of the SaaS stream to healthy in the cache
-func SaasStreamOnConnect(l log.Logger, streamHealth Health) func() {
+func SaasStreamOnConnect(l log.Logger, streamHealth Health, reloadConfig func() error) func() {
 	return func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 1*time.Minute)
 		defer cancel()
+
+		status, err := streamHealth.StreamStatus(ctx)
+		if err != nil {
+			l.Error("SaasOnConnectHandler failed to get stream state from cache", "err", err)
+		}
+
+		// If the previous streamStatus was "DISCONNECT" and we've successfully reconnected we should
+		// do one final poll in case we missed any changes made between the last poll and reconnecting
+		if status.State == domain.StreamStateDisconnected {
+			l.Info("SaasOnConnectHandler polling for config changes")
+
+			if err := reloadConfig(); err != nil {
+				l.Error("SaasOnConnectHandler failed to poll for changes", "err", err)
+			}
+			l.Info("SaasOnConnectHandler successfully polled for config changes")
+		}
 
 		l.Info("connected to Harness SaaS SSE Stream")
 		if err := streamHealth.SetHealthy(ctx); err != nil {

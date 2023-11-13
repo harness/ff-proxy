@@ -391,7 +391,7 @@ func main() {
 			"*",
 			sseClient,
 			messageHandler,
-			stream.WithOnConnect(stream.SaasStreamOnConnect(logger, saasStreamHealth)),
+			stream.WithOnConnect(stream.SaasStreamOnConnect(logger, saasStreamHealth, reloadConfig)),
 			stream.WithOnDisconnect(
 				stream.SaasStreamOnDisconnect(
 					logger,
@@ -410,6 +410,8 @@ func main() {
 	apiKeyHasher := hash.NewSha256()
 	tokenSource := token.NewSource(logger, authRepo, apiKeyHasher, []byte(authSecret))
 
+	proxyHealth := health.NewProxyHealth(logger, saasStreamHealth.StreamStatus, cacheHealthCheck)
+
 	// Setup service and middleware
 	service := proxyservice.NewService(proxyservice.Config{
 		Logger:        log.NewContextualLogger(logger, log.ExtractRequestValuesFromContext),
@@ -417,19 +419,19 @@ func main() {
 		TargetRepo:    targetRepo,
 		SegmentRepo:   segmentRepo,
 		AuthRepo:      authRepo,
-		CacheHealthFn: cacheHealthCheck,
 		AuthFn:        tokenSource.GenerateToken,
 		ClientService: clientSvc,
 		MetricService: metricSvc,
 		Offline:       offline,
 		Hasher:        apiKeyHasher,
+		Health:        proxyHealth.Health,
 		HealthySaasStream: func() bool {
-			b, err := saasStreamHealth.StreamHealthy(ctx)
+			streamStatus, err := saasStreamHealth.StreamStatus(ctx)
 			if err != nil {
 				logger.Error("failed to check status of saas -> proxy stream health", "err", err)
-				return b
+				return false
 			}
-			return b
+			return streamStatus.State == domain.StreamStateConnected
 		},
 		SDKStreamConnected: func(envID string) {
 			connectedStreams.Set(envID, "")

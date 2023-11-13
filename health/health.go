@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/harness/ff-proxy/v2/domain"
 	"github.com/harness/ff-proxy/v2/log"
 	"github.com/hashicorp/go-multierror"
 )
@@ -76,4 +77,50 @@ func StreamHealthCheck() error {
 	}
 
 	return multiErr
+}
+
+// ProxyHealth ...
+type ProxyHealth struct {
+	logger       log.Logger
+	streamHealth func(context.Context) (domain.StreamStatus, error)
+	cacheHealth  func(context.Context) error
+}
+
+// NewProxyHealth creates a ProxyHealth
+func NewProxyHealth(l log.Logger, stream func(ctx context.Context) (domain.StreamStatus, error), cache func(ctx context.Context) error) ProxyHealth {
+	return ProxyHealth{
+		logger:       l,
+		streamHealth: stream,
+		cacheHealth:  cache,
+	}
+}
+
+// Health returns the status of the Proxy's Stream and Cache
+func (p ProxyHealth) Health(ctx context.Context) domain.HealthResponse {
+	cacheHealthy := true
+
+	// check health functions
+	err := p.cacheHealth(ctx)
+	if err != nil {
+		cacheHealthy = false
+		p.logger.Error("cache healthcheck failed", "err", err)
+	}
+
+	streamStatus, err := p.streamHealth(ctx)
+	if err != nil {
+		p.logger.Error("failed to get stream health", "err", err)
+	}
+
+	return domain.HealthResponse{
+		StreamStatus: streamStatus,
+		CacheStatus:  boolToHealthString(cacheHealthy),
+	}
+}
+
+func boolToHealthString(healthy bool) string {
+	if !healthy {
+		return "unhealthy"
+	}
+
+	return "healthy"
 }

@@ -3,6 +3,7 @@ package domain
 import (
 	"fmt"
 	"sync"
+	"time"
 
 	jsoniter "github.com/json-iterator/go"
 )
@@ -47,16 +48,28 @@ func (a *EnvironmentID) UnmarshalBinary(b []byte) error {
 	return jsoniter.Unmarshal(b, a)
 }
 
-// EnvironmentHealth contains the health info for an environment
-type EnvironmentHealth struct {
-	ID           string       `json:"id"`
-	StreamStatus StreamStatus `json:"streamStatus"`
-}
-
 // StreamStatus contains a streams state
 type StreamStatus struct {
 	State StreamState `json:"state"`
 	Since int64       `json:"since"`
+}
+
+// NewStreamStatus creates a StreamStatus
+func NewStreamStatus() StreamStatus {
+	return StreamStatus{
+		State: StreamStateInitializing,
+		Since: time.Now().UnixMilli(),
+	}
+}
+
+// MarshalBinary makes StreamStatus implement the BinaryMarshaler interface
+func (s *StreamStatus) MarshalBinary() ([]byte, error) {
+	return jsoniter.Marshal(s)
+}
+
+// UnmarshalBinary makes StreamStatus implement the BinaryUnmarshaler interface
+func (s *StreamStatus) UnmarshalBinary(b []byte) error {
+	return jsoniter.Unmarshal(b, s)
 }
 
 // ToPtr is a helper func for converting any type to a pointer
