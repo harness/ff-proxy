@@ -35,6 +35,8 @@ PHONY+= generate
 generate: ## Generates the client for the ff-servers client service
 	oapi-codegen --config ./ff-api/config/ff-proxy/client-client.yaml ./ff-api/docs/release/client-v1.yaml > gen/client/services.gen.go
 	oapi-codegen --config ./ff-api/config/ff-proxy/client-types.yaml ./ff-api/docs/release/client-v1.yaml > gen/client/types.gen.go
+	oapi-codegen --config ./ff-api/config/ff-proxy/admin-client.yaml  ./ff-api/docs/release/admin-v1.yaml > gen/admin/services.gen.go
+	oapi-codegen --config ./ff-api/config/ff-proxy/admin-types.yaml ./ff-api/docs/release/admin-v1.yaml > gen/admin/types.gen.go
 
 
 PHONY+= build
@@ -77,8 +79,13 @@ PHONY+= dev
 dev: ## Brings up services that the proxy uses
 	docker-compose -f ./docker-compose.yml up -d --remove-orphans redis pushpin
 
+e2e-cleanup: ## Generates the .env files needed to run the e2e tests below
+	go run tests/e2e/testhelpers/cleanup/main.go
+
 generate-e2e-env-files: ## Generates the .env files needed to run the e2e tests below
 	go run tests/e2e/testhelpers/setup/main.go
+
+
 
 e2e-offline-redis: ## brings up offline proxy in redis mode and runs e2e sdk tests against it
 	OFFLINE=true AUTH_SECRET=my_secret REDIS_ADDRESS=redis:6379 CONFIG_VOLUME=./tests/e2e/testdata/config:/config docker-compose -f ./docker-compose.yml up -d --remove-orphans proxy redis
@@ -97,7 +104,7 @@ e2e-online-in-mem: ## brings up proxy in online in memory mode and runs e2e sdk 
 
 e2e-online-redis: ## brings up proxy in online in redis mode and runs e2e sdk tests against it
 	docker-compose --env-file .env.online_redis -f ./docker-compose.yml up -d --remove-orphans proxy redis
-	sleep 5 ## TODO replace with a check for the proxy and all envs being healthy
+	sleep 5  ## TODO replace with a check for the proxy and all envs being healthy
 	go test -p 1 -v ./tests/... -env=".env.online" | tee /dev/stderr | go-junit-report -set-exit-code > online-redis.xml
 
 e2e-generate-offline-config: ## brings up proxy to generate offline config then runs in offline mode

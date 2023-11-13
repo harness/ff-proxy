@@ -9,6 +9,7 @@ import (
 
 // AuthToken used to authenticate with the remote service
 var AuthToken string
+var ProxyAuthToken string
 
 // SetAuthToken ...
 func SetAuthToken(token string) {
@@ -18,6 +19,15 @@ func SetAuthToken(token string) {
 // GetAuthToken ...
 func GetAuthToken() string {
 	return AuthToken
+}
+
+// SetProxyAuthToken ...
+func SetProxyAuthToken(token string) {
+	ProxyAuthToken = token
+}
+
+func GetProxyAuthToken() string {
+	return ProxyAuthToken
 }
 
 // GetDefaultAccount ...
@@ -43,6 +53,11 @@ func GetDefaultEnvironment() string {
 // GetClientURL ...
 func GetClientURL() string {
 	return os.Getenv("CLIENT_URL")
+}
+
+// GetClientURL ...
+func GetAdminURL() string {
+	return os.Getenv("ADMIN_URL")
 }
 
 // IsPlaformEnabled ...

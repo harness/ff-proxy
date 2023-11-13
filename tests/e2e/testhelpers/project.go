@@ -11,8 +11,9 @@ import (
 	"time"
 
 	"github.com/avast/retry-go"
-	v1 "github.com/harness/ff-proxy/v2/gen/admin"
 	log "github.com/sirupsen/logrus"
+
+	v1 "github.com/harness/ff-proxy/v2/gen/admin"
 )
 
 // DefaultProjectIdentifier ...
@@ -116,6 +117,30 @@ func SetupTestProject(org string) (TestProject, error) {
 		ProjectIdentifier: projectIdentifier,
 		Environment:       env1,
 		Flags:             flags,
+	}, nil
+}
+
+// SetupTestEmptyProject creates a new project and environment for the tests
+func SetupTestEmptyProject(org string) (TestProject, error) {
+	log.Debug("Setup Test data")
+	// create project and environment
+	projectIdentifier, err := CreateDefaultProject(org)
+	if err != nil {
+		return TestProject{}, err
+	}
+	if projectIdentifier == "" {
+		return TestProject{}, fmt.Errorf("empty project identifier")
+	}
+	env1, err := setupEnvironment(org, projectIdentifier, GetDefaultEnvironment(), "Primary Env")
+	if err != nil {
+		return TestProject{}, err
+	}
+
+	return TestProject{
+		Account:           GetDefaultAccount(),
+		Organization:      org,
+		ProjectIdentifier: projectIdentifier,
+		Environment:       env1,
 	}, nil
 }
 
@@ -263,13 +288,15 @@ func CreateProjectRemote(org string, identifier string) (*http.Response, error) 
 	// ensure project is created within cf
 	err = retry.Do(
 		func() error {
+
+			log.Info("attempting to fetch %s", identifier)
 			projectResponse, err := ReadProject(org, v1.Identifier(identifier))
 			if err != nil || projectResponse.StatusCode() != http.StatusOK {
 				return errors.New("project not found")
 			}
 			return nil
 		},
-		retry.Attempts(5), retry.Delay(500*time.Millisecond),
+		retry.Attempts(5), retry.Delay(5*time.Second),
 	)
 
 	if err != nil {

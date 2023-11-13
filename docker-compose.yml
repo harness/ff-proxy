@@ -1,29 +1,20 @@
 version: "3.9"
 services:
   proxy:
-    image: "harness/ff-proxy:latest"
+    image: "harness/ff-proxy:v2.0.0-rc.1"
     environment:
       - DEBUG=${DEBUG}
-      - OFFLINE=${OFFLINE}
-      - BYPASS_AUTH=${BYPASS_AUTH}
-      - ACCOUNT_IDENTIFIER=${ACCOUNT_IDENTIFIER}
-      - ORG_IDENTIFIER=${ORG_IDENTIFIER}
-      - ADMIN_SERVICE=${ADMIN_SERVICE}
-      - ADMIN_SERVICE_TOKEN=${ADMIN_SERVICE_TOKEN}
-      - CLIENT_SERVICE=${CLIENT_SERVICE_TOKEN}
-      - AUTH_SECRET=${AUTH_SECRET}
-      - SDK_BASE_URL=${SDK_BASE_URL}
-      - SDK_EVENTS_URL=${SDK_EVENTS_URL}
-      - REDIS_ADDRESS=${REDIS_ADDRESS}
-      - REDIS_PASSWORD=${REDIS_PASSWORD}
-      - REDIS_DB=${REDIS_DB}
-      - API_KEYS=${API_KEYS}
-      - TARGET_POLL_DURATION=${TARGET_POLL_DURATION}
-      - GENERATE_OFFLINE_CONFIG=${GENERATE_OFFLINE_CONFIG}
-      - PORT=${PORT}
+      - LOG_LEVEL=INFO
+      - REDIS_ADDRESS=redis:6379
+      - READ_REPLICA=false
+      - AUTH_SECRET=foobar
       - TLS_ENABLED=${TLS_ENABLED}
       - TLS_CERT=${TLS_CERT}
       - TLS_KEY=${TLS_KEY}
+      - PROXY_KEY=${PROXY_KEY}
+      - PORT=${PORT}
+      - BYPASS_AUTH=${BYPASS_AUTH}
+      - ACCOUNT_IDENTIFIER=${ACCOUNT_IDENTIFIER}
     build:
       context: ./
       dockerfile: ./Dockerfile

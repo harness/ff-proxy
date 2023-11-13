@@ -9,16 +9,17 @@ import (
 	"io/ioutil"
 	"net/http"
 	"strings"
-
-	log "github.com/sirupsen/logrus"
+	"time"
 
 	"github.com/golang-jwt/jwt"
+	log "github.com/sirupsen/logrus"
+
 	"github.com/harness/ff-proxy/v2/domain"
 	"github.com/harness/ff-proxy/v2/gen/client"
 )
 
 const (
-	localCertFile = "./certs/cert.crt"
+	localCertFile = "./tests/e2e/certs/cert.crt"
 )
 
 // AuthenticateSDKClient performs an auth request and returns the token and environment to use
@@ -49,10 +50,17 @@ func Authenticate(apiKey string, url string, target *client.Target) (*client.Aut
 func DefaultEvaluationClient(url string) *client.Client {
 	log.Infof("Connecting client to %s", url)
 	c, err := client.NewClient(url)
+
+	//if this is the devspace project.
+	if strings.Contains(url, "pr2") {
+		return c
+	}
+
 	// if we're connecting in https mode we should trust the self-signed certs used by the tests
 	if strings.Contains(url, "https") {
 		c.Client = GetCertClient()
 	}
+
 	if err != nil {
 		return nil
 	}
@@ -147,7 +155,9 @@ func marshallClaims(claims jwt.Claims) (domain.Claims, error) {
 }
 
 func AuthenticateProxyKey(ctx context.Context, key string) (string, error) {
-	c := DefaultEvaluationClient(GetClientURL())
+
+	clientURL := GetClientURL()
+	c := DefaultEvaluationClient(clientURL)
 
 	body := client.AuthenticateProxyKeyJSONRequestBody{
 		ProxyKey: key,
@@ -166,12 +176,38 @@ func AuthenticateProxyKey(ctx context.Context, key string) (string, error) {
 	return r.JSON200.AuthToken, nil
 }
 
-func CreateProxyKeyAndAuth(ctx context.Context, account string, org string, identifier string, environments []string) (string, string, error) {
-	key, err := CreateProxyKey(ctx, account, org, identifier, environments)
+func CreateProxyKeyAndAuth(ctx context.Context, projectIdentifier, account string, org string, identifier string, environments []string) (string, string, error) {
+	key, err := CreateProxyKey(ctx, projectIdentifier, account, org, identifier, environments)
 	if err != nil {
 		return "", "", nil
 	}
 
+	token, err := AuthenticateProxyKey(ctx, key)
+	if err != nil {
+		return "", "", nil
+	}
+
+	return key, token, nil
+}
+
+func CreateProxyKeyAndAuthForMultipleOrgs(ctx context.Context, keyIdentifier string, projects []TestProject) (string, string, error) {
+
+	account := projects[0].Account
+	org1 := projects[0].Organization
+	org2 := projects[1].Organization
+	project1 := projects[0].ProjectIdentifier
+	project2 := projects[1].ProjectIdentifier
+	emptyProject := projects[2].ProjectIdentifier
+
+	key, err := CreateProxyKeyForMultipleOrgs(ctx, keyIdentifier, account, org1, org2, project1, project2, emptyProject)
+	log.Infof("key : %s\n", key)
+	if err != nil {
+		return "", "", nil
+	}
+
+	log.Info("sleeping for 10s")
+	time.Sleep(10 * time.Second)
+	log.Info("attempting proxykey auth")
 	token, err := AuthenticateProxyKey(ctx, key)
 	if err != nil {
 		return "", "", nil
