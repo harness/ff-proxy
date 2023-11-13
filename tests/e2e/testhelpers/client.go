@@ -205,8 +205,9 @@ func CreateProxyKeyAndAuthForMultipleOrgs(ctx context.Context, keyIdentifier str
 		return "", "", nil
 	}
 
+	log.Info("sleeping for 10s")
 	time.Sleep(10 * time.Second)
-	
+	log.Info("attempting proxykey auth")
 	token, err := AuthenticateProxyKey(ctx, key)
 	if err != nil {
 		return "", "", nil
