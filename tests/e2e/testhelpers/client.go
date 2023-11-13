@@ -9,6 +9,7 @@ import (
 	"io/ioutil"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/golang-jwt/jwt"
 	log "github.com/sirupsen/logrus"
@@ -167,9 +168,6 @@ func AuthenticateProxyKey(ctx context.Context, key string) (string, error) {
 		return "", err
 	}
 
-	bodyBytes, err := ioutil.ReadAll(resp.Body)
-	log.Info("auth resp body %s", bodyBytes)
-
 	r, err := client.ParseAuthenticateResponse(resp)
 	if err != nil {
 		return "", err
@@ -207,6 +205,8 @@ func CreateProxyKeyAndAuthForMultipleOrgs(ctx context.Context, keyIdentifier str
 		return "", "", nil
 	}
 
+	time.Sleep(10 * time.Second)
+	
 	token, err := AuthenticateProxyKey(ctx, key)
 	if err != nil {
 		return "", "", nil
