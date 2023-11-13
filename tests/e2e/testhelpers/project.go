@@ -290,7 +290,6 @@ func CreateProjectRemote(org string, identifier string) (*http.Response, error) 
 		func() error {
 
 			fmt.Print("attempting to fetch " + identifier + " ")
-			fmt.Println(time.Parse(time.RFC3339, "2006-01-02T15:04:05Z"))
 			projectResponse, err := ReadProject(org, v1.Identifier(identifier))
 			if err != nil || projectResponse.StatusCode() != http.StatusOK {
 				return errors.New("project not found")
