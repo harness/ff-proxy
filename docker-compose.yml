@@ -15,6 +15,7 @@ services:
       - PORT=${PORT}
       - BYPASS_AUTH=${BYPASS_AUTH}
       - ACCOUNT_IDENTIFIER=${ACCOUNT_IDENTIFIER}
+      - CLIENT_SERVICE=https://config.feature-flags.qa.harness.io/api/1.0
     build:
       context: ./
       dockerfile: ./Dockerfile
