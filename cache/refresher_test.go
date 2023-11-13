@@ -505,6 +505,8 @@ type mockConfig struct {
 	// Token returns the authToken that the Config uses to communicate with Harness SaaS
 	token func() string
 
+	refreshToken func() (string, error)
+
 	// ClusterIdentifier returns the identifier of the cluster that the Config authenticated against
 	clusterIdentifier func() string
 
@@ -561,6 +563,13 @@ func (m mockConfig) FetchAndPopulate(ctx context.Context, inventory domain.Inven
 
 func (m mockConfig) Populate(ctx context.Context, authRepo domain.AuthRepo, flagRepo domain.FlagRepo, segmentRepo domain.SegmentRepo) error {
 	return m.populate(ctx, authRepo, flagRepo, segmentRepo)
+}
+
+func (m mockConfig) RefreshToken() (string, error) {
+	if m.refreshToken == nil {
+		return "", nil
+	}
+	return m.refreshToken()
 }
 
 func (m mockConfig) Key() string {

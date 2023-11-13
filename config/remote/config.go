@@ -31,6 +31,16 @@ func (c *Config) Token() string {
 	return c.token
 }
 
+func (c *Config) RefreshToken() (string, error) {
+	authResp, err := authenticate(c.key, c.ClientService)
+	if err != nil {
+		return "", err
+	}
+
+	c.token = authResp.Token
+	return c.token, nil
+}
+
 // ClusterIdentifier returns the identifier of the cluster that the Config authenticated against
 func (c *Config) ClusterIdentifier() string {
 	if c.clusterIdentifier == "" {

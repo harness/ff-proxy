@@ -46,6 +46,12 @@ func (c Config) Token() string {
 	return ""
 }
 
+// RefreshToken returns an empty token and a nil error. Local config reads from a file rather than communicating with
+// saas so there is no token to refresh
+func (c Config) RefreshToken() (string, error) {
+	return "", nil
+}
+
 // ClusterIdentifier returns an empty string rather than a clusterIdentifier because local config
 // loads config from a file and doesn't make any requests to Harness SaaS
 func (c Config) ClusterIdentifier() string {

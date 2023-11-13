@@ -136,11 +136,20 @@ func (s Refresher) handleAddEnvironmentEvent(ctx context.Context, environments [
 		clusterIdentifier = "1"
 	}
 
+	// First refresh the auth token, the auth token contains a list of environments
+	// in the claims that the ProxyKey has access to, if we don't refresh this when
+	// a new env is added then our current token won't be authorised to fetch config
+	// for the new env
+	authToken, err := s.config.RefreshToken()
+	if err != nil {
+		return fmt.Errorf("failed to refresh auth token to fetch new environment config: %s", err)
+	}
+
 	for _, env := range environments {
 		input := domain.GetProxyConfigInput{
 			Key:               s.config.Key(),
 			EnvID:             env,
-			AuthToken:         s.config.Token(),
+			AuthToken:         authToken,
 			ClusterIdentifier: clusterIdentifier,
 			PageNumber:        0,
 			PageSize:          10,
