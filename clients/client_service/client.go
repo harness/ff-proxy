@@ -155,8 +155,6 @@ func (c Client) GetProxyConfig(ctx context.Context, input domain.GetProxyConfigI
 		return domain.ProxyConfig{}, nil
 	}
 
-	fmt.Printf(">>>>>>>>response :  %v \n", resp)
-
 	return domain.ToProxyConfig(resp), nil
 }
 
