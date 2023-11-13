@@ -24,6 +24,9 @@ type Config interface {
 	// Token returns the authToken that the Config uses to communicate with Harness SaaS
 	Token() string
 
+	// RefreshToken refreshes the auth token that the Config uses for fetching env config
+	RefreshToken() (string, error)
+
 	// ClusterIdentifier returns the identifier of the cluster that the Config authenticated against
 	ClusterIdentifier() string
 
