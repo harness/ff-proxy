@@ -40,6 +40,7 @@ type MetricsCache struct {
 func (c MetricsCache) Scan(ctx context.Context, key string) (m map[string]string, err error) {
 	start := time.Now()
 	defer func() {
+
 		trackHistogram(start, c.scanDuration, key)
 		trackCounter(c.scanCount, key, getErrorLabel(err))
 	}()
@@ -77,7 +78,7 @@ func NewMetricsCache(label string, reg prometheus.Registerer, next Cache) Metric
 			Help:    "Tracks how long delete operations to the cache take",
 			Buckets: []float64{0.01, 0.025, 0.05, 0.075, 0.1, 0.25, 0.5},
 		},
-			[]string{},
+			[]string{"key"},
 		),
 
 		writeCount: prometheus.NewCounterVec(prometheus.CounterOpts{
