@@ -10,11 +10,12 @@ import (
 
 	"github.com/golang-jwt/jwt"
 	"github.com/google/uuid"
-	"github.com/harness/ff-proxy/v2/domain"
-	"github.com/harness/ff-proxy/v2/log"
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
 	"github.com/prometheus/client_golang/prometheus"
+
+	"github.com/harness/ff-proxy/v2/domain"
+	"github.com/harness/ff-proxy/v2/log"
 )
 
 // NewEchoLoggingMiddleware returns a new echo middleware that logs requests and
@@ -50,7 +51,7 @@ func NewEchoAuthMiddleware(secret []byte, bypassAuth bool) echo.MiddlewareFunc {
 			if err != nil {
 				return nil, err
 			}
-
+			// ASZ: todo validate if the environment from claims is still in redis.
 			if _, ok := token.Claims.(*domain.Claims); ok && token.Valid {
 				return nil, nil
 			}
