@@ -43,6 +43,8 @@ services:
     image: "grafana/grafana:10.2.0"
     ports:
       - "3000:3000"
+    volumes:
+      - ./grafana_data:/var/lib/grafana
     logging:
       driver: none
 
