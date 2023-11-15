@@ -18,11 +18,7 @@ type RedisStream struct {
 	maxLen int64
 }
 
-func (r RedisStream) Close(channel string) error {
-	return nil
-}
-
-func (r RedisStream) CloseStream(channel string) error {
+func (r RedisStream) Close(_ string) error {
 	return nil
 }
 

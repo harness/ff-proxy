@@ -36,7 +36,7 @@ func NewEchoLoggingMiddleware(l log.Logger) echo.MiddlewareFunc {
 
 // NewEchoAuthMiddleware returns an echo middleware that checks if auth headers
 // are valid
-func NewEchoAuthMiddleware(secret []byte, bypassAuth bool) echo.MiddlewareFunc {
+func NewEchoAuthMiddleware(authRepo domain.AuthRepo, secret []byte, bypassAuth bool) echo.MiddlewareFunc {
 	return middleware.JWTWithConfig(middleware.JWTConfig{
 		AuthScheme:  "Bearer",
 		TokenLookup: "header:Authorization",
@@ -51,8 +51,8 @@ func NewEchoAuthMiddleware(secret []byte, bypassAuth bool) echo.MiddlewareFunc {
 			if err != nil {
 				return nil, err
 			}
-			// ASZ: todo validate if the environment from claims is still in redis.
-			if _, ok := token.Claims.(*domain.Claims); ok && token.Valid {
+			// removeAllKeysForEnvironmentFn: todo validate if the environment from claims is still in redis.
+			if claims, ok := token.Claims.(*domain.Claims); ok && token.Valid && environmentInCache(authRepo, claims) {
 				return nil, nil
 			}
 			return nil, errors.New("invalid token")
@@ -71,6 +71,16 @@ func NewEchoAuthMiddleware(secret []byte, bypassAuth bool) echo.MiddlewareFunc {
 			return c.JSON(http.StatusUnauthorized, err)
 		},
 	})
+}
+
+func environmentInCache(authRepo domain.AuthRepo, claims *domain.Claims) bool {
+	envID := claims.Environment
+	keys, ok := authRepo.GetKeysForEnvironment(context.Background(), envID)
+	if !ok || len(keys) < 1 {
+		return false
+	}
+	// TODO there could be other keys for environment.
+	return true
 }
 
 // NewEchoRequestIDMiddleware returns an echo middleware that either uses a
