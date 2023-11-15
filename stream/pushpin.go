@@ -2,9 +2,11 @@ package stream
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/fanout/go-gripcontrol"
+	"github.com/harness/ff-proxy/v2/domain"
 	jsoniter "github.com/json-iterator/go"
 
 	"github.com/fanout/go-pubcontrol"
@@ -49,8 +51,13 @@ func (p Pushpin) Pub(_ context.Context, channel string, value interface{}) error
 	return nil
 }
 
-func (p Pushpin) CloseStream(channel string) error {
+// Close closes a stream
+func (p Pushpin) Close(channel string) error {
 	item := pubcontrol.NewItem([]pubcontrol.Formatter{&gripcontrol.HttpStreamFormat{Close: true}}, "", "")
 
 	return p.stream.Publish(channel, item)
+}
+
+func (p Pushpin) Sub(_ context.Context, _ string, _ string, _ domain.HandleMessageFn) error {
+	return errors.New("Pushpin.Sub not implemented")
 }
