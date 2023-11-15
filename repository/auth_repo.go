@@ -2,6 +2,7 @@ package repository
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"golang.org/x/exp/slices"
@@ -67,24 +68,24 @@ func (a AuthRepo) Get(ctx context.Context, key domain.AuthAPIKey) (string, bool)
 }
 
 // GetKeysForEnvironment gets all the apikey keys associated with environment id
-func (a AuthRepo) GetKeysForEnvironment(ctx context.Context, envID string) ([]string, bool) {
+func (a AuthRepo) GetKeysForEnvironment(ctx context.Context, envID string) ([]string, error) {
 
 	var apiKeys []string
 
 	key := domain.NewAPIConfigsKey(envID)
 	if err := a.cache.Get(ctx, string(key), &apiKeys); err != nil {
-		return apiKeys, false
+		return apiKeys, err
 	}
 
-	return apiKeys, true
+	return apiKeys, nil
 }
 
 // RemoveAllKeysForEnvironment all api keys for given environment
 func (a AuthRepo) RemoveAllKeysForEnvironment(ctx context.Context, envID string) error {
 
-	apiKeys, ok := a.GetKeysForEnvironment(ctx, envID)
-	if !ok {
-		return fmt.Errorf("unable to get apiKeys for environment: %v", envID)
+	apiKeys, err := a.GetKeysForEnvironment(ctx, envID)
+	if err != nil {
+		return fmt.Errorf("unable to get apiKeys for environment %s: %w", envID, err)
 	}
 
 	// append the entry for the list of keys assocaited with environments
@@ -111,7 +112,12 @@ func (a AuthRepo) Remove(ctx context.Context, keys []string) error {
 func (a AuthRepo) PatchAPIConfigForEnvironment(ctx context.Context, envID, key, action string) error {
 	apiKey := string(domain.NewAuthAPIKey(key))
 	apiConfigsKey := domain.NewAPIConfigsKey(envID)
-	apiConfigsValue, _ := a.GetKeysForEnvironment(ctx, envID)
+	apiConfigsValue, err := a.GetKeysForEnvironment(ctx, envID)
+	if err != nil {
+		if !errors.Is(err, domain.ErrCacheNotFound) {
+			return err
+		}
+	}
 
 	switch action {
 	case domain.EventAPIKeyAdded:
@@ -124,7 +130,7 @@ func (a AuthRepo) PatchAPIConfigForEnvironment(ctx context.Context, envID, key, 
 
 	case domain.EventAPIKeyRemoved:
 		//1. Environment config does not exit - do nothing
-		newAPIKeys, done, err := a.hadleRemove(ctx, apiConfigsValue, apiKey, apiConfigsKey)
+		newAPIKeys, done, err := a.handleRemove(ctx, apiConfigsValue, apiKey, apiConfigsKey)
 		if done {
 			return err
 		}
@@ -133,7 +139,7 @@ func (a AuthRepo) PatchAPIConfigForEnvironment(ctx context.Context, envID, key, 
 	return fmt.Errorf("action %v is not permitted", action)
 }
 
-func (a AuthRepo) hadleRemove(ctx context.Context, apiConfigsValue []string, apiKey string, apiConfigsKey domain.APIConfigsKey) ([]string, bool, error) {
+func (a AuthRepo) handleRemove(ctx context.Context, apiConfigsValue []string, apiKey string, apiConfigsKey domain.APIConfigsKey) ([]string, bool, error) {
 	if len(apiConfigsValue) < 1 {
 		return nil, true, nil
 	}
