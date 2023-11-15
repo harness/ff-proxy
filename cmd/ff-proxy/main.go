@@ -480,7 +480,7 @@ func createMetricsService(ctx context.Context, logger log.Logger, conf config.Co
 	}
 
 	metricsEnabled := metricPostDuration != 0 && !offline
-	ms, err := metricsservice.NewClient(logger, metricService, conf.Token(), metricsEnabled, promReg, redisStream)
+	ms, err := metricsservice.NewClient(logger, metricService, conf.Token, metricsEnabled, promReg, redisStream)
 	if err != nil {
 		logger.Error("failed to create client for the feature flags metric service", "err", err)
 		os.Exit(1)

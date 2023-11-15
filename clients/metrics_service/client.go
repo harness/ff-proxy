@@ -49,7 +49,7 @@ type Client struct {
 	enabled     bool
 	client      clientgen.ClientWithResponsesInterface
 	metrics     map[string]domain.MetricsRequest
-	token       string
+	token       func() string
 	metricsLock *sync.Mutex
 	subscriber  stream.Subscriber
 
@@ -58,7 +58,7 @@ type Client struct {
 }
 
 // NewClient creates a MetricService
-func NewClient(l log.Logger, addr string, token string, enabled bool, reg *prometheus.Registry, subscriber stream.Subscriber) (Client, error) {
+func NewClient(l log.Logger, addr string, token func() string, enabled bool, reg *prometheus.Registry, subscriber stream.Subscriber) (Client, error) {
 	l = l.With("component", "MetricServiceClient")
 	client, err := clientgen.NewClientWithResponses(
 		addr,
@@ -166,7 +166,7 @@ func (c Client) postMetrics(ctx context.Context, envID string, metric domain.Met
 		c.metricsForwarded.WithLabelValues(envID, errLabel).Inc()
 	}()
 
-	ctx = context.WithValue(ctx, tokenKey, c.token)
+	ctx = context.WithValue(ctx, tokenKey, c.token())
 	res, err := c.client.PostMetricsWithResponse(ctx, envID, &clientgen.PostMetricsParams{Cluster: &clusterIdentifier}, clientgen.PostMetricsJSONRequestBody{
 		MetricsData: metric.MetricsData,
 		TargetData:  metric.TargetData,
