@@ -29,6 +29,7 @@ type stream interface {
 // Publisher defines the interface for publishing to a stream
 type Publisher interface {
 	Pub(ctx context.Context, channel string, value interface{}) error
+	CloseStream(channel string) error
 }
 
 // Subscriber defines the interface for subscribing to a stream
@@ -88,6 +89,10 @@ func NewStream(l log.Logger, topic string, s stream, m domain.MessageHandler, op
 		stream.backoff = backoff.NewConstantBackOff(1 * time.Minute)
 	}
 	return *stream
+}
+
+func (s Stream) CloseStream(channel string) error {
+	return s.stream.CloseStream(channel)
 }
 
 // Publish publishes a message to the stream.

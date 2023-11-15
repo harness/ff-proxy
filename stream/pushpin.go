@@ -5,9 +5,8 @@ import (
 	"fmt"
 
 	"github.com/fanout/go-gripcontrol"
-	jsoniter "github.com/json-iterator/go"
-
 	"github.com/fanout/go-pubcontrol"
+	jsoniter "github.com/json-iterator/go"
 )
 
 // GripStream is the interface for publishing events to a grip channel
@@ -18,7 +17,6 @@ type gripStream interface {
 	// instance or a string / byte array (in which case an HttpStreamFormat instance will
 	// automatically be created and have the 'content' field set to the specified value).
 	PublishHttpStream(channel string, content interface{}, id string, prevID string) error
-
 	Publish(channel string, item *pubcontrol.Item) error
 }
 
@@ -42,15 +40,14 @@ func (p Pushpin) Pub(_ context.Context, channel string, value interface{}) error
 	}
 
 	content := fmt.Sprintf("event: *\ndata: %s\n\n", b)
-
 	if err := p.stream.PublishHttpStream(channel, content, "", ""); err != nil {
 		return fmt.Errorf("PushpinStream: %w: %s", ErrPublishing, err)
 	}
+
 	return nil
 }
 
 func (p Pushpin) CloseStream(channel string) error {
-	item := pubcontrol.NewItem([]pubcontrol.Formatter{&gripcontrol.HttpStreamFormat{Close: true}}, "", "")
-
-	return p.stream.Publish(channel, item)
+	closeMsg := pubcontrol.NewItem([]pubcontrol.Formatter{&gripcontrol.HttpStreamFormat{Close: true}}, "", "")
+	return p.stream.Publish(channel, closeMsg)
 }

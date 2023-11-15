@@ -41,11 +41,14 @@ func (r ReadReplicaMessageHandler) HandleMessage(_ context.Context, msg SSEMessa
 	// Any other event types we don't care about, we just want our chain of message handlers
 	// to forward this on to pushpin so SDKs get these events.
 	if msg.Event != "stream_action" {
+		// Return EOF to indicate the stream was closed
+		if msg.Domain == "disconnect" {
+			return io.EOF
+		}
 		return nil
 	}
 
-	// Return EOF to indicate the stream was closed
-	if msg.Domain == "disconnect" {
+	if msg.Event == "environmentsRemoved" || msg.Event == "apiKeyRemoved" {
 		return io.EOF
 	}
 

@@ -4,9 +4,10 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/harness/ff-proxy/v2/log"
 	"github.com/r3labs/sse/v2"
 	"gopkg.in/cenkalti/backoff.v1"
+
+	"github.com/harness/ff-proxy/v2/log"
 )
 
 // SSE is the interface for the underlying SSE client we're using
@@ -63,5 +64,9 @@ func (s *SSEClient) Sub(ctx context.Context, channel string, _ string, fn Handle
 // cleaner refactoring I can do around this and the pushpin type but I don't want to make this
 // PR bigger than it needs to be.
 func (s *SSEClient) Pub(_ context.Context, _ string, _ interface{}) error {
+	return nil
+}
+
+func (s *SSEClient) CloseStream(_ string) error {
 	return nil
 }

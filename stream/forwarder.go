@@ -49,17 +49,25 @@ func (s Forwarder) HandleMessage(ctx context.Context, msg domain.SSEMessage) (er
 			return
 		}
 
-		// ASZ: Todo: if env or apikey is deleted we should close the message.
-
-		// Flag and TargetSegment change messages are the only ones we need to care about
-		// forwarding on to the read replica Proxy or SDKs
-		if msg.Domain != domain.MsgDomainFeature && msg.Domain != domain.MsgDomainSegment {
-			return
-		}
-
 		topic := s.streamName
 		if topic == "" {
 			topic = msg.Environment
+		}
+
+		if msg.Event == domain.EventEnvironmentRemoved || msg.Event == domain.EventAPIKeyRemoved {
+			// if the key or api key has been deleted we want to close the stream.
+			for _, v := range msg.Environments {
+				_ = s.stream.CloseStream(v)
+			}
+		}
+
+		// Flag and TargetSegment change messages are the only ones we need to care about
+		// forwarding on to the read replica Proxy or SDKs
+		if msg.Domain != domain.MsgDomainFeature &&
+			msg.Domain != domain.MsgDomainSegment &&
+			msg.Event != domain.EventEnvironmentRemoved &&
+			msg.Event != domain.EventAPIKeyRemoved {
+			return
 		}
 
 		if err := s.stream.Pub(ctx, topic, msg); err != nil {

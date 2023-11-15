@@ -15,6 +15,10 @@ type RedisStream struct {
 	maxLen int64
 }
 
+func (r RedisStream) CloseStream(channel string) error {
+	return nil
+}
+
 // NewRedisStream creates a new redis streams client
 func NewRedisStream(u redis.UniversalClient) RedisStream {
 	return RedisStream{
