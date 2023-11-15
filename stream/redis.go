@@ -3,16 +3,23 @@ package stream
 import (
 	"context"
 	"encoding"
+	"errors"
 	"fmt"
 	"io"
 
 	"github.com/go-redis/redis/v8"
+
+	"github.com/harness/ff-proxy/v2/domain"
 )
 
 // RedisStream is a implementation of the Stream interface that is used for interacting with redis streams
 type RedisStream struct {
 	client redis.UniversalClient
 	maxLen int64
+}
+
+func (r RedisStream) Close(channel string) error {
+	return nil
 }
 
 func (r RedisStream) CloseStream(channel string) error {
@@ -57,7 +64,7 @@ func (r RedisStream) Pub(ctx context.Context, stream string, v interface{}) erro
 // Sub subscribes to a redis stream starting at the id provided. If an id isn't provided then it will start at the last
 // message on the stream. Sub only exits if there is an error communicating with
 // redis or the context has been cancelled by the caller.
-func (r RedisStream) Sub(ctx context.Context, stream string, id string, handleMessage HandleMessageFn) error {
+func (r RedisStream) Sub(ctx context.Context, stream string, id string, handleMessage domain.HandleMessageFn) error {
 	if id == "" {
 		id = "$"
 	}
@@ -81,7 +88,7 @@ func (r RedisStream) Sub(ctx context.Context, stream string, id string, handleMe
 					if err := handleMessage(msg.ID, parseRedisMessage(msg.Values)); err != nil {
 						// If we get an EOF error then we'll want to bubble this up since this
 						// signals that there's been a disconnect
-						if err == io.EOF {
+						if errors.Is(err, io.EOF) {
 							return err
 						}
 						continue

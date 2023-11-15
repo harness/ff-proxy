@@ -23,7 +23,6 @@ import (
 	"github.com/harness/ff-proxy/v2/build"
 	clientservice "github.com/harness/ff-proxy/v2/clients/client_service"
 	metricsservice "github.com/harness/ff-proxy/v2/clients/metrics_service"
-	"github.com/harness/ff-proxy/v2/export"
 	"github.com/harness/ff-proxy/v2/health"
 	"github.com/harness/ff-proxy/v2/stream"
 	"github.com/harness/ff-proxy/v2/token"
@@ -308,25 +307,6 @@ func main() {
 		os.Exit(1)
 	}
 
-	// Read replicas don't need to care about populating the repos with config
-	if !readReplica {
-		if err := conf.FetchAndPopulate(ctx, inventoryRepo, authRepo, flagRepo, segmentRepo); err != nil {
-			logger.Error("failed to populate repos with config", "err", err)
-			os.Exit(1)
-		}
-	}
-
-	// If the generateOfflineConfig flag is provided then we can just export the config and exit
-	if generateOfflineConfig {
-		exportService := export.NewService(logger, flagRepo, targetRepo, segmentRepo, authRepo, nil, configDir)
-		err = exportService.Persist(ctx)
-		if err != nil {
-			logger.Error("offline config export failed err: %s", err)
-			os.Exit(1)
-		}
-		os.Exit(0)
-	}
-
 	var (
 		messageHandler domain.MessageHandler
 
@@ -335,7 +315,6 @@ func main() {
 				"control_uri": "http://localhost:5561",
 			},
 		})
-		pushpinStream    = stream.NewPushpin(gpc)
 		saasStreamHealth = stream.NewHealth("ffproxy_saas_stream_health", sdkCache)
 		connectedStreams = domain.NewSafeMap()
 
@@ -347,60 +326,98 @@ func main() {
 			return conf.FetchAndPopulate(ctx, inventoryRepo, authRepo, flagRepo, segmentRepo)
 		}
 
-		redisStream = stream.NewRedisStream(redisClient)
+		pushpinStream domain.Stream = stream.NewPushpin(gpc)
+		redisStream   domain.Stream = stream.NewRedisStream(redisClient)
 	)
+
+	// Get the underlying type from the pushpinStream which is currently the
+	// Stream interface. We can now pass the underlying Pushpin type that has
+	// the Close method to our OnDisconnect handlers.
+	pushpin, ok := pushpinStream.(stream.Pushpin)
+	if !ok {
+		logger.Error("failed to get underlying type from pushpinStream")
+		os.Exit(1)
+	}
 
 	const (
 		sseStreamTopic = "proxy:sse_events"
 	)
 
+	// Configure prometheus labels depending on if we're running as a replica or primary
+	if readReplica {
+		redisStream = stream.NewPrometheusStream("ff_proxy_replica_sse_consumer", redisStream, promReg)
+		pushpinStream = stream.NewPrometheusStream("ff_proxy_replica_to_sdk_sse_producer", pushpinStream, promReg)
+	} else {
+		redisStream = stream.NewPrometheusStream("ff_proxy_primary_to_replica_sse_producer", redisStream, promReg)
+		pushpinStream = stream.NewPrometheusStream("ff_proxy_primary_to_sdk_sse_producer", pushpinStream, promReg)
+
+		// If we're running as a Primary we'll need to fetch the config and populate the cache
+		if err := conf.FetchAndPopulate(ctx, inventoryRepo, authRepo, flagRepo, segmentRepo); err != nil {
+			logger.Error("failed to populate repos with config", "err", err)
+			os.Exit(1)
+		}
+	}
+
 	readReplicaSSEStream := stream.NewStream(
 		logger,
 		sseStreamTopic,
 		redisStream,
-		stream.NewForwarder(logger, pushpinStream, domain.NewReadReplicaMessageHandler()),
-		stream.WithOnDisconnect(stream.ReadReplicaSSEStreamOnDisconnect(logger, pushpinStream, getConnectedStreams)),
+		stream.NewForwarder(logger, pushpinStream, domain.NoOpMessageHandler{}),
+		stream.WithOnDisconnect(stream.ReadReplicaSSEStreamOnDisconnect(logger, pushpin, getConnectedStreams)),
 		stream.WithBackoff(backoff.NewConstantBackOff(1*time.Minute)),
 	)
 
+	primaryToReplicaControlStream := stream.NewStream(
+		logger,
+		"proxy:primary_to_replica_control_events",
+		redisStream,
+		domain.NewReadReplicaMessageHandler(),
+		stream.WithOnDisconnect(stream.ReadReplicaSSEStreamOnDisconnect(logger, pushpin, getConnectedStreams)),
+		stream.WithBackoff(backoff.NewConstantBackOff(1*time.Minute)),
+	)
+
+	// If we're running as a read replica then we want to subscribe to two streams
+	//
+	// 1. The Redis Stream that the primary forwards SSE events on to
+	//   - The replica subscribes to this stream and forwards these events on to SDKs
+	//
+	// 2. The Redis stream that the primary sends control messages on e.g. stream disconnects
+	//   - The replica subscribes to this stream and when it gets a stream disconnect message
+	//     it closes any open streams with SDKs to force them to poll for changes
 	if readReplica {
-		// If we're running  in read replica mode we need to subscribe to the redis stream that
-		// the Writer will be forwarding events to and forward these on to pushpin so any connected
-		// SDKs get the events
+		primaryToReplicaControlStream.Subscribe(ctx)
 		readReplicaSSEStream.Subscribe(ctx)
 	} else {
-		// If we're running as a 'write' replica Proxy then we need our message handler to forward events
-		// on to redis, pushpin and refresh the cache. These types all implement the MessageHandler interface,
-		// meaning they're essentially middlewares that we can layer one after the other.
+
+		// If we're running as a Primary Proxy then we do the following
 		//
-		// Layering them in this order means that the first thing we'll do when we receive an SSE message
-		// is attempt to refresh the cache, then if that's successful we'll forward the event on to Redis and Pushpin
+		// 1. Subscribe to the Saas SSE stream
+		// 2. Refresh the cache when we receive an SSE event
+		// 3. Forward events we receive on the Saas SSE Stream to read replica Proxy's
+		// 4. Forward events from the Saas SSE stream on to connected SDKs
 		cacheRefresher := cache.NewRefresher(logger, conf, clientSvc, inventoryRepo, authRepo, flagRepo, segmentRepo)
 		redisForwarder := stream.NewForwarder(logger, redisStream, cacheRefresher, stream.WithStreamName(sseStreamTopic))
 		messageHandler = stream.NewForwarder(logger, pushpinStream, redisForwarder)
-	}
 
-	// If this is the 'Writer' proxy then open up a stream to Harness Saas
-	// so the Proxy can be notified of changes
-	if !readReplica {
 		streamURL := fmt.Sprintf("%s/stream", clientService)
 		sseClient := stream.NewSSEClient(logger, streamURL, proxyKey, conf.Token())
 
 		saasStream := stream.NewStream(
 			logger,
 			"*",
-			sseClient,
+			stream.NewPrometheusStream("ff_proxy_saas_to_primary_sse_consumer", sseClient, promReg),
 			messageHandler,
 			stream.WithOnConnect(stream.SaasStreamOnConnect(logger, saasStreamHealth, reloadConfig)),
 			stream.WithOnDisconnect(
 				stream.SaasStreamOnDisconnect(
 					logger,
 					saasStreamHealth,
-					pushpinStream,
-					readReplicaSSEStream,
+					pushpin,
+					primaryToReplicaControlStream, // When we disconnect we send a message on this stream to the replica to let it know the saas stream has disconnected
 					getConnectedStreams,
 					reloadConfig,
-				)),
+				),
+			),
 		)
 		saasStream.Subscribe(ctx)
 	}
@@ -480,7 +497,7 @@ func createMetricsService(ctx context.Context, logger log.Logger, conf config.Co
 	}
 
 	metricsEnabled := metricPostDuration != 0 && !offline
-	ms, err := metricsservice.NewClient(logger, metricService, conf.Token(), metricsEnabled, promReg, redisStream)
+	ms, err := metricsservice.NewClient(logger, metricService, conf.Token, metricsEnabled, promReg, redisStream)
 	if err != nil {
 		logger.Error("failed to create client for the feature flags metric service", "err", err)
 		os.Exit(1)

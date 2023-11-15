@@ -22,11 +22,11 @@ type Forwarder struct {
 	log        log.Logger
 	next       domain.MessageHandler
 	streamName string
-	stream     Publisher
+	stream     domain.Publisher
 }
 
 // NewForwarder creates a Forwarder
-func NewForwarder(l log.Logger, stream Publisher, next domain.MessageHandler, options ...func(*Forwarder)) Forwarder {
+func NewForwarder(l log.Logger, stream domain.Publisher, next domain.MessageHandler, options ...func(*Forwarder)) Forwarder {
 	l = l.With("component", "Forwarder")
 	f := &Forwarder{
 		log:    l,
@@ -57,7 +57,7 @@ func (s Forwarder) HandleMessage(ctx context.Context, msg domain.SSEMessage) (er
 		if msg.Event == domain.EventEnvironmentRemoved || msg.Event == domain.EventAPIKeyRemoved {
 			// if the key or api key has been deleted we want to close the stream.
 			for _, v := range msg.Environments {
-				_ = s.stream.CloseStream(v)
+				_ = s.stream.Close(v)
 			}
 		}
 

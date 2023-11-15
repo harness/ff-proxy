@@ -19,26 +19,9 @@ var (
 	ErrPublishing = errors.New("failed to publish to stream")
 
 	ErrSubscribing = errors.New("failed to subscribe to stream")
+
+	errParsingMessage = errors.New("errParsingMessage")
 )
-
-type stream interface {
-	Publisher
-	Subscriber
-}
-
-// Publisher defines the interface for publishing to a stream
-type Publisher interface {
-	Pub(ctx context.Context, channel string, value interface{}) error
-	CloseStream(channel string) error
-}
-
-// Subscriber defines the interface for subscribing to a stream
-type Subscriber interface {
-	Sub(ctx context.Context, channel string, id string, message HandleMessageFn) error
-}
-
-// HandleMessageFn is the function that gets called whenever a subscriber receives a message on a stream
-type HandleMessageFn func(id string, v interface{}) error
 
 func WithOnConnect(fn func()) func(s *Stream) {
 	return func(s *Stream) {
@@ -64,7 +47,7 @@ func WithBackoff(b backoff.BackOff) func(s *Stream) {
 type Stream struct {
 	log            log.Logger
 	topic          string
-	stream         stream
+	stream         domain.Stream
 	messageHandler domain.MessageHandler
 	onDisconnect   func()
 	onConnect      func()
@@ -72,7 +55,7 @@ type Stream struct {
 }
 
 // NewStream opens a subscription to the client service's stream endpoint
-func NewStream(l log.Logger, topic string, s stream, m domain.MessageHandler, options ...func(s *Stream)) Stream {
+func NewStream(l log.Logger, topic string, s domain.Stream, m domain.MessageHandler, options ...func(s *Stream)) Stream {
 	l = l.With("component", "Stream", "topic", topic)
 	stream := &Stream{
 		log:            l,
@@ -91,12 +74,8 @@ func NewStream(l log.Logger, topic string, s stream, m domain.MessageHandler, op
 	return *stream
 }
 
-func (s Stream) CloseStream(channel string) error {
-	return s.stream.CloseStream(channel)
-}
-
 // Publish publishes a message to the stream.
-func (s Stream) Publish(ctx context.Context, msg interface{}) error {
+func (s Stream) Publish(ctx context.Context, msg interface{}) (err error) {
 	return s.stream.Pub(ctx, s.topic, msg)
 }
 
@@ -121,17 +100,16 @@ func (s Stream) subscribe(ctx context.Context) {
 	}
 
 	msgID := ""
-	err := s.stream.Sub(ctx, s.topic, msgID, func(id string, v interface{}) error {
+	err := s.stream.Sub(ctx, s.topic, msgID, func(id string, v interface{}) (err error) {
 		msg, err := parseMessage(v)
 		if err != nil {
-			return nil
+			return err
 		}
 
 		msgID = id
 
 		return s.messageHandler.HandleMessage(ctx, msg)
 	})
-
 	if err != nil {
 		if errors.Is(err, context.Canceled) {
 			return
@@ -154,19 +132,19 @@ func parseMessage(v interface{}) (domain.SSEMessage, error) {
 	if s, ok := v.(string); ok {
 		m := domain.SSEMessage{}
 		if err := jsoniter.Unmarshal([]byte(s), &m); err != nil {
-			return m, err
+			return m, fmt.Errorf("%w: %s", errParsingMessage, err)
 		}
 		return m, nil
 	}
 
 	event, ok := v.(*sse.Event)
 	if !ok {
-		return domain.SSEMessage{}, fmt.Errorf("expected message type to be *sse.Event, got=%T", v)
+		return domain.SSEMessage{}, fmt.Errorf("%w: expected message type to be *sse.Event, got=%T", errParsingMessage, v)
 	}
 
 	m := domain.SSEMessage{}
 	if err := jsoniter.Unmarshal(event.Data, &m); err != nil {
-		return domain.SSEMessage{}, err
+		return domain.SSEMessage{}, fmt.Errorf("%w: %s", errParsingMessage, err)
 	}
 
 	return m, nil

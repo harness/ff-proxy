@@ -275,16 +275,20 @@ func TestMetricService_StoreMetrics(t *testing.T) {
 }
 
 func TestMetricService_SendMetrics(t *testing.T) {
+	tokenFn := func() string {
+		return defaultToken
+	}
+
 	postMetricsCount := 0
 	testCases := map[string]struct {
 		metrics              map[string]domain.MetricsRequest
-		token                string
+		token                func() string
 		expectedMetricsCount int
 		postMetricsWithResp  func(environment string) (*clientgen.PostMetricsResponse, error)
 	}{
 		"Given I send one environments metrics successfully": {
 			metrics:              map[string]domain.MetricsRequest{"123": env123MetricsFlag1},
-			token:                defaultToken,
+			token:                tokenFn,
 			expectedMetricsCount: 1,
 			postMetricsWithResp: func(environment string) (*clientgen.PostMetricsResponse, error) {
 				postMetricsCount++
@@ -295,7 +299,7 @@ func TestMetricService_SendMetrics(t *testing.T) {
 		},
 		"Given I have an error sending metrics for one env": {
 			metrics:              map[string]domain.MetricsRequest{"123": env123MetricsFlag1},
-			token:                defaultToken,
+			token:                tokenFn,
 			expectedMetricsCount: 1,
 			postMetricsWithResp: func(environment string) (*clientgen.PostMetricsResponse, error) {
 				postMetricsCount++
@@ -304,7 +308,7 @@ func TestMetricService_SendMetrics(t *testing.T) {
 		},
 		"Given I have 2 environments and the first errors we still send metrics for second env": {
 			metrics:              map[string]domain.MetricsRequest{"123": env123MetricsFlag1, "456": env456MetricsFlag1},
-			token:                defaultToken,
+			token:                tokenFn,
 			expectedMetricsCount: 2,
 			postMetricsWithResp: func(environment string) (*clientgen.PostMetricsResponse, error) {
 				postMetricsCount++
@@ -316,7 +320,7 @@ func TestMetricService_SendMetrics(t *testing.T) {
 		},
 		"Given I have 2 environments and the first returns non 200 we still send metrics for second env": {
 			metrics:              map[string]domain.MetricsRequest{"123": env123MetricsFlag1, "456": env456MetricsFlag1},
-			token:                defaultToken,
+			token:                tokenFn,
 			expectedMetricsCount: 2,
 			postMetricsWithResp: func(environment string) (*clientgen.PostMetricsResponse, error) {
 				postMetricsCount++

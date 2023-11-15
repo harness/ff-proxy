@@ -4,7 +4,6 @@ import (
 	"context"
 
 	"github.com/harness/ff-proxy/v2/domain"
-	"github.com/harness/ff-proxy/v2/stream"
 )
 
 const (
@@ -14,12 +13,12 @@ const (
 
 // Stream is a type for publishing metrics to a stream and implements the MetricService interface
 type Stream struct {
-	stream  stream.Publisher
+	stream  domain.Publisher
 	channel string
 }
 
 // NewStream creates a metrics stream
-func NewStream(s stream.Publisher) Stream {
+func NewStream(s domain.Publisher) Stream {
 	return Stream{
 		stream:  s,
 		channel: "stream:sdk_metrics",

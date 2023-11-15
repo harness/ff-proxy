@@ -3,15 +3,33 @@ package remote
 import (
 	"context"
 	"fmt"
+	"sync"
 	"time"
 
 	"github.com/harness/ff-proxy/v2/domain"
 )
 
+type safeString struct {
+	*sync.RWMutex
+	value string
+}
+
+func (s *safeString) Set(value string) {
+	s.Lock()
+	defer s.Unlock()
+	s.value = value
+}
+
+func (s *safeString) Get() string {
+	s.RLock()
+	defer s.RUnlock()
+	return s.value
+}
+
 // Config is the type that fetches config from Harness SaaS
 type Config struct {
 	key               string
-	token             string
+	token             *safeString
 	clusterIdentifier string
 	proxyConfig       []domain.ProxyConfig
 	ClientService     domain.ClientService
@@ -20,6 +38,7 @@ type Config struct {
 // NewConfig creates a new Config
 func NewConfig(key string, cs domain.ClientService) *Config {
 	c := &Config{
+		token:         &safeString{RWMutex: &sync.RWMutex{}, value: ""},
 		key:           key,
 		ClientService: cs,
 	}
@@ -28,7 +47,7 @@ func NewConfig(key string, cs domain.ClientService) *Config {
 
 // Token returns the authToken that the Config uses to communicate with Harness SaaS
 func (c *Config) Token() string {
-	return c.token
+	return c.token.Get()
 }
 
 func (c *Config) RefreshToken() (string, error) {
@@ -37,8 +56,8 @@ func (c *Config) RefreshToken() (string, error) {
 		return "", err
 	}
 
-	c.token = authResp.Token
-	return c.token, nil
+	c.token.Set(authResp.Token)
+	return c.token.Get(), nil
 }
 
 // ClusterIdentifier returns the identifier of the cluster that the Config authenticated against
@@ -66,7 +85,7 @@ func (c *Config) FetchAndPopulate(ctx context.Context, inventory domain.Inventor
 	if err != nil {
 		return err
 	}
-	c.token = authResp.Token
+	c.token.Set(authResp.Token)
 	c.clusterIdentifier = authResp.ClusterIdentifier
 
 	proxyConfig, err := retrieveConfig(c.key, authResp.Token, authResp.ClusterIdentifier, c.ClientService)

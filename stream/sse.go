@@ -7,6 +7,7 @@ import (
 	"github.com/r3labs/sse/v2"
 	"gopkg.in/cenkalti/backoff.v1"
 
+	"github.com/harness/ff-proxy/v2/domain"
 	"github.com/harness/ff-proxy/v2/log"
 )
 
@@ -40,7 +41,7 @@ func NewSSEClient(l log.Logger, url string, key string, token string) *SSEClient
 }
 
 // Sub makes SSEClient implement the Stream & Subscriber interfaces
-func (s *SSEClient) Sub(ctx context.Context, channel string, _ string, fn HandleMessageFn) error {
+func (s *SSEClient) Sub(ctx context.Context, channel string, _ string, fn domain.HandleMessageFn) error {
 	err := s.sse.SubscribeWithContext(ctx, channel, func(msg *sse.Event) {
 		// If we get a message with no data we just want to carry on and receive the next message
 		if len(msg.Data) <= 0 {
@@ -67,6 +68,6 @@ func (s *SSEClient) Pub(_ context.Context, _ string, _ interface{}) error {
 	return nil
 }
 
-func (s *SSEClient) CloseStream(_ string) error {
+func (s *SSEClient) Close(_ string) error {
 	return nil
 }
