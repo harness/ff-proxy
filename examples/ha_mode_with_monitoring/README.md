@@ -16,4 +16,6 @@ See [Configure SDKs to work with the Relay Proxy](https://developer.harness.io/d
 
 ## Monitoring the Proxy with Grafana
 
-TBD
+- Open [http://localhost:3000](http://localhost:3000) in your browser
+- To log in to a local grafana instance for the first time use `admin` for the username and `admin` for the password. Grafana will then ask you to create a new password for the `admin` user, you can set this to any value you want it to be.
+- Once you've logged in you should be able to navigate to the Harness FF Proxy dashboard. If you've pointed an SDK at your Proxy you should be able to see some metrics start to appear here. 
