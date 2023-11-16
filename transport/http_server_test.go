@@ -268,13 +268,29 @@ func setupHTTPServer(t *testing.T, bypassAuth bool, opts ...setupOpts) *HTTPServ
 	})
 	endpoints := NewEndpoints(service)
 
-	auth:=
+	authRepo := mockAuthRepo{
+		addFn: func(ctx context.Context, values ...domain.AuthConfig) error {
+			return nil
+		},
+		removeFn: func(ctx context.Context, id []string) error {
+			return nil
+		},
+		patchAPIConfigForEnvironmentFn: func(ctx context.Context, envID, apikey, action string) error {
+			return nil
+		},
+		removeAllKeysForEnvironmentFn: func(ctx context.Context, envID string) error {
+			return nil
+		},
+		getKeysForEnvironmentFn: func(ctx context.Context, envID string) ([]string, error) {
+			return []string{}, nil
+		},
+	}
 
 	server := NewHTTPServer(8000, endpoints, logger, false, "", "", prometheus.NewRegistry())
 	server.Use(
 		middleware.NewEchoRequestIDMiddleware(),
 		middleware.NewEchoLoggingMiddleware(logger),
-		middleware.NewEchoAuthMiddleware(auth, []byte(`secret`), bypassAuth),
+		middleware.NewEchoAuthMiddleware(authRepo, []byte(`secret`), bypassAuth),
 		middleware.NewPrometheusMiddleware(prometheus.NewRegistry()),
 	)
 	return server
@@ -1624,4 +1640,37 @@ func trimHeader(size int, data []byte) []byte {
 		data = data[:len(data)-1]
 	}
 	return data
+}
+
+type mockAuthRepo struct {
+	addFn                          func(ctx context.Context, values ...domain.AuthConfig) error
+	patchAPIConfigForEnvironmentFn func(ctx context.Context, envID, apikey, action string) error
+	removeFn                       func(ctx context.Context, id []string) error
+	removeAllKeysForEnvironmentFn  func(ctx context.Context, envID string) error
+	addAPIConfigsForEnvironmentFn  func(ctx context.Context, envID string, apiKeys []string) error
+	getKeysForEnvironmentFn        func(ctx context.Context, envID string) ([]string, error)
+}
+
+func (m mockAuthRepo) GetKeysForEnvironment(ctx context.Context, envID string) ([]string, error) {
+	return m.getKeysForEnvironmentFn(ctx, envID)
+}
+
+func (m mockAuthRepo) AddAPIConfigsForEnvironment(ctx context.Context, envID string, apiKeys []string) error {
+	return m.addAPIConfigsForEnvironmentFn(ctx, envID, apiKeys)
+}
+
+func (m mockAuthRepo) PatchAPIConfigForEnvironment(ctx context.Context, envID, apikey, action string) error {
+	return m.patchAPIConfigForEnvironmentFn(ctx, envID, apikey, action)
+}
+
+func (m mockAuthRepo) Remove(ctx context.Context, id []string) error {
+	return m.removeFn(ctx, id)
+}
+
+func (m mockAuthRepo) RemoveAllKeysForEnvironment(ctx context.Context, envID string) error {
+	return m.removeAllKeysForEnvironmentFn(ctx, envID)
+}
+
+func (m mockAuthRepo) Add(ctx context.Context, values ...domain.AuthConfig) error {
+	return m.addFn(ctx, values...)
 }
