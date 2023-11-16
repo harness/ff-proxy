@@ -282,7 +282,7 @@ func setupHTTPServer(t *testing.T, bypassAuth bool, opts ...setupOpts) *HTTPServ
 			return nil
 		},
 		getKeysForEnvironmentFn: func(ctx context.Context, envID string) ([]string, error) {
-			return []string{}, nil
+			return []string{""}, nil
 		},
 	}
 
