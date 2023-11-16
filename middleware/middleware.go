@@ -76,11 +76,16 @@ func NewEchoAuthMiddleware(authRepo domain.AuthRepo, secret []byte, bypassAuth b
 func environmentInCache(authRepo domain.AuthRepo, claims *domain.Claims) bool {
 	envID := claims.Environment
 	keys, ok := authRepo.GetKeysForEnvironment(context.Background(), envID)
-	if !ok || len(keys) < 1 {
-		return false
+	key := claims.APIKey
+	if ok || len(keys) > 0 {
+		// check if apikey is in cache
+		for _, k := range keys {
+			if key == k {
+				return true
+			}
+		}
 	}
-	// TODO there could be other keys for environment.
-	return true
+	return false
 }
 
 // NewEchoRequestIDMiddleware returns an echo middleware that either uses a
