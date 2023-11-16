@@ -44,8 +44,6 @@ func (a Source) GenerateToken(key string) (domain.Token, error) {
 		return domain.Token{}, fmt.Errorf("key %q not found", key)
 	}
 
-	//apiKey:= string(domain.NewAuthAPIKey())
-
 	t := time.Now()
 	c := domain.Claims{
 		APIKey:            string(k),

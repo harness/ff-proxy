@@ -51,7 +51,7 @@ func NewEchoAuthMiddleware(authRepo domain.AuthRepo, secret []byte, bypassAuth b
 			if err != nil {
 				return nil, err
 			}
-			// removeAllKeysForEnvironmentFn: todo validate if the environment from claims is still in redis.
+
 			if claims, ok := token.Claims.(*domain.Claims); ok && token.Valid && environmentInCache(authRepo, claims) {
 				return nil, nil
 			}
