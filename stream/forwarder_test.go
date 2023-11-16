@@ -19,6 +19,10 @@ type mockPublisher struct {
 	eventsForwarded int
 }
 
+func (m *mockPublisher) Close(channel string) error {
+	return nil
+}
+
 func (m *mockPublisher) Pub(ctx context.Context, channel string, value interface{}) error {
 	m.Lock()
 	defer m.Unlock()

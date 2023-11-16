@@ -6,15 +6,20 @@ import (
 	"testing"
 	"time"
 
-	"github.com/harness/ff-proxy/v2/domain"
-	"github.com/harness/ff-proxy/v2/log"
 	"github.com/r3labs/sse/v2"
 	"github.com/stretchr/testify/assert"
 	"gopkg.in/cenkalti/backoff.v1"
+
+	"github.com/harness/ff-proxy/v2/domain"
+	"github.com/harness/ff-proxy/v2/log"
 )
 
 type mockSubscriber struct {
 	sub func() (interface{}, error)
+}
+
+func (m *mockSubscriber) Close(channel string) error {
+	return nil
 }
 
 func (m *mockSubscriber) Sub(ctx context.Context, channel string, id string, fn domain.HandleMessageFn) error {
