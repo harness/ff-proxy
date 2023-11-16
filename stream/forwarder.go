@@ -54,12 +54,8 @@ func (s Forwarder) HandleMessage(ctx context.Context, msg domain.SSEMessage) (er
 			topic = msg.Environment
 		}
 
-		if msg.Event == domain.EventEnvironmentRemoved || msg.Event == domain.EventAPIKeyRemoved {
-			// if the key or api key has been deleted we want to close the stream.
-			for _, v := range msg.Environments {
-				_ = s.stream.Close(v)
-			}
-		}
+		// Send close stream msg if required
+		s.closeStream(msg)
 
 		// Flag and TargetSegment change messages are the only ones we need to care about
 		// forwarding on to the read replica Proxy or SDKs
@@ -76,4 +72,14 @@ func (s Forwarder) HandleMessage(ctx context.Context, msg domain.SSEMessage) (er
 	}()
 
 	return s.next.HandleMessage(ctx, msg)
+}
+
+func (s Forwarder) closeStream(msg domain.SSEMessage) {
+	if msg.Event == domain.EventEnvironmentRemoved || msg.Event == domain.EventAPIKeyRemoved {
+		// if the key or api key has been deleted we want to close the stream.
+		for _, v := range msg.Environments {
+			_ = s.stream.Close(v)
+		}
+	}
+
 }
