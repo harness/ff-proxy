@@ -80,11 +80,8 @@ func NewEchoAuthMiddleware(authRepo keyLookUp, secret []byte, bypassAuth bool) e
 
 func isKeyInCache(repo keyLookUp, claims *domain.Claims) bool {
 	key := claims.APIKey
-	_, ok := repo.Get(context.Background(), domain.AuthAPIKey(key))
-	if ok {
-		return true
-	}
-	return false
+	_, exists := repo.Get(context.Background(), domain.AuthAPIKey(key))
+	return exists
 }
 
 // NewEchoRequestIDMiddleware returns an echo middleware that either uses a
