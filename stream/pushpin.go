@@ -6,8 +6,9 @@ import (
 	"fmt"
 
 	"github.com/fanout/go-gripcontrol"
-	"github.com/harness/ff-proxy/v2/domain"
 	jsoniter "github.com/json-iterator/go"
+
+	"github.com/harness/ff-proxy/v2/domain"
 
 	"github.com/fanout/go-pubcontrol"
 )

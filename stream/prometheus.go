@@ -6,8 +6,9 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/harness/ff-proxy/v2/domain"
 	"github.com/prometheus/client_golang/prometheus"
+
+	"github.com/harness/ff-proxy/v2/domain"
 )
 
 // PrometheusStream is a Stream decorator for recording prometheus metrics around the number
@@ -16,6 +17,10 @@ type PrometheusStream struct {
 	next              domain.Stream
 	messagesPublished *prometheus.CounterVec
 	messagesReceived  *prometheus.CounterVec
+}
+
+func (p *PrometheusStream) Close(channel string) error {
+	return p.next.Close(channel)
 }
 
 // NewPrometheusStream creates a PrometheusStream

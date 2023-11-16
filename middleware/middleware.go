@@ -10,12 +10,18 @@ import (
 
 	"github.com/golang-jwt/jwt"
 	"github.com/google/uuid"
-	"github.com/harness/ff-proxy/v2/domain"
-	"github.com/harness/ff-proxy/v2/log"
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
 	"github.com/prometheus/client_golang/prometheus"
+
+	"github.com/harness/ff-proxy/v2/domain"
+	"github.com/harness/ff-proxy/v2/log"
 )
+
+// keyLookUp checks if the key exists in cache
+type keyLookUp interface {
+	Get(context context.Context, key domain.AuthAPIKey) (string, bool)
+}
 
 // NewEchoLoggingMiddleware returns a new echo middleware that logs requests and
 // their response
@@ -35,7 +41,7 @@ func NewEchoLoggingMiddleware(l log.Logger) echo.MiddlewareFunc {
 
 // NewEchoAuthMiddleware returns an echo middleware that checks if auth headers
 // are valid
-func NewEchoAuthMiddleware(secret []byte, bypassAuth bool) echo.MiddlewareFunc {
+func NewEchoAuthMiddleware(authRepo keyLookUp, secret []byte, bypassAuth bool) echo.MiddlewareFunc {
 	return middleware.JWTWithConfig(middleware.JWTConfig{
 		AuthScheme:  "Bearer",
 		TokenLookup: "header:Authorization",
@@ -51,7 +57,7 @@ func NewEchoAuthMiddleware(secret []byte, bypassAuth bool) echo.MiddlewareFunc {
 				return nil, err
 			}
 
-			if _, ok := token.Claims.(*domain.Claims); ok && token.Valid {
+			if claims, ok := token.Claims.(*domain.Claims); ok && token.Valid && isKeyInCache(authRepo, claims) {
 				return nil, nil
 			}
 			return nil, errors.New("invalid token")
@@ -70,6 +76,12 @@ func NewEchoAuthMiddleware(secret []byte, bypassAuth bool) echo.MiddlewareFunc {
 			return c.JSON(http.StatusUnauthorized, err)
 		},
 	})
+}
+
+func isKeyInCache(repo keyLookUp, claims *domain.Claims) bool {
+	key := claims.APIKey
+	_, exists := repo.Get(context.Background(), domain.AuthAPIKey(key))
+	return exists
 }
 
 // NewEchoRequestIDMiddleware returns an echo middleware that either uses a

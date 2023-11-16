@@ -460,7 +460,7 @@ func main() {
 	server.Use(
 		middleware.NewEchoRequestIDMiddleware(),
 		middleware.NewEchoLoggingMiddleware(logger),
-		middleware.NewEchoAuthMiddleware([]byte(authSecret), bypassAuth),
+		middleware.NewEchoAuthMiddleware(authRepo, []byte(authSecret), bypassAuth),
 		middleware.NewPrometheusMiddleware(promReg),
 	)
 

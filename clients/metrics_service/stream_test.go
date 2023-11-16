@@ -5,12 +5,17 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/harness/ff-proxy/v2/domain"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/harness/ff-proxy/v2/domain"
 )
 
 type mockStream struct {
 	pub func() error
+}
+
+func (m mockStream) Close(channel string) error {
+	return nil
 }
 
 func (m mockStream) Pub(ctx context.Context, channel string, value interface{}) error {

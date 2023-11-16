@@ -8,6 +8,7 @@ import (
 	"io"
 
 	"github.com/go-redis/redis/v8"
+
 	"github.com/harness/ff-proxy/v2/domain"
 )
 
@@ -15,6 +16,10 @@ import (
 type RedisStream struct {
 	client redis.UniversalClient
 	maxLen int64
+}
+
+func (r RedisStream) Close(_ string) error {
+	return nil
 }
 
 // NewRedisStream creates a new redis streams client

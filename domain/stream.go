@@ -13,6 +13,7 @@ type Stream interface {
 // Publisher defines the interface for publishing to a stream
 type Publisher interface {
 	Pub(ctx context.Context, channel string, value interface{}) error
+	Close(channel string) error
 }
 
 // Subscriber defines the interface for subscribing to a stream

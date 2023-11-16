@@ -16,6 +16,10 @@ import (
 	"github.com/alicebob/miniredis/v2"
 	"github.com/go-redis/redis/v8"
 	sdkstream "github.com/harness/ff-golang-server-sdk/stream"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/r3labs/sse"
+	"github.com/stretchr/testify/assert"
+
 	"github.com/harness/ff-proxy/v2/cache"
 	"github.com/harness/ff-proxy/v2/config/local"
 	"github.com/harness/ff-proxy/v2/domain"
@@ -26,9 +30,6 @@ import (
 	proxyservice "github.com/harness/ff-proxy/v2/proxy-service"
 	"github.com/harness/ff-proxy/v2/repository"
 	"github.com/harness/ff-proxy/v2/token"
-	"github.com/prometheus/client_golang/prometheus"
-	"github.com/r3labs/sse"
-	"github.com/stretchr/testify/assert"
 )
 
 type mockSDKClient struct {
@@ -267,11 +268,17 @@ func setupHTTPServer(t *testing.T, bypassAuth bool, opts ...setupOpts) *HTTPServ
 	})
 	endpoints := NewEndpoints(service)
 
+	repo := mockRepo{
+		getFn: func(context context.Context, key domain.AuthAPIKey) (string, bool) {
+			return "", true
+		},
+	}
+
 	server := NewHTTPServer(8000, endpoints, logger, false, "", "", prometheus.NewRegistry())
 	server.Use(
 		middleware.NewEchoRequestIDMiddleware(),
 		middleware.NewEchoLoggingMiddleware(logger),
-		middleware.NewEchoAuthMiddleware([]byte(`secret`), bypassAuth),
+		middleware.NewEchoAuthMiddleware(repo, []byte(`secret`), bypassAuth),
 		middleware.NewPrometheusMiddleware(prometheus.NewRegistry()),
 	)
 	return server
@@ -1621,4 +1628,12 @@ func trimHeader(size int, data []byte) []byte {
 		data = data[:len(data)-1]
 	}
 	return data
+}
+
+type mockRepo struct {
+	getFn func(context context.Context, key domain.AuthAPIKey) (string, bool)
+}
+
+func (m mockRepo) Get(ctx context.Context, key domain.AuthAPIKey) (string, bool) {
+	return m.getFn(ctx, key)
 }
