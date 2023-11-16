@@ -9,6 +9,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 
 	"github.com/harness/ff-proxy/v2/domain"
+
 )
 
 // PrometheusStream is a Stream decorator for recording prometheus metrics around the number

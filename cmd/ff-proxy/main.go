@@ -11,9 +11,8 @@ import (
 	"strings"
 	"time"
 
-	"gopkg.in/cenkalti/backoff.v1"
-
 	"github.com/harness/ff-proxy/v2/domain"
+	"gopkg.in/cenkalti/backoff.v1"
 
 	"github.com/fanout/go-gripcontrol"
 
