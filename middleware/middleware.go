@@ -18,6 +18,11 @@ import (
 	"github.com/harness/ff-proxy/v2/log"
 )
 
+// keyLookUp checks if the key exists in cache
+type keyLookUp interface {
+	Get(context context.Context, key domain.AuthAPIKey) (string, bool)
+}
+
 // NewEchoLoggingMiddleware returns a new echo middleware that logs requests and
 // their response
 func NewEchoLoggingMiddleware(l log.Logger) echo.MiddlewareFunc {
@@ -36,7 +41,7 @@ func NewEchoLoggingMiddleware(l log.Logger) echo.MiddlewareFunc {
 
 // NewEchoAuthMiddleware returns an echo middleware that checks if auth headers
 // are valid
-func NewEchoAuthMiddleware(authRepo domain.AuthRepo, secret []byte, bypassAuth bool) echo.MiddlewareFunc {
+func NewEchoAuthMiddleware(authRepo keyLookUp, secret []byte, bypassAuth bool) echo.MiddlewareFunc {
 	return middleware.JWTWithConfig(middleware.JWTConfig{
 		AuthScheme:  "Bearer",
 		TokenLookup: "header:Authorization",
@@ -52,7 +57,7 @@ func NewEchoAuthMiddleware(authRepo domain.AuthRepo, secret []byte, bypassAuth b
 				return nil, err
 			}
 
-			if claims, ok := token.Claims.(*domain.Claims); ok && token.Valid && environmentInCache(authRepo, claims) {
+			if claims, ok := token.Claims.(*domain.Claims); ok && token.Valid && isKeyInCache(authRepo, claims) {
 				return nil, nil
 			}
 			return nil, errors.New("invalid token")
@@ -73,19 +78,11 @@ func NewEchoAuthMiddleware(authRepo domain.AuthRepo, secret []byte, bypassAuth b
 	})
 }
 
-func environmentInCache(authRepo domain.AuthRepo, claims *domain.Claims) bool {
-	envID := claims.Environment
+func isKeyInCache(repo keyLookUp, claims *domain.Claims) bool {
 	key := claims.APIKey
-	keys, err := authRepo.GetKeysForEnvironment(context.Background(), envID)
-	if err != nil {
-		return false
-	}
-
-	// check if apikey is in cache
-	for _, k := range keys {
-		if key == k {
-			return true
-		}
+	_, ok := repo.Get(context.Background(), domain.AuthAPIKey(key))
+	if ok {
+		return true
 	}
 	return false
 }
