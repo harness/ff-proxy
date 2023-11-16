@@ -2,6 +2,7 @@ package cache
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -103,6 +104,9 @@ func (k *KeyValCache) Get(ctx context.Context, key string, value interface{}) er
 // Delete can be used to forcefully remove a key from the cache before it's TTL has expired
 func (k *KeyValCache) Delete(ctx context.Context, key string) error {
 	if err := k.redisClient.Del(ctx, key).Err(); err != nil {
+		if err == redis.Nil {
+			return fmt.Errorf("%w: KeyValCache.Delete key %s doesn't exist in cache: %s", domain.ErrCacheNotFound, key, err)
+		}
 		return fmt.Errorf("%w: KeyValCache.Delete failed for key: %s", err, key)
 	}
 	return nil
@@ -130,6 +134,9 @@ func (k *KeyValCache) Scan(ctx context.Context, key string) (map[string]string, 
 		scan[iter.Val()] = ""
 	}
 	if err := iter.Err(); err != nil {
+		if errors.Is(err, redis.Nil) {
+			return map[string]string{}, fmt.Errorf("%w: KeyValCache.Scan no matching keys for key=%q: %s", domain.ErrCacheNotFound, key, err)
+		}
 		return scan, fmt.Errorf("%w: KeyValCache.Scan failed to iterate over keset for key %q", err, key)
 	}
 	return scan, nil

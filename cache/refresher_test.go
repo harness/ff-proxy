@@ -220,8 +220,8 @@ func TestRefresher_HandleMessage(t *testing.T) {
 		removeAllKeysForEnvironmentFn: func(ctx context.Context, envID string) error {
 			return nil
 		},
-		getKeysForEnvironmentFn: func(ctx context.Context, envID string) ([]string, bool) {
-			return []string{}, true
+		getKeysForEnvironmentFn: func(ctx context.Context, envID string) ([]string, error) {
+			return []string{}, nil
 		},
 	}
 	flagRepo := mockFlagRepo{
@@ -406,43 +406,11 @@ func TestRefresher_handleRemoveEnvironmentEvent(t *testing.T) {
 		err error
 	}
 
-	testCases := map[string]struct {
-		args      args
-		expected  expected
-		shouldErr bool
-	}{
-		"Given I have error while attempting to fetch proxyConfig": {
-			args: args{
-				message: domain.SSEMessage{
-					Domain:       domain.MsgDomainProxy,
-					Event:        domain.EventEnvironmentAdded,
-					Environments: []string{uuid.NewString(), uuid.NewString()},
-				},
-				clientService: mockClientService{
-					PageProxyConfigFn: func(ctx context.Context, input domain.GetProxyConfigInput) ([]domain.ProxyConfig, error) {
-						return []domain.ProxyConfig{}, internalErr
-					},
-				},
-			},
-			expected:  expected{err: internalErr},
-			shouldErr: true,
-		},
-		"Given I have an environment list not empty fetch proxyConfig": {
-			args: args{
-				message: domain.SSEMessage{
-					Domain:       domain.MsgDomainProxy,
-					Event:        domain.EventEnvironmentAdded,
-					Environments: []string{uuid.NewString(), uuid.NewString()},
-				},
-				clientService: mockClientService{
-					PageProxyConfigFn: func(ctx context.Context, input domain.GetProxyConfigInput) ([]domain.ProxyConfig, error) {
-						return []domain.ProxyConfig{}, nil
-					},
-				},
-			},
-			expected:  expected{err: nil},
-			shouldErr: false,
-		},
+	type mocks struct {
+		authRepo      mockAuthRepo
+		flagRepo      mockFlagRepo
+		segmentRepo   mockSegmentRepo
+		inventoryRepo mockInventoryRepo
 	}
 
 	authRepo := mockAuthRepo{
@@ -478,12 +446,110 @@ func TestRefresher_handleRemoveEnvironmentEvent(t *testing.T) {
 		},
 	}
 
+	testCases := map[string]struct {
+		args      args
+		mocks     mocks
+		expected  expected
+		shouldErr bool
+	}{
+		"Given I have error while attempting to fetch proxyConfig": {
+			args: args{
+				message: domain.SSEMessage{
+					Domain:       domain.MsgDomainProxy,
+					Event:        domain.EventEnvironmentAdded,
+					Environments: []string{uuid.NewString(), uuid.NewString()},
+				},
+				clientService: mockClientService{
+					PageProxyConfigFn: func(ctx context.Context, input domain.GetProxyConfigInput) ([]domain.ProxyConfig, error) {
+						return []domain.ProxyConfig{}, internalErr
+					},
+				},
+			},
+			mocks: mocks{
+				authRepo:      authRepo,
+				flagRepo:      flagRepo,
+				segmentRepo:   segmentRepo,
+				inventoryRepo: inventoryRepo,
+			},
+			expected:  expected{err: internalErr},
+			shouldErr: true,
+		},
+		"Given I have an environment list not empty fetch proxyConfig": {
+			args: args{
+				message: domain.SSEMessage{
+					Domain:       domain.MsgDomainProxy,
+					Event:        domain.EventEnvironmentAdded,
+					Environments: []string{uuid.NewString(), uuid.NewString()},
+				},
+				clientService: mockClientService{
+					PageProxyConfigFn: func(ctx context.Context, input domain.GetProxyConfigInput) ([]domain.ProxyConfig, error) {
+						return []domain.ProxyConfig{}, nil
+					},
+				},
+			},
+			mocks: mocks{
+				authRepo:      authRepo,
+				flagRepo:      flagRepo,
+				segmentRepo:   segmentRepo,
+				inventoryRepo: inventoryRepo,
+			},
+			expected:  expected{err: nil},
+			shouldErr: false,
+		},
+		// This tests that we'll call all repo.Remove funcs and not just error out on the first one
+		// that returns a domain.ErrCacheNotFound
+		"Given I call handleRemoveEnvironmentEvent and all the repos return domain.ErrCacheNotFound": {
+			args: args{
+				message: domain.SSEMessage{
+					Domain:       domain.MsgDomainProxy,
+					Event:        domain.EventEnvironmentRemoved,
+					Environments: []string{uuid.NewString(), uuid.NewString()},
+				},
+				clientService: mockClientService{
+					PageProxyConfigFn: func(ctx context.Context, input domain.GetProxyConfigInput) ([]domain.ProxyConfig, error) {
+						return []domain.ProxyConfig{}, nil
+					},
+				},
+			},
+			mocks: mocks{
+				authRepo: mockAuthRepo{
+					getKeysForEnvironmentFn: func(ctx context.Context, envID string) ([]string, error) {
+						return []string{}, domain.ErrCacheNotFound
+					},
+					removeAllKeysForEnvironmentFn: func(ctx context.Context, envID string) error {
+						return domain.ErrCacheNotFound
+					},
+				},
+				flagRepo: mockFlagRepo{
+					removeAllFeaturesForEnvironmentFn: func(ctx context.Context, id string) error {
+						return domain.ErrCacheNotFound
+					},
+				},
+				segmentRepo: mockSegmentRepo{
+					removeAllSegmentsForEnvironmentFn: func(ctx context.Context, envID string) error {
+						return domain.ErrCacheNotFound
+					},
+				},
+				inventoryRepo: mockInventoryRepo{
+					patchFn: func(ctx context.Context, key string, patch func(assets map[string]string) (map[string]string, error)) error {
+						return domain.ErrCacheInternal
+					},
+					getKeysForEnvironmentFn: func(ctx context.Context, env string) (map[string]string, error) {
+						return map[string]string{}, domain.ErrCacheNotFound
+					},
+				},
+			},
+			expected:  expected{err: domain.ErrCacheInternal},
+			shouldErr: true,
+		},
+	}
+
 	for desc, tc := range testCases {
 		desc := desc
 		tc := tc
 
 		t.Run(desc, func(t *testing.T) {
-			r := NewRefresher(log.NewNoOpLogger(), config, tc.args.clientService, inventoryRepo, authRepo, flagRepo, segmentRepo)
+			r := NewRefresher(log.NewNoOpLogger(), config, tc.args.clientService, tc.mocks.inventoryRepo, tc.mocks.authRepo, tc.mocks.flagRepo, tc.mocks.segmentRepo)
 			err := r.HandleMessage(context.Background(), tc.args.message)
 			if tc.shouldErr {
 				assert.NotNil(t, err)
@@ -592,10 +658,10 @@ type mockAuthRepo struct {
 	removeFn                       func(ctx context.Context, id []string) error
 	removeAllKeysForEnvironmentFn  func(ctx context.Context, envID string) error
 	addAPIConfigsForEnvironmentFn  func(ctx context.Context, envID string, apiKeys []string) error
-	getKeysForEnvironmentFn        func(ctx context.Context, envID string) ([]string, bool)
+	getKeysForEnvironmentFn        func(ctx context.Context, envID string) ([]string, error)
 }
 
-func (m mockAuthRepo) GetKeysForEnvironment(ctx context.Context, envID string) ([]string, bool) {
+func (m mockAuthRepo) GetKeysForEnvironment(ctx context.Context, envID string) ([]string, error) {
 	return m.getKeysForEnvironmentFn(ctx, envID)
 }
 
