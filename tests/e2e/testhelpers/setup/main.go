@@ -105,7 +105,7 @@ func main() {
 		projects = append(projects, project)
 	}
 
-	// setup empty project
+	//// setup empty project
 	empty, err := testhelpers.SetupTestEmptyProject(orgs[0])
 	if err != nil {
 		log.Errorf(err.Error())
@@ -117,6 +117,8 @@ func main() {
 	proxyKeyIdentifier := fmt.Sprintf("%s-%d", "ProxyE2ETestsProxyKey", rand.Intn(1000))
 
 	project := projects[0]
+
+	time.Sleep(time.Second * 15)
 
 	proxyKey, proxyAuthToken, err := testhelpers.CreateProxyKeyAndAuthForMultipleOrgs(context.Background(), proxyKeyIdentifier, projects)
 	if err != nil {
