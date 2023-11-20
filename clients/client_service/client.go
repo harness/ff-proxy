@@ -218,8 +218,8 @@ func (c Client) getProxyConfig(ctx context.Context, input domain.GetProxyConfigI
 	return *resp.JSON200, nil
 }
 
-func (c Client) FetchFeatureConfigForEnvironment(ctx context.Context, authToken, envID string) ([]clientgen.FeatureConfig, error) {
-	resp, err := c.client.GetFeatureConfigWithResponse(ctx, envID, &clientgen.GetFeatureConfigParams{}, func(ctx context.Context, req *http.Request) error {
+func (c Client) FetchFeatureConfigForEnvironment(ctx context.Context, authToken, cluster, envID string) ([]clientgen.FeatureConfig, error) {
+	resp, err := c.client.GetFeatureConfigWithResponse(ctx, envID, &clientgen.GetFeatureConfigParams{Cluster: &cluster}, func(ctx context.Context, req *http.Request) error {
 		req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", authToken))
 		return nil
 	})
@@ -238,9 +238,9 @@ func (c Client) FetchFeatureConfigForEnvironment(ctx context.Context, authToken,
 	return *resp.JSON200, nil
 }
 
-func (c Client) FetchSegmentConfigForEnvironment(ctx context.Context, authToken, envID string) ([]clientgen.Segment, error) {
+func (c Client) FetchSegmentConfigForEnvironment(ctx context.Context, authToken, cluster, envID string) ([]clientgen.Segment, error) {
 
-	resp, err := c.client.GetAllSegmentsWithResponse(ctx, envID, &clientgen.GetAllSegmentsParams{}, func(ctx context.Context, req *http.Request) error {
+	resp, err := c.client.GetAllSegmentsWithResponse(ctx, envID, &clientgen.GetAllSegmentsParams{Cluster: &cluster}, func(ctx context.Context, req *http.Request) error {
 		req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", authToken))
 		return nil
 	})

@@ -186,12 +186,12 @@ type mockClientService struct {
 	pageProxyConfig func() ([]domain.ProxyConfig, error)
 }
 
-func (m mockClientService) FetchSegmentConfigForEnvironment(ctx context.Context, authToken, envID string) ([]clientgen.Segment, error) {
+func (m mockClientService) FetchSegmentConfigForEnvironment(ctx context.Context, authToken, cluster, envID string) ([]clientgen.Segment, error) {
 	//TODO implement me
 	panic("implement me")
 }
 
-func (m mockClientService) FetchFeatureConfigForEnvironment(ctx context.Context, authToken, envId string) ([]clientgen.FeatureConfig, error) {
+func (m mockClientService) FetchFeatureConfigForEnvironment(ctx context.Context, authToken, cluster, envId string) ([]clientgen.FeatureConfig, error) {
 	//TODO implement me
 	panic("implement me")
 }
