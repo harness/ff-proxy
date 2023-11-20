@@ -131,7 +131,7 @@ func SetupTestEmptyProject(org string) (TestProject, error) {
 	if projectIdentifier == "" {
 		return TestProject{}, fmt.Errorf("empty project identifier")
 	}
-	env1, err := setupEnvironment(org, projectIdentifier, GetDefaultEnvironment(), "Primary Env")
+	env1, err := setupEnvironment(org, projectIdentifier, GetDefaultEnvironment(), GetDefaultEnvironment())
 	if err != nil {
 		return TestProject{}, err
 	}
