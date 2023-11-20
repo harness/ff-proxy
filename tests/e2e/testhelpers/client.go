@@ -19,7 +19,7 @@ import (
 )
 
 const (
-	localCertFile = "./certs/cert.crt"
+	localCertFile = "./tests/e2e/certs/cert.crt"
 )
 
 // AuthenticateSDKClient performs an auth request and returns the token and environment to use
