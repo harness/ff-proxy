@@ -314,7 +314,7 @@ func (s Refresher) handleRemoveAPIKeyEvent(ctx context.Context, env, apiKey stri
 func (s Refresher) handleFetchFeatureEvent(ctx context.Context, env, id string) error {
 	s.log.Debug("updating featureConfig entry", "environment", env, "identifier", id)
 
-	featureConfigs, err := s.clientService.FetchFeatureConfigForEnvironment(ctx, s.config.Token(), env)
+	featureConfigs, err := s.clientService.FetchFeatureConfigForEnvironment(ctx, s.config.Token(), s.config.ClusterIdentifier(), env)
 	if err != nil {
 		return err
 	}
@@ -395,7 +395,7 @@ func (s Refresher) updateFeatureConfigsEntry(ctx context.Context, env string, id
 func (s Refresher) handleFetchSegmentEvent(ctx context.Context, env, id string) error {
 	s.log.Debug("updating featureConfig entry", "environment", env, "identifier", id)
 
-	segmentConfig, err := s.clientService.FetchSegmentConfigForEnvironment(ctx, s.config.Token(), env)
+	segmentConfig, err := s.clientService.FetchSegmentConfigForEnvironment(ctx, s.config.Token(), s.config.ClusterIdentifier(), env)
 	if err != nil {
 		return err
 	}

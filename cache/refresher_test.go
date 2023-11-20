@@ -736,11 +736,11 @@ type mockClientService struct {
 	FetchSegmentConfigForEnvironmentFn func(ctx context.Context, authToken, envId string) ([]clientgen.Segment, error)
 }
 
-func (c mockClientService) FetchSegmentConfigForEnvironment(ctx context.Context, authToken, envId string) ([]clientgen.Segment, error) {
+func (c mockClientService) FetchSegmentConfigForEnvironment(ctx context.Context, authToken, cluster, envId string) ([]clientgen.Segment, error) {
 	return c.FetchSegmentConfigForEnvironmentFn(ctx, authToken, envId)
 }
 
-func (c mockClientService) FetchFeatureConfigForEnvironment(ctx context.Context, authToken, envId string) ([]clientgen.FeatureConfig, error) {
+func (c mockClientService) FetchFeatureConfigForEnvironment(ctx context.Context, authToken, cluster, envId string) ([]clientgen.FeatureConfig, error) {
 	return c.FetchFeatureConfigForEnvironmentFn(ctx, authToken, envId)
 }
 

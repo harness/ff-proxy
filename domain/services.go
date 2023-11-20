@@ -10,6 +10,6 @@ import (
 type ClientService interface {
 	AuthenticateProxyKey(ctx context.Context, key string) (AuthenticateProxyKeyResponse, error)
 	PageProxyConfig(ctx context.Context, input GetProxyConfigInput) ([]ProxyConfig, error)
-	FetchFeatureConfigForEnvironment(ctx context.Context, authToken, envID string) ([]clientgen.FeatureConfig, error)
-	FetchSegmentConfigForEnvironment(ctx context.Context, authToken, envID string) ([]clientgen.Segment, error)
+	FetchFeatureConfigForEnvironment(ctx context.Context, authToken, cluster string, envID string) ([]clientgen.FeatureConfig, error)
+	FetchSegmentConfigForEnvironment(ctx context.Context, authToken, cluster string, envID string) ([]clientgen.Segment, error)
 }

@@ -398,7 +398,7 @@ func main() {
 		redisForwarder := stream.NewForwarder(logger, redisStream, cacheRefresher, stream.WithStreamName(sseStreamTopic))
 		messageHandler = stream.NewForwarder(logger, pushpinStream, redisForwarder)
 
-		streamURL := fmt.Sprintf("%s/stream", clientService)
+		streamURL := fmt.Sprintf("%s/stream?cluster=%s", clientService, conf.ClusterIdentifier())
 		sseClient := stream.NewSSEClient(logger, streamURL, proxyKey, conf.Token())
 
 		saasStream := stream.NewStream(
