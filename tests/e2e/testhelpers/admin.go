@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io/ioutil"
 	"net/http"
 
 	"github.com/harness/ff-proxy/v2/gen/admin"
@@ -75,11 +76,18 @@ func DeleteProxyKey(ctx context.Context, account, keyIdentifier string) error {
 		AccountIdentifier: admin.AccountQueryParam(account),
 	}
 
-	_, err := c.DeleteProxyKey(ctx, identifier, params, AddProxyAuthToken)
+	res, err := c.DeleteProxyKey(ctx, identifier, params, AddAuthToken)
 	if err != nil {
 		return err
 	}
+
+	defer res.Body.Close()
+
+	resBody, _ := ioutil.ReadAll(res.Body)
+	response := string(resBody)
+	fmt.Println(response)
 	return nil
+
 }
 
 func CreateProxyKey(ctx context.Context, projectIdentifier, account string, org string, identifier string, environments []string) (string, error) {
@@ -136,6 +144,38 @@ func CreateProxyKeyForMultipleOrgs(ctx context.Context, keyIdentifier, account, 
 		AccountIdentifier: admin.AccountQueryParam(account),
 	}
 
+	//body := admin.CreateProxyKeyJSONRequestBody{
+	//	Identifier: keyIdentifier,
+	//	Name:       keyIdentifier,
+	//	Organizations: admin.OrganizationDictionary{
+	//		AdditionalProperties: map[string]admin.ProjectDictionary{
+	//			org1: {
+	//				Projects: &admin.ProjectDictionary_Projects{
+	//					AdditionalProperties: map[string]admin.ProxyKeyProject{
+	//						project1: {
+	//							Scope: "all",
+	//						},
+	//						emptyProject: {
+	//							Scope: "all",
+	//						},
+	//					},
+	//				},
+	//			},
+	//			org2: {
+	//				Projects: &admin.ProjectDictionary_Projects{
+	//					AdditionalProperties: map[string]admin.ProxyKeyProject{
+	//						project2: {
+	//							Scope: "all",
+	//						},
+	//					},
+	//				},
+	//			},
+	//		},
+	//	},
+	//}
+	//
+	environments := []string{"default"}
+
 	body := admin.CreateProxyKeyJSONRequestBody{
 		Identifier: keyIdentifier,
 		Name:       keyIdentifier,
@@ -145,19 +185,8 @@ func CreateProxyKeyForMultipleOrgs(ctx context.Context, keyIdentifier, account, 
 					Projects: &admin.ProjectDictionary_Projects{
 						AdditionalProperties: map[string]admin.ProxyKeyProject{
 							project1: {
-								Scope: "all",
-							},
-							emptyProject: {
-								Scope: "all",
-							},
-						},
-					},
-				},
-				org2: {
-					Projects: &admin.ProjectDictionary_Projects{
-						AdditionalProperties: map[string]admin.ProxyKeyProject{
-							project2: {
-								Scope: "all",
+								Scope:        "selected",
+								Environments: &environments,
 							},
 						},
 					},

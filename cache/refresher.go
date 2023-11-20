@@ -291,7 +291,7 @@ func (s Refresher) handleRemoveAPIKeyEvent(ctx context.Context, env, apiKey stri
 	apiKeyEntry := string(domain.NewAuthAPIKey(apiKey))
 	apiConfigsEntry := string(domain.NewAPIConfigsKey(env))
 	k := fmt.Sprintf("auth-key-%s", apiKey)
-	
+
 	if err := s.authRepo.Remove(ctx, []string{k}); err != nil {
 		return err
 	}

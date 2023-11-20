@@ -111,10 +111,11 @@ func main() {
 		log.Errorf(err.Error())
 		os.Exit(1)
 	}
-	//append empty ptoject
+	//append empty project
 	projects = append(projects, empty)
 	//setup empty project
 	proxyKeyIdentifier := fmt.Sprintf("%s-%d", "ProxyE2ETestsProxyKey", rand.Intn(1000))
+
 	project := projects[0]
 
 	proxyKey, proxyAuthToken, err := testhelpers.CreateProxyKeyAndAuthForMultipleOrgs(context.Background(), proxyKeyIdentifier, projects)
@@ -125,11 +126,17 @@ func main() {
 	testhelpers.SetProxyAuthToken(proxyKey)
 
 	cleanUpAssets["ProxyKey"] = proxyKeyIdentifier
+	cleanUpAssets["ProxyAuth"] = proxyAuthToken
+
 	for _, p := range projects {
 		cleanUpAssets[p.ProjectIdentifier] = p.Organization
 	}
 	//dump the projects for a cleanup.
 	saveFilesForCleanup(cleanUpAssets)
+
+	//defer func() {
+	//	cleanUp()
+	//}()
 
 	// write .env for online test config
 	onlineTestFile, err := os.OpenFile(fmt.Sprintf(onlineTestFileName), os.O_CREATE|os.O_WRONLY, createFilePermissionLevel)
@@ -203,7 +210,12 @@ func cleanUp() error {
 	fmt.Println("Sleeping")
 	time.Sleep(time.Second * 10)
 	fmt.Println("Attempting to delete the tests")
-	err := testhelpers.DeleteProxyKey(context.Background(), testhelpers.GetDefaultAccount(), cleanUp["ProxyKey"])
+	proxyKey := cleanUp["ProxyKey"]
+	proxyAuth := cleanUp["ProxyAuth"]
+
+	testhelpers.SetProxyAuthToken(proxyAuth)
+
+	err := testhelpers.DeleteProxyKey(context.Background(), testhelpers.GetDefaultAccount(), proxyKey)
 	if err != nil {
 		return err
 	}
