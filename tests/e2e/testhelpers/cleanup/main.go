@@ -52,19 +52,25 @@ func cleanUp() error {
 		return err
 	}
 
-	err = testhelpers.DeleteProxyKey(context.Background(), testhelpers.GetDefaultAccount(), cleanUp["ProxyKey"])
+	proxyKey := cleanUp["ProxyKey"]
+	proxyAuth := cleanUp["ProxyAuth"]
+
+	testhelpers.SetProxyAuthToken(proxyAuth)
+
+	err = testhelpers.DeleteProxyKey(context.Background(), testhelpers.GetDefaultAccount(), proxyKey)
 	if err != nil {
 		return err
 	}
 	// delete key from the mp
 	delete(cleanUp, "ProxyKey")
+	delete(cleanUp, "ProxyAuth")
 	// delete all the projects.
 	log.Info("attempting to delete the projects")
 	for k, v := range cleanUp {
 		log.Infof("attempting to delete the projects %s %s", k, v)
 		resp, err := testhelpers.DeleteProjectForOrg(k, v)
 		if err != nil {
-			log.Errorf("unable to delete project %s with code %s", err.Error(), resp.StatusCode)
+			log.Errorf("unable to delete project %s with code %d", err.Error(), resp.StatusCode)
 		}
 	}
 	return nil
