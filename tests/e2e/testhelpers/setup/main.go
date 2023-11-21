@@ -136,10 +136,6 @@ func main() {
 	//dump the projects for a cleanup.
 	saveFilesForCleanup(cleanUpAssets)
 
-	//defer func() {
-	//	cleanUp()
-	//}()
-
 	// write .env for online test config
 	onlineTestFile, err := os.OpenFile(fmt.Sprintf(onlineTestFileName), os.O_CREATE|os.O_WRONLY, createFilePermissionLevel)
 	if err != nil {

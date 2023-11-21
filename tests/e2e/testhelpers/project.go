@@ -147,8 +147,6 @@ func SetupTestEmptyProject(org string) (TestProject, error) {
 func setupEnvironment(org string, projectIdentifier, environmentIdentifier string) (Environment, error) {
 
 	environmentName := environmentIdentifier
-	//environmentName := "Primary Env"
-
 	env1, id, err := CreateEnvironment(org, projectIdentifier, environmentIdentifier, environmentName)
 	if err != nil {
 		return Environment{}, err
