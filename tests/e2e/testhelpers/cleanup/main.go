@@ -70,7 +70,7 @@ func cleanUp() error {
 		log.Infof("attempting to delete the projects %s %s", k, v)
 		resp, err := testhelpers.DeleteProjectForOrg(k, v)
 		if err != nil {
-			log.Errorf("unable to delete project %s with code %s", err.Error(), resp.StatusCode)
+			log.Errorf("unable to delete project %s with code %d", err.Error(), resp.StatusCode)
 		}
 	}
 	return nil
