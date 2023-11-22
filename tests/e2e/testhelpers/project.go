@@ -27,11 +27,12 @@ const (
 
 // TestProject represents a project that we will create during tests
 type TestProject struct {
-	Account           string
-	Organization      string
-	ProjectIdentifier string
-	Environment       Environment
-	Flags             map[string]v1.FeatureFlagRequest
+	Account              string
+	Organization         string
+	ProjectIdentifier    string
+	DefaultEnvironment   Environment
+	SecondaryEnvironment Environment
+	Flags                map[string]v1.FeatureFlagRequest
 }
 
 // Environment contains entities that we will use to drive test data
@@ -88,6 +89,12 @@ func SetupTestProject(org string) (TestProject, error) {
 		return TestProject{}, err
 	}
 
+	// Create a second environment that won't be associated with our Proxy key for use in tests
+	env2, err := setupEnvironment(org, projectIdentifier, GetSecondaryEnvironment())
+	if err != nil {
+		return TestProject{}, err
+	}
+
 	// create bool flag
 	var flags = make(map[string]v1.FeatureFlagRequest)
 	boolflag := GenerateBooleanFeatureFlagBody(projectIdentifier, 1)
@@ -112,11 +119,12 @@ func SetupTestProject(org string) (TestProject, error) {
 	}
 
 	return TestProject{
-		Account:           GetDefaultAccount(),
-		Organization:      org,
-		ProjectIdentifier: projectIdentifier,
-		Environment:       env1,
-		Flags:             flags,
+		Account:              GetDefaultAccount(),
+		Organization:         org,
+		ProjectIdentifier:    projectIdentifier,
+		DefaultEnvironment:   env1,
+		SecondaryEnvironment: env2,
+		Flags:                flags,
 	}, nil
 }
 
@@ -137,10 +145,10 @@ func SetupTestEmptyProject(org string) (TestProject, error) {
 	}
 
 	return TestProject{
-		Account:           GetDefaultAccount(),
-		Organization:      org,
-		ProjectIdentifier: projectIdentifier,
-		Environment:       env1,
+		Account:            GetDefaultAccount(),
+		Organization:       org,
+		ProjectIdentifier:  projectIdentifier,
+		DefaultEnvironment: env1,
 	}, nil
 }
 

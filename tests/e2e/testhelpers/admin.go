@@ -7,6 +7,7 @@ import (
 	"io/ioutil"
 	"net/http"
 
+	"github.com/harness/ff-proxy/v2/domain"
 	"github.com/harness/ff-proxy/v2/gen/admin"
 )
 
@@ -153,7 +154,8 @@ func CreateProxyKeyForMultipleOrgs(ctx context.Context, keyIdentifier, account, 
 					Projects: &admin.ProjectDictionary_Projects{
 						AdditionalProperties: map[string]admin.ProxyKeyProject{
 							project1: {
-								Scope: "all",
+								Scope:        "selected",
+								Environments: domain.ToPtr([]string{GetDefaultEnvironment()}),
 							},
 							emptyProject: {
 								Scope: "all",
@@ -173,7 +175,7 @@ func CreateProxyKeyForMultipleOrgs(ctx context.Context, keyIdentifier, account, 
 			},
 		},
 	}
-	
+
 	resp, err := c.CreateProxyKey(ctx, params, body, AddAuthToken)
 	if err != nil {
 		return "", err

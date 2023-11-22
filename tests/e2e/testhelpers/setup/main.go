@@ -41,7 +41,13 @@ CLIENT_URL=https://app.harness.io/gateway/cf
 PROXY_KEY=%s
 PROXY_AUTH_KEY=%s
 SERVER_API_KEY=%s
-EMPTY_PROJECT_API_KEY=%s`
+EMPTY_PROJECT_API_KEY=%s
+PLATFORM_BASE_URL=https://app.harness.io/gateway/ng/api
+DEFAULT_ENVIRONMENT=%s
+SECONDARY_ENVIRONMENT=%s
+DEFAULT_ACCOUNT=%s
+USER_ACCESS_TOKEN=%s
+ADMIN_URL=https://app.harness.io/gateway/cf`
 
 // var onlineProxyInMemTemplate = `ACCOUNT_IDENTIFIER=%s
 // ORG_IDENTIFIER=%s
@@ -143,7 +149,25 @@ func main() {
 		log.Fatalf("failed to open %s: %s", onlineTestFileName, err)
 	}
 
-	_, err = io.WriteString(onlineTestFile, fmt.Sprintf(onlineTestTemplate, testhelpers.GetAdminURL(), projects[0].Account, projects[0].Organization, projects[1].Organization, projects[0].ProjectIdentifier, projects[1].ProjectIdentifier, projects[0].Environment.Identifier, proxyKey, proxyAuthToken, project.Environment.Keys[0].ApiKey, empty.Environment.Keys[0].ApiKey))
+	_, err = io.WriteString(onlineTestFile, fmt.Sprintf(
+		onlineTestTemplate,
+		testhelpers.GetAdminURL(),
+		projects[0].Account,
+		projects[0].Organization,
+		projects[1].Organization,
+		projects[0].ProjectIdentifier,
+		projects[1].ProjectIdentifier,
+		projects[0].DefaultEnvironment.Identifier,
+		proxyKey,
+		proxyAuthToken,
+		project.DefaultEnvironment.Keys[0].ApiKey,
+		empty.DefaultEnvironment.Keys[0].ApiKey,
+		projects[0].DefaultEnvironment.Identifier,
+		projects[0].SecondaryEnvironment.Identifier,
+		testhelpers.GetDefaultAccount(),
+		testhelpers.GetUserAccessToken(),
+	),
+	)
 	if err != nil {
 		log.Fatalf("failed to write to %s: %s", onlineTestFileName, err)
 	}
