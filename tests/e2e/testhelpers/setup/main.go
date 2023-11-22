@@ -193,7 +193,7 @@ func main() {
 		log.Fatalf("failed to open %s: %s", onlineRedisProxy, err)
 	}
 
-	_, err = io.WriteString(onlineProxyRedisFile, fmt.Sprintf(onlineProxyRedisTemplate, testhelpers.GetDefaultAccount(), projects[0].Organization, projects[1].Organization, proxyKey, proxyAuthToken, project.Environment.Keys[0].ApiKey, empty.Environment.Keys[0].ApiKey))
+	_, err = io.WriteString(onlineProxyRedisFile, fmt.Sprintf(onlineProxyRedisTemplate, testhelpers.GetDefaultAccount(), projects[0].Organization, projects[1].Organization, proxyKey, proxyAuthToken, project.DefaultEnvironment.Keys[0].ApiKey, empty.DefaultEnvironment.Keys[0].ApiKey))
 	if err != nil {
 		log.Fatalf("failed to write to %s: %s", onlineRedisProxy, err)
 	}
@@ -207,7 +207,7 @@ func main() {
 	//	log.Fatalf("failed to open %s: %s", generateOfflineConfig, err)
 	//}
 	//
-	//_, err = io.WriteString(generateOfflineFile, fmt.Sprintf(generateOfflineConfigTemplate, testhelpers.GetDefaultAccount(), testhelpers.GetDefaultOrg(), testhelpers.GetUserAccessToken(), project.Environment.Keys[0].ApiKey))
+	//_, err = io.WriteString(generateOfflineFile, fmt.Sprintf(generateOfflineConfigTemplate, testhelpers.GetDefaultAccount(), testhelpers.GetDefaultOrg(), testhelpers.GetUserAccessToken(), project.DefaultEnvironment.Keys[0].ApiKey))
 	//if err != nil {
 	//	log.Fatalf("failed to write to %s: %s", generateOfflineConfig, err)
 	//}
