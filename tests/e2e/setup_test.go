@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"testing"
 
+	"github.com/harness/ff-proxy/v2/tests/e2e/testhelpers"
 	"github.com/joho/godotenv"
 	log "github.com/sirupsen/logrus"
 )
@@ -36,6 +37,7 @@ func Setup() {
 		log.Infof("%s", x)
 	}
 
+	testhelpers.SetAuthToken(testhelpers.GetUserAccessToken())
 	// wait for service to be healthy
 
 }
