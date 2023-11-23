@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"time"
 
@@ -102,4 +103,67 @@ func GetEnvironment(org string, projectIdentifier string, environment string) (*
 	}
 
 	return admin.ParseGetEnvironmentResponse(response)
+}
+
+func DeleteEnvironment(org string, projectIdentifier string, environment string) (*http.Response, error) {
+	return deleteEnvironmentRemote(org, projectIdentifier, environment)
+}
+
+func deleteEnvironmentRemote(org string, project string, identifier string) (*http.Response, error) {
+	reqUrl := fmt.Sprintf("%s/environmentsV2/%s", GetPlatformBaseURL(), identifier)
+	req, err := http.NewRequest(http.MethodDelete, reqUrl, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	query := req.URL.Query()
+	query.Add("accountIdentifier", GetDefaultAccount())
+	query.Add("orgIdentifier", org)
+	query.Add("projectIdentifier", project)
+	query.Add("forceDelete", "false")
+	req.URL.RawQuery = query.Encode()
+
+	req.Header.Set("content-type", "application/json")
+	AddAuthToken(context.Background(), req)
+
+	res, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer res.Body.Close()
+	body, err := io.ReadAll(res.Body)
+	if err != nil {
+		return nil, err
+	}
+
+	fmt.Println(res)
+	fmt.Println(string(body))
+
+	client := DefaultClient()
+
+	resp, err := client.Client.Do(req)
+	if err != nil {
+		log.Error(err)
+		return nil, err
+	}
+
+	// ensure environment is deleted within cf
+	err = retry.Do(
+		func() error {
+			environmentResponse, err := GetEnvironment(org, project, identifier)
+			if err != nil || environmentResponse.StatusCode() != http.StatusOK {
+				return errors.New("environment not found")
+			}
+
+			return nil
+		},
+		retry.Attempts(5), retry.Delay(500*time.Millisecond),
+	)
+
+	if err != nil {
+		log.Error(err)
+		return nil, err
+	}
+
+	return resp, nil
 }
