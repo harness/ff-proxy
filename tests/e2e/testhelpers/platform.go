@@ -50,6 +50,11 @@ func GetDefaultEnvironment() string {
 	return os.Getenv("DEFAULT_ENVIRONMENT")
 }
 
+// GetSecondaryEnvironment ...
+func GetSecondaryEnvironment() string {
+	return os.Getenv("SECONDARY_ENVIRONMENT")
+}
+
 // GetClientURL ...
 func GetClientURL() string {
 	return os.Getenv("CLIENT_URL")

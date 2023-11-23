@@ -42,3 +42,19 @@ func GetAddAPIKeyBody(identifier string, apiKeyType string, name string, descrip
 		Type:        admin.ApiKeyRequestType(apiKeyType),
 	}
 }
+
+func DeleteSDKKey(org, project, env, identifier string) (*admin.DeleteAPIKeyResponse, error) {
+	client := DefaultClient()
+
+	resp, err := client.DeleteAPIKey(context.Background(), admin.Identifier(identifier), &admin.DeleteAPIKeyParams{
+		ProjectIdentifier:     admin.ProjectQueryParam(project),
+		EnvironmentIdentifier: admin.EnvironmentQueryParam(env),
+		AccountIdentifier:     admin.AccountQueryParam(GetDefaultAccount()),
+		OrgIdentifier:         admin.OrgQueryParam(org),
+	}, AddAuthToken)
+	if err != nil {
+		return nil, err
+	}
+
+	return admin.ParseDeleteAPIKeyResponse(resp)
+}

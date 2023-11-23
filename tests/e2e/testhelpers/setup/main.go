@@ -41,7 +41,13 @@ CLIENT_URL=https://app.harness.io/gateway/cf
 PROXY_KEY=%s
 PROXY_AUTH_KEY=%s
 SERVER_API_KEY=%s
-EMPTY_PROJECT_API_KEY=%s`
+EMPTY_PROJECT_API_KEY=%s
+PLATFORM_BASE_URL=https://app.harness.io/gateway/ng/api
+DEFAULT_ENVIRONMENT=%s
+SECONDARY_ENVIRONMENT=%s
+DEFAULT_ACCOUNT=%s
+USER_ACCESS_TOKEN=%s
+ADMIN_URL=https://app.harness.io/gateway/cf`
 
 // var onlineProxyInMemTemplate = `ACCOUNT_IDENTIFIER=%s
 // ORG_IDENTIFIER=%s
@@ -105,17 +111,20 @@ func main() {
 		projects = append(projects, project)
 	}
 
-	// setup empty project
+	//// setup empty project
 	empty, err := testhelpers.SetupTestEmptyProject(orgs[0])
 	if err != nil {
 		log.Errorf(err.Error())
 		os.Exit(1)
 	}
-	//append empty ptoject
+	//append empty project
 	projects = append(projects, empty)
 	//setup empty project
 	proxyKeyIdentifier := fmt.Sprintf("%s-%d", "ProxyE2ETestsProxyKey", rand.Intn(1000))
+
 	project := projects[0]
+
+	time.Sleep(time.Second * 15)
 
 	proxyKey, proxyAuthToken, err := testhelpers.CreateProxyKeyAndAuthForMultipleOrgs(context.Background(), proxyKeyIdentifier, projects)
 	if err != nil {
@@ -125,6 +134,8 @@ func main() {
 	testhelpers.SetProxyAuthToken(proxyKey)
 
 	cleanUpAssets["ProxyKey"] = proxyKeyIdentifier
+	cleanUpAssets["ProxyAuth"] = proxyAuthToken
+
 	for _, p := range projects {
 		cleanUpAssets[p.ProjectIdentifier] = p.Organization
 	}
@@ -138,7 +149,25 @@ func main() {
 		log.Fatalf("failed to open %s: %s", onlineTestFileName, err)
 	}
 
-	_, err = io.WriteString(onlineTestFile, fmt.Sprintf(onlineTestTemplate, testhelpers.GetClientURL(), projects[0].Account, projects[0].Organization, projects[1].Organization, projects[0].ProjectIdentifier, projects[1].ProjectIdentifier, projects[0].Environment.Identifier, proxyKey, proxyAuthToken, project.Environment.Keys[0].ApiKey, empty.Environment.Keys[0].ApiKey))
+	_, err = io.WriteString(onlineTestFile, fmt.Sprintf(
+		onlineTestTemplate,
+		testhelpers.GetAdminURL(),
+		projects[0].Account,
+		projects[0].Organization,
+		projects[1].Organization,
+		projects[0].ProjectIdentifier,
+		projects[1].ProjectIdentifier,
+		projects[0].DefaultEnvironment.Identifier,
+		proxyKey,
+		proxyAuthToken,
+		project.DefaultEnvironment.Keys[0].ApiKey,
+		empty.DefaultEnvironment.Keys[0].ApiKey,
+		projects[0].DefaultEnvironment.Identifier,
+		projects[0].SecondaryEnvironment.Identifier,
+		testhelpers.GetDefaultAccount(),
+		testhelpers.GetUserAccessToken(),
+	),
+	)
 	if err != nil {
 		log.Fatalf("failed to write to %s: %s", onlineTestFileName, err)
 	}
@@ -164,7 +193,7 @@ func main() {
 		log.Fatalf("failed to open %s: %s", onlineRedisProxy, err)
 	}
 
-	_, err = io.WriteString(onlineProxyRedisFile, fmt.Sprintf(onlineProxyRedisTemplate, testhelpers.GetDefaultAccount(), projects[0].Organization, projects[1].Organization, proxyKey, proxyAuthToken, project.Environment.Keys[0].ApiKey, empty.Environment.Keys[0].ApiKey))
+	_, err = io.WriteString(onlineProxyRedisFile, fmt.Sprintf(onlineProxyRedisTemplate, testhelpers.GetDefaultAccount(), projects[0].Organization, projects[1].Organization, proxyKey, proxyAuthToken, project.DefaultEnvironment.Keys[0].ApiKey, empty.DefaultEnvironment.Keys[0].ApiKey))
 	if err != nil {
 		log.Fatalf("failed to write to %s: %s", onlineRedisProxy, err)
 	}
@@ -178,7 +207,7 @@ func main() {
 	//	log.Fatalf("failed to open %s: %s", generateOfflineConfig, err)
 	//}
 	//
-	//_, err = io.WriteString(generateOfflineFile, fmt.Sprintf(generateOfflineConfigTemplate, testhelpers.GetDefaultAccount(), testhelpers.GetDefaultOrg(), testhelpers.GetUserAccessToken(), project.Environment.Keys[0].ApiKey))
+	//_, err = io.WriteString(generateOfflineFile, fmt.Sprintf(generateOfflineConfigTemplate, testhelpers.GetDefaultAccount(), testhelpers.GetDefaultOrg(), testhelpers.GetUserAccessToken(), project.DefaultEnvironment.Keys[0].ApiKey))
 	//if err != nil {
 	//	log.Fatalf("failed to write to %s: %s", generateOfflineConfig, err)
 	//}
@@ -203,7 +232,12 @@ func cleanUp() error {
 	fmt.Println("Sleeping")
 	time.Sleep(time.Second * 10)
 	fmt.Println("Attempting to delete the tests")
-	err := testhelpers.DeleteProxyKey(context.Background(), testhelpers.GetDefaultAccount(), cleanUp["ProxyKey"])
+	proxyKey := cleanUp["ProxyKey"]
+	proxyAuth := cleanUp["ProxyAuth"]
+
+	testhelpers.SetProxyAuthToken(proxyAuth)
+
+	err := testhelpers.DeleteProxyKey(context.Background(), testhelpers.GetDefaultAccount(), proxyKey)
 	if err != nil {
 		return err
 	}
@@ -215,7 +249,7 @@ func cleanUp() error {
 		fmt.Printf("Attempting to delete the projects %s %s", k, v)
 		resp, err := testhelpers.DeleteProjectForOrg(k, v)
 		if err != nil {
-			log.Errorf("Unable to delete project %s with code %s", err.Error(), resp.StatusCode)
+			log.Errorf("Unable to delete project %s with code %d", err.Error(), resp.StatusCode)
 		}
 
 	}

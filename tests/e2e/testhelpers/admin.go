@@ -4,8 +4,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io/ioutil"
 	"net/http"
 
+	"github.com/harness/ff-proxy/v2/domain"
 	"github.com/harness/ff-proxy/v2/gen/admin"
 )
 
@@ -75,11 +77,18 @@ func DeleteProxyKey(ctx context.Context, account, keyIdentifier string) error {
 		AccountIdentifier: admin.AccountQueryParam(account),
 	}
 
-	_, err := c.DeleteProxyKey(ctx, identifier, params, AddProxyAuthToken)
+	res, err := c.DeleteProxyKey(ctx, identifier, params, AddAuthToken)
 	if err != nil {
 		return err
 	}
+
+	defer res.Body.Close()
+
+	resBody, _ := ioutil.ReadAll(res.Body)
+	response := string(resBody)
+	fmt.Println(response)
 	return nil
+
 }
 
 func CreateProxyKey(ctx context.Context, projectIdentifier, account string, org string, identifier string, environments []string) (string, error) {
@@ -145,7 +154,8 @@ func CreateProxyKeyForMultipleOrgs(ctx context.Context, keyIdentifier, account, 
 					Projects: &admin.ProjectDictionary_Projects{
 						AdditionalProperties: map[string]admin.ProxyKeyProject{
 							project1: {
-								Scope: "all",
+								Scope:        "selected",
+								Environments: domain.ToPtr([]string{GetDefaultEnvironment()}),
 							},
 							emptyProject: {
 								Scope: "all",
