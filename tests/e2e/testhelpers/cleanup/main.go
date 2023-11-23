@@ -68,6 +68,7 @@ func cleanUp() error {
 		}
 	}
 	return nil
+
 }
 
 func getCleanupFile() (map[string]string, error) {
