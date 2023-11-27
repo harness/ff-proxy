@@ -36,6 +36,7 @@ ORG_IDENTIFIER=%s
 SECONDARY_ORG_IDENTIFIER=%s
 PROJECT_IDENTIFIER=%s
 SECONDARY_PROJECT_IDENTIFIER=%s
+THIRD_PROJECT_IDENTIFIER=%s
 ENVIRONMENT_IDENTIFIER=%s
 CLIENT_URL=https://app.harness.io/gateway/cf
 PROXY_KEY=%s
@@ -47,7 +48,8 @@ DEFAULT_ENVIRONMENT=%s
 SECONDARY_ENVIRONMENT=%s
 DEFAULT_ACCOUNT=%s
 USER_ACCESS_TOKEN=%s
-ADMIN_URL=https://app.harness.io/gateway/cf`
+ADMIN_URL=https://app.harness.io/gateway/cf
+PROXY_KEY_IDENTIFIER=%s`
 
 // var onlineProxyInMemTemplate = `ACCOUNT_IDENTIFIER=%s
 // ORG_IDENTIFIER=%s
@@ -111,6 +113,14 @@ func main() {
 		projects = append(projects, project)
 	}
 
+	//// Create another project in org2
+	p, err := testhelpers.SetupTestProject(orgs[1])
+	if err != nil {
+		log.Errorf(err.Error())
+		os.Exit(1)
+	}
+	projects = append(projects, p)
+
 	//// setup empty project
 	empty, err := testhelpers.SetupTestEmptyProject(orgs[0])
 	if err != nil {
@@ -157,6 +167,7 @@ func main() {
 		projects[1].Organization,
 		projects[0].ProjectIdentifier,
 		projects[1].ProjectIdentifier,
+		projects[3].ProjectIdentifier,
 		projects[0].DefaultEnvironment.Identifier,
 		proxyKey,
 		proxyAuthToken,
@@ -166,6 +177,7 @@ func main() {
 		projects[0].SecondaryEnvironment.Identifier,
 		testhelpers.GetDefaultAccount(),
 		testhelpers.GetUserAccessToken(),
+		proxyKeyIdentifier,
 	),
 	)
 	if err != nil {

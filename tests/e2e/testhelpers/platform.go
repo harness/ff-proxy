@@ -42,7 +42,7 @@ func GetDefaultOrg() string {
 
 // GetSecondaryOrg ...
 func GetSecondaryOrg() string {
-	return os.Getenv("SECONDARY_ORG")
+	return os.Getenv("SECONDARY_ORG_IDENTIFIER")
 }
 
 // GetDefaultEnvironment ...
@@ -82,4 +82,9 @@ func GetUserAccessToken() string {
 // GetPlatformBaseURL ...
 func GetPlatformBaseURL() string {
 	return os.Getenv("PLATFORM_BASE_URL")
+}
+
+// GetProxyKeyIdentifier ...
+func GetProxyKeyIdentifier() string {
+	return os.Getenv("PROXY_KEY_IDENTIFIER")
 }
