@@ -102,7 +102,7 @@ func GetOrgIdentifier() string {
 
 // GetOrgIdentifier ...
 func GetSecondaryOrgIdentifier() string {
-	return os.Getenv("SECONDARY_ORG_IDENTIFIER")
+	return os.Getenv("SECONDARY_ORG")
 }
 
 // GetProjectIdentifier ...
@@ -115,7 +115,16 @@ func GetSecondaryProjectIdentifier() string {
 	return os.Getenv("SECONDARY_PROJECT_IDENTIFIER")
 }
 
+// GetThirdProjectIdentifier ...
+func GetThirdProjectIdentifier() string {
+	return os.Getenv("THIRD_PROJECT_IDENTIFIER")
+}
+
 // GetEnvironmentIdentifier ...
 func GetEnvironmentIdentifier() string {
 	return os.Getenv("ENVIRONMENT_IDENTIFIER")
+}
+
+func GetDefaultEnvironmentID() string {
+	return os.Getenv("DEFAULT_ENVIRONMENT_ID")
 }

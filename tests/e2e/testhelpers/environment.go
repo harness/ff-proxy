@@ -78,7 +78,7 @@ func CreateEnvironmentRemote(org string, projectIdentifier string, environment, 
 
 			return nil
 		},
-		retry.Attempts(5), retry.Delay(500*time.Millisecond),
+		retry.Attempts(5), retry.Delay(1000*time.Millisecond),
 	)
 
 	if err != nil {
