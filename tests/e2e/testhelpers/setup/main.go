@@ -113,13 +113,13 @@ func main() {
 		projects = append(projects, project)
 	}
 
-	//// Create another project in org2
-	p, err := testhelpers.SetupTestProject(orgs[1])
-	if err != nil {
-		log.Errorf(err.Error())
-		os.Exit(1)
-	}
-	projects = append(projects, p)
+	// Create another project in org2
+	//p, err := testhelpers.SetupTestProject(orgs[1])
+	//if err != nil {
+	//	log.Errorf(err.Error())
+	//	os.Exit(1)
+	//}
+	//projects = append(projects, p)
 
 	//// setup empty project
 	empty, err := testhelpers.SetupTestEmptyProject(orgs[0])
