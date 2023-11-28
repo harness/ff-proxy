@@ -138,7 +138,7 @@ func CreateProxyKey(ctx context.Context, projectIdentifier, account string, org 
 	return *p.JSON201.Key, nil
 }
 
-func CreateProxyKeyForMultipleOrgs(ctx context.Context, keyIdentifier, account, org1, org2, project1, project2, emptyProject string) (string, error) {
+func CreateProxyKeyForMultipleOrgs(ctx context.Context, keyIdentifier, account, org1, org2, project1, project2, project3, emptyProject string) (string, error) {
 	c := DefaultClient()
 
 	params := &admin.CreateProxyKeyParams{
@@ -168,6 +168,13 @@ func CreateProxyKeyForMultipleOrgs(ctx context.Context, keyIdentifier, account, 
 						AdditionalProperties: map[string]admin.ProxyKeyProject{
 							project2: {
 								Scope: "all",
+							},
+							// This Project is used specifically for a test case where we assign and unassign
+							// environments from a Proxy Key. We shouldn't use this for any other test cases
+							// because when we unassign environments we could impact other tests.
+							project3: {
+								Scope:        "selected",
+								Environments: domain.ToPtr([]string{GetDefaultEnvironment()}),
 							},
 						},
 					},

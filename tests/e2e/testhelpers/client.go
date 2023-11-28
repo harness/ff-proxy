@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/golang-jwt/jwt"
+	"github.com/harness/ff-proxy/v2/gen/admin"
 	log "github.com/sirupsen/logrus"
 
 	"github.com/harness/ff-proxy/v2/domain"
@@ -197,9 +198,10 @@ func CreateProxyKeyAndAuthForMultipleOrgs(ctx context.Context, keyIdentifier str
 	org2 := projects[1].Organization
 	project1 := projects[0].ProjectIdentifier
 	project2 := projects[1].ProjectIdentifier
-	emptyProject := projects[2].ProjectIdentifier
+	project3 := projects[2].ProjectIdentifier
+	emptyProject := projects[3].ProjectIdentifier
 
-	key, err := CreateProxyKeyForMultipleOrgs(ctx, keyIdentifier, account, org1, org2, project1, project2, emptyProject)
+	key, err := CreateProxyKeyForMultipleOrgs(ctx, keyIdentifier, account, org1, org2, project1, project2, project3, emptyProject)
 	log.Infof("key : %s\n", key)
 	if err != nil {
 		return "", "", nil
@@ -214,4 +216,52 @@ func CreateProxyKeyAndAuthForMultipleOrgs(ctx context.Context, keyIdentifier str
 	}
 
 	return key, token, nil
+}
+
+func EditProxyKey(ctx context.Context, account string, identifier string, body admin.UpdateProxyKeyJSONRequestBody) error {
+	c := DefaultClient()
+
+	params := admin.UpdateProxyKeyParams{
+		AccountIdentifier: admin.AccountQueryParam(account),
+	}
+
+	resp, err := c.UpdateProxyKey(ctx, admin.Identifier(identifier), &params, body, AddAuthToken)
+	if err != nil {
+		return err
+	}
+
+	p, err := admin.ParseUpdateProxyKeyResponse(resp)
+	if err != nil {
+		return err
+	}
+
+	if p.StatusCode() != http.StatusOK {
+		return fmt.Errorf("non 200 response code updating ProxyKey: %s", p.StatusCode())
+	}
+
+	return nil
+}
+
+func GetProxyKey(ctx context.Context, account string, identifier string) (*admin.GetProxyKeyResponse, error) {
+	c := DefaultClient()
+
+	params := admin.GetProxyKeyParams{
+		AccountIdentifier: admin.AccountQueryParam(account),
+	}
+
+	resp, err := c.GetProxyKey(ctx, admin.Identifier(identifier), &params, AddAuthToken)
+	if err != nil {
+		return nil, err
+	}
+
+	r, err := admin.ParseGetProxyKeyResponse(resp)
+	if err != nil {
+		return nil, err
+	}
+
+	if r.JSON200 == nil {
+		return nil, fmt.Errorf("non 200 status code for GetProxyKey %d", r.StatusCode())
+	}
+
+	return r, nil
 }

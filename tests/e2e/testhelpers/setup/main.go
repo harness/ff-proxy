@@ -33,9 +33,10 @@ ONLINE=true
 REMOTE_URL=%s
 ACCOUNT_IDENTIFIER=%s
 ORG_IDENTIFIER=%s
-SECONDARY_ORG_IDENTIFIER=%s
+SECONDARY_ORG=%s
 PROJECT_IDENTIFIER=%s
 SECONDARY_PROJECT_IDENTIFIER=%s
+THIRD_PROJECT_IDENTIFIER=%s
 ENVIRONMENT_IDENTIFIER=%s
 CLIENT_URL=https://app.harness.io/gateway/cf
 PROXY_KEY=%s
@@ -43,11 +44,13 @@ PROXY_AUTH_KEY=%s
 SERVER_API_KEY=%s
 EMPTY_PROJECT_API_KEY=%s
 PLATFORM_BASE_URL=https://app.harness.io/gateway/ng/api
+DEFAULT_ENVIRONMENT_ID=%s
 DEFAULT_ENVIRONMENT=%s
 SECONDARY_ENVIRONMENT=%s
 DEFAULT_ACCOUNT=%s
 USER_ACCESS_TOKEN=%s
-ADMIN_URL=https://app.harness.io/gateway/cf`
+ADMIN_URL=https://app.harness.io/gateway/cf
+PROXY_KEY_IDENTIFIER=%s`
 
 // var onlineProxyInMemTemplate = `ACCOUNT_IDENTIFIER=%s
 // ORG_IDENTIFIER=%s
@@ -99,7 +102,7 @@ func main() {
 
 	testhelpers.SetupAuth()
 
-	orgs := []string{testhelpers.GetDefaultOrg(), testhelpers.GetSecondaryOrg()}
+	orgs := []string{testhelpers.GetDefaultOrg(), testhelpers.GetSecondaryOrg(), testhelpers.GetSecondaryOrg()}
 	projects := []testhelpers.TestProject{}
 
 	for _, org := range orgs {
@@ -111,7 +114,7 @@ func main() {
 		projects = append(projects, project)
 	}
 
-	//// setup empty project
+	// setup empty project
 	empty, err := testhelpers.SetupTestEmptyProject(orgs[0])
 	if err != nil {
 		log.Errorf(err.Error())
@@ -157,15 +160,18 @@ func main() {
 		projects[1].Organization,
 		projects[0].ProjectIdentifier,
 		projects[1].ProjectIdentifier,
+		projects[2].ProjectIdentifier,
 		projects[0].DefaultEnvironment.Identifier,
 		proxyKey,
 		proxyAuthToken,
 		project.DefaultEnvironment.Keys[0].ApiKey,
 		empty.DefaultEnvironment.Keys[0].ApiKey,
+		projects[2].DefaultEnvironment.ID,
 		projects[0].DefaultEnvironment.Identifier,
 		projects[0].SecondaryEnvironment.Identifier,
 		testhelpers.GetDefaultAccount(),
 		testhelpers.GetUserAccessToken(),
+		proxyKeyIdentifier,
 	),
 	)
 	if err != nil {

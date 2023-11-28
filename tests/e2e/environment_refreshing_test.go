@@ -128,7 +128,9 @@ func TestEnvironmentCreation(t *testing.T) {
 				},
 			)
 			assert.Nil(t, err)
-			defer resp.Body.Close()
+			if resp.Body != nil {
+				defer resp.Body.Close()
+			}
 
 			t.Logf("Then the returned status code will be %d", tc.expected.featureConfigsStatusCode)
 			assert.Equal(t, tc.expected.featureConfigsStatusCode, resp.StatusCode)
@@ -139,7 +141,7 @@ func TestEnvironmentCreation(t *testing.T) {
 type retryFn func() (*http.Response, error)
 
 func withRetry(conditionFn func(r *http.Response) bool, fn retryFn) (*http.Response, error) {
-	var resp *http.Response
+	var resp *http.Response = &http.Response{}
 	err := retry.Do(func() error {
 		r, err := fn()
 		if err != nil {

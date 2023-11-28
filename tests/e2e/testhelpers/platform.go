@@ -83,3 +83,8 @@ func GetUserAccessToken() string {
 func GetPlatformBaseURL() string {
 	return os.Getenv("PLATFORM_BASE_URL")
 }
+
+// GetProxyKeyIdentifier ...
+func GetProxyKeyIdentifier() string {
+	return os.Getenv("PROXY_KEY_IDENTIFIER")
+}
