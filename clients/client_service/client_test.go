@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/harness/ff-proxy/v2/log"
+	"github.com/prometheus/client_golang/prometheus"
 
 	"github.com/harness/ff-proxy/v2/domain"
 	clientgen "github.com/harness/ff-proxy/v2/gen/client"
@@ -105,7 +106,7 @@ func TestClientService_Authenticate(t *testing.T) {
 		tc := tc
 		t.Run(desc, func(t *testing.T) {
 			logger, _ := log.NewStructuredLogger("DEBUG")
-			clientService, _ := NewClient(logger, "localhost:8000")
+			clientService, _ := NewClient(logger, "localhost:8000", prometheus.NewRegistry())
 			clientService.client = &tc.mockService
 
 			actual, err := clientService.Authenticate(context.Background(), "", domain.Target{})

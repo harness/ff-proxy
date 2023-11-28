@@ -9,6 +9,7 @@ import (
 
 	"github.com/golang-jwt/jwt"
 	jsoniter "github.com/json-iterator/go"
+	"github.com/prometheus/client_golang/prometheus"
 
 	"github.com/harness/ff-proxy/v2/domain"
 	clientgen "github.com/harness/ff-proxy/v2/gen/client"
@@ -38,14 +39,22 @@ var (
 	}
 )
 
+type ffClientService interface {
+	AuthenticateWithResponse(ctx context.Context, body clientgen.AuthenticateJSONRequestBody, reqEditors ...clientgen.RequestEditorFn) (*clientgen.AuthenticateResponse, error)
+	AuthenticateProxyKeyWithResponse(ctx context.Context, body clientgen.AuthenticateProxyKeyJSONRequestBody, reqEditors ...clientgen.RequestEditorFn) (*clientgen.AuthenticateProxyKeyResponse, error)
+	GetProxyConfigWithResponse(ctx context.Context, params *clientgen.GetProxyConfigParams, reqEditors ...clientgen.RequestEditorFn) (*clientgen.GetProxyConfigResponse, error)
+	GetAllSegmentsWithResponse(ctx context.Context, environmentUUID string, params *clientgen.GetAllSegmentsParams, reqEditors ...clientgen.RequestEditorFn) (*clientgen.GetAllSegmentsResponse, error)
+	GetFeatureConfigWithResponse(ctx context.Context, environmentUUID string, params *clientgen.GetFeatureConfigParams, reqEditors ...clientgen.RequestEditorFn) (*clientgen.GetFeatureConfigResponse, error)
+}
+
 // Client is a type for interacting with the Feature Flag Client Service
 type Client struct {
 	log    log.Logger
-	client clientgen.ClientWithResponsesInterface
+	client ffClientService
 }
 
 // NewClient creates a Client
-func NewClient(l log.Logger, addr string) (Client, error) {
+func NewClient(l log.Logger, addr string, reg *prometheus.Registry) (Client, error) {
 	l = l.With("component", "ClientServiceClient")
 
 	client, err := clientgen.NewClientWithResponses(addr)
@@ -53,7 +62,7 @@ func NewClient(l log.Logger, addr string) (Client, error) {
 		return Client{}, err
 	}
 
-	return Client{log: l, client: client}, nil
+	return Client{log: l, client: newPrometheusClient(client, reg)}, nil
 }
 
 // Authenticate makes an authentication request to the client service
