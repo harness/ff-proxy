@@ -39,6 +39,10 @@ RUN \
   apt-get update && \
   apt-get install -y pushpin=$PUSHPIN_VERSION curl binutils
 
+# Fix CVEs
+RUN \
+  apt-get upgrade perl openssl nghttp2
+
 # Required for the image to work on Centos7 with 3.10 kernel
 RUN \
     strip --remove-section=.note.ABI-tag /usr/lib/x86_64-linux-gnu/libQt5Core.so.5
