@@ -41,7 +41,7 @@ RUN \
 
 # Fix CVEs
 RUN \
-  apt-get upgrade perl openssl nghttp2
+  apt-get upgrade -y perl openssl nghttp2
 
 # Required for the image to work on Centos7 with 3.10 kernel
 RUN \
