@@ -286,7 +286,7 @@ func main() {
 		sdkCache = cache.NewMetricsCache("in_mem", promReg, cache.NewMemCache())
 	}
 
-	clientSvc, err := clientservice.NewClient(logger, clientService)
+	clientSvc, err := clientservice.NewClient(logger, clientService, promReg)
 	if err != nil {
 		logger.Error("failed to create client for the feature flags client service", "err", err)
 		os.Exit(1)
