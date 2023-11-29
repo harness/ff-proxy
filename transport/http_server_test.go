@@ -18,6 +18,7 @@ import (
 	"github.com/alicebob/miniredis/v2"
 	"github.com/fanout/go-gripcontrol"
 	"github.com/go-redis/redis/v8"
+	"github.com/harness-community/sse/v3"
 	sdkstream "github.com/harness/ff-golang-server-sdk/stream"
 	"github.com/harness/ff-proxy/cache"
 	"github.com/harness/ff-proxy/config"
@@ -31,7 +32,6 @@ import (
 	"github.com/harness/ff-proxy/stream"
 	"github.com/harness/ff-proxy/token"
 	"github.com/prometheus/client_golang/prometheus"
-	"github.com/r3labs/sse"
 	"github.com/stretchr/testify/assert"
 )
 
