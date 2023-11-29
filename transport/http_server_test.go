@@ -1585,7 +1585,7 @@ func TestHTTPServer_StreamIntegration(t *testing.T) {
 			for key, body := range responseBodies {
 				// And then we should expect to see these events being written to
 				// the response body
-				sseReader := sse.NewEventStreamReader(body)
+				sseReader := sse.NewEventStreamReader(body, 4096)
 				actualEvents := []*sse.Event{}
 
 				done := false
