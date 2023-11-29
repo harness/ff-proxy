@@ -17,6 +17,7 @@ type PrometheusStream struct {
 	next              domain.Stream
 	messagesPublished *prometheus.CounterVec
 	messagesReceived  *prometheus.CounterVec
+	subscriptions     *prometheus.CounterVec
 }
 
 func (p *PrometheusStream) Close(channel string) error {
@@ -39,9 +40,15 @@ func NewPrometheusStream(name string, next domain.Stream, reg *prometheus.Regist
 		},
 			[]string{"topic", "error"},
 		),
+		subscriptions: prometheus.NewCounterVec(prometheus.CounterOpts{
+			Name: fmt.Sprintf("%s_subscription_requests", name),
+			Help: "Records the number of subscription requests made to the stream",
+		},
+			[]string{"topic"},
+		),
 	}
 
-	reg.MustRegister(p.messagesPublished, p.messagesReceived)
+	reg.MustRegister(p.messagesPublished, p.messagesReceived, p.subscriptions)
 	return p
 }
 
@@ -57,6 +64,8 @@ func (p *PrometheusStream) Pub(ctx context.Context, channel string, msg interfac
 
 // Sub calls the decorated streams Sub method and increments a prometheus metric for each message received
 func (p *PrometheusStream) Sub(ctx context.Context, channel string, id string, msgFn domain.HandleMessageFn) error {
+	p.subscriptions.WithLabelValues(channel).Inc()
+
 	return p.next.Sub(ctx, channel, id, func(id string, v interface{}) error {
 		err := msgFn(id, v)
 		errLabel := parseErrorLabel(err)
