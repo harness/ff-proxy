@@ -11,4 +11,7 @@ var (
 
 	// ErrCacheInternal is the error returned by a cache when there is an unexpected error
 	ErrCacheInternal = errors.New("cache: internal error")
+
+	// ErrConnRefused is the error returned by a cache when we can't connect to it
+	ErrConnRefused = errors.New("cache: connection refused")
 )

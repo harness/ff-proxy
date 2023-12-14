@@ -15,6 +15,8 @@ import (
 	"testing"
 	"time"
 
+	admingen "github.com/harness/ff-proxy/gen/admin"
+
 	"github.com/alicebob/miniredis/v2"
 	"github.com/fanout/go-gripcontrol"
 	"github.com/go-redis/redis/v8"
@@ -23,7 +25,6 @@ import (
 	"github.com/harness/ff-proxy/cache"
 	"github.com/harness/ff-proxy/config"
 	"github.com/harness/ff-proxy/domain"
-	admingen "github.com/harness/ff-proxy/gen/admin"
 	"github.com/harness/ff-proxy/hash"
 	"github.com/harness/ff-proxy/log"
 	"github.com/harness/ff-proxy/middleware"
@@ -106,6 +107,7 @@ type setupConfig struct {
 	metricService *mockMetricService
 	promReg       prometheusRegister
 	sdkClients    *mockSDKClient
+	authFn        func(key string) (domain.Token, error)
 }
 
 type setupOpts func(s *setupConfig)
@@ -161,6 +163,12 @@ func setupWithEnvHealthFn(fn proxyservice.EnvHealthFn) setupOpts {
 func setupWithCache(c cache.Cache) setupOpts {
 	return func(s *setupConfig) {
 		s.cache = c
+	}
+}
+
+func setupWithAuthFn(fn func(key string) (domain.Token, error)) setupOpts {
+	return func(s *setupConfig) {
+		s.authFn = fn
 	}
 }
 
@@ -273,6 +281,9 @@ func setupHTTPServer(t *testing.T, bypassAuth bool, opts ...setupOpts) *HTTPServ
 	logger := log.NoOpLogger{}
 
 	tokenSource := token.NewTokenSource(logger, setupConfig.authRepo, hash.NewSha256(), []byte(`secret`))
+	if setupConfig.authFn == nil {
+		setupConfig.authFn = tokenSource.GenerateToken
+	}
 
 	var service proxyservice.ProxyService
 	service = proxyservice.NewService(proxyservice.Config{
@@ -283,7 +294,7 @@ func setupHTTPServer(t *testing.T, bypassAuth bool, opts ...setupOpts) *HTTPServ
 		AuthRepo:         *setupConfig.authRepo,
 		CacheHealthFn:    setupConfig.cacheHealthFn,
 		EnvHealthFn:      setupConfig.envHealthFn,
-		AuthFn:           tokenSource.GenerateToken,
+		AuthFn:           setupConfig.authFn,
 		ClientService:    setupConfig.clientService,
 		MetricService:    setupConfig.metricService,
 		Offline:          false,
@@ -938,6 +949,7 @@ func TestHTTPServer_PostAuthentication(t *testing.T) {
 		method                       string
 		url                          string
 		body                         []byte
+		authFn                       func(key string) (domain.Token, error)
 		expectedStatusCode           int
 		clientService                *mockClientService
 		expectedCacheTargets         []domain.Target
@@ -945,21 +957,25 @@ func TestHTTPServer_PostAuthentication(t *testing.T) {
 	}{
 		"Given I make a request that isn't a POST request": {
 			method:             http.MethodGet,
+			authFn:             nil,
 			expectedStatusCode: http.StatusMethodNotAllowed,
 		},
 		"Given I make an auth request with an APIKey that doesn't exist": {
 			method:             http.MethodPost,
 			body:               []byte(`{"apiKey": "hello"}`),
+			authFn:             nil,
 			expectedStatusCode: http.StatusUnauthorized,
 		},
 		"Given I make an auth request with an APIKey that does exist": {
 			method:             http.MethodPost,
 			body:               []byte(fmt.Sprintf(`{"apiKey": "%s"}`, apiKey1)),
+			authFn:             nil,
 			expectedStatusCode: http.StatusOK,
 		},
 		"Given I include a Target in my Auth request and have a working connection to FeatureFlags": {
 			method: http.MethodPost,
 			body:   bodyWithTarget,
+			authFn: nil,
 			clientService: &mockClientService{
 				authenticate: authenticateSuccess,
 				targetsc:     make(chan domain.Target, 1),
@@ -971,6 +987,7 @@ func TestHTTPServer_PostAuthentication(t *testing.T) {
 		"Given I include a Target in my Auth request and have no connection to FeatureFlags": {
 			method: http.MethodPost,
 			body:   bodyWithTarget,
+			authFn: nil,
 			clientService: &mockClientService{
 				authenticate: authenticateErr,
 				targetsc:     make(chan domain.Target, 1),
@@ -978,6 +995,14 @@ func TestHTTPServer_PostAuthentication(t *testing.T) {
 			expectedStatusCode:           http.StatusOK,
 			expectedCacheTargets:         targets,
 			expectedClientServiceTargets: []domain.Target{},
+		},
+		"Given I make an auth request with an APIKey that does exist and we've no connection to the cache": {
+			method: http.MethodPost,
+			body:   []byte(fmt.Sprintf(`{"apiKey": "%s"}`, apiKey1)),
+			authFn: func(key string) (domain.Token, error) {
+				return domain.Token{}, domain.ErrConnRefused
+			},
+			expectedStatusCode: http.StatusInternalServerError,
 		},
 	}
 
@@ -1004,6 +1029,7 @@ func TestHTTPServer_PostAuthentication(t *testing.T) {
 			true,
 			setupWithClientService(tc.clientService),
 			setupWithTargetRepo(targetRepo),
+			setupWithAuthFn(tc.authFn),
 		)
 		testServer := httptest.NewServer(server)
 

@@ -82,21 +82,21 @@ func (a AuthRepo) Add(ctx context.Context, values ...domain.AuthConfig) error {
 
 // Get gets the environmentID for the passed api key hash
 // if the auth repo has been configured with approved envs only return keys that belong to those envs
-func (a AuthRepo) Get(ctx context.Context, key domain.AuthAPIKey) (string, bool) {
+func (a AuthRepo) Get(ctx context.Context, key domain.AuthAPIKey) (string, error) {
 	var environment domain.EnvironmentID
 
 	if err := a.cache.Get(ctx, string(key), &environment); err != nil {
-		return "", false
+		return "", err
 	}
 
 	// if we're filtering by env then check result belongs to approved env
 	if len(a.approvedEnvironments) > 0 {
 		if _, exists := a.approvedEnvironments[string(environment)]; !exists {
-			return "", false
+			return "", fmt.Errorf("%w: unapproved env", domain.ErrCacheInternal)
 		}
 	}
 
-	return string(environment), true
+	return string(environment), nil
 }
 
 // getAll gets all values from auth repo

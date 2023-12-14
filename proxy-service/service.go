@@ -71,6 +71,10 @@ var (
 	// ErrStreamDisconnected is the error that the proxy service returns when
 	// its internal sdk has disconnected from the SaaS stream
 	ErrStreamDisconnected = errors.New("SaaS stream disconnected")
+
+	// ErrCacheUnavailable is the error that the proxy service returns when it's
+	// unable to reach the cache
+	ErrCacheUnavailable = errors.New("cache is unavailable")
 )
 
 // authTokenFn is a function that can generate an auth token
@@ -160,6 +164,10 @@ func (s Service) Authenticate(ctx context.Context, req domain.AuthRequest) (doma
 
 	token, err := s.authFn(req.APIKey)
 	if err != nil {
+		if errors.Is(err, domain.ErrConnRefused) {
+			return domain.AuthResponse{}, ErrCacheUnavailable
+		}
+
 		s.logger.Error(ctx, "failed to generate auth token", "err", err)
 		return domain.AuthResponse{}, ErrUnauthorised
 	}
@@ -374,8 +382,8 @@ func (s Service) Stream(ctx context.Context, req domain.StreamRequest) (domain.S
 
 	hashedAPIKey := s.hasher.Hash(req.APIKey)
 
-	repoKey, ok := s.authRepo.Get(ctx, domain.NewAuthAPIKey(hashedAPIKey))
-	if !ok {
+	repoKey, err := s.authRepo.Get(ctx, domain.NewAuthAPIKey(hashedAPIKey))
+	if err != nil {
 		return domain.StreamResponse{}, fmt.Errorf("%w: no environment found for apiKey %q", ErrNotFound, req.APIKey)
 	}
 

@@ -2,7 +2,9 @@ package cache
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"syscall"
 	"time"
 
 	"github.com/go-redis/cache/v8"
@@ -90,8 +92,12 @@ func (k *KeyValCache) Set(ctx context.Context, key string, value interface{}) er
 func (k *KeyValCache) Get(ctx context.Context, key string, value interface{}) error {
 	b, err := k.redisClient.Get(ctx, key).Bytes()
 	if err != nil {
-		if err == redis.Nil {
+		if errors.Is(err, redis.Nil) {
 			return fmt.Errorf("%w: KeyValCache.Get key %s doesn't exist in cache: %s", domain.ErrCacheNotFound, key, err)
+		}
+
+		if errors.Is(err, syscall.ECONNREFUSED) {
+			return fmt.Errorf("%w: redis down", domain.ErrConnRefused)
 		}
 		return fmt.Errorf("%w: KeyValCache.Get failed for key: %q", err, key)
 	}
