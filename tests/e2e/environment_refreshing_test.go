@@ -160,6 +160,10 @@ func withRetry(conditionFn func(r *http.Response) bool, fn retryFn) (*http.Respo
 		retry.Attempts(5), retry.Delay(2000*time.Millisecond),
 	)
 
+	if resp.Body != nil {
+		resp.Body.Close()
+	}
+
 	return resp, err
 }
 

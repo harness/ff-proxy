@@ -3,11 +3,9 @@ package e2e
 import (
 	"bytes"
 	"context"
-	"errors"
 	"fmt"
 	"io"
 	"net/http"
-	"strings"
 	"testing"
 	"time"
 
@@ -20,12 +18,14 @@ import (
 )
 
 func TestProxyKeyUpdating(t *testing.T) {
-	t.Skip("Temporarily skipping because the API changed in ff-server")
 
 	var (
 		org2               = testhelpers.GetSecondaryOrg()
 		project3Identifier = GetThirdProjectIdentifier()
 		envID              = GetDefaultEnvironmentID()
+		envIdentifier      = GetEnvironmentIdentifier()
+		account            = testhelpers.GetDefaultAccount()
+		proxyKeyIdentifier = testhelpers.GetProxyKeyIdentifier()
 	)
 
 	token, _, err := testhelpers.AuthenticateSDKClient(GetServerAPIKey(), GetStreamURL(), nil)
@@ -33,10 +33,30 @@ func TestProxyKeyUpdating(t *testing.T) {
 		t.Error(err)
 	}
 
+	// At the end of this test we want to reset the Proxy key's config back to its original
+	// configuration so we don't break other tests
+	defer func() {
+		resp, err := testhelpers.GetProxyKey(context.Background(), account, proxyKeyIdentifier)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		if resp == nil {
+			t.Fatal("a")
+		}
+
+		err = testhelpers.EditProxyKey(context.Background(), account, proxyKeyIdentifier, originalProxyConfig(resp.JSON200.Version))
+		if err != nil {
+			t.Fatal(err)
+		}
+	}()
+
 	type args struct {
-		org               string
-		project           string
-		editProxyKeyScope func(ctx context.Context, account string, identifier string, org string, project string) error
+		org                string
+		project            string
+		envIdentifier      string
+		proxyKeyIdentifier string
+		editProxyKeyScope  func(ctx context.Context, account string, identifier string, org string, project string, envs ...string) error
 	}
 
 	type expected struct {
@@ -52,8 +72,10 @@ func TestProxyKeyUpdating(t *testing.T) {
 		{
 			name: "Given I have a ProxyKey scoped to an environment",
 			args: args{
-				org:     org2,
-				project: project3Identifier,
+				org:                org2,
+				project:            project3Identifier,
+				envIdentifier:      envIdentifier,
+				proxyKeyIdentifier: proxyKeyIdentifier,
 			},
 			expected: expected{
 				statusCode:        http.StatusOK,
@@ -63,25 +85,15 @@ func TestProxyKeyUpdating(t *testing.T) {
 		{
 			name: "Given I remove the ProxyKeys access to the environment",
 			args: args{
-				org:               org2,
-				project:           project3Identifier,
-				editProxyKeyScope: removeEnvironment,
+				org:                org2,
+				project:            project3Identifier,
+				envIdentifier:      testhelpers.GetSecondaryEnvironment(),
+				proxyKeyIdentifier: proxyKeyIdentifier,
+				editProxyKeyScope:  editScope,
 			},
 			expected: expected{
-				statusCode:        http.StatusOK,
+				statusCode:        http.StatusUnauthorized,
 				numFeatureConfigs: 0,
-			},
-		},
-		{
-			name: "Given I re-add the ProxyKeys access to the environment",
-			args: args{
-				org:               org2,
-				project:           project3Identifier,
-				editProxyKeyScope: addEnvironment,
-			},
-			expected: expected{
-				statusCode:        http.StatusOK,
-				numFeatureConfigs: 2,
 			},
 		},
 	}
@@ -96,7 +108,7 @@ func TestProxyKeyUpdating(t *testing.T) {
 			defer cancel()
 
 			if tc.args.editProxyKeyScope != nil {
-				err := tc.args.editProxyKeyScope(ctx, testhelpers.GetDefaultAccount(), testhelpers.GetProxyKeyIdentifier(), org2, project3Identifier)
+				err := tc.args.editProxyKeyScope(ctx, account, tc.args.proxyKeyIdentifier, tc.args.org, tc.args.project, tc.args.envIdentifier)
 				assert.Nil(t, err)
 			}
 
@@ -106,12 +118,24 @@ func TestProxyKeyUpdating(t *testing.T) {
 					featureConfigs     []client.FeatureConfig
 				)
 
+				if r.StatusCode == http.StatusUnauthorized && tc.expected.statusCode == http.StatusUnauthorized {
+					return true
+				}
+
 				_, err := io.Copy(featureConfigsBody, r.Body)
 				assert.Nil(t, err)
 
 				assert.Nil(t, jsoniter.Unmarshal(featureConfigsBody.Bytes(), &featureConfigs))
 
-				return len(featureConfigs) == tc.expected.numFeatureConfigs
+				// If the featureConfigs slice isn't nil then that meant we got some
+				// features back and can check if it matches the expected number of features
+				if featureConfigs != nil {
+					return len(featureConfigs) == tc.expected.numFeatureConfigs
+				}
+
+				// If it is nil then the only valid scenario is we weren't expecting
+				// to get any feature configs in the response
+				return tc.expected.numFeatureConfigs == 0
 			}
 
 			t.Log("When I make a /feature-configs request to the Proxy")
@@ -125,58 +149,80 @@ func TestProxyKeyUpdating(t *testing.T) {
 				},
 			)
 			assert.Nil(t, err)
-			defer resp.Body.Close()
 
 			assert.Equal(t, tc.expected.statusCode, resp.StatusCode)
 		})
 	}
 }
 
-func parseTokenClaims(token string) (domain.Claims, error) {
-	ss := strings.Split(token, ".")
+func originalProxyConfig(version int) admin.PatchProxyKeyJSONRequestBody {
+	var (
+		defaultOrg     = GetOrgIdentifier()
+		ffOrg          = testhelpers.GetSecondaryOrg()
+		defaultProject = GetProjectIdentifier()
+		secondProject  = GetSecondaryProjectIdentifier()
+		defaultEnv     = testhelpers.GetDefaultEnvironment()
 
-	if len(ss) != 3 {
-		return domain.Claims{}, errors.New("unexpected token length")
+		thirdProject  = GetThirdProjectIdentifier()
+		fourthProject = GetFourthProjectIdentifier()
+	)
+
+	config := admin.OrganizationDictionary{
+		AdditionalProperties: map[string]admin.ProjectDictionary{
+			ffOrg: admin.ProjectDictionary{
+				Projects: &admin.ProjectDictionary_Projects{
+					AdditionalProperties: map[string]admin.ProxyKeyProject{
+						thirdProject: admin.ProxyKeyProject{
+							Environments: domain.ToPtr([]string{defaultEnv}),
+							Scope:        "selected",
+						},
+						secondProject: admin.ProxyKeyProject{
+							Environments: nil,
+							Scope:        "all",
+						},
+					},
+				},
+			},
+			defaultOrg: admin.ProjectDictionary{
+				Projects: &admin.ProjectDictionary_Projects{
+					AdditionalProperties: map[string]admin.ProxyKeyProject{
+						fourthProject: admin.ProxyKeyProject{
+							Environments: nil,
+							Scope:        "all",
+						},
+						defaultProject: admin.ProxyKeyProject{
+							Environments: domain.ToPtr([]string{defaultEnv}),
+							Scope:        "selected",
+						},
+					},
+				},
+			},
+		},
 	}
 
-	claims := domain.Claims{}
-	if err := jsoniter.Unmarshal([]byte(ss[1]), &claims); err != nil {
-		return domain.Claims{}, err
+	return admin.PatchProxyKeyJSONRequestBody{
+		Instructions: &struct {
+			RotateKey    *string `json:"rotateKey,omitempty"`
+			UpdateConfig *struct {
+				Organizations admin.OrganizationDictionary `json:"organizations"`
+				Version       int                          `json:"version"`
+			} `json:"updateConfig,omitempty"`
+			UpdateDescription *string `json:"updateDescription,omitempty"`
+			UpdateName        *string `json:"updateName,omitempty"`
+		}{
+			UpdateConfig: &struct {
+				Organizations admin.OrganizationDictionary `json:"organizations"`
+				Version       int                          `json:"version"`
+			}{
+				Version:       version + 1,
+				Organizations: config,
+			},
+		},
 	}
-
-	return claims, nil
-}
-
-// Removes access to the default environment and adds access to the secondary environment
-func removeEnvironment(ctx context.Context, account string, identifier string, org string, project string) error {
-	resp, err := testhelpers.GetProxyKey(ctx, account, identifier)
-	if err != nil {
-		return err
-	}
-
-	if resp.JSON200 == nil {
-		if resp.JSON404 != nil {
-			return nil
-		}
-		return fmt.Errorf("failed to get proxy key to edit it: %s", err)
-	}
-
-	updatedProject := resp.JSON200.Organizations.AdditionalProperties[org].Projects.AdditionalProperties[project]
-	updatedProject.Scope = "selected"
-	updatedProject.Environments = domain.ToPtr([]string{"secondEnv"})
-
-	resp.JSON200.Organizations.AdditionalProperties[org].Projects.AdditionalProperties[project] = updatedProject
-
-	body := admin.UpdateProxyKeyJSONRequestBody{
-		Organizations: resp.JSON200.Organizations,
-		Version:       resp.JSON200.Version + 1,
-	}
-
-	return testhelpers.EditProxyKey(ctx, account, identifier, body)
 }
 
 // Removes access to the secondary environment and adds access to the default environment
-func addEnvironment(ctx context.Context, account string, identifier string, org string, project string) error {
+func editScope(ctx context.Context, account string, identifier string, org string, project string, envs ...string) error {
 	resp, err := testhelpers.GetProxyKey(ctx, account, identifier)
 	if err != nil {
 		return err
@@ -185,14 +231,46 @@ func addEnvironment(ctx context.Context, account string, identifier string, org 
 	updatedProject := resp.JSON200.Organizations.AdditionalProperties[org].Projects.AdditionalProperties[project]
 
 	updatedProject.Scope = "selected"
-	updatedProject.Environments = domain.ToPtr([]string{testhelpers.GetDefaultEnvironment()})
+	updatedProject.Environments = domain.ToPtr(envs)
 
 	resp.JSON200.Organizations.AdditionalProperties[org].Projects.AdditionalProperties[project] = updatedProject
 
-	body := admin.UpdateProxyKeyJSONRequestBody{
-		Organizations: resp.JSON200.Organizations,
-		Version:       resp.JSON200.Version + 1,
+	config := admin.OrganizationDictionary{
+		AdditionalProperties: map[string]admin.ProjectDictionary{
+			org: admin.ProjectDictionary{
+				Projects: &admin.ProjectDictionary_Projects{
+					AdditionalProperties: map[string]admin.ProxyKeyProject{
+						project: updatedProject,
+					},
+				},
+			},
+		},
 	}
+	version := resp.JSON200.Version + 1
 
-	return testhelpers.EditProxyKey(ctx, account, identifier, body)
+	body := createPatchRequestWithInstructions(version, config)
+
+	return testhelpers.EditProxyKey(ctx, account, identifier, admin.PatchProxyKeyJSONRequestBody(body))
+}
+
+func createPatchRequestWithInstructions(version int, updateBody admin.OrganizationDictionary) admin.ProxyKeysPatchRequest {
+	return admin.ProxyKeysPatchRequest{
+		Instructions: &struct {
+			RotateKey    *string `json:"rotateKey,omitempty"`
+			UpdateConfig *struct {
+				Organizations admin.OrganizationDictionary `json:"organizations"`
+				Version       int                          `json:"version"`
+			} `json:"updateConfig,omitempty"`
+			UpdateDescription *string `json:"updateDescription,omitempty"`
+			UpdateName        *string `json:"updateName,omitempty"`
+		}{
+			UpdateConfig: &struct {
+				Organizations admin.OrganizationDictionary `json:"organizations"`
+				Version       int                          `json:"version"`
+			}{
+				Version:       version,
+				Organizations: updateBody,
+			},
+		},
+	}
 }

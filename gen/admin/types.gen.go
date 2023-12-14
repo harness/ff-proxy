@@ -322,6 +322,24 @@ type Environment struct {
 	Tags    *[]Tag `json:"tags,omitempty"`
 }
 
+// EnvironmentPerspective defines model for EnvironmentPerspective.
+type EnvironmentPerspective struct {
+	// The date the key was created at in milliseconds
+	CreatedAt int64 `json:"createdAt"`
+
+	// The ID of the Environment
+	EnvironmentId string `json:"environmentId"`
+
+	// The ID of the Perspective
+	PerspectiveId string `json:"perspectiveId"`
+
+	// The Identifier/Common Name of the Perspective
+	PerspectiveIdentifier string `json:"perspectiveIdentifier"`
+
+	// The date the key was last updated at in milliseconds
+	UpdatedAt int64 `json:"updatedAt"`
+}
+
 // A list of Environments
 type Environments struct {
 	Environments *[]Environment `json:"environments,omitempty"`
@@ -1001,6 +1019,19 @@ type ProxyKey struct {
 	UpdatedAt int64 `json:"updatedAt"`
 }
 
+// A Proxy Key instruction
+type ProxyKeyInstruction struct {
+	Instructions *struct {
+		RotateKey    *string `json:"rotateKey,omitempty"`
+		UpdateConfig *struct {
+			Organizations OrganizationDictionary `json:"organizations"`
+			Version       int                    `json:"version"`
+		} `json:"updateConfig,omitempty"`
+		UpdateDescription *string `json:"updateDescription,omitempty"`
+		UpdateName        *string `json:"updateName,omitempty"`
+	} `json:"instructions,omitempty"`
+}
+
 // ProxyKeyProject defines model for ProxyKeyProject.
 type ProxyKeyProject struct {
 	Environments *[]string            `json:"environments,omitempty"`
@@ -1513,6 +1544,9 @@ type BadRequest Error
 // Conflict defines model for Conflict.
 type Conflict Error
 
+// EnvironmentPerspectiveResponse defines model for EnvironmentPerspectiveResponse.
+type EnvironmentPerspectiveResponse EnvironmentPerspective
+
 // EnvironmentResponse defines model for EnvironmentResponse.
 type EnvironmentResponse struct {
 	CorrelationId *string `json:"correlationId,omitempty"`
@@ -1728,6 +1762,12 @@ type APIKeyUpdateRequest struct {
 	Name        *string `json:"name,omitempty"`
 }
 
+// EnvironmentPerspectiveUpsertRequest defines model for EnvironmentPerspectiveUpsertRequest.
+type EnvironmentPerspectiveUpsertRequest struct {
+	PerspectiveIdentifier string `json:"perspectiveIdentifier"`
+	PerspectiveName       string `json:"perspectiveName"`
+}
+
 // EnvironmentRequest defines model for EnvironmentRequest.
 type EnvironmentRequest struct {
 	Description *string `json:"description,omitempty"`
@@ -1796,18 +1836,15 @@ type ProjectRequest struct {
 	Tags        *[]Tag  `json:"tags,omitempty"`
 }
 
+// A Proxy Key instruction
+type ProxyKeysPatchRequest ProxyKeyInstruction
+
 // ProxyKeysPostRequest defines model for ProxyKeysPostRequest.
 type ProxyKeysPostRequest struct {
 	Description   *string                `json:"description,omitempty"`
 	Identifier    string                 `json:"identifier"`
 	Name          string                 `json:"name"`
 	Organizations OrganizationDictionary `json:"organizations"`
-}
-
-// ProxyKeysPutRequest defines model for ProxyKeysPutRequest.
-type ProxyKeysPutRequest struct {
-	Organizations OrganizationDictionary `json:"organizations"`
-	Version       int                    `json:"version"`
 }
 
 // SegmentPatchRequest defines model for SegmentPatchRequest.
@@ -2013,6 +2050,36 @@ type CreateEnvironmentParams struct {
 
 	// Organization Identifier
 	OrgIdentifier OrgQueryParam `form:"orgIdentifier" json:"orgIdentifier"`
+}
+
+// DeletePerspectiveParams defines parameters for DeletePerspective.
+type DeletePerspectiveParams struct {
+	// Account Identifier
+	AccountIdentifier AccountQueryParam `form:"accountIdentifier" json:"accountIdentifier"`
+
+	// Organization Identifier
+	OrgIdentifier OrgQueryParam `form:"orgIdentifier" json:"orgIdentifier"`
+
+	// The Project identifier
+	ProjectIdentifier ProjectQueryParam `form:"projectIdentifier" json:"projectIdentifier"`
+
+	// Environment Identifier
+	EnvironmentIdentifier EnvironmentQueryParam `form:"environmentIdentifier" json:"environmentIdentifier"`
+}
+
+// UpsertPerspectiveParams defines parameters for UpsertPerspective.
+type UpsertPerspectiveParams struct {
+	// Account Identifier
+	AccountIdentifier AccountQueryParam `form:"accountIdentifier" json:"accountIdentifier"`
+
+	// Organization Identifier
+	OrgIdentifier OrgQueryParam `form:"orgIdentifier" json:"orgIdentifier"`
+
+	// The Project identifier
+	ProjectIdentifier ProjectQueryParam `form:"projectIdentifier" json:"projectIdentifier"`
+
+	// Environment Identifier
+	EnvironmentIdentifier EnvironmentQueryParam `form:"environmentIdentifier" json:"environmentIdentifier"`
 }
 
 // DeleteEnvironmentParams defines parameters for DeleteEnvironment.
@@ -2663,8 +2730,8 @@ type GetProxyKeyParams struct {
 	AccountIdentifier AccountQueryParam `form:"accountIdentifier" json:"accountIdentifier"`
 }
 
-// UpdateProxyKeyParams defines parameters for UpdateProxyKey.
-type UpdateProxyKeyParams struct {
+// PatchProxyKeyParams defines parameters for PatchProxyKey.
+type PatchProxyKeyParams struct {
 	// Account Identifier
 	AccountIdentifier AccountQueryParam `form:"accountIdentifier" json:"accountIdentifier"`
 }
@@ -3161,6 +3228,9 @@ type UpdateAPIKeyJSONRequestBody APIKeyUpdateRequest
 // CreateEnvironmentJSONRequestBody defines body for CreateEnvironment for application/json ContentType.
 type CreateEnvironmentJSONRequestBody EnvironmentRequest
 
+// UpsertPerspectiveJSONRequestBody defines body for UpsertPerspective for application/json ContentType.
+type UpsertPerspectiveJSONRequestBody EnvironmentPerspectiveUpsertRequest
+
 // ModifyEnvironmentJSONRequestBody defines body for ModifyEnvironment for application/json ContentType.
 type ModifyEnvironmentJSONRequestBody EnvironmentRequest
 
@@ -3197,8 +3267,8 @@ type CreateGitRepoJSONRequestBody GitRepoRequest
 // CreateProxyKeyJSONRequestBody defines body for CreateProxyKey for application/json ContentType.
 type CreateProxyKeyJSONRequestBody ProxyKeysPostRequest
 
-// UpdateProxyKeyJSONRequestBody defines body for UpdateProxyKey for application/json ContentType.
-type UpdateProxyKeyJSONRequestBody ProxyKeysPutRequest
+// PatchProxyKeyJSONRequestBody defines body for PatchProxyKey for application/json ContentType.
+type PatchProxyKeyJSONRequestBody ProxyKeysPatchRequest
 
 // CreateSegmentJSONRequestBody defines body for CreateSegment for application/json ContentType.
 type CreateSegmentJSONRequestBody SegmentRequest

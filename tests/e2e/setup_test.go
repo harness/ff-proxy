@@ -120,6 +120,11 @@ func GetThirdProjectIdentifier() string {
 	return os.Getenv("THIRD_PROJECT_IDENTIFIER")
 }
 
+// GetThirdProjectIdentifier ...
+func GetFourthProjectIdentifier() string {
+	return os.Getenv("FOURTH_PROJECT_IDENTIFIER")
+}
+
 // GetEnvironmentIdentifier ...
 func GetEnvironmentIdentifier() string {
 	return os.Getenv("ENVIRONMENT_IDENTIFIER")
