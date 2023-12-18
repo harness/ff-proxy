@@ -2,6 +2,7 @@ package repository
 
 import (
 	"context"
+	"errors"
 	"testing"
 
 	"github.com/harness/ff-proxy/cache"
@@ -22,8 +23,8 @@ func TestAuthRepo_Get(t *testing.T) {
 	unpopulated := map[domain.AuthAPIKey]string{}
 
 	type expected struct {
-		strVal  string
-		boolVal bool
+		strVal string
+		err    error
 	}
 
 	testCases := map[string]struct {
@@ -32,41 +33,47 @@ func TestAuthRepo_Get(t *testing.T) {
 		approvedEnvs map[string]struct{}
 		key          string
 		expected     expected
+		shouldErr    bool
 	}{
 		"Given I have an empty AuthRepo": {
 			cache:        cache.NewMemCache(),
 			data:         unpopulated,
 			approvedEnvs: emptyApprovedEnvironments,
 			key:          "apikey-foo",
-			expected:     expected{strVal: "", boolVal: false},
+			expected:     expected{strVal: "", err: domain.ErrCacheNotFound},
+			shouldErr:    true,
 		},
 		"Given I have a populated AuthRepo but try to get a key that doesn't exist": {
 			cache:        cache.NewMemCache(),
 			data:         populated,
 			approvedEnvs: emptyApprovedEnvironments,
 			key:          "foo",
-			expected:     expected{strVal: "", boolVal: false},
+			expected:     expected{strVal: "", err: domain.ErrCacheNotFound},
+			shouldErr:    true,
 		},
 		"Given I have a populated AuthRepo and try to get a key that does exist": {
 			cache:        cache.NewMemCache(),
 			data:         populated,
 			approvedEnvs: emptyApprovedEnvironments,
 			key:          "apikey-foo",
-			expected:     expected{strVal: "env-approved", boolVal: true},
+			expected:     expected{strVal: "env-approved", err: nil},
+			shouldErr:    false,
 		},
 		"Given I have a populated AuthRepo and try to get a key that is on the approved env list": {
 			cache:        cache.NewMemCache(),
 			data:         populated,
 			approvedEnvs: map[string]struct{}{"env-approved": struct{}{}},
 			key:          "apikey-foo",
-			expected:     expected{strVal: "env-approved", boolVal: true},
+			expected:     expected{strVal: "env-approved", err: nil},
+			shouldErr:    false,
 		},
 		"Given I have a populated AuthRepo and try to get a key that isn't on the approved env list": {
 			cache:        cache.NewMemCache(),
 			data:         populated,
 			approvedEnvs: map[string]struct{}{"env-approved": struct{}{}},
 			key:          "apikey-2",
-			expected:     expected{strVal: "", boolVal: false},
+			expected:     expected{strVal: "", err: domain.ErrCacheInternal},
+			shouldErr:    true,
 		},
 	}
 	for desc, tc := range testCases {
@@ -77,9 +84,15 @@ func TestAuthRepo_Get(t *testing.T) {
 			if err != nil {
 				t.Fatalf("(%s): error = %v", desc, err)
 			}
-			actual, ok := repo.Get(context.Background(), domain.AuthAPIKey(tc.key))
 
-			assert.Equal(t, tc.expected.boolVal, ok)
+			actual, err := repo.Get(context.Background(), domain.AuthAPIKey(tc.key))
+			if tc.shouldErr {
+				assert.NotNil(t, err)
+				assert.True(t, errors.Is(err, tc.expected.err))
+			} else {
+				assert.Nil(t, err)
+			}
+
 			assert.Equal(t, tc.expected.strVal, actual)
 		})
 	}

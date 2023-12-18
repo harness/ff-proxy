@@ -11,7 +11,7 @@ import (
 )
 
 type authRepo interface {
-	Get(context context.Context, key domain.AuthAPIKey) (string, bool)
+	Get(context context.Context, key domain.AuthAPIKey) (string, error)
 }
 
 type hasher interface {
@@ -38,9 +38,9 @@ func (a TokenSource) GenerateToken(key string) (domain.Token, error) {
 
 	k := domain.NewAuthAPIKey(h)
 
-	env, ok := a.repo.Get(context.Background(), k)
-	if !ok {
-		return domain.Token{}, fmt.Errorf("key %q not found", key)
+	env, err := a.repo.Get(context.Background(), k)
+	if err != nil {
+		return domain.Token{}, fmt.Errorf("%w: key not found", err)
 	}
 
 	t := time.Now().Unix()
