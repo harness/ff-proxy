@@ -80,6 +80,10 @@ func codeFrom(err error) int {
 		return http.StatusServiceUnavailable
 	}
 
+	if errors.Is(err, proxyservice.ErrCacheUnavailable) {
+		return http.StatusInternalServerError
+	}
+
 	return http.StatusInternalServerError
 }
 
