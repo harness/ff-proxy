@@ -1,5 +1,5 @@
 # FF-Proxy
-[![Go Report Card](https://goreportcard.com/badge/github.com/harness/ff-proxy)](https://goreportcard.com/report/github.com/harness/ff-proxy)
+[![Go Report Card](https://goreportcard.com/badge/github.com/harness/ff-proxy)](https://goreportcard.com/report/github.com/harness/ff-proxy)\
 
 The Relay Proxy is a lightweight Go application that runs within your infrastructure and handles all streaming connections to the Harness platform. It fetches all of your flag, target, and target group data on startup, caches it, fetches any updates over time, and serves it to your connected downstream SDKs.
 
