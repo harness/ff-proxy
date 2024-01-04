@@ -218,19 +218,19 @@ func CreateProxyKeyAndAuthForMultipleOrgs(ctx context.Context, keyIdentifier str
 	return key, token, nil
 }
 
-func EditProxyKey(ctx context.Context, account string, identifier string, body admin.UpdateProxyKeyJSONRequestBody) error {
+func EditProxyKey(ctx context.Context, account string, identifier string, body admin.PatchProxyKeyJSONRequestBody) error {
 	c := DefaultClient()
 
-	params := admin.UpdateProxyKeyParams{
+	params := admin.PatchProxyKeyParams{
 		AccountIdentifier: admin.AccountQueryParam(account),
 	}
 
-	resp, err := c.UpdateProxyKey(ctx, admin.Identifier(identifier), &params, body, AddAuthToken)
+	resp, err := c.PatchProxyKey(ctx, admin.Identifier(identifier), &params, body, AddAuthToken)
 	if err != nil {
 		return err
 	}
 
-	p, err := admin.ParseUpdateProxyKeyResponse(resp)
+	p, err := admin.ParsePatchProxyKeyResponse(resp)
 	if err != nil {
 		return err
 	}

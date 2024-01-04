@@ -125,6 +125,14 @@ type ClientInterface interface {
 
 	CreateEnvironment(ctx context.Context, params *CreateEnvironmentParams, body CreateEnvironmentJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// DeletePerspective request
+	DeletePerspective(ctx context.Context, params *DeletePerspectiveParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// UpsertPerspective request with any body
+	UpsertPerspectiveWithBody(ctx context.Context, params *UpsertPerspectiveParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	UpsertPerspective(ctx context.Context, params *UpsertPerspectiveParams, body UpsertPerspectiveJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// DeleteEnvironment request
 	DeleteEnvironment(ctx context.Context, identifier Identifier, params *DeleteEnvironmentParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
@@ -263,10 +271,10 @@ type ClientInterface interface {
 	// GetProxyKey request
 	GetProxyKey(ctx context.Context, identifier Identifier, params *GetProxyKeyParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	// UpdateProxyKey request with any body
-	UpdateProxyKeyWithBody(ctx context.Context, identifier Identifier, params *UpdateProxyKeyParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+	// PatchProxyKey request with any body
+	PatchProxyKeyWithBody(ctx context.Context, identifier Identifier, params *PatchProxyKeyParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	UpdateProxyKey(ctx context.Context, identifier Identifier, params *UpdateProxyKeyParams, body UpdateProxyKeyJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+	PatchProxyKey(ctx context.Context, identifier Identifier, params *PatchProxyKeyParams, body PatchProxyKeyJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// GetAllSegments request
 	GetAllSegments(ctx context.Context, params *GetAllSegmentsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -496,6 +504,42 @@ func (c *Client) CreateEnvironmentWithBody(ctx context.Context, params *CreateEn
 
 func (c *Client) CreateEnvironment(ctx context.Context, params *CreateEnvironmentParams, body CreateEnvironmentJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewCreateEnvironmentRequest(c.Server, params, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) DeletePerspective(ctx context.Context, params *DeletePerspectiveParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewDeletePerspectiveRequest(c.Server, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) UpsertPerspectiveWithBody(ctx context.Context, params *UpsertPerspectiveParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewUpsertPerspectiveRequestWithBody(c.Server, params, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) UpsertPerspective(ctx context.Context, params *UpsertPerspectiveParams, body UpsertPerspectiveJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewUpsertPerspectiveRequest(c.Server, params, body)
 	if err != nil {
 		return nil, err
 	}
@@ -1106,8 +1150,8 @@ func (c *Client) GetProxyKey(ctx context.Context, identifier Identifier, params 
 	return c.Client.Do(req)
 }
 
-func (c *Client) UpdateProxyKeyWithBody(ctx context.Context, identifier Identifier, params *UpdateProxyKeyParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewUpdateProxyKeyRequestWithBody(c.Server, identifier, params, contentType, body)
+func (c *Client) PatchProxyKeyWithBody(ctx context.Context, identifier Identifier, params *PatchProxyKeyParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewPatchProxyKeyRequestWithBody(c.Server, identifier, params, contentType, body)
 	if err != nil {
 		return nil, err
 	}
@@ -1118,8 +1162,8 @@ func (c *Client) UpdateProxyKeyWithBody(ctx context.Context, identifier Identifi
 	return c.Client.Do(req)
 }
 
-func (c *Client) UpdateProxyKey(ctx context.Context, identifier Identifier, params *UpdateProxyKeyParams, body UpdateProxyKeyJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewUpdateProxyKeyRequest(c.Server, identifier, params, body)
+func (c *Client) PatchProxyKey(ctx context.Context, identifier Identifier, params *PatchProxyKeyParams, body PatchProxyKeyJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewPatchProxyKeyRequest(c.Server, identifier, params, body)
 	if err != nil {
 		return nil, err
 	}
@@ -2425,6 +2469,177 @@ func NewCreateEnvironmentRequestWithBody(server string, params *CreateEnvironmen
 	queryURL.RawQuery = queryValues.Encode()
 
 	req, err := http.NewRequest("POST", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewDeletePerspectiveRequest generates requests for DeletePerspective
+func NewDeletePerspectiveRequest(server string, params *DeletePerspectiveParams) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/admin/environments/perspectives")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	queryValues := queryURL.Query()
+
+	if queryFrag, err := runtime.StyleParamWithLocation("form", true, "accountIdentifier", runtime.ParamLocationQuery, params.AccountIdentifier); err != nil {
+		return nil, err
+	} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+		return nil, err
+	} else {
+		for k, v := range parsed {
+			for _, v2 := range v {
+				queryValues.Add(k, v2)
+			}
+		}
+	}
+
+	if queryFrag, err := runtime.StyleParamWithLocation("form", true, "orgIdentifier", runtime.ParamLocationQuery, params.OrgIdentifier); err != nil {
+		return nil, err
+	} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+		return nil, err
+	} else {
+		for k, v := range parsed {
+			for _, v2 := range v {
+				queryValues.Add(k, v2)
+			}
+		}
+	}
+
+	if queryFrag, err := runtime.StyleParamWithLocation("form", true, "projectIdentifier", runtime.ParamLocationQuery, params.ProjectIdentifier); err != nil {
+		return nil, err
+	} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+		return nil, err
+	} else {
+		for k, v := range parsed {
+			for _, v2 := range v {
+				queryValues.Add(k, v2)
+			}
+		}
+	}
+
+	if queryFrag, err := runtime.StyleParamWithLocation("form", true, "environmentIdentifier", runtime.ParamLocationQuery, params.EnvironmentIdentifier); err != nil {
+		return nil, err
+	} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+		return nil, err
+	} else {
+		for k, v := range parsed {
+			for _, v2 := range v {
+				queryValues.Add(k, v2)
+			}
+		}
+	}
+
+	queryURL.RawQuery = queryValues.Encode()
+
+	req, err := http.NewRequest("DELETE", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewUpsertPerspectiveRequest calls the generic UpsertPerspective builder with application/json body
+func NewUpsertPerspectiveRequest(server string, params *UpsertPerspectiveParams, body UpsertPerspectiveJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewUpsertPerspectiveRequestWithBody(server, params, "application/json", bodyReader)
+}
+
+// NewUpsertPerspectiveRequestWithBody generates requests for UpsertPerspective with any type of body
+func NewUpsertPerspectiveRequestWithBody(server string, params *UpsertPerspectiveParams, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/admin/environments/perspectives")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	queryValues := queryURL.Query()
+
+	if queryFrag, err := runtime.StyleParamWithLocation("form", true, "accountIdentifier", runtime.ParamLocationQuery, params.AccountIdentifier); err != nil {
+		return nil, err
+	} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+		return nil, err
+	} else {
+		for k, v := range parsed {
+			for _, v2 := range v {
+				queryValues.Add(k, v2)
+			}
+		}
+	}
+
+	if queryFrag, err := runtime.StyleParamWithLocation("form", true, "orgIdentifier", runtime.ParamLocationQuery, params.OrgIdentifier); err != nil {
+		return nil, err
+	} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+		return nil, err
+	} else {
+		for k, v := range parsed {
+			for _, v2 := range v {
+				queryValues.Add(k, v2)
+			}
+		}
+	}
+
+	if queryFrag, err := runtime.StyleParamWithLocation("form", true, "projectIdentifier", runtime.ParamLocationQuery, params.ProjectIdentifier); err != nil {
+		return nil, err
+	} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+		return nil, err
+	} else {
+		for k, v := range parsed {
+			for _, v2 := range v {
+				queryValues.Add(k, v2)
+			}
+		}
+	}
+
+	if queryFrag, err := runtime.StyleParamWithLocation("form", true, "environmentIdentifier", runtime.ParamLocationQuery, params.EnvironmentIdentifier); err != nil {
+		return nil, err
+	} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+		return nil, err
+	} else {
+		for k, v := range parsed {
+			for _, v2 := range v {
+				queryValues.Add(k, v2)
+			}
+		}
+	}
+
+	queryURL.RawQuery = queryValues.Encode()
+
+	req, err := http.NewRequest("PUT", queryURL.String(), body)
 	if err != nil {
 		return nil, err
 	}
@@ -6252,19 +6467,19 @@ func NewGetProxyKeyRequest(server string, identifier Identifier, params *GetProx
 	return req, nil
 }
 
-// NewUpdateProxyKeyRequest calls the generic UpdateProxyKey builder with application/json body
-func NewUpdateProxyKeyRequest(server string, identifier Identifier, params *UpdateProxyKeyParams, body UpdateProxyKeyJSONRequestBody) (*http.Request, error) {
+// NewPatchProxyKeyRequest calls the generic PatchProxyKey builder with application/json body
+func NewPatchProxyKeyRequest(server string, identifier Identifier, params *PatchProxyKeyParams, body PatchProxyKeyJSONRequestBody) (*http.Request, error) {
 	var bodyReader io.Reader
 	buf, err := json.Marshal(body)
 	if err != nil {
 		return nil, err
 	}
 	bodyReader = bytes.NewReader(buf)
-	return NewUpdateProxyKeyRequestWithBody(server, identifier, params, "application/json", bodyReader)
+	return NewPatchProxyKeyRequestWithBody(server, identifier, params, "application/json", bodyReader)
 }
 
-// NewUpdateProxyKeyRequestWithBody generates requests for UpdateProxyKey with any type of body
-func NewUpdateProxyKeyRequestWithBody(server string, identifier Identifier, params *UpdateProxyKeyParams, contentType string, body io.Reader) (*http.Request, error) {
+// NewPatchProxyKeyRequestWithBody generates requests for PatchProxyKey with any type of body
+func NewPatchProxyKeyRequestWithBody(server string, identifier Identifier, params *PatchProxyKeyParams, contentType string, body io.Reader) (*http.Request, error) {
 	var err error
 
 	var pathParam0 string
@@ -6305,7 +6520,7 @@ func NewUpdateProxyKeyRequestWithBody(server string, identifier Identifier, para
 
 	queryURL.RawQuery = queryValues.Encode()
 
-	req, err := http.NewRequest("PUT", queryURL.String(), body)
+	req, err := http.NewRequest("PATCH", queryURL.String(), body)
 	if err != nil {
 		return nil, err
 	}
@@ -8937,6 +9152,14 @@ type ClientWithResponsesInterface interface {
 
 	CreateEnvironmentWithResponse(ctx context.Context, params *CreateEnvironmentParams, body CreateEnvironmentJSONRequestBody, reqEditors ...RequestEditorFn) (*CreateEnvironmentResponse, error)
 
+	// DeletePerspective request
+	DeletePerspectiveWithResponse(ctx context.Context, params *DeletePerspectiveParams, reqEditors ...RequestEditorFn) (*DeletePerspectiveResponse, error)
+
+	// UpsertPerspective request with any body
+	UpsertPerspectiveWithBodyWithResponse(ctx context.Context, params *UpsertPerspectiveParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpsertPerspectiveResponse, error)
+
+	UpsertPerspectiveWithResponse(ctx context.Context, params *UpsertPerspectiveParams, body UpsertPerspectiveJSONRequestBody, reqEditors ...RequestEditorFn) (*UpsertPerspectiveResponse, error)
+
 	// DeleteEnvironment request
 	DeleteEnvironmentWithResponse(ctx context.Context, identifier Identifier, params *DeleteEnvironmentParams, reqEditors ...RequestEditorFn) (*DeleteEnvironmentResponse, error)
 
@@ -9075,10 +9298,10 @@ type ClientWithResponsesInterface interface {
 	// GetProxyKey request
 	GetProxyKeyWithResponse(ctx context.Context, identifier Identifier, params *GetProxyKeyParams, reqEditors ...RequestEditorFn) (*GetProxyKeyResponse, error)
 
-	// UpdateProxyKey request with any body
-	UpdateProxyKeyWithBodyWithResponse(ctx context.Context, identifier Identifier, params *UpdateProxyKeyParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateProxyKeyResponse, error)
+	// PatchProxyKey request with any body
+	PatchProxyKeyWithBodyWithResponse(ctx context.Context, identifier Identifier, params *PatchProxyKeyParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PatchProxyKeyResponse, error)
 
-	UpdateProxyKeyWithResponse(ctx context.Context, identifier Identifier, params *UpdateProxyKeyParams, body UpdateProxyKeyJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateProxyKeyResponse, error)
+	PatchProxyKeyWithResponse(ctx context.Context, identifier Identifier, params *PatchProxyKeyParams, body PatchProxyKeyJSONRequestBody, reqEditors ...RequestEditorFn) (*PatchProxyKeyResponse, error)
 
 	// GetAllSegments request
 	GetAllSegmentsWithResponse(ctx context.Context, params *GetAllSegmentsParams, reqEditors ...RequestEditorFn) (*GetAllSegmentsResponse, error)
@@ -9407,6 +9630,59 @@ func (r CreateEnvironmentResponse) Status() string {
 
 // StatusCode returns HTTPResponse.StatusCode
 func (r CreateEnvironmentResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type DeletePerspectiveResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON401      *Error
+	JSON403      *Error
+	JSON404      *Error
+	JSON500      *Error
+}
+
+// Status returns HTTPResponse.Status
+func (r DeletePerspectiveResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r DeletePerspectiveResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type UpsertPerspectiveResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *EnvironmentPerspective
+	JSON201      *EnvironmentPerspective
+	JSON400      *Error
+	JSON401      *Error
+	JSON403      *Error
+	JSON409      *Error
+	JSON500      *Error
+}
+
+// Status returns HTTPResponse.Status
+func (r UpsertPerspectiveResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r UpsertPerspectiveResponse) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
@@ -10471,19 +10747,22 @@ func (r GetProxyKeyResponse) StatusCode() int {
 	return 0
 }
 
-type UpdateProxyKeyResponse struct {
+type PatchProxyKeyResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
-	JSON400      *Error
-	JSON401      *Error
-	JSON403      *Error
-	JSON404      *Error
-	JSON409      *Error
-	JSON500      *Error
+	JSON200      *struct {
+		Key *string `json:"key,omitempty"`
+	}
+	JSON400 *Error
+	JSON401 *Error
+	JSON403 *Error
+	JSON404 *Error
+	JSON409 *Error
+	JSON500 *Error
 }
 
 // Status returns HTTPResponse.Status
-func (r UpdateProxyKeyResponse) Status() string {
+func (r PatchProxyKeyResponse) Status() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Status
 	}
@@ -10491,7 +10770,7 @@ func (r UpdateProxyKeyResponse) Status() string {
 }
 
 // StatusCode returns HTTPResponse.StatusCode
-func (r UpdateProxyKeyResponse) StatusCode() int {
+func (r PatchProxyKeyResponse) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
@@ -11214,6 +11493,32 @@ func (c *ClientWithResponses) CreateEnvironmentWithResponse(ctx context.Context,
 	return ParseCreateEnvironmentResponse(rsp)
 }
 
+// DeletePerspectiveWithResponse request returning *DeletePerspectiveResponse
+func (c *ClientWithResponses) DeletePerspectiveWithResponse(ctx context.Context, params *DeletePerspectiveParams, reqEditors ...RequestEditorFn) (*DeletePerspectiveResponse, error) {
+	rsp, err := c.DeletePerspective(ctx, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseDeletePerspectiveResponse(rsp)
+}
+
+// UpsertPerspectiveWithBodyWithResponse request with arbitrary body returning *UpsertPerspectiveResponse
+func (c *ClientWithResponses) UpsertPerspectiveWithBodyWithResponse(ctx context.Context, params *UpsertPerspectiveParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpsertPerspectiveResponse, error) {
+	rsp, err := c.UpsertPerspectiveWithBody(ctx, params, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseUpsertPerspectiveResponse(rsp)
+}
+
+func (c *ClientWithResponses) UpsertPerspectiveWithResponse(ctx context.Context, params *UpsertPerspectiveParams, body UpsertPerspectiveJSONRequestBody, reqEditors ...RequestEditorFn) (*UpsertPerspectiveResponse, error) {
+	rsp, err := c.UpsertPerspective(ctx, params, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseUpsertPerspectiveResponse(rsp)
+}
+
 // DeleteEnvironmentWithResponse request returning *DeleteEnvironmentResponse
 func (c *ClientWithResponses) DeleteEnvironmentWithResponse(ctx context.Context, identifier Identifier, params *DeleteEnvironmentParams, reqEditors ...RequestEditorFn) (*DeleteEnvironmentResponse, error) {
 	rsp, err := c.DeleteEnvironment(ctx, identifier, params, reqEditors...)
@@ -11652,21 +11957,21 @@ func (c *ClientWithResponses) GetProxyKeyWithResponse(ctx context.Context, ident
 	return ParseGetProxyKeyResponse(rsp)
 }
 
-// UpdateProxyKeyWithBodyWithResponse request with arbitrary body returning *UpdateProxyKeyResponse
-func (c *ClientWithResponses) UpdateProxyKeyWithBodyWithResponse(ctx context.Context, identifier Identifier, params *UpdateProxyKeyParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateProxyKeyResponse, error) {
-	rsp, err := c.UpdateProxyKeyWithBody(ctx, identifier, params, contentType, body, reqEditors...)
+// PatchProxyKeyWithBodyWithResponse request with arbitrary body returning *PatchProxyKeyResponse
+func (c *ClientWithResponses) PatchProxyKeyWithBodyWithResponse(ctx context.Context, identifier Identifier, params *PatchProxyKeyParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PatchProxyKeyResponse, error) {
+	rsp, err := c.PatchProxyKeyWithBody(ctx, identifier, params, contentType, body, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
-	return ParseUpdateProxyKeyResponse(rsp)
+	return ParsePatchProxyKeyResponse(rsp)
 }
 
-func (c *ClientWithResponses) UpdateProxyKeyWithResponse(ctx context.Context, identifier Identifier, params *UpdateProxyKeyParams, body UpdateProxyKeyJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateProxyKeyResponse, error) {
-	rsp, err := c.UpdateProxyKey(ctx, identifier, params, body, reqEditors...)
+func (c *ClientWithResponses) PatchProxyKeyWithResponse(ctx context.Context, identifier Identifier, params *PatchProxyKeyParams, body PatchProxyKeyJSONRequestBody, reqEditors ...RequestEditorFn) (*PatchProxyKeyResponse, error) {
+	rsp, err := c.PatchProxyKey(ctx, identifier, params, body, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
-	return ParseUpdateProxyKeyResponse(rsp)
+	return ParsePatchProxyKeyResponse(rsp)
 }
 
 // GetAllSegmentsWithResponse request returning *GetAllSegmentsResponse
@@ -12381,6 +12686,121 @@ func ParseCreateEnvironmentResponse(rsp *http.Response) (*CreateEnvironmentRespo
 	}
 
 	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseDeletePerspectiveResponse parses an HTTP response from a DeletePerspectiveWithResponse call
+func ParseDeletePerspectiveResponse(rsp *http.Response) (*DeletePerspectiveResponse, error) {
+	bodyBytes, err := ioutil.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &DeletePerspectiveResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseUpsertPerspectiveResponse parses an HTTP response from a UpsertPerspectiveWithResponse call
+func ParseUpsertPerspectiveResponse(rsp *http.Response) (*UpsertPerspectiveResponse, error) {
+	bodyBytes, err := ioutil.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &UpsertPerspectiveResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest EnvironmentPerspective
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 201:
+		var dest EnvironmentPerspective
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON201 = &dest
+
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
 		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
@@ -14603,20 +15023,29 @@ func ParseGetProxyKeyResponse(rsp *http.Response) (*GetProxyKeyResponse, error) 
 	return response, nil
 }
 
-// ParseUpdateProxyKeyResponse parses an HTTP response from a UpdateProxyKeyWithResponse call
-func ParseUpdateProxyKeyResponse(rsp *http.Response) (*UpdateProxyKeyResponse, error) {
+// ParsePatchProxyKeyResponse parses an HTTP response from a PatchProxyKeyWithResponse call
+func ParsePatchProxyKeyResponse(rsp *http.Response) (*PatchProxyKeyResponse, error) {
 	bodyBytes, err := ioutil.ReadAll(rsp.Body)
 	defer func() { _ = rsp.Body.Close() }()
 	if err != nil {
 		return nil, err
 	}
 
-	response := &UpdateProxyKeyResponse{
+	response := &PatchProxyKeyResponse{
 		Body:         bodyBytes,
 		HTTPResponse: rsp,
 	}
 
 	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest struct {
+			Key *string `json:"key,omitempty"`
+		}
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
 		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {

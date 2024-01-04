@@ -215,7 +215,12 @@ func main() {
 	}
 
 	if gcpProfilerEnabled {
-		err := profiler.Start(profiler.Config{Service: "ff-proxy", ServiceVersion: build.Version})
+		serviceName := "ff-proxy-v2"
+		if e := os.Getenv("ENV"); e != "" {
+			serviceName = fmt.Sprintf("ff-proxy-v2.%s", e)
+		}
+
+		err := profiler.Start(profiler.Config{Service: serviceName, ServiceVersion: build.Version})
 		if err != nil {
 			logger.Info("unable to start gcp profiler", "err", err)
 		}
