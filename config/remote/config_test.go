@@ -580,3 +580,89 @@ func Benchmark_ConfigPopulate200Env30Flags(b *testing.B) {
 		}
 	}
 }
+func Benchmark_ConfigPopulate300Env30Flags(b *testing.B) {
+	proxyConfigs := make([]domain.ProxyConfig, 0, 300)
+	rawProxyConfig := getfile("./test-data/testFile_300_envs_30_flags.json")
+	if err := json.Unmarshal(rawProxyConfig, &proxyConfigs); err != nil {
+		b.Fatalf("failed to unmarshal proxy config: %s", err)
+	}
+
+	rc := redis.NewClient(&redis.Options{
+		Addr: "localhost:6379",
+	})
+	r := cache.NewKeyValCache(rc)
+	_ = r
+	authRepo := repository.NewAuthRepo(r)
+	flagRepo := repository.NewFeatureFlagRepo(r)
+	segmentRepo := repository.NewSegmentRepo(r)
+	c := Config{
+		proxyConfig: proxyConfigs,
+	}
+
+	// Limit to 1 CPU core
+	runtime.GOMAXPROCS(1)
+
+	for i := 0; i < b.N; i++ {
+		if err := c.Populate(context.Background(), authRepo, flagRepo, segmentRepo); err != nil {
+			b.Fatal(err)
+		}
+	}
+}
+
+func Benchmark_ConfigPopulate500Env30Flags(b *testing.B) {
+	proxyConfigs := make([]domain.ProxyConfig, 0, 500)
+	rawProxyConfig := getfile("./test-data/testFile_500_envs_30_flags.json")
+	if err := json.Unmarshal(rawProxyConfig, &proxyConfigs); err != nil {
+		b.Fatalf("failed to unmarshal proxy config: %s", err)
+	}
+
+	rc := redis.NewClient(&redis.Options{
+		Addr: "localhost:6379",
+	})
+	r := cache.NewKeyValCache(rc)
+	_ = r
+	authRepo := repository.NewAuthRepo(r)
+	flagRepo := repository.NewFeatureFlagRepo(r)
+	segmentRepo := repository.NewSegmentRepo(r)
+	c := Config{
+		proxyConfig: proxyConfigs,
+	}
+
+	// Limit to 1 CPU core
+	runtime.GOMAXPROCS(1)
+
+	for i := 0; i < b.N; i++ {
+		if err := c.Populate(context.Background(), authRepo, flagRepo, segmentRepo); err != nil {
+			b.Fatal(err)
+		}
+	}
+}
+
+func Benchmark_ConfigPopulate1000Env30Flags(b *testing.B) {
+	proxyConfigs := make([]domain.ProxyConfig, 0, 1000)
+	rawProxyConfig := getfile("./test-data/testFile_1000_envs_30_flags.json")
+	if err := json.Unmarshal(rawProxyConfig, &proxyConfigs); err != nil {
+		b.Fatalf("failed to unmarshal proxy config: %s", err)
+	}
+
+	rc := redis.NewClient(&redis.Options{
+		Addr: "localhost:6379",
+	})
+	r := cache.NewKeyValCache(rc)
+	_ = r
+	authRepo := repository.NewAuthRepo(r)
+	flagRepo := repository.NewFeatureFlagRepo(r)
+	segmentRepo := repository.NewSegmentRepo(r)
+	c := Config{
+		proxyConfig: proxyConfigs,
+	}
+
+	// Limit to 1 CPU core
+	runtime.GOMAXPROCS(1)
+
+	for i := 0; i < b.N; i++ {
+		if err := c.Populate(context.Background(), authRepo, flagRepo, segmentRepo); err != nil {
+			b.Fatal(err)
+		}
+	}
+}
