@@ -104,24 +104,39 @@ func (c *Config) FetchAndPopulate(ctx context.Context, inventory domain.Inventor
 
 // Populate populates repositories with the config
 func (c *Config) Populate(ctx context.Context, authRepo domain.AuthRepo, flagRepo domain.FlagRepo, segmentRepo domain.SegmentRepo) error {
+	var wg sync.WaitGroup
+	errchan := make(chan error)
 	for _, cfg := range c.proxyConfig {
 		for _, env := range cfg.Environments {
-			authConfig := make([]domain.AuthConfig, 0, len(env.APIKeys))
-			apiKeys := make([]string, 0, len(env.APIKeys))
+			wg.Add(1)
+			go func(group *sync.WaitGroup) {
+				defer group.Done()
+				//this will go multi
+				authConfig := make([]domain.AuthConfig, 0, len(env.APIKeys))
+				apiKeys := make([]string, 0, len(env.APIKeys))
 
-			for _, apiKey := range env.APIKeys {
-				apiKeys = append(apiKeys, string(domain.NewAuthAPIKey(apiKey)))
+				for _, apiKey := range env.APIKeys {
+					apiKeys = append(apiKeys, string(domain.NewAuthAPIKey(apiKey)))
 
-				authConfig = append(authConfig, domain.AuthConfig{
-					APIKey:        domain.NewAuthAPIKey(apiKey),
-					EnvironmentID: domain.EnvironmentID(env.ID.String()),
-				})
+					authConfig = append(authConfig, domain.AuthConfig{
+						APIKey:        domain.NewAuthAPIKey(apiKey),
+						EnvironmentID: domain.EnvironmentID(env.ID.String()),
+					})
+				}
+				err := populate(ctx, authRepo, flagRepo, segmentRepo, apiKeys, authConfig, env)
+				errchan <- err
+			}(&wg)
+		}
+	}
 
-			}
-			err := populate(ctx, authRepo, flagRepo, segmentRepo, apiKeys, authConfig, env)
-			if err != nil {
-				return err
-			}
+	go func() {
+		wg.Wait()
+		close(errchan)
+	}()
+
+	for e := range errchan {
+		if e != nil {
+			return e
 		}
 	}
 	return nil
