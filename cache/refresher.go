@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/harness/ff-proxy/v2/config"
 	"github.com/harness/ff-proxy/v2/domain"
 	"github.com/harness/ff-proxy/v2/log"
 )
@@ -18,6 +17,29 @@ var (
 	ErrUnexpectedEventType = errors.New("unexpected event type")
 )
 
+type config interface {
+	// FetchAndPopulate authenticates, fetches and populates the config.
+	FetchAndPopulate(ctx context.Context, inventoryRepo domain.InventoryRepo, authRepo domain.AuthRepo, flagRepo domain.FlagRepo, segmentRepo domain.SegmentRepo) error
+
+	// Populate populates the repos with the config
+	Populate(ctx context.Context, authRepo domain.AuthRepo, flagRepo domain.FlagRepo, segmentRepo domain.SegmentRepo) error
+
+	// Key returns proxyKey
+	Key() string
+
+	// Token returns the authToken that the Config uses to communicate with Harness SaaS
+	Token() string
+
+	// RefreshToken refreshes the auth token that the Config uses for fetching env config
+	RefreshToken() (string, error)
+
+	// ClusterIdentifier returns the identifier of the cluster that the Config authenticated against
+	ClusterIdentifier() string
+
+	// SetProxyConfig sets the proxyConfig member
+	SetProxyConfig(proxyConfig []domain.ProxyConfig)
+}
+
 // Refresher is a type for handling SSE events from Harness Saas
 type Refresher struct {
 	proxyKey          string
@@ -25,7 +47,7 @@ type Refresher struct {
 	clusterIdentifier string
 	log               log.Logger
 	clientService     domain.ClientService
-	config            config.Config
+	config            config
 	proxyConfig       []domain.ProxyConfig
 	inventory         domain.InventoryRepo
 	authRepo          domain.AuthRepo
@@ -34,7 +56,7 @@ type Refresher struct {
 }
 
 // NewRefresher creates a Refresher
-func NewRefresher(l log.Logger, config config.Config, client domain.ClientService, inventory domain.InventoryRepo, authRepo domain.AuthRepo, flagRepo domain.FlagRepo, segmentRepo domain.SegmentRepo) Refresher {
+func NewRefresher(l log.Logger, config config, client domain.ClientService, inventory domain.InventoryRepo, authRepo domain.AuthRepo, flagRepo domain.FlagRepo, segmentRepo domain.SegmentRepo) Refresher {
 	l = l.With("component", "Refresher")
 	return Refresher{log: l, config: config, clientService: client, inventory: inventory, authRepo: authRepo, flagRepo: flagRepo, segmentRepo: segmentRepo}
 }
