@@ -12,21 +12,31 @@ import (
 	"github.com/harness/ff-proxy/v2/domain"
 )
 
+// WithMaxLen sets the max length for a redis stream
+func WithMaxLen(i int64) func(r *RedisStream) {
+	return func(r *RedisStream) {
+		r.maxLen = i
+	}
+}
+
 // RedisStream is a implementation of the Stream interface that is used for interacting with redis streams
 type RedisStream struct {
 	client redis.UniversalClient
 	maxLen int64
 }
 
-func (r RedisStream) Close(_ string) error {
-	return nil
-}
-
 // NewRedisStream creates a new redis streams client
-func NewRedisStream(u redis.UniversalClient) RedisStream {
-	return RedisStream{
+func NewRedisStream(u redis.UniversalClient, opts ...func(r *RedisStream)) RedisStream {
+	r := &RedisStream{
 		client: u,
+		maxLen: 1000, // Default to 1000 if not set
 	}
+
+	for _, opt := range opts {
+		opt(r)
+	}
+
+	return *r
 }
 
 // Pub publishes events to a redis stream, if the stream doesn't exist it will create
@@ -93,6 +103,10 @@ func (r RedisStream) Sub(ctx context.Context, stream string, id string, handleMe
 			}
 		}
 	}
+}
+
+func (r RedisStream) Close(_ string) error {
+	return nil
 }
 
 func formatRedisMessage(v interface{}) map[string]interface{} {
