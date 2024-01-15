@@ -71,6 +71,9 @@ var (
 	logLevel           string
 	gcpProfilerEnabled bool
 	pprofEnabled       bool
+
+	// RedisStreams
+	metricsStreamMaxLen int64
 )
 
 // Environment Variables
@@ -103,6 +106,9 @@ const (
 	logLevelEnv           = "LOG_LEVEL"
 	gcpProfilerEnabledEnv = "GCP_PROFILER_ENABLED"
 	pprofEnabledEnv       = "PPROF"
+
+	// RedisStreams
+	metricsStreamMaxLenEnv = "METRICS_STREAM_MAX_LEN"
 )
 
 // Flags
@@ -135,6 +141,9 @@ const (
 	logLevelFlag           = "log-level"
 	pprofEnabledFlag       = "pprof"
 	gcpProfilerEnabledFlag = "gcp-profiler-enabled"
+
+	// RedisStreams
+	metricsStreamMaxLenFlag = "METRICS_STREAM_MAX_LEN"
 )
 
 // nolint:gochecknoinits
@@ -168,6 +177,9 @@ func init() {
 	flag.BoolVar(&pprofEnabled, pprofEnabledFlag, false, "enables pprof on port 6060")
 	flag.BoolVar(&gcpProfilerEnabled, gcpProfilerEnabledFlag, false, "Enables gcp cloud profiler")
 
+	// RedisStreams
+	flag.Int64Var(&metricsStreamMaxLen, metricsStreamMaxLenFlag, 1000, "Sets the max length of the redis stream that replicas use to send metrics to the Primary")
+
 	loadFlagsFromEnv(map[string]string{
 		bypassAuthEnv:            bypassAuthFlag,
 		logLevelEnv:              logLevelFlag,
@@ -190,6 +202,7 @@ func init() {
 		gcpProfilerEnabledEnv:    gcpProfilerEnabledFlag,
 		proxyKeyEnv:              proxyKeyFlag,
 		readReplicaEnv:           readReplicaFlag,
+		metricsStreamMaxLenEnv:   metricsStreamMaxLenFlag,
 	})
 
 	flag.Parse()
@@ -215,9 +228,14 @@ func main() {
 	}
 
 	if gcpProfilerEnabled {
-		serviceName := "ff-proxy-v2"
+		kind := "primary"
+		if readReplica {
+			kind = "replica"
+		}
+		serviceName := fmt.Sprintf("ff-proxy-v2-%s", kind)
+
 		if e := os.Getenv("ENV"); e != "" {
-			serviceName = fmt.Sprintf("ff-proxy-v2.%s", e)
+			serviceName = fmt.Sprintf("%s.%s", serviceName, e)
 		}
 
 		err := profiler.Start(profiler.Config{Service: serviceName, ServiceVersion: build.Version})
@@ -497,7 +515,7 @@ func main() {
 func createMetricsService(ctx context.Context, logger log.Logger, conf config.Config, promReg *prometheus.Registry, readReplica bool, redisClient redis.UniversalClient) proxyservice.MetricService {
 	redisStream := stream.NewRedisStream(redisClient)
 	if readReplica {
-		return metricsservice.NewStream(stream.NewRedisStream(redisClient))
+		return metricsservice.NewStream(stream.NewRedisStream(redisClient, stream.WithMaxLen(metricsStreamMaxLen)))
 	}
 
 	metricsEnabled := metricPostDuration != 0 && !offline
