@@ -107,11 +107,11 @@ func (c *Config) Populate(ctx context.Context, authRepo domain.AuthRepo, flagRep
 	var wg sync.WaitGroup
 	errchan := make(chan error)
 	for _, cfg := range c.proxyConfig {
-		for _, env := range cfg.Environments {
+		for _, targetEnv := range cfg.Environments {
 			wg.Add(1)
-			go func() {
+			go func(env domain.Environments) {
 				defer wg.Done()
-				//this will go multi
+
 				authConfig := make([]domain.AuthConfig, 0, len(env.APIKeys))
 				apiKeys := make([]string, 0, len(env.APIKeys))
 
@@ -125,7 +125,7 @@ func (c *Config) Populate(ctx context.Context, authRepo domain.AuthRepo, flagRep
 				}
 				err := populate(ctx, authRepo, flagRepo, segmentRepo, apiKeys, authConfig, env)
 				errchan <- err
-			}()
+			}(targetEnv)
 		}
 	}
 
