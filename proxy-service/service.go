@@ -83,8 +83,8 @@ type clientService interface {
 	Authenticate(ctx context.Context, apiKey string, target domain.Target) (string, error)
 }
 
-// MetricService is the interface for storing metrics
-type MetricService interface {
+// MetricStore is the interface for storing metrics
+type MetricStore interface {
 	StoreMetrics(ctx context.Context, metrics domain.MetricsRequest) error
 }
 
@@ -102,7 +102,7 @@ type Config struct {
 	AuthRepo      repository.AuthRepo
 	AuthFn        authTokenFn
 	ClientService clientService
-	MetricService MetricService
+	MetricStore   MetricStore
 	Offline       bool
 	Hasher        hash.Hasher
 
@@ -123,7 +123,7 @@ type Service struct {
 	authRepo           repository.AuthRepo
 	authFn             authTokenFn
 	clientService      clientService
-	metricService      MetricService
+	metricService      MetricStore
 	offline            bool
 	hasher             hash.Hasher
 	healthySassStream  func() bool
@@ -143,7 +143,7 @@ func NewService(c Config) Service {
 		authRepo:           c.AuthRepo,
 		authFn:             c.AuthFn,
 		clientService:      c.ClientService,
-		metricService:      c.MetricService,
+		metricService:      c.MetricStore,
 		offline:            c.Offline,
 		hasher:             c.Hasher,
 		healthySassStream:  c.HealthySaasStream,

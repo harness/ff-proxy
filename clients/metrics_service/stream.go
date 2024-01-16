@@ -11,7 +11,7 @@ const (
 	SDKMetricsStream = "stream:sdk_metrics"
 )
 
-// Stream is a type for publishing metrics to a stream and implements the MetricService interface
+// Stream is a type for publishing metrics to a stream and implements the MetricStore interface
 type Stream struct {
 	stream  domain.Publisher
 	channel string

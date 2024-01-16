@@ -63,6 +63,8 @@ type StreamResponse struct {
 
 // MetricsRequest contains the fields sent in a POST /metrics request
 type MetricsRequest struct {
+	// Size is only used internally by the Proxy so we don't want to include it in any JSON requests/responses
+	Size          int    `json:"-"`
 	EnvironmentID string `json:"environment_id"`
 	clientgen.Metrics
 }
