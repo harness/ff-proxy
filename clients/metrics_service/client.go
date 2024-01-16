@@ -5,7 +5,9 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"os"
 	"reflect"
+	"strconv"
 	"sync"
 	"time"
 
@@ -53,6 +55,8 @@ type Client struct {
 
 	sdkUsage         counter
 	metricsForwarded counter
+
+	readConcurrency int
 }
 
 // NewClient creates a MetricService
@@ -66,14 +70,20 @@ func NewClient(l log.Logger, addr string, token func() string, enabled bool, reg
 		return Client{}, err
 	}
 
+	readConcurrency, _ := strconv.Atoi(os.Getenv("METRIC_STREAM_READ_CONCURRENCY"))
+	if readConcurrency == 0 {
+		readConcurrency = 2
+	}
+
 	m := Client{
-		log:         l,
-		client:      client,
-		token:       token,
-		enabled:     enabled,
-		metrics:     map[string]domain.MetricsRequest{},
-		metricsLock: &sync.Mutex{},
-		subscriber:  subscriber,
+		log:             l,
+		client:          client,
+		token:           token,
+		enabled:         enabled,
+		metrics:         map[string]domain.MetricsRequest{},
+		metricsLock:     &sync.Mutex{},
+		subscriber:      subscriber,
+		readConcurrency: readConcurrency,
 
 		sdkUsage: prometheus.NewCounterVec(
 			prometheus.CounterOpts{
@@ -278,44 +288,50 @@ func (c Client) PostMetrics(ctx context.Context, offline bool, metricPostDuratio
 
 // subscribe kicks off a job that subscribes to the redis stream that readreplicas write metrics onto
 func (c Client) subscribe(ctx context.Context) {
-	id := ""
-	for {
-		// There's nothing we can really do here if we error in the callback parsing/handling the message
-		// so we log the errors as warnings but return nil so we carry on receiving messages from the stream
-		err := c.subscriber.Sub(ctx, SDKMetricsStream, id, func(latestID string, v interface{}) error {
-			// We want to keep track of the id of the latest message we've received so that if
-			// we disconnect we can resume from that point
-			id = latestID
 
-			s, ok := v.(string)
-			if !ok {
-				c.log.Warn("unexpected message format received", "stream", SDKMetricsStream, "type", reflect.TypeOf(v))
-				return nil
+	for i := 0; i < c.readConcurrency; i++ {
+		go func() {
+			id := ""
+			for {
+				// There's nothing we can really do here if we error in the callback parsing/handling the message
+				// so we log the errors as warnings but return nil so we carry on receiving messages from the stream
+				err := c.subscriber.Sub(ctx, SDKMetricsStream, id, func(latestID string, v interface{}) error {
+					// We want to keep track of the id of the latest message we've received so that if
+					// we disconnect we can resume from that point
+					id = latestID
+
+					s, ok := v.(string)
+					if !ok {
+						c.log.Warn("unexpected message format received", "stream", SDKMetricsStream, "type", reflect.TypeOf(v))
+						return nil
+					}
+
+					mr := domain.MetricsRequest{}
+					if err := jsoniter.Unmarshal([]byte(s), &mr); err != nil {
+						c.log.Warn("failed to unmarshal metrics message", "stream", SDKMetricsStream, "err", err)
+						return nil
+					}
+
+					if err := c.StoreMetrics(ctx, mr); err != nil {
+						c.log.Warn("failed to store metrics received from read replica", "stream", SDKMetricsStream, "err", err)
+						return nil
+					}
+					return nil
+				})
+				if err != nil {
+					if errors.Is(err, context.Canceled) {
+						return
+					}
+
+					c.log.Warn("dropped subscription to redis stream, backing off for 30 seconds and trying again", "stream", SDKMetricsStream, "err", err)
+
+					// If we do break out of subscribe it will probably be because of a connection error with redis
+					// so backoff for 30 seconds before trying again
+					time.Sleep(30 * time.Second)
+					continue
+				}
 			}
-
-			mr := domain.MetricsRequest{}
-			if err := jsoniter.Unmarshal([]byte(s), &mr); err != nil {
-				c.log.Warn("failed to unmarshal metrics message", "stream", SDKMetricsStream, "err", err)
-				return nil
-			}
-
-			if err := c.StoreMetrics(ctx, mr); err != nil {
-				c.log.Warn("failed to store metrics received from read replica", "stream", SDKMetricsStream, "err", err)
-				return nil
-			}
-			return nil
-		})
-		if err != nil {
-			if errors.Is(err, context.Canceled) {
-				return
-			}
-
-			c.log.Warn("dropped subscription to redis stream, backing off for 30 seconds and trying again", "stream", SDKMetricsStream, "err", err)
-
-			// If we do break out of subscribe it will probably be because of a connection error with redis
-			// so backoff for 30 seconds before trying again
-			time.Sleep(30 * time.Second)
-			continue
-		}
+		}()
 	}
+
 }
