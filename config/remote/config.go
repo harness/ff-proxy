@@ -106,12 +106,17 @@ func (c *Config) FetchAndPopulate(ctx context.Context, inventory domain.Inventor
 func (c *Config) Populate(ctx context.Context, authRepo domain.AuthRepo, flagRepo domain.FlagRepo, segmentRepo domain.SegmentRepo) error {
 	var wg sync.WaitGroup
 	errchan := make(chan error)
+	semaphore := make(chan struct{}, 1000)
+
 	for _, cfg := range c.proxyConfig {
 		for _, targetEnv := range cfg.Environments {
 			wg.Add(1)
 			go func(env domain.Environments) {
-				defer wg.Done()
-
+				defer func() {
+					wg.Done()
+					<-semaphore
+				}()
+				semaphore <- struct{}{}
 				authConfig := make([]domain.AuthConfig, 0, len(env.APIKeys))
 				apiKeys := make([]string, 0, len(env.APIKeys))
 
@@ -132,6 +137,7 @@ func (c *Config) Populate(ctx context.Context, authRepo domain.AuthRepo, flagRep
 	go func() {
 		wg.Wait()
 		close(errchan)
+		close(semaphore)
 	}()
 
 	for e := range errchan {
