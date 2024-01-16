@@ -513,13 +513,22 @@ func main() {
 // that pushes metrics onto a redis stream. If we're not running in readReplica mode then we want to return the normal
 // client that forwards requests on to Harness SaaS
 func createMetricsService(ctx context.Context, logger log.Logger, conf config.Config, promReg *prometheus.Registry, readReplica bool, redisClient redis.UniversalClient) proxyservice.MetricService {
-	redisStream := stream.NewRedisStream(redisClient)
+	metricsStreamConsumer := stream.NewPrometheusStream("ff_proxy_primary_metrics_stream_consumer", stream.NewRedisStream(redisClient), promReg)
 	if readReplica {
-		return metricsservice.NewStream(stream.NewRedisStream(redisClient, stream.WithMaxLen(metricsStreamMaxLen)))
+		return metricsservice.NewStream(
+			stream.NewPrometheusStream(
+				"ff_proxy_replica_metrics_stream_producer",
+				stream.NewRedisStream(
+					redisClient,
+					stream.WithMaxLen(metricsStreamMaxLen),
+				),
+				promReg,
+			),
+		)
 	}
 
 	metricsEnabled := metricPostDuration != 0 && !offline
-	ms, err := metricsservice.NewClient(logger, metricService, conf.Token, metricsEnabled, promReg, redisStream)
+	ms, err := metricsservice.NewClient(logger, metricService, conf.Token, metricsEnabled, promReg, metricsStreamConsumer)
 	if err != nil {
 		logger.Error("failed to create client for the feature flags metric service", "err", err)
 		os.Exit(1)
