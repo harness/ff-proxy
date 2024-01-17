@@ -73,7 +73,8 @@ var (
 	pprofEnabled       bool
 
 	// RedisStreams
-	metricsStreamMaxLen int64
+	metricsStreamMaxLen          int64
+	metricsStreamReadConcurrency int
 )
 
 // Environment Variables
@@ -108,7 +109,8 @@ const (
 	pprofEnabledEnv       = "PPROF"
 
 	// RedisStreams
-	metricsStreamMaxLenEnv = "METRICS_STREAM_MAX_LEN"
+	metricsStreamMaxLenEnv          = "METRICS_STREAM_MAX_LEN"
+	metricsStreamReadConcurrencyEnv = "METRIC_STREAM_READ_CONCURRENCY"
 )
 
 // Flags
@@ -143,7 +145,8 @@ const (
 	gcpProfilerEnabledFlag = "gcp-profiler-enabled"
 
 	// RedisStreams
-	metricsStreamMaxLenFlag = "METRICS_STREAM_MAX_LEN"
+	metricsStreamMaxLenFlag         = "metrics-stream-max-len"
+	metricStreamReadConcurrencyFlag = "metrics-stream-read-concurrency"
 )
 
 // nolint:gochecknoinits
@@ -179,30 +182,32 @@ func init() {
 
 	// RedisStreams
 	flag.Int64Var(&metricsStreamMaxLen, metricsStreamMaxLenFlag, 1000, "Sets the max length of the redis stream that replicas use to send metrics to the Primary")
+	flag.IntVar(&metricsStreamReadConcurrency, metricStreamReadConcurrencyFlag, 10, "Controls the number of threads running in the Primary that listen for metrics data being sent by replicas")
 
 	loadFlagsFromEnv(map[string]string{
-		bypassAuthEnv:            bypassAuthFlag,
-		logLevelEnv:              logLevelFlag,
-		offlineEnv:               offlineFlag,
-		clientServiceEnv:         clientServiceFlag,
-		metricServiceEnv:         metricServiceFlag,
-		authSecretEnv:            authSecretFlag,
-		redisAddrEnv:             redisAddressFlag,
-		redisPasswordEnv:         redisPasswordFlag,
-		redisDBEnv:               redisDBFlag,
-		metricPostDurationEnv:    metricPostDurationFlag,
-		heartbeatIntervalEnv:     heartbeatIntervalFlag,
-		pprofEnabledEnv:          pprofEnabledFlag,
-		generateOfflineConfigEnv: generateOfflineConfigFlag,
-		configDirEnv:             configDirFlag,
-		portEnv:                  portFlag,
-		tlsEnabledEnv:            tlsEnabledFlag,
-		tlsCertEnv:               tlsCertFlag,
-		tlsKeyEnv:                tlsKeyFlag,
-		gcpProfilerEnabledEnv:    gcpProfilerEnabledFlag,
-		proxyKeyEnv:              proxyKeyFlag,
-		readReplicaEnv:           readReplicaFlag,
-		metricsStreamMaxLenEnv:   metricsStreamMaxLenFlag,
+		bypassAuthEnv:                   bypassAuthFlag,
+		logLevelEnv:                     logLevelFlag,
+		offlineEnv:                      offlineFlag,
+		clientServiceEnv:                clientServiceFlag,
+		metricServiceEnv:                metricServiceFlag,
+		authSecretEnv:                   authSecretFlag,
+		redisAddrEnv:                    redisAddressFlag,
+		redisPasswordEnv:                redisPasswordFlag,
+		redisDBEnv:                      redisDBFlag,
+		metricPostDurationEnv:           metricPostDurationFlag,
+		heartbeatIntervalEnv:            heartbeatIntervalFlag,
+		pprofEnabledEnv:                 pprofEnabledFlag,
+		generateOfflineConfigEnv:        generateOfflineConfigFlag,
+		configDirEnv:                    configDirFlag,
+		portEnv:                         portFlag,
+		tlsEnabledEnv:                   tlsEnabledFlag,
+		tlsCertEnv:                      tlsCertFlag,
+		tlsKeyEnv:                       tlsKeyFlag,
+		gcpProfilerEnabledEnv:           gcpProfilerEnabledFlag,
+		proxyKeyEnv:                     proxyKeyFlag,
+		readReplicaEnv:                  readReplicaFlag,
+		metricsStreamMaxLenEnv:          metricsStreamMaxLenFlag,
+		metricsStreamReadConcurrencyEnv: metricStreamReadConcurrencyFlag,
 	})
 
 	flag.Parse()

@@ -5,9 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"os"
 	"reflect"
-	"strconv"
 	"sync"
 	"time"
 
@@ -60,7 +58,7 @@ type Client struct {
 }
 
 // NewClient creates a MetricService
-func NewClient(l log.Logger, addr string, token func() string, enabled bool, reg *prometheus.Registry, subscriber domain.Subscriber) (Client, error) {
+func NewClient(l log.Logger, addr string, token func() string, enabled bool, reg *prometheus.Registry, subscriber domain.Subscriber, readConcurrency int) (Client, error) {
 	l = l.With("component", "MetricServiceClient")
 	client, err := clientgen.NewClientWithResponses(
 		addr,
@@ -70,9 +68,9 @@ func NewClient(l log.Logger, addr string, token func() string, enabled bool, reg
 		return Client{}, err
 	}
 
-	readConcurrency, _ := strconv.Atoi(os.Getenv("METRIC_STREAM_READ_CONCURRENCY"))
+	// Need to have a minimum of 1 thread reading metrics
 	if readConcurrency == 0 {
-		readConcurrency = 2
+		readConcurrency = 1
 	}
 
 	m := Client{
