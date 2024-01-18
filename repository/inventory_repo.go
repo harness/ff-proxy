@@ -3,6 +3,10 @@ package repository
 import (
 	"context"
 	"errors"
+	"regexp"
+	"strings"
+
+	log "github.com/sirupsen/logrus"
 
 	"github.com/harness/ff-proxy/v2/cache"
 	"github.com/harness/ff-proxy/v2/domain"
@@ -51,18 +55,24 @@ func (i InventoryRepo) Patch(ctx context.Context, key string, updateInventory fu
 }
 
 // Cleanup removes all entries for the key which are in the old config but not in the new one
-func (i InventoryRepo) Cleanup(ctx context.Context, key string, config []domain.ProxyConfig) error {
+func (i InventoryRepo) Cleanup(ctx context.Context, key string, config []domain.ProxyConfig) (domain.Assets, error) {
 
 	oldAssets, err := i.Get(ctx, key)
 	if err != nil {
-		return err
+		return domain.Assets{}, err
 	}
 
 	newAssets, err := i.BuildAssetListFromConfig(config)
 	if err != nil {
-		return err
+		return domain.Assets{}, err
 	}
 
+	//work out differences.
+	assets := diffAssets(oldAssets, newAssets)
+	notifications := i.BuildNotifications(assets)
+	if len(notifications) > 0 {
+		// whe have notifications to send.
+	}
 	// work out assets to delete
 	for k := range oldAssets {
 		// if the key exists in the new assets we don't want to delete it.
@@ -70,16 +80,46 @@ func (i InventoryRepo) Cleanup(ctx context.Context, key string, config []domain.
 			delete(oldAssets, k)
 		}
 	}
-
 	// what's left of old values. we want to delete.
 	for key := range oldAssets {
 		err := i.cache.Delete(ctx, key)
 		if err != nil {
-			return err
+			return domain.Assets{}, err
 		}
 	}
 	// set new inventory.
-	return i.Add(ctx, key, newAssets)
+	err = i.Add(ctx, key, newAssets)
+	if err != nil {
+		return domain.Assets{}, err
+	}
+	return assets, err
+}
+
+func diffAssets(oldMap, newMap map[string]string) domain.Assets {
+	deleted := make(map[string]string)
+	created := make(map[string]string)
+	patched := make(map[string]string)
+
+	// Check elements in old but not in new
+	for key, value := range oldMap {
+		if newValue, exists := newMap[key]; !exists || newValue != value {
+			deleted[key] = value
+		} else {
+			patched[key] = value
+		}
+	}
+
+	// Check elements in new but not in old
+	for key, value := range newMap {
+		if _, exists := oldMap[key]; !exists {
+			created[key] = value
+		}
+	}
+	return domain.Assets{
+		Deleted: deleted,
+		Created: created,
+		Patched: patched,
+	}
 }
 
 // BuildAssetListFromConfig returns the list of keys for all assets associated with this proxyKey
@@ -134,4 +174,66 @@ func (i InventoryRepo) GetKeysForEnvironment(ctx context.Context, env string) (m
 		return scan, err
 	}
 	return scan, nil
+}
+
+func (i InventoryRepo) BuildNotifications(assets domain.Assets) []domain.SSEMessage {
+	var events []domain.SSEMessage
+	events = append(events, getDeleteEvents(assets.Deleted)...)
+	events = append(events, getCreateEvents(assets.Patched)...)
+
+	// TODO:
+	//events = append(events, getPatchEvents(assets.Patched)...)
+	return events
+}
+
+func getDeleteEvents(m map[string]string) []domain.SSEMessage {
+	res := make([]domain.SSEMessage, 0, len(m))
+	if m == nil {
+		return []domain.SSEMessage{}
+	}
+	for k := range m {
+		if strings.Contains(k, "feature-config-") {
+			res = append(res, parseFlagEntry(k, "delete"))
+		}
+		//  TODO segment event
+	}
+	return res
+}
+
+func getCreateEvents(m map[string]string) []domain.SSEMessage {
+	res := make([]domain.SSEMessage, 0, len(m))
+	if m == nil {
+		return []domain.SSEMessage{}
+	}
+	for k := range m {
+		if strings.Contains(k, "feature-config-") {
+			res = append(res, parseFlagEntry(k, "create"))
+		}
+		// TODO segment event
+	}
+	return res
+}
+
+func parseFlagEntry(flagString, variant string) domain.SSEMessage {
+	env, id, err := parseFlagString(flagString)
+	if err != nil {
+		log.Error(err)
+		return domain.SSEMessage{}
+	}
+	return domain.SSEMessage{
+		Domain:      "flag",
+		Event:       variant,
+		Identifier:  id,
+		Environment: env,
+		Version:     0,
+	}
+}
+
+func parseFlagString(flagString string) (string, string, error) {
+	re := regexp.MustCompile(`env-([a-zA-Z0-9-]+)-feature-config-([a-zA-Z0-9-]+)`)
+	match := re.FindStringSubmatch(flagString)
+	if len(match) == 3 {
+		return match[1], match[2], nil
+	}
+	return "", "", errors.New("Invalid flag string format")
 }
