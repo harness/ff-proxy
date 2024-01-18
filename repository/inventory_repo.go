@@ -179,8 +179,7 @@ func (i InventoryRepo) BuildNotifications(assets domain.Assets) []domain.SSEMess
 	var events []domain.SSEMessage
 	events = append(events, getDeleteEvents(assets.Deleted)...)
 	events = append(events, getCreateEvents(assets.Created)...)
-
-	// TODO:
+	// TODO: that will be hard because we may have to compare them together.
 	//events = append(events, getPatchEvents(assets.Patched)...)
 	return events
 }
