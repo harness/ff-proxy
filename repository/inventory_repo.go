@@ -18,6 +18,7 @@ type InventoryRepo struct {
 }
 
 var (
+	patchVariant   = "patch"
 	deleteVariant  = "delete"
 	createVariant  = "create"
 	segmentVariant = "segment-"
@@ -186,7 +187,7 @@ func (i InventoryRepo) BuildNotifications(assets domain.Assets) []domain.SSEMess
 	var events []domain.SSEMessage
 	events = append(events, getDeleteEvents(assets.Deleted)...)
 	events = append(events, getCreateEvents(assets.Created)...)
-	// TODO: that will be hard because we may have to compare them together.
+	// TODO: Patch currently all current flags without working of it they were patched.
 	//events = append(events, getPatchEvents(assets.Patched)...)
 	return events
 }
@@ -218,6 +219,22 @@ func getCreateEvents(m map[string]string) []domain.SSEMessage {
 		}
 		if strings.Contains(k, segmentVariant) {
 			res = append(res, parseSegmentEntry(k, createVariant))
+		}
+	}
+	return res
+}
+
+func getPatchEvents(m map[string]string) []domain.SSEMessage {
+	res := make([]domain.SSEMessage, 0, len(m))
+	if m == nil {
+		return []domain.SSEMessage{}
+	}
+	for k := range m {
+		if strings.Contains(k, featureVariant) {
+			res = append(res, parseFlagEntry(k, patchVariant))
+		}
+		if strings.Contains(k, segmentVariant) {
+			res = append(res, parseSegmentEntry(k, patchVariant))
 		}
 	}
 	return res
