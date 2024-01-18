@@ -17,6 +17,13 @@ type InventoryRepo struct {
 	cache cache.Cache
 }
 
+var (
+	deleteVariant  = "delete"
+	createVariant  = "create"
+	segmentVariant = "segment-"
+	featureVariant = "feature-config-"
+)
+
 // NewInventoryRepo creates new instance of inventory
 func NewInventoryRepo(c cache.Cache) InventoryRepo {
 	return InventoryRepo{
@@ -190,11 +197,11 @@ func getDeleteEvents(m map[string]string) []domain.SSEMessage {
 		return []domain.SSEMessage{}
 	}
 	for k := range m {
-		if strings.Contains(k, "feature-config-") {
-			res = append(res, parseFlagEntry(k, "delete"))
+		if strings.Contains(k, featureVariant) {
+			res = append(res, parseFlagEntry(k, deleteVariant))
 		}
-		if strings.Contains(k, "segment-") {
-			res = append(res, parseSegmentEntry(k, "delete"))
+		if strings.Contains(k, segmentVariant) {
+			res = append(res, parseSegmentEntry(k, deleteVariant))
 		}
 	}
 	return res
@@ -206,11 +213,11 @@ func getCreateEvents(m map[string]string) []domain.SSEMessage {
 		return []domain.SSEMessage{}
 	}
 	for k := range m {
-		if strings.Contains(k, "feature-config-") {
-			res = append(res, parseFlagEntry(k, "create"))
+		if strings.Contains(k, featureVariant) {
+			res = append(res, parseFlagEntry(k, createVariant))
 		}
-		if strings.Contains(k, "segment-") {
-			res = append(res, parseSegmentEntry(k, "create"))
+		if strings.Contains(k, segmentVariant) {
+			res = append(res, parseSegmentEntry(k, createVariant))
 		}
 	}
 	return res
