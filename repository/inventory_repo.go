@@ -90,6 +90,7 @@ func (i InventoryRepo) BuildAssetListFromConfig(config []domain.ProxyConfig) (ma
 
 	for _, cfg := range config {
 		for _, env := range cfg.Environments {
+			//inventory := make(map[string]string)
 			environment := env.ID.String()
 			if len(env.APIKeys) > 0 {
 				inventory[string(domain.NewAPIConfigsKey(environment))] = empty
@@ -105,10 +106,9 @@ func (i InventoryRepo) BuildAssetListFromConfig(config []domain.ProxyConfig) (ma
 			}
 
 			if len(env.Segments) > 0 {
-				//append segments
-				inventory[string(domain.NewFeatureConfigsKey(environment))] = empty
-				for _, f := range env.FeatureConfigs {
-					inventory[string(domain.NewFeatureConfigKey(environment, f.Feature))] = empty
+				inventory[string(domain.NewSegmentsKey(environment))] = empty
+				for _, s := range env.Segments {
+					inventory[string(domain.NewSegmentKey(environment, s.Name))] = empty
 				}
 			}
 		}
