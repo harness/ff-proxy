@@ -90,7 +90,6 @@ func (i InventoryRepo) BuildAssetListFromConfig(config []domain.ProxyConfig) (ma
 
 	for _, cfg := range config {
 		for _, env := range cfg.Environments {
-			//inventory := make(map[string]string)
 			environment := env.ID.String()
 			if len(env.APIKeys) > 0 {
 				inventory[string(domain.NewAPIConfigsKey(environment))] = empty
