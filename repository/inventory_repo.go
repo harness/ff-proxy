@@ -179,7 +179,7 @@ func (i InventoryRepo) GetKeysForEnvironment(ctx context.Context, env string) (m
 func (i InventoryRepo) BuildNotifications(assets domain.Assets) []domain.SSEMessage {
 	var events []domain.SSEMessage
 	events = append(events, getDeleteEvents(assets.Deleted)...)
-	events = append(events, getCreateEvents(assets.Patched)...)
+	events = append(events, getCreateEvents(assets.Created)...)
 
 	// TODO:
 	//events = append(events, getPatchEvents(assets.Patched)...)
@@ -195,7 +195,9 @@ func getDeleteEvents(m map[string]string) []domain.SSEMessage {
 		if strings.Contains(k, "feature-config-") {
 			res = append(res, parseFlagEntry(k, "delete"))
 		}
-		//  TODO segment event
+		if strings.Contains(k, "segment-") {
+			res = append(res, parseSegmentEntry(k, "delete"))
+		}
 	}
 	return res
 }
@@ -209,7 +211,9 @@ func getCreateEvents(m map[string]string) []domain.SSEMessage {
 		if strings.Contains(k, "feature-config-") {
 			res = append(res, parseFlagEntry(k, "create"))
 		}
-		// TODO segment event
+		if strings.Contains(k, "segment-") {
+			res = append(res, parseSegmentEntry(k, "create"))
+		}
 	}
 	return res
 }
@@ -228,10 +232,33 @@ func parseFlagEntry(flagString, variant string) domain.SSEMessage {
 		Version:     0,
 	}
 }
+func parseSegmentEntry(segmentString, variant string) domain.SSEMessage {
+	env, id, err := parseSegmentString(segmentString)
+	if err != nil {
+		log.Error(err)
+		return domain.SSEMessage{}
+	}
+	return domain.SSEMessage{
+		Domain:      "target-segment",
+		Event:       variant,
+		Identifier:  id,
+		Environment: env,
+		Version:     0,
+	}
+}
 
 func parseFlagString(flagString string) (string, string, error) {
 	re := regexp.MustCompile(`env-([a-zA-Z0-9-]+)-feature-config-([a-zA-Z0-9-]+)`)
 	match := re.FindStringSubmatch(flagString)
+	if len(match) == 3 {
+		return match[1], match[2], nil
+	}
+	return "", "", errors.New("Invalid flag string format")
+}
+
+func parseSegmentString(segmentString string) (string, string, error) {
+	re := regexp.MustCompile(`env-([a-zA-Z0-9-]+)-segment-([a-zA-Z0-9-]+)`)
+	match := re.FindStringSubmatch(segmentString)
 	if len(match) == 3 {
 		return match[1], match[2], nil
 	}
