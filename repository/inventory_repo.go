@@ -55,16 +55,16 @@ func (i InventoryRepo) Patch(ctx context.Context, key string, updateInventory fu
 }
 
 // Cleanup removes all entries for the key which are in the old config but not in the new one
-func (i InventoryRepo) Cleanup(ctx context.Context, key string, config []domain.ProxyConfig) (domain.Assets, error) {
+func (i InventoryRepo) Cleanup(ctx context.Context, key string, config []domain.ProxyConfig) ([]domain.SSEMessage, error) {
 
 	oldAssets, err := i.Get(ctx, key)
 	if err != nil {
-		return domain.Assets{}, err
+		return []domain.SSEMessage{}, err
 	}
 
 	newAssets, err := i.BuildAssetListFromConfig(config)
 	if err != nil {
-		return domain.Assets{}, err
+		return []domain.SSEMessage{}, err
 	}
 
 	//work out differences.
@@ -84,15 +84,15 @@ func (i InventoryRepo) Cleanup(ctx context.Context, key string, config []domain.
 	for key := range oldAssets {
 		err := i.cache.Delete(ctx, key)
 		if err != nil {
-			return domain.Assets{}, err
+			return []domain.SSEMessage{}, err
 		}
 	}
 	// set new inventory.
 	err = i.Add(ctx, key, newAssets)
 	if err != nil {
-		return domain.Assets{}, err
+		return []domain.SSEMessage{}, err
 	}
-	return assets, err
+	return notifications, err
 }
 
 func diffAssets(oldMap, newMap map[string]string) domain.Assets {
