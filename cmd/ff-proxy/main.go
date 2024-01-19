@@ -11,8 +11,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/harness/ff-proxy/v2/domain"
 	"gopkg.in/cenkalti/backoff.v1"
+
+	"github.com/harness/ff-proxy/v2/domain"
 
 	"github.com/fanout/go-gripcontrol"
 
@@ -315,20 +316,6 @@ func main() {
 		os.Exit(1)
 	}
 
-	// Create repos
-	targetRepo := repository.NewTargetRepo(sdkCache, logger)
-	flagRepo := repository.NewFeatureFlagRepo(sdkCache)
-	segmentRepo := repository.NewSegmentRepo(sdkCache)
-	authRepo := repository.NewAuthRepo(sdkCache)
-	inventoryRepo := repository.NewInventoryRepo(sdkCache)
-
-	// Create config that we'll use to populate our repos
-	conf, err := config.NewConfig(offline, configDir, proxyKey, clientSvc)
-	if err != nil {
-		logger.Error("failed to load config", "err", err)
-		os.Exit(1)
-	}
-
 	var (
 		messageHandler domain.MessageHandler
 
@@ -342,10 +329,6 @@ func main() {
 
 		getConnectedStreams = func() map[string]interface{} {
 			return connectedStreams.Get()
-		}
-
-		reloadConfig = func() error {
-			return conf.FetchAndPopulate(ctx, inventoryRepo, authRepo, flagRepo, segmentRepo)
 		}
 
 		pushpinStream domain.Stream = stream.NewPushpin(gpc)
@@ -372,12 +355,6 @@ func main() {
 	} else {
 		redisStream = stream.NewPrometheusStream("ff_proxy_primary_to_replica_sse_producer", redisStream, promReg)
 		pushpinStream = stream.NewPrometheusStream("ff_proxy_primary_to_sdk_sse_producer", pushpinStream, promReg)
-
-		// If we're running as a Primary we'll need to fetch the config and populate the cache
-		if err := conf.FetchAndPopulate(ctx, inventoryRepo, authRepo, flagRepo, segmentRepo); err != nil {
-			logger.Error("failed to populate repos with config", "err", err)
-			os.Exit(1)
-		}
 	}
 
 	readReplicaSSEStream := stream.NewStream(
@@ -397,6 +374,32 @@ func main() {
 		stream.WithOnDisconnect(stream.ReadReplicaSSEStreamOnDisconnect(logger, pushpin, getConnectedStreams)),
 		stream.WithBackoff(backoff.NewConstantBackOff(1*time.Minute)),
 	)
+
+	// Create repos
+	targetRepo := repository.NewTargetRepo(sdkCache, logger)
+	flagRepo := repository.NewFeatureFlagRepo(sdkCache)
+	segmentRepo := repository.NewSegmentRepo(sdkCache)
+	authRepo := repository.NewAuthRepo(sdkCache)
+	inventoryRepo := repository.NewInventoryRepo(sdkCache)
+
+	// Create config that we'll use to populate our repos
+	conf, err := config.NewConfig(offline, configDir, proxyKey, clientSvc, readReplicaSSEStream) ///ASZ here?
+	if err != nil {
+		logger.Error("failed to load config", "err", err)
+		os.Exit(1)
+	}
+
+	reloadConfig := func() error {
+		return conf.FetchAndPopulate(ctx, inventoryRepo, authRepo, flagRepo, segmentRepo)
+	}
+
+	// If we're running as a Primary we'll need to fetch the config and populate the cache
+	if !readReplica {
+		if err := conf.FetchAndPopulate(ctx, inventoryRepo, authRepo, flagRepo, segmentRepo); err != nil { // ASZ
+			logger.Error("failed to populate repos with config", "err", err)
+			os.Exit(1)
+		}
+	}
 
 	// If we're running as a read replica then we want to subscribe to two streams
 	//
@@ -419,7 +422,7 @@ func main() {
 		// 4. Forward events from the Saas SSE stream on to connected SDKs
 		cacheRefresher := cache.NewRefresher(logger, conf, clientSvc, inventoryRepo, authRepo, flagRepo, segmentRepo)
 		redisForwarder := stream.NewForwarder(logger, redisStream, cacheRefresher, stream.WithStreamName(sseStreamTopic))
-		messageHandler = stream.NewForwarder(logger, pushpinStream, redisForwarder)
+		messageHandler = stream.NewForwarder(logger, pushpinStream, redisForwarder) //ASZ here
 
 		streamURL := fmt.Sprintf("%s/stream?cluster=%s", clientService, conf.ClusterIdentifier())
 		sseClient := stream.NewSSEClient(logger, streamURL, proxyKey, conf.Token())
