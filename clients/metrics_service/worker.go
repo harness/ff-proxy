@@ -47,11 +47,13 @@ func NewWorker(l log.Logger, store metricStore, metricSvc metricService, sub dom
 // Start starts the process whereby the Worker consumes metrics from read replicas and forwards them on to Harness Saas.
 func (w Worker) Start(ctx context.Context) {
 	// Start a single thread that subscribes to the redis stream
-	metrics := w.subscribe(ctx)
-
-	// Start multiple threads to process events coming off the redis stream
+	chans := make([]<-chan []byte, w.readConcurrency)
 	for i := 0; i < w.readConcurrency; i++ {
-		go w.handleMetrics(ctx, metrics)
+		chans = append(chans, w.subscribe(ctx))
+	}
+
+	for _, c := range chans {
+		go w.handleMetrics(ctx, c)
 	}
 
 	// Start a single thread that sends metrics to Saas
