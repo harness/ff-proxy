@@ -464,7 +464,8 @@ func main() {
 	// sent by read replicas and sends them on to Saas. Only bother to start
 	// worker if sending metrics is actually enabled.
 	if !readReplica && metricsEnabled {
-		metricsStreamConsumer := stream.NewPrometheusStream("ff_proxy_primary_metrics_stream_consumer", stream.NewRedisStream(redisClient), promReg)
+		//metricsStreamConsumer := stream.NewPrometheusStream("ff_proxy_primary_metrics_stream_consumer", stream.NewRedisStream(redisClient), promReg)
+		metricsStreamConsumer := stream.NewRedisStream(redisClient)
 		store, _ := metricStore.(metricsservice.Queue)
 		worker := metricsservice.NewWorker(logger, store, ms, metricsStreamConsumer, metricsStreamReadConcurrency, conf.ClusterIdentifier())
 		worker.Start(ctx)

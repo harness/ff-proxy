@@ -3,9 +3,7 @@ package stream
 import (
 	"context"
 	"encoding"
-	"errors"
 	"fmt"
-	"io"
 
 	"github.com/go-redis/redis/v8"
 
@@ -90,15 +88,16 @@ func (r RedisStream) Sub(ctx context.Context, stream string, id string, handleMe
 			}
 
 			for _, x := range xs {
-				for _, msg := range x.Messages {
-					if err := handleMessage(msg.ID, parseRedisMessage(msg.Values)); err != nil {
-						// If we get an EOF error then we'll want to bubble this up since this
-						// signals that there's been a disconnect
-						if errors.Is(err, io.EOF) {
-							return err
-						}
-						continue
-					}
+				for _, _ = range x.Messages {
+					continue
+					//if err := handleMessage(msg.ID, parseRedisMessage(msg.Values)); err != nil {
+					//	// If we get an EOF error then we'll want to bubble this up since this
+					//	// signals that there's been a disconnect
+					//	if errors.Is(err, io.EOF) {
+					//		return err
+					//	}
+					//	continue
+					//}
 				}
 			}
 		}
