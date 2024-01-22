@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"runtime"
 	"strings"
 	"time"
 
@@ -182,7 +183,7 @@ func init() {
 
 	// RedisStreams
 	flag.Int64Var(&metricsStreamMaxLen, metricsStreamMaxLenFlag, 1000, "Sets the max length of the redis stream that replicas use to send metrics to the Primary")
-	flag.IntVar(&metricsStreamReadConcurrency, metricStreamReadConcurrencyFlag, 10, "Controls the number of threads running in the Primary that listen for metrics data being sent by replicas")
+	flag.IntVar(&metricsStreamReadConcurrency, metricStreamReadConcurrencyFlag, 1, "Controls the number of threads running in the Primary that listen for metrics data being sent by replicas")
 
 	loadFlagsFromEnv(map[string]string{
 		bypassAuthEnv:                   bypassAuthFlag,
@@ -298,6 +299,7 @@ func main() {
 		opts.Username = parsed.Username
 		opts.Password = parsed.Password
 		opts.TLSConfig = parsed.TLSConfig
+		opts.PoolSize = 10 * runtime.NumCPU()
 		if redisPassword != "" {
 			opts.Password = redisPassword
 		}
