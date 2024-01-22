@@ -2,14 +2,8 @@ package metricsservice
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"net/http"
-	"reflect"
-	"sync"
-	"time"
-
-	jsoniter "github.com/json-iterator/go"
 
 	"github.com/harness/ff-proxy/v2/domain"
 	clientgen "github.com/harness/ff-proxy/v2/gen/client"
@@ -43,20 +37,16 @@ type counter interface {
 
 // Client is a type for interacting with the Feature Flag Metric Service
 type Client struct {
-	log         log.Logger
-	enabled     bool
-	client      clientgen.ClientWithResponsesInterface
-	metrics     map[string]domain.MetricsRequest
-	token       func() string
-	metricsLock *sync.Mutex
-	subscriber  domain.Subscriber
+	log    log.Logger
+	client clientgen.ClientWithResponsesInterface
+	token  func() string
 
 	sdkUsage         counter
 	metricsForwarded counter
 }
 
-// NewClient creates a MetricService
-func NewClient(l log.Logger, addr string, token func() string, enabled bool, reg *prometheus.Registry, subscriber domain.Subscriber) (Client, error) {
+// NewClient creates a MetricStore
+func NewClient(l log.Logger, addr string, token func() string, reg *prometheus.Registry) (Client, error) {
 	l = l.With("component", "MetricServiceClient")
 	client, err := clientgen.NewClientWithResponses(
 		addr,
@@ -67,13 +57,9 @@ func NewClient(l log.Logger, addr string, token func() string, enabled bool, reg
 	}
 
 	m := Client{
-		log:         l,
-		client:      client,
-		token:       token,
-		enabled:     enabled,
-		metrics:     map[string]domain.MetricsRequest{},
-		metricsLock: &sync.Mutex{},
-		subscriber:  subscriber,
+		log:    l,
+		client: client,
+		token:  token,
 
 		sdkUsage: prometheus.NewCounterVec(
 			prometheus.CounterOpts{
@@ -95,67 +81,7 @@ func NewClient(l log.Logger, addr string, token func() string, enabled bool, reg
 	return m, nil
 }
 
-// StoreMetrics aggregates and stores metrics
-func (c Client) StoreMetrics(_ context.Context, req domain.MetricsRequest) error {
-	if !c.enabled {
-		return nil
-	}
-
-	c.metricsLock.Lock()
-	defer func() {
-		c.trackSDKUsage(req)
-		c.metricsLock.Unlock()
-	}()
-
-	// Store metrics to send later
-	currentMetrics, ok := c.metrics[req.EnvironmentID]
-	if !ok {
-		c.metrics[req.EnvironmentID] = req
-		return nil
-	}
-
-	if req.MetricsData != nil {
-		if currentMetrics.MetricsData == nil {
-			currentMetrics.MetricsData = &[]clientgen.MetricsData{}
-		}
-		newMetrics := append(*currentMetrics.MetricsData, *req.MetricsData...)
-		currentMetrics.MetricsData = &newMetrics
-	}
-
-	if req.TargetData != nil {
-		if currentMetrics.TargetData == nil {
-			currentMetrics.TargetData = &[]clientgen.TargetData{}
-		}
-
-		newTargets := append(*currentMetrics.TargetData, *req.TargetData...)
-		currentMetrics.TargetData = &newTargets
-	}
-
-	c.metrics[req.EnvironmentID] = currentMetrics
-	return nil
-}
-
-// SendMetrics forwards stored metrics to the SaaS platform
-func (c Client) sendMetrics(ctx context.Context, clusterIdentifier string) {
-	// copy metrics before sending so we don't hog the lock for network requests
-	c.metricsLock.Lock()
-	metricsCopy := map[string]domain.MetricsRequest{}
-	for key, val := range c.metrics {
-		metricsCopy[key] = val
-		delete(c.metrics, key)
-	}
-	c.metrics = make(map[string]domain.MetricsRequest)
-	c.metricsLock.Unlock()
-
-	for envID, metric := range metricsCopy {
-		if err := c.postMetrics(ctx, envID, metric, clusterIdentifier); err != nil {
-			c.log.Error("sending metrics failed", "environment", envID, "error", err)
-		}
-	}
-
-}
-
-func (c Client) postMetrics(ctx context.Context, envID string, metric domain.MetricsRequest, clusterIdentifier string) (err error) {
+func (c Client) PostMetrics(ctx context.Context, envID string, metric domain.MetricsRequest, clusterIdentifier string) (err error) {
 	defer func() {
 		errLabel := "false"
 		if err != nil {
@@ -178,32 +104,6 @@ func (c Client) postMetrics(ctx context.Context, envID string, metric domain.Met
 	}
 
 	return nil
-}
-
-func addAuthToken(ctx context.Context, req *http.Request) error {
-	token := ctx.Value(tokenKey)
-	if token == nil || token == "" {
-		return fmt.Errorf("no auth token exists in context")
-	}
-	req.Header.Add("Authorization", fmt.Sprintf("Bearer %s", token))
-
-	return nil
-}
-
-func (c Client) trackSDKUsage(req domain.MetricsRequest) {
-	if req.MetricsData == nil {
-		return
-	}
-
-	for _, me := range *req.MetricsData {
-		attrMap := createAttributeMap(me.Attributes)
-
-		sdkType := getSDKType(attrMap)
-		sdkVersion := getSDKVersion(attrMap)
-		sdkLanguage := getSDKLanguage(attrMap)
-
-		c.sdkUsage.WithLabelValues(req.EnvironmentID, sdkType, sdkVersion, sdkLanguage).Inc()
-	}
 }
 
 func createAttributeMap(data []clientgen.KeyValue) map[string]string {
@@ -235,87 +135,33 @@ func getSDKVersion(m map[string]string) string {
 	return ""
 }
 
+func addAuthToken(ctx context.Context, req *http.Request) error {
+	token := ctx.Value(tokenKey)
+	if token == nil || token == "" {
+		return fmt.Errorf("no auth token exists in context")
+	}
+	req.Header.Add("Authorization", fmt.Sprintf("Bearer %s", token))
+
+	return nil
+}
+
+func (c Client) trackSDKUsage(req domain.MetricsRequest) {
+	if req.MetricsData == nil {
+		return
+	}
+
+	for _, me := range *req.MetricsData {
+		attrMap := createAttributeMap(me.Attributes)
+
+		sdkType := getSDKType(attrMap)
+		sdkVersion := getSDKVersion(attrMap)
+		sdkLanguage := getSDKLanguage(attrMap)
+
+		c.sdkUsage.WithLabelValues(req.EnvironmentID, sdkType, sdkVersion, sdkLanguage).Inc()
+	}
+}
+
 // GetSDKLanguage returns the language or an empty string if its not found
 func getSDKLanguage(m map[string]string) string {
 	return m["SDK_LANGUAGE"]
-}
-
-// PostMetrics kicks off a job that periodically sends metrics to Harness Saas if we're running in online mode and metricPostDuration is > 0
-func (c Client) PostMetrics(ctx context.Context, offline bool, metricPostDuration int) {
-	if offline {
-		return
-	}
-
-	if metricPostDuration == 0 {
-		c.log.Info("sending metrics disabled")
-		return
-	}
-
-	// Start the job that listens for metrics coming in from read replicas on the redis stream
-	go c.subscribe(ctx)
-
-	c.log.Info(fmt.Sprintf("sending metrics every %d seconds", metricPostDuration))
-
-	// start metric sending ticker
-	go func() {
-		ticker := time.NewTicker(time.Duration(metricPostDuration) * time.Second)
-		defer ticker.Stop()
-
-		for {
-			select {
-			case <-ctx.Done():
-				c.log.Info("stopping metrics ticker")
-				return
-			case <-ticker.C:
-				// default to prod cluster
-				clusterIdentifier := "1"
-				c.log.Debug("sending metrics")
-				c.sendMetrics(ctx, clusterIdentifier)
-			}
-		}
-	}()
-}
-
-// subscribe kicks off a job that subscribes to the redis stream that readreplicas write metrics onto
-func (c Client) subscribe(ctx context.Context) {
-	id := ""
-	for {
-		// There's nothing we can really do here if we error in the callback parsing/handling the message
-		// so we log the errors as warnings but return nil so we carry on receiving messages from the stream
-		err := c.subscriber.Sub(ctx, SDKMetricsStream, id, func(latestID string, v interface{}) error {
-			// We want to keep track of the id of the latest message we've received so that if
-			// we disconnect we can resume from that point
-			id = latestID
-
-			s, ok := v.(string)
-			if !ok {
-				c.log.Warn("unexpected message format received", "stream", SDKMetricsStream, "type", reflect.TypeOf(v))
-				return nil
-			}
-
-			mr := domain.MetricsRequest{}
-			if err := jsoniter.Unmarshal([]byte(s), &mr); err != nil {
-				c.log.Warn("failed to unmarshal metrics message", "stream", SDKMetricsStream, "err", err)
-				return nil
-			}
-
-			if err := c.StoreMetrics(ctx, mr); err != nil {
-				c.log.Warn("failed to store metrics received from read replica", "stream", SDKMetricsStream, "err", err)
-				return nil
-			}
-			return nil
-		})
-		if err != nil {
-			if errors.Is(err, context.Canceled) {
-				return
-			}
-
-			c.log.Warn("dropped subscription to redis stream, backing off for 30 seconds and trying again", "stream", SDKMetricsStream, "err", err)
-
-			// If we do break out of subscribe it will probably be because of a connection error with redis
-			// so backoff for 30 seconds before trying again
-			time.Sleep(30 * time.Second)
-			continue
-		}
-	}
 }
