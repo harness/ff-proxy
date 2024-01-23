@@ -6,15 +6,14 @@ import (
 	"regexp"
 	"strings"
 
-	log "github.com/sirupsen/logrus"
-
 	"github.com/harness/ff-proxy/v2/cache"
 	"github.com/harness/ff-proxy/v2/domain"
+	"github.com/harness/ff-proxy/v2/log"
 )
 
 // InventoryRepo is a repository that stores all references to all assets for the key.
 type InventoryRepo struct {
-	logger
+	log   log.Logger
 	cache cache.Cache
 }
 
@@ -27,9 +26,11 @@ const (
 )
 
 // NewInventoryRepo creates new instance of inventory
-func NewInventoryRepo(c cache.Cache) InventoryRepo {
+func NewInventoryRepo(c cache.Cache, l log.Logger) InventoryRepo {
+	l = l.With("component", "InventoryRepo")
 	return InventoryRepo{
 		cache: c,
+		log:   l,
 	}
 }
 
@@ -184,66 +185,66 @@ func (i InventoryRepo) GetKeysForEnvironment(ctx context.Context, env string) (m
 
 func (i InventoryRepo) BuildNotifications(assets domain.Assets) []domain.SSEMessage {
 	var events []domain.SSEMessage
-	events = append(events, getDeleteEvents(assets.Deleted)...)
-	events = append(events, getCreateEvents(assets.Created)...)
+	events = append(events, i.getDeleteEvents(assets.Deleted)...)
+	events = append(events, i.getCreateEvents(assets.Created)...)
 	// TODO: this currently sends patch notification for all flags
 	// regardless weather they have changed or not
-	events = append(events, getPatchEvents(assets.Patched)...)
+	events = append(events, i.getPatchEvents(assets.Patched)...)
 	return events
 }
 
-func getDeleteEvents(m map[string]string) []domain.SSEMessage {
+func (i InventoryRepo) getDeleteEvents(m map[string]string) []domain.SSEMessage {
 	res := make([]domain.SSEMessage, 0, len(m))
 	if m == nil {
 		return []domain.SSEMessage{}
 	}
 	for k := range m {
 		if strings.Contains(k, featureVariant) {
-			res = append(res, parseFlagEntry(k, deleteVariant))
+			res = append(res, i.parseFlagEntry(k, deleteVariant))
 		}
 		if strings.Contains(k, segmentVariant) {
-			res = append(res, parseSegmentEntry(k, deleteVariant))
+			res = append(res, i.parseSegmentEntry(k, deleteVariant))
 		}
 	}
 	return res
 }
 
-func getCreateEvents(m map[string]string) []domain.SSEMessage {
+func (i InventoryRepo) getCreateEvents(m map[string]string) []domain.SSEMessage {
 	res := make([]domain.SSEMessage, 0, len(m))
 	if m == nil {
 		return []domain.SSEMessage{}
 	}
 	for k := range m {
 		if strings.Contains(k, featureVariant) {
-			res = append(res, parseFlagEntry(k, createVariant))
+			res = append(res, i.parseFlagEntry(k, createVariant))
 		}
 		if strings.Contains(k, segmentVariant) {
-			res = append(res, parseSegmentEntry(k, createVariant))
+			res = append(res, i.parseSegmentEntry(k, createVariant))
 		}
 	}
 	return res
 }
 
-func getPatchEvents(m map[string]string) []domain.SSEMessage {
+func (i InventoryRepo) getPatchEvents(m map[string]string) []domain.SSEMessage {
 	res := make([]domain.SSEMessage, 0, len(m))
 	if m == nil {
 		return []domain.SSEMessage{}
 	}
 	for k := range m {
 		if strings.Contains(k, featureVariant) {
-			res = append(res, parseFlagEntry(k, patchVariant))
+			res = append(res, i.parseFlagEntry(k, patchVariant))
 		}
 		if strings.Contains(k, segmentVariant) {
-			res = append(res, parseSegmentEntry(k, patchVariant))
+			res = append(res, i.parseSegmentEntry(k, patchVariant))
 		}
 	}
 	return res
 }
 
-func parseFlagEntry(flagString, variant string) domain.SSEMessage {
+func (i InventoryRepo) parseFlagEntry(flagString, variant string) domain.SSEMessage {
 	env, id, err := parseFlagString(flagString)
 	if err != nil {
-		log.Error(err)
+		i.log.Error("err", err)
 		return domain.SSEMessage{}
 	}
 	return domain.SSEMessage{
@@ -254,10 +255,10 @@ func parseFlagEntry(flagString, variant string) domain.SSEMessage {
 		Version:     0,
 	}
 }
-func parseSegmentEntry(segmentString, variant string) domain.SSEMessage {
+func (i InventoryRepo) parseSegmentEntry(segmentString, variant string) domain.SSEMessage {
 	env, id, err := parseSegmentString(segmentString)
 	if err != nil {
-		log.Error(err)
+		i.log.Error("err", err)
 		return domain.SSEMessage{}
 	}
 	return domain.SSEMessage{
@@ -275,7 +276,7 @@ func parseFlagString(flagString string) (string, string, error) {
 	if len(match) == 3 {
 		return match[1], match[2], nil
 	}
-	return "", "", errors.New("Invalid flag string format")
+	return "", "", errors.New("invalid flag string format")
 }
 
 func parseSegmentString(segmentString string) (string, string, error) {
@@ -284,5 +285,5 @@ func parseSegmentString(segmentString string) (string, string, error) {
 	if len(match) == 3 {
 		return match[1], match[2], nil
 	}
-	return "", "", errors.New("Invalid flag string format")
+	return "", "", errors.New("invalid flag string format")
 }

@@ -385,7 +385,7 @@ func main() {
 	flagRepo := repository.NewFeatureFlagRepo(sdkCache)
 	segmentRepo := repository.NewSegmentRepo(sdkCache)
 	authRepo := repository.NewAuthRepo(sdkCache)
-	inventoryRepo := repository.NewInventoryRepo(sdkCache)
+	inventoryRepo := repository.NewInventoryRepo(sdkCache, logger)
 
 	// Create config that we'll use to populate our repos
 	conf, err := config.NewConfig(offline, configDir, proxyKey, clientSvc, readReplicaSSEStream)
