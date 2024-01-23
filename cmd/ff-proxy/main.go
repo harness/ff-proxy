@@ -459,15 +459,25 @@ func main() {
 		logger.Error("failed to create client for the feature flags metric service", "err", err)
 		os.Exit(1)
 	}
+	_ = ms
 
 	// If we're running as the primary start the worker that consumes metrics
 	// sent by read replicas and sends them on to Saas. Only bother to start
 	// worker if sending metrics is actually enabled.
 	if !readReplica && metricsEnabled {
 		metricsStreamConsumer := stream.NewPrometheusStream("ff_proxy_primary_metrics_stream_consumer", stream.NewRedisStream(redisClient), promReg)
-		store, _ := metricStore.(metricsservice.Queue)
-		worker := metricsservice.NewWorker(logger, store, ms, metricsStreamConsumer, metricsStreamReadConcurrency, conf.ClusterIdentifier())
-		worker.Start(ctx)
+		//store, _ := metricStore.(metricsservice.Queue)
+		//worker := metricsservice.NewWorker(logger, store, ms, metricsStreamConsumer, metricsStreamReadConcurrency, conf.ClusterIdentifier())
+		//worker.Start(ctx)
+
+		go func() {
+			err := metricsStreamConsumer.Sub(ctx, metricsservice.SDKMetricsStream, "0", func(id string, v interface{}) error {
+				return nil
+			})
+			if err != nil {
+				logger.Error("failed to sub to stream", "err", err)
+			}
+		}()
 	}
 
 	apiKeyHasher := hash.NewSha256()
