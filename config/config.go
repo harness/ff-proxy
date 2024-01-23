@@ -8,6 +8,7 @@ import (
 	"github.com/harness/ff-proxy/v2/config/local"
 	"github.com/harness/ff-proxy/v2/config/remote"
 	"github.com/harness/ff-proxy/v2/domain"
+	"github.com/harness/ff-proxy/v2/stream"
 )
 
 // Config defines the interface for populating repositories with configuration data
@@ -35,9 +36,9 @@ type Config interface {
 }
 
 // NewConfig creates either a local or remote config type that implements the Config interface
-func NewConfig(offline bool, configDir string, proxyKey string, clientService domain.ClientService) (Config, error) {
+func NewConfig(offline bool, configDir string, proxyKey string, clientService domain.ClientService, stream stream.Stream) (Config, error) {
 	if !offline {
-		return remote.NewConfig(proxyKey, clientService), nil
+		return remote.NewConfig(proxyKey, clientService, stream), nil
 	}
 
 	conf, err := local.NewConfig(os.DirFS(configDir))

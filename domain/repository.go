@@ -1,6 +1,8 @@
 package domain
 
-import "context"
+import (
+	"context"
+)
 
 // KeyRepo the interface for keyRepository.
 type InventoryRepo interface {
@@ -9,7 +11,7 @@ type InventoryRepo interface {
 	Get(ctx context.Context, key string) (map[string]string, error)
 	Patch(ctx context.Context, key string, patch func(assets map[string]string) (map[string]string, error)) error
 	BuildAssetListFromConfig(config []ProxyConfig) (map[string]string, error)
-	Cleanup(ctx context.Context, key string, config []ProxyConfig) error
+	Cleanup(ctx context.Context, key string, config []ProxyConfig) ([]SSEMessage, error)
 	KeyExists(ctx context.Context, key string) bool
 	GetKeysForEnvironment(ctx context.Context, env string) (map[string]string, error)
 }

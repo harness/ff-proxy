@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/harness/ff-proxy/v2/domain"
+	"github.com/harness/ff-proxy/v2/stream"
 )
 
 type safeString struct {
@@ -33,14 +34,16 @@ type Config struct {
 	clusterIdentifier string
 	proxyConfig       []domain.ProxyConfig
 	ClientService     domain.ClientService
+	stream            stream.Stream
 }
 
 // NewConfig creates a new Config
-func NewConfig(key string, cs domain.ClientService) *Config {
+func NewConfig(key string, cs domain.ClientService, s stream.Stream) *Config {
 	c := &Config{
 		token:         &safeString{RWMutex: &sync.RWMutex{}, value: ""},
 		key:           key,
 		ClientService: cs,
+		stream:        s,
 	}
 	return c
 }
@@ -93,13 +96,31 @@ func (c *Config) FetchAndPopulate(ctx context.Context, inventory domain.Inventor
 		return err
 	}
 
+	// TODO we probably should defer that
 	// compare new and old config assets and delete difference.
-	if err := inventory.Cleanup(ctx, c.key, proxyConfig); err != nil {
+	notificationsToSend, err := inventory.Cleanup(ctx, c.key, proxyConfig)
+	if err != nil {
+		return err
+	}
+
+	err = c.notifySDKs(ctx, notificationsToSend)
+	if err != nil {
 		return err
 	}
 
 	c.proxyConfig = proxyConfig
 	return c.Populate(ctx, authRepo, flagRepo, segmentRepo)
+}
+
+func (c *Config) notifySDKs(ctx context.Context, notificationsToSend []domain.SSEMessage) error {
+	// send the notifications
+	for _, v := range notificationsToSend {
+		err := c.stream.Publish(ctx, v)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // Populate populates repositories with the config

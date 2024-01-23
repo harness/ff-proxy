@@ -8,16 +8,20 @@ import (
 	"io/ioutil"
 	"runtime"
 	"testing"
+	"time"
 
 	"github.com/go-redis/redis/v8"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
+	"gopkg.in/cenkalti/backoff.v1"
 
 	"github.com/harness/ff-proxy/v2/cache"
 	clientservice "github.com/harness/ff-proxy/v2/clients/client_service"
 	"github.com/harness/ff-proxy/v2/domain"
 	clientgen "github.com/harness/ff-proxy/v2/gen/client"
+	"github.com/harness/ff-proxy/v2/log"
 	"github.com/harness/ff-proxy/v2/repository"
+	"github.com/harness/ff-proxy/v2/stream"
 )
 
 type mockInventoryRepo struct {
@@ -26,7 +30,7 @@ type mockInventoryRepo struct {
 	getFn                      func(ctx context.Context, key string) (map[string]string, error)
 	patchFn                    func(ctx context.Context, key string, patch func(assets map[string]string) (map[string]string, error)) error
 	buildAssetListFromConfigFn func(config []domain.ProxyConfig) (map[string]string, error)
-	cleanupFn                  func(ctx context.Context, key string, config []domain.ProxyConfig) error
+	cleanupFn                  func(ctx context.Context, key string, config []domain.ProxyConfig) ([]domain.SSEMessage, error)
 	keyExistsFn                func(ctx context.Context, key string) bool
 	getKeysForEnvironmentFn    func(ctx context.Context, env string) (map[string]string, error)
 }
@@ -51,7 +55,7 @@ func (m mockInventoryRepo) BuildAssetListFromConfig(config []domain.ProxyConfig)
 	return m.buildAssetListFromConfigFn(config)
 }
 
-func (m mockInventoryRepo) Cleanup(ctx context.Context, key string, config []domain.ProxyConfig) error {
+func (m mockInventoryRepo) Cleanup(ctx context.Context, key string, config []domain.ProxyConfig) ([]domain.SSEMessage, error) {
 	return m.cleanupFn(ctx, key, config)
 }
 
@@ -120,9 +124,36 @@ func (m *mockAuthRepo) Add(ctx context.Context, config ...domain.AuthConfig) err
 	return nil
 }
 
-type mockSegmentRepo struct {
-	config []domain.SegmentConfig
+type mockSubscriber struct {
+	sub func() (interface{}, error)
+}
 
+func (m *mockSubscriber) Close(channel string) error {
+	return nil
+}
+
+func (m *mockSubscriber) Sub(ctx context.Context, channel string, id string, fn domain.HandleMessageFn) error {
+	v, err := m.sub()
+	if err != nil {
+		return err
+	}
+
+	return fn("", v)
+}
+
+func (m *mockSubscriber) Pub(ctx context.Context, channel string, msg interface{}) error { return nil }
+
+type mockMsgHandler struct {
+	msg chan struct{}
+}
+
+func (m *mockMsgHandler) HandleMessage(ctx context.Context, msg domain.SSEMessage) error {
+	m.msg <- struct{}{}
+	return nil
+}
+
+type mockSegmentRepo struct {
+	config                            []domain.SegmentConfig
 	add                               func(ctx context.Context, config ...domain.SegmentConfig) error
 	removeFn                          func(ctx context.Context, id string) error
 	removeAllSegmentsForEnvironmentFn func(ctx context.Context, id string) error
@@ -287,10 +318,12 @@ func TestConfig_Populate(t *testing.T) {
 	}
 
 	type mocks struct {
-		clientService mockClientService
-		authRepo      *mockAuthRepo
-		flagRepo      *mockFlagRepo
-		segmentRepo   *mockSegmentRepo
+		clientService  mockClientService
+		authRepo       *mockAuthRepo
+		flagRepo       *mockFlagRepo
+		segmentRepo    *mockSegmentRepo
+		subscriber     *mockSubscriber
+		messageHandler *mockMsgHandler
 	}
 
 	type expected struct {
@@ -491,8 +524,8 @@ func TestConfig_Populate(t *testing.T) {
 		buildAssetListFromConfigFn: func(config []domain.ProxyConfig) (map[string]string, error) {
 			return map[string]string{}, nil
 		},
-		cleanupFn: func(ctx context.Context, key string, config []domain.ProxyConfig) error {
-			return nil
+		cleanupFn: func(ctx context.Context, key string, config []domain.ProxyConfig) ([]domain.SSEMessage, error) {
+			return []domain.SSEMessage{}, nil
 		},
 	}
 
@@ -501,7 +534,19 @@ func TestConfig_Populate(t *testing.T) {
 		tc := tc
 
 		t.Run(desc, func(t *testing.T) {
-			c := NewConfig(tc.args.key, tc.mocks.clientService)
+
+			var onDisconnect func()
+
+			p := stream.NewStream(
+				log.NewNoOpLogger(),
+				"foo",
+				tc.mocks.subscriber,
+				tc.mocks.messageHandler,
+				stream.WithOnDisconnect(onDisconnect),
+				stream.WithBackoff(backoff.NewConstantBackOff(1*time.Millisecond)),
+			)
+
+			c := NewConfig(tc.args.key, tc.mocks.clientService, p)
 
 			err := c.FetchAndPopulate(context.Background(), inventoryRepo, tc.mocks.authRepo, tc.mocks.flagRepo, tc.mocks.segmentRepo)
 			if tc.shouldErr {

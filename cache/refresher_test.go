@@ -275,8 +275,8 @@ func TestRefresher_HandleMessage(t *testing.T) {
 		buildAssetListFromConfigFn: func(config []domain.ProxyConfig) (map[string]string, error) {
 			return map[string]string{}, nil
 		},
-		cleanupFn: func(ctx context.Context, key string, config []domain.ProxyConfig) error {
-			return nil
+		cleanupFn: func(ctx context.Context, key string, config []domain.ProxyConfig) ([]domain.SSEMessage, error) {
+			return []domain.SSEMessage{}, nil
 		},
 		getKeysForEnvironmentFn: func(ctx context.Context, env string) (map[string]string, error) {
 			return map[string]string{}, nil
@@ -586,7 +586,7 @@ type mockInventoryRepo struct {
 	getFn                      func(ctx context.Context, key string) (map[string]string, error)
 	patchFn                    func(ctx context.Context, key string, patch func(assets map[string]string) (map[string]string, error)) error
 	buildAssetListFromConfigFn func(config []domain.ProxyConfig) (map[string]string, error)
-	cleanupFn                  func(ctx context.Context, key string, config []domain.ProxyConfig) error
+	cleanupFn                  func(ctx context.Context, key string, config []domain.ProxyConfig) ([]domain.SSEMessage, error)
 	keyExistsFn                func(ctx context.Context, key string) bool
 	getKeysForEnvironmentFn    func(ctx context.Context, env string) (map[string]string, error)
 }
@@ -611,7 +611,7 @@ func (m mockInventoryRepo) BuildAssetListFromConfig(config []domain.ProxyConfig)
 	return m.buildAssetListFromConfigFn(config)
 }
 
-func (m mockInventoryRepo) Cleanup(ctx context.Context, key string, config []domain.ProxyConfig) error {
+func (m mockInventoryRepo) Cleanup(ctx context.Context, key string, config []domain.ProxyConfig) ([]domain.SSEMessage, error) {
 	return m.cleanupFn(ctx, key, config)
 }
 

@@ -12,8 +12,9 @@ import (
 	"time"
 
 	"github.com/golang-jwt/jwt"
-	"github.com/harness/ff-proxy/v2/gen/admin"
 	log "github.com/sirupsen/logrus"
+
+	"github.com/harness/ff-proxy/v2/gen/admin"
 
 	"github.com/harness/ff-proxy/v2/domain"
 	"github.com/harness/ff-proxy/v2/gen/client"
@@ -236,7 +237,7 @@ func EditProxyKey(ctx context.Context, account string, identifier string, body a
 	}
 
 	if p.StatusCode() != http.StatusOK {
-		return fmt.Errorf("non 200 response code updating ProxyKey: %s", p.StatusCode())
+		return fmt.Errorf("non 200 response code updating ProxyKey: %d", p.StatusCode())
 	}
 
 	return nil
