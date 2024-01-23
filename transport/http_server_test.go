@@ -260,7 +260,7 @@ func setupHTTPServer(t *testing.T, bypassAuth bool, opts ...setupOpts) *HTTPServ
 		Health:             setupConfig.healthFn,
 		AuthFn:             tokenSource.GenerateToken,
 		ClientService:      setupConfig.clientService,
-		MetricService:      setupConfig.metricService,
+		MetricStore:        setupConfig.metricService,
 		Offline:            false,
 		Hasher:             hash.NewSha256(),
 		HealthySaasStream:  setupConfig.healthySaasStream,

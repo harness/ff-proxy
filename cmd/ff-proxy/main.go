@@ -74,7 +74,8 @@ var (
 	pprofEnabled       bool
 
 	// RedisStreams
-	metricsStreamMaxLen int64
+	metricsStreamMaxLen          int64
+	metricsStreamReadConcurrency int
 )
 
 // Environment Variables
@@ -109,7 +110,8 @@ const (
 	pprofEnabledEnv       = "PPROF"
 
 	// RedisStreams
-	metricsStreamMaxLenEnv = "METRICS_STREAM_MAX_LEN"
+	metricsStreamMaxLenEnv          = "METRICS_STREAM_MAX_LEN"
+	metricsStreamReadConcurrencyEnv = "METRIC_STREAM_READ_CONCURRENCY"
 )
 
 // Flags
@@ -144,7 +146,8 @@ const (
 	gcpProfilerEnabledFlag = "gcp-profiler-enabled"
 
 	// RedisStreams
-	metricsStreamMaxLenFlag = "METRICS_STREAM_MAX_LEN"
+	metricsStreamMaxLenFlag         = "metrics-stream-max-len"
+	metricStreamReadConcurrencyFlag = "metrics-stream-read-concurrency"
 )
 
 // nolint:gochecknoinits
@@ -180,36 +183,38 @@ func init() {
 
 	// RedisStreams
 	flag.Int64Var(&metricsStreamMaxLen, metricsStreamMaxLenFlag, 1000, "Sets the max length of the redis stream that replicas use to send metrics to the Primary")
+	flag.IntVar(&metricsStreamReadConcurrency, metricStreamReadConcurrencyFlag, 10, "Controls the number of threads running in the Primary that listen for metrics data being sent by replicas")
 
 	loadFlagsFromEnv(map[string]string{
-		bypassAuthEnv:            bypassAuthFlag,
-		logLevelEnv:              logLevelFlag,
-		offlineEnv:               offlineFlag,
-		clientServiceEnv:         clientServiceFlag,
-		metricServiceEnv:         metricServiceFlag,
-		authSecretEnv:            authSecretFlag,
-		redisAddrEnv:             redisAddressFlag,
-		redisPasswordEnv:         redisPasswordFlag,
-		redisDBEnv:               redisDBFlag,
-		metricPostDurationEnv:    metricPostDurationFlag,
-		heartbeatIntervalEnv:     heartbeatIntervalFlag,
-		pprofEnabledEnv:          pprofEnabledFlag,
-		generateOfflineConfigEnv: generateOfflineConfigFlag,
-		configDirEnv:             configDirFlag,
-		portEnv:                  portFlag,
-		tlsEnabledEnv:            tlsEnabledFlag,
-		tlsCertEnv:               tlsCertFlag,
-		tlsKeyEnv:                tlsKeyFlag,
-		gcpProfilerEnabledEnv:    gcpProfilerEnabledFlag,
-		proxyKeyEnv:              proxyKeyFlag,
-		readReplicaEnv:           readReplicaFlag,
-		metricsStreamMaxLenEnv:   metricsStreamMaxLenFlag,
+		bypassAuthEnv:                   bypassAuthFlag,
+		logLevelEnv:                     logLevelFlag,
+		offlineEnv:                      offlineFlag,
+		clientServiceEnv:                clientServiceFlag,
+		metricServiceEnv:                metricServiceFlag,
+		authSecretEnv:                   authSecretFlag,
+		redisAddrEnv:                    redisAddressFlag,
+		redisPasswordEnv:                redisPasswordFlag,
+		redisDBEnv:                      redisDBFlag,
+		metricPostDurationEnv:           metricPostDurationFlag,
+		heartbeatIntervalEnv:            heartbeatIntervalFlag,
+		pprofEnabledEnv:                 pprofEnabledFlag,
+		generateOfflineConfigEnv:        generateOfflineConfigFlag,
+		configDirEnv:                    configDirFlag,
+		portEnv:                         portFlag,
+		tlsEnabledEnv:                   tlsEnabledFlag,
+		tlsCertEnv:                      tlsCertFlag,
+		tlsKeyEnv:                       tlsKeyFlag,
+		gcpProfilerEnabledEnv:           gcpProfilerEnabledFlag,
+		proxyKeyEnv:                     proxyKeyFlag,
+		readReplicaEnv:                  readReplicaFlag,
+		metricsStreamMaxLenEnv:          metricsStreamMaxLenFlag,
+		metricsStreamReadConcurrencyEnv: metricStreamReadConcurrencyFlag,
 	})
 
 	flag.Parse()
 }
 
-//nolint:gocognit,cyclop,maintidx
+//nolint:gocognit,cyclop,maintidx,gocyclo
 func main() {
 
 	// Setup logger
@@ -447,7 +452,24 @@ func main() {
 		saasStream.Subscribe(ctx)
 	}
 
-	metricSvc := createMetricsService(ctx, logger, conf, promReg, readReplica, redisClient)
+	metricsEnabled := metricPostDuration != 0 && !offline
+	metricStore := newMetricStore(ctx, logger, readReplica, redisClient, promReg, metricsStreamMaxLen, metricPostDuration)
+
+	ms, err := metricsservice.NewClient(logger, metricService, conf.Token, promReg)
+	if err != nil {
+		logger.Error("failed to create client for the feature flags metric service", "err", err)
+		os.Exit(1)
+	}
+
+	// If we're running as the primary start the worker that consumes metrics
+	// sent by read replicas and sends them on to Saas. Only bother to start
+	// worker if sending metrics is actually enabled.
+	if !readReplica && metricsEnabled {
+		metricsStreamConsumer := stream.NewPrometheusStream("ff_proxy_primary_metrics_stream_consumer", stream.NewRedisStream(redisClient), promReg)
+		store, _ := metricStore.(metricsservice.Queue)
+		worker := metricsservice.NewWorker(logger, store, ms, metricsStreamConsumer, metricsStreamReadConcurrency, conf.ClusterIdentifier())
+		worker.Start(ctx)
+	}
 
 	apiKeyHasher := hash.NewSha256()
 	tokenSource := token.NewSource(logger, authRepo, apiKeyHasher, []byte(authSecret))
@@ -463,7 +485,7 @@ func main() {
 		AuthRepo:      authRepo,
 		AuthFn:        tokenSource.GenerateToken,
 		ClientService: clientSvc,
-		MetricService: metricSvc,
+		MetricStore:   metricStore,
 		Offline:       offline,
 		Hasher:        apiKeyHasher,
 		Health:        proxyHealth.Health,
@@ -511,36 +533,6 @@ func main() {
 	}
 }
 
-// createMetricsService is a helper that creates the Client implementation we need depending on the mode the
-// Proxy is running in. If the proxy is running in readReplica mode then we want to return a Client implementation
-// that pushes metrics onto a redis stream. If we're not running in readReplica mode then we want to return the normal
-// client that forwards requests on to Harness SaaS
-func createMetricsService(ctx context.Context, logger log.Logger, conf config.Config, promReg *prometheus.Registry, readReplica bool, redisClient redis.UniversalClient) proxyservice.MetricService {
-	metricsStreamConsumer := stream.NewPrometheusStream("ff_proxy_primary_metrics_stream_consumer", stream.NewRedisStream(redisClient), promReg)
-	if readReplica {
-		return metricsservice.NewStream(
-			stream.NewPrometheusStream(
-				"ff_proxy_replica_metrics_stream_producer",
-				stream.NewRedisStream(
-					redisClient,
-					stream.WithMaxLen(metricsStreamMaxLen),
-				),
-				promReg,
-			),
-		)
-	}
-
-	metricsEnabled := metricPostDuration != 0 && !offline
-	ms, err := metricsservice.NewClient(logger, metricService, conf.Token, metricsEnabled, promReg, metricsStreamConsumer)
-	if err != nil {
-		logger.Error("failed to create client for the feature flags metric service", "err", err)
-		os.Exit(1)
-	}
-	// Kick off the job that periodically posts metrics to Harness SaaS
-	ms.PostMetrics(ctx, offline, metricPostDuration)
-	return ms
-}
-
 // checks the health of the connected cache instance
 func cacheHealthCheck(ctx context.Context) error {
 	return sdkCache.HealthCheck(ctx)
@@ -578,4 +570,24 @@ func validateFlags(flags map[string]interface{}) {
 	if len(unset) > 0 {
 		stdlog.Fatalf("The following configuration values are required: %v ", unset)
 	}
+}
+
+// newMetricStore creates a MetricStore. If we are running as a read replica it returns a MetricStore that pushes
+// metrics to a redis stream. If we are running as a primary it returns a MetricStore that pushed metrics to an
+// in memory queue.
+func newMetricStore(ctx context.Context, logger log.Logger, readReplica bool, redisClient redis.UniversalClient, promReg *prometheus.Registry, maxLen int64, metricPostDuration int) proxyservice.MetricStore {
+	if readReplica {
+		return metricsservice.NewStream(
+			stream.NewPrometheusStream(
+				"ff_proxy_replica_metrics_stream_producer",
+				stream.NewRedisStream(
+					redisClient,
+					stream.WithMaxLen(maxLen),
+				),
+				promReg,
+			),
+		)
+	}
+
+	return metricsservice.NewQueue(ctx, logger, time.Duration(metricPostDuration)*time.Second)
 }
