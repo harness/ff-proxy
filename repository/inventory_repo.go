@@ -185,8 +185,9 @@ func (i InventoryRepo) BuildNotifications(assets domain.Assets) []domain.SSEMess
 	var events []domain.SSEMessage
 	events = append(events, getDeleteEvents(assets.Deleted)...)
 	events = append(events, getCreateEvents(assets.Created)...)
-	// TODO: Patch currently all current flags without working of it they were patched.
-	//events = append(events, getPatchEvents(assets.Patched)...)
+	// TODO: this currently sends patch notification for all flags
+	// regardless weather they have changed or not
+	events = append(events, getPatchEvents(assets.Patched)...)
 	return events
 }
 
