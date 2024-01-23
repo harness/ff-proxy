@@ -85,10 +85,11 @@ func (q Queue) StoreMetrics(ctx context.Context, m domain.MetricsRequest) error 
 		return err
 	}
 
-	// We flushed because the max size was reached so reset the ticker
-	// so that we wait for the full duration again.
+	// Flush all the existing metrics because the max size has been reached,
+	// reset the ticker and add the new metric to the map
 	q.ticker.Reset(q.tickerDuration)
 	q.metrics.flush()
+	q.metrics.add(m)
 	return nil
 }
 
