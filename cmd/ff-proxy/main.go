@@ -388,7 +388,7 @@ func main() {
 	inventoryRepo := repository.NewInventoryRepo(sdkCache)
 
 	// Create config that we'll use to populate our repos
-	conf, err := config.NewConfig(offline, configDir, proxyKey, clientSvc, readReplicaSSEStream) ///ASZ here?
+	conf, err := config.NewConfig(offline, configDir, proxyKey, clientSvc, readReplicaSSEStream)
 	if err != nil {
 		logger.Error("failed to load config", "err", err)
 		os.Exit(1)
@@ -400,7 +400,7 @@ func main() {
 
 	// If we're running as a Primary we'll need to fetch the config and populate the cache
 	if !readReplica {
-		if err := conf.FetchAndPopulate(ctx, inventoryRepo, authRepo, flagRepo, segmentRepo); err != nil { // ASZ
+		if err := conf.FetchAndPopulate(ctx, inventoryRepo, authRepo, flagRepo, segmentRepo); err != nil {
 			logger.Error("failed to populate repos with config", "err", err)
 			os.Exit(1)
 		}
@@ -427,7 +427,7 @@ func main() {
 		// 4. Forward events from the Saas SSE stream on to connected SDKs
 		cacheRefresher := cache.NewRefresher(logger, conf, clientSvc, inventoryRepo, authRepo, flagRepo, segmentRepo)
 		redisForwarder := stream.NewForwarder(logger, redisStream, cacheRefresher, stream.WithStreamName(sseStreamTopic))
-		messageHandler = stream.NewForwarder(logger, pushpinStream, redisForwarder) //ASZ here
+		messageHandler = stream.NewForwarder(logger, pushpinStream, redisForwarder)
 
 		streamURL := fmt.Sprintf("%s/stream?cluster=%s", clientService, conf.ClusterIdentifier())
 		sseClient := stream.NewSSEClient(logger, streamURL, proxyKey, conf.Token())
