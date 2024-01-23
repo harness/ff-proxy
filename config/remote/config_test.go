@@ -152,23 +152,6 @@ func (m *mockMsgHandler) HandleMessage(ctx context.Context, msg domain.SSEMessag
 	return nil
 }
 
-type disconnectHandler struct {
-	called chan struct{}
-}
-
-func (d *disconnectHandler) foo() func() {
-	return func() {
-		d.called <- struct{}{}
-	}
-}
-
-//asz
-
-type mockSterams struct {
-}
-
-//
-
 type mockSegmentRepo struct {
 	config                            []domain.SegmentConfig
 	add                               func(ctx context.Context, config ...domain.SegmentConfig) error
@@ -341,7 +324,6 @@ func TestConfig_Populate(t *testing.T) {
 		segmentRepo    *mockSegmentRepo
 		subscriber     *mockSubscriber
 		messageHandler *mockMsgHandler
-		onDisconnecter *disconnectHandler
 	}
 
 	type expected struct {
