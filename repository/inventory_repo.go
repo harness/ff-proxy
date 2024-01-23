@@ -25,6 +25,11 @@ const (
 	featureVariant = "feature-config-"
 )
 
+var (
+	featureConfigRegEx = regexp.MustCompile(`env-([a-zA-Z0-9-]+)-feature-config-([a-zA-Z0-9-]+)`)
+	segmentConfigRegEx = regexp.MustCompile(`env-([a-zA-Z0-9-]+)-segment-([a-zA-Z0-9-]+)`)
+)
+
 // NewInventoryRepo creates new instance of inventory
 func NewInventoryRepo(c cache.Cache, l log.Logger) InventoryRepo {
 	l = l.With("component", "InventoryRepo")
@@ -271,8 +276,7 @@ func (i InventoryRepo) parseSegmentEntry(segmentString, variant string) domain.S
 }
 
 func parseFlagString(flagString string) (string, string, error) {
-	re := regexp.MustCompile(`env-([a-zA-Z0-9-]+)-feature-config-([a-zA-Z0-9-]+)`)
-	match := re.FindStringSubmatch(flagString)
+	match := featureConfigRegEx.FindStringSubmatch(flagString)
 	if len(match) == 3 {
 		return match[1], match[2], nil
 	}
@@ -280,8 +284,7 @@ func parseFlagString(flagString string) (string, string, error) {
 }
 
 func parseSegmentString(segmentString string) (string, string, error) {
-	re := regexp.MustCompile(`env-([a-zA-Z0-9-]+)-segment-([a-zA-Z0-9-]+)`)
-	match := re.FindStringSubmatch(segmentString)
+	match := segmentConfigRegEx.FindStringSubmatch(segmentString)
 	if len(match) == 3 {
 		return match[1], match[2], nil
 	}
