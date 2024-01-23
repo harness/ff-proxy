@@ -78,9 +78,7 @@ func (i InventoryRepo) Cleanup(ctx context.Context, key string, config []domain.
 	//work out differences.
 	assets := diffAssets(oldAssets, newAssets)
 	notifications := i.BuildNotifications(assets)
-	if len(notifications) > 0 {
-		// whe have notifications to send.
-	}
+
 	// work out assets to delete
 	for k := range oldAssets {
 		// if the key exists in the new assets we don't want to delete it.
