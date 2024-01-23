@@ -14,10 +14,11 @@ import (
 
 // InventoryRepo is a repository that stores all references to all assets for the key.
 type InventoryRepo struct {
+	logger
 	cache cache.Cache
 }
 
-var (
+const (
 	patchVariant   = "patch"
 	deleteVariant  = "delete"
 	createVariant  = "create"
