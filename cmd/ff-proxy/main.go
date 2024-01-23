@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/signal"
 	"runtime"
+	"strconv"
 	"strings"
 	"time"
 
@@ -469,15 +470,26 @@ func main() {
 		//store, _ := metricStore.(metricsservice.Queue)
 		//worker := metricsservice.NewWorker(logger, store, ms, metricsStreamConsumer, metricsStreamReadConcurrency, conf.ClusterIdentifier())
 		//worker.Start(ctx)
+		counter := prometheus.NewCounterVec(prometheus.CounterOpts{
+			Name: "primary_redis_read_and_discard_metrics",
+		}, []string{"worker-number"})
 
-		go func() {
-			err := metricsStreamConsumer.Sub(ctx, metricsservice.SDKMetricsStream, "0", func(id string, v interface{}) error {
-				return nil
-			})
-			if err != nil {
-				logger.Error("failed to sub to stream", "err", err)
-			}
-		}()
+		promReg.MustRegister(counter)
+
+		for i := 0; i < metricsStreamReadConcurrency; i++ {
+
+			go func(n string) {
+
+				err := metricsStreamConsumer.Sub(ctx, metricsservice.SDKMetricsStream, "0", func(id string, v interface{}) error {
+					counter.WithLabelValues(n).Inc()
+					return nil
+				})
+				if err != nil {
+					logger.Error("failed to sub to stream", "err", err)
+				}
+			}(strconv.Itoa(i))
+		}
+
 	}
 
 	apiKeyHasher := hash.NewSha256()
