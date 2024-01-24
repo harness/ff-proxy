@@ -5,6 +5,7 @@ import (
 	"errors"
 	"regexp"
 	"strings"
+	"sync"
 
 	"github.com/harness/ff-proxy/v2/cache"
 	"github.com/harness/ff-proxy/v2/domain"
@@ -93,13 +94,37 @@ func (i InventoryRepo) Cleanup(ctx context.Context, key string, config []domain.
 			delete(oldAssets, k)
 		}
 	}
+
+	var wg sync.WaitGroup
+	semaphore := make(chan struct{}, 1000)
+	errChan := make(chan error)
+
 	// what's left of old values. we want to delete.
 	for key := range oldAssets {
-		err := i.cache.Delete(ctx, key)
-		if err != nil {
-			return []domain.SSEMessage{}, err
+		wg.Add(1)
+		go func() {
+			defer func() {
+				wg.Done()
+				<-semaphore
+			}()
+			semaphore <- struct{}{}
+			errChan <- i.cache.Delete(ctx, key)
+
+		}()
+	}
+
+	go func() {
+		wg.Wait()
+		close(semaphore)
+		close(errChan)
+	}()
+
+	for e := range errChan {
+		if e != nil {
+			return []domain.SSEMessage{}, e
 		}
 	}
+
 	// set new inventory.
 	err = i.Add(ctx, key, newAssets)
 	if err != nil {
