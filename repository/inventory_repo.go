@@ -102,15 +102,14 @@ func (i InventoryRepo) Cleanup(ctx context.Context, key string, config []domain.
 	// what's left of old values. we want to delete.
 	for key := range oldAssets {
 		wg.Add(1)
-		go func() {
+		go func(k string) {
 			defer func() {
 				wg.Done()
 				<-semaphore
 			}()
 			semaphore <- struct{}{}
-			errChan <- i.cache.Delete(ctx, key)
-
-		}()
+			errChan <- i.cache.Delete(ctx, k)
+		}(key)
 	}
 
 	go func() {
