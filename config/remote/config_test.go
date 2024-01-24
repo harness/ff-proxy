@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io/ioutil"
+	"os"
 	"runtime"
 	"testing"
 	"time"
@@ -708,6 +709,95 @@ func Benchmark_ConfigPopulate1000Env30Flags(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		if err := c.Populate(context.Background(), authRepo, flagRepo, segmentRepo); err != nil {
 			b.Fatal(err)
+		}
+	}
+}
+
+func Benchmark_ConfigCleanup100Env30Flags(b *testing.B) {
+	proxyConfig := domain.ProxyConfig{}
+	rawProxyConfig := getfile("./test-data/testFile_100_envs_30_flags.json")
+	if err := json.Unmarshal(rawProxyConfig, &proxyConfig); err != nil {
+		b.Fatalf("failed to unmarshal proxy config: %s", err)
+	}
+	rc := redis.NewClient(&redis.Options{
+		Addr: "localhost:6379",
+	})
+	r := cache.NewKeyValCache(rc)
+	_ = r
+	authRepo := repository.NewAuthRepo(r)
+	flagRepo := repository.NewFeatureFlagRepo(r)
+	segmentRepo := repository.NewSegmentRepo(r)
+
+	l, err := log.NewStructuredLogger("INFO")
+	if err != nil {
+		fmt.Println("we have no logger")
+		os.Exit(1)
+	}
+	inventoryRepo := repository.NewInventoryRepo(r, l)
+	c := Config{
+		proxyConfig: []domain.ProxyConfig{proxyConfig},
+	}
+
+	newAssets, _ := inventoryRepo.BuildAssetListFromConfig(c.proxyConfig)
+	inventoryRepo.Add(context.Background(), "test", newAssets)
+
+	// Limit to 1 CPU core
+	runtime.GOMAXPROCS(1)
+	for i := 0; i < b.N; i++ {
+		b.StopTimer()
+		inventoryRepo.Add(context.Background(), "test", newAssets)
+		if err = c.Populate(context.Background(), authRepo, flagRepo, segmentRepo); err != nil {
+			b.Fatal(err)
+		}
+		b.StartTimer()
+		_, err = inventoryRepo.Cleanup(context.Background(), "test", []domain.ProxyConfig{})
+		if err != nil {
+			return
+		}
+	}
+}
+
+func Benchmark_ConfigCleanup1000Env30Flags(b *testing.B) {
+
+	proxyConfigs := make([]domain.ProxyConfig, 0, 1000)
+	rawProxyConfig := getfile("./test-data/testFile_1000_envs_30_flags.json")
+	if err := json.Unmarshal(rawProxyConfig, &proxyConfigs); err != nil {
+		b.Fatalf("failed to unmarshal proxy config: %s", err)
+	}
+	rc := redis.NewClient(&redis.Options{
+		Addr: "localhost:6379",
+	})
+	r := cache.NewKeyValCache(rc)
+	_ = r
+	authRepo := repository.NewAuthRepo(r)
+	flagRepo := repository.NewFeatureFlagRepo(r)
+	segmentRepo := repository.NewSegmentRepo(r)
+
+	l, err := log.NewStructuredLogger("INFO")
+	if err != nil {
+		fmt.Println("we have no logger")
+		os.Exit(1)
+	}
+	inventoryRepo := repository.NewInventoryRepo(r, l)
+	c := Config{
+		proxyConfig: proxyConfigs,
+	}
+
+	newAssets, _ := inventoryRepo.BuildAssetListFromConfig(c.proxyConfig)
+	inventoryRepo.Add(context.Background(), "test", newAssets)
+
+	// Limit to 1 CPU core
+	runtime.GOMAXPROCS(1)
+	for i := 0; i < b.N; i++ {
+		b.StopTimer()
+		inventoryRepo.Add(context.Background(), "test", newAssets)
+		if err = c.Populate(context.Background(), authRepo, flagRepo, segmentRepo); err != nil {
+			b.Fatal(err)
+		}
+		b.StartTimer()
+		_, err = inventoryRepo.Cleanup(context.Background(), "test", []domain.ProxyConfig{})
+		if err != nil {
+			return
 		}
 	}
 }
