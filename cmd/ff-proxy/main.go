@@ -391,7 +391,7 @@ func main() {
 	conf, err := config.NewConfig(offline, configDir, proxyKey, clientSvc, readReplicaSSEStream)
 	if err != nil {
 		logger.Error("failed to load config", "err", err)
-		os.Exit(1)
+
 	}
 
 	reloadConfig := func() error {
@@ -399,10 +399,13 @@ func main() {
 	}
 
 	// If we're running as a Primary we'll need to fetch the config and populate the cache
+	var configStatus domain.ConfigStatus
 	if !readReplica {
 		if err := conf.FetchAndPopulate(ctx, inventoryRepo, authRepo, flagRepo, segmentRepo); err != nil {
 			logger.Error("failed to populate repos with config", "err", err)
-			os.Exit(1)
+			configStatus = domain.NewConfigStatus(domain.ConfigStateFailedToSync)
+		} else {
+			configStatus = domain.NewConfigStatus(domain.ConfigStateSynced)
 		}
 	}
 
@@ -473,8 +476,7 @@ func main() {
 
 	apiKeyHasher := hash.NewSha256()
 	tokenSource := token.NewSource(logger, authRepo, apiKeyHasher, []byte(authSecret))
-
-	proxyHealth := health.NewProxyHealth(logger, saasStreamHealth.StreamStatus, cacheHealthCheck)
+	proxyHealth := health.NewProxyHealth(logger, configStatus, saasStreamHealth.StreamStatus, cacheHealthCheck)
 
 	// Setup service and middleware
 	service := proxyservice.NewService(proxyservice.Config{

@@ -10,8 +10,13 @@ import (
 
 // StreamState is the connection state for a stream
 type StreamState string
+type ConfigState string
 
 const (
+	// ConfigStateSynced is the status for when proxy has synced successfully
+	ConfigStateSynced ConfigState = "SYNCED"
+	// ConfigStateFailedToSync is the status for when proxy has failed to perform sync. Indicative of misconfigured key
+	ConfigStateFailedToSync ConfigState = "FAILED_TO_SYNC"
 	// StreamStateConnected is the status for when a stream is connected
 	StreamStateConnected StreamState = "CONNECTED"
 	// StreamStateDisconnected is the status for when a stream is disconnected
@@ -58,6 +63,20 @@ type StreamStatus struct {
 func NewStreamStatus() StreamStatus {
 	return StreamStatus{
 		State: StreamStateInitializing,
+		Since: time.Now().UnixMilli(),
+	}
+}
+
+// ConfigStatus contains a config state
+type ConfigStatus struct {
+	State ConfigState `json:"state"`
+	Since int64       `json:"since"`
+}
+
+// NewConfigStatus creates a ConfigStatus for proxy
+func NewConfigStatus(status ConfigState) ConfigStatus {
+	return ConfigStatus{
+		State: status,
 		Since: time.Now().UnixMilli(),
 	}
 }

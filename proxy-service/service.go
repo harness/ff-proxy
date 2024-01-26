@@ -391,7 +391,11 @@ func (s Service) Metrics(ctx context.Context, req domain.MetricsRequest) error {
 func (s Service) Health(ctx context.Context) (domain.HealthResponse, error) {
 	s.logger.Debug(ctx, "got health request")
 
-	return s.health(ctx), nil
+	healthResp := s.health(ctx)
+	if healthResp.ConfigStatus.State == domain.ConfigStateFailedToSync {
+		return healthResp, ErrInternal
+	}
+	return healthResp, nil
 }
 
 func toString(variation rest.Variation, kind string) string {

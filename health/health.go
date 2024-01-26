@@ -7,9 +7,10 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/hashicorp/go-multierror"
+
 	"github.com/harness/ff-proxy/v2/domain"
 	"github.com/harness/ff-proxy/v2/log"
-	"github.com/hashicorp/go-multierror"
 )
 
 // Heartbeat kicks off a goroutine that polls the /health endpoint at intervals
@@ -82,14 +83,16 @@ func StreamHealthCheck() error {
 // ProxyHealth ...
 type ProxyHealth struct {
 	logger       log.Logger
+	configHealth domain.ConfigStatus
 	streamHealth func(context.Context) (domain.StreamStatus, error)
 	cacheHealth  func(context.Context) error
 }
 
 // NewProxyHealth creates a ProxyHealth
-func NewProxyHealth(l log.Logger, stream func(ctx context.Context) (domain.StreamStatus, error), cache func(ctx context.Context) error) ProxyHealth {
+func NewProxyHealth(l log.Logger, config domain.ConfigStatus, stream func(ctx context.Context) (domain.StreamStatus, error), cache func(ctx context.Context) error) ProxyHealth {
 	return ProxyHealth{
 		logger:       l,
+		configHealth: config,
 		streamHealth: stream,
 		cacheHealth:  cache,
 	}
@@ -111,7 +114,12 @@ func (p ProxyHealth) Health(ctx context.Context) domain.HealthResponse {
 		p.logger.Error("failed to get stream health", "err", err)
 	}
 
+	if err != nil {
+		p.logger.Error("failed to get proxy health", "err", err)
+	}
+
 	return domain.HealthResponse{
+		ConfigStatus: p.configHealth,
 		StreamStatus: streamStatus,
 		CacheStatus:  boolToHealthString(cacheHealthy),
 	}

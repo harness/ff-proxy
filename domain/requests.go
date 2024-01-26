@@ -1,8 +1,9 @@
 package domain
 
 import (
-	clientgen "github.com/harness/ff-proxy/v2/gen/client"
 	jsoniter "github.com/json-iterator/go"
+
+	clientgen "github.com/harness/ff-proxy/v2/gen/client"
 )
 
 // AuthRequest contains the fields sent in an authentication request
@@ -76,6 +77,7 @@ func (m *MetricsRequest) MarshalBinary() (data []byte, err error) {
 
 // HealthResponse contains the fields returned in a healthcheck response
 type HealthResponse struct {
+	ConfigStatus ConfigStatus `json:"configStatus"`
 	StreamStatus StreamStatus `json:"streamStatus"`
 	CacheStatus  string       `json:"cacheStatus"`
 }
