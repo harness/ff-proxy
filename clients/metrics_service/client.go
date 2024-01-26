@@ -88,6 +88,8 @@ func (c Client) PostMetrics(ctx context.Context, envID string, metric domain.Met
 			errLabel = "true"
 		}
 		c.metricsForwarded.WithLabelValues(envID, errLabel).Inc()
+
+		c.trackSDKUsage(metric)
 	}()
 
 	ctx = context.WithValue(ctx, tokenKey, c.token())
