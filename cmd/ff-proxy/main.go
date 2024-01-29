@@ -418,6 +418,7 @@ func main() {
 	//   - The replica subscribes to this stream and when it gets a stream disconnect message
 	//     it closes any open streams with SDKs to force them to poll for changes
 	if readReplica {
+		configStatus = domain.NewConfigStatus(domain.ConfigStateReadReplica)
 		primaryToReplicaControlStream.Subscribe(ctx)
 		readReplicaSSEStream.Subscribe(ctx)
 	} else {
