@@ -17,6 +17,8 @@ const (
 	ConfigStateSynced ConfigState = "SYNCED"
 	// ConfigStateFailedToSync is the status for when proxy has failed to perform sync. Indicative of misconfigured key
 	ConfigStateFailedToSync ConfigState = "FAILED_TO_SYNC"
+	// ConfigStateReadReplica is the status for read replica
+	ConfigStateReadReplica ConfigState = "READ_REPLICA"
 	// StreamStateConnected is the status for when a stream is connected
 	StreamStateConnected StreamState = "CONNECTED"
 	// StreamStateDisconnected is the status for when a stream is disconnected
