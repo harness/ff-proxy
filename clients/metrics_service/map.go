@@ -35,7 +35,11 @@ func (m *metricsMap) add(r domain.MetricsRequest) {
 		return
 	}
 
+	incrSize := false
+
 	if r.MetricsData != nil {
+		incrSize = true
+
 		if currentMetrics.MetricsData == nil {
 			currentMetrics.MetricsData = &[]clientgen.MetricsData{}
 		}
@@ -44,12 +48,20 @@ func (m *metricsMap) add(r domain.MetricsRequest) {
 	}
 
 	if r.TargetData != nil {
+		incrSize = true
+
 		if currentMetrics.TargetData == nil {
 			currentMetrics.TargetData = &[]clientgen.TargetData{}
 		}
 
 		newTargets := append(*currentMetrics.TargetData, *r.TargetData...)
 		currentMetrics.TargetData = &newTargets
+	}
+
+	// As well as aggregating the metrics & target data we need to
+	// 'merge' the size of the current aggregated object and the new one
+	if incrSize {
+		currentMetrics.Size += r.Size
 	}
 
 	m.metrics[r.EnvironmentID] = currentMetrics
