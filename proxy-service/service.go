@@ -381,7 +381,7 @@ func (s Service) Stream(ctx context.Context, req domain.StreamRequest) (domain.S
 }
 
 // Metrics forwards metrics to the analytics service
-func (s Service) Metrics(ctx context.Context, req domain.MetricsRequest) error {
+func (s Service) Metrics(_ context.Context, _ domain.MetricsRequest) error {
 	return nil
 
 	//s.logger.Debug(ctx, "got metrics request", "metrics", fmt.Sprintf("%+v", req))
