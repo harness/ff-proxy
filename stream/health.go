@@ -131,6 +131,8 @@ func (h Health) VerifyStreamStatus(ctx context.Context, interval time.Duration) 
 				h.log.Error("failed to get stream status from cache", "err", err)
 			}
 
+			h.log.Info("verifying stream status", "in_mem_status_state", inMemStatus.State, "in_mem_status_since", inMemStatus.Since, "cached_status_state", cachedStatus.State, "cached_status_since", cachedStatus.Since)
+
 			// The inMemState should always be accurate, if there's a difference between it and the
 			// cachedState then it's possible there was a network error when we tried to update the
 			// cachedState in SetHealthy or SetUnhealthy and we should try to update the cachedState again
