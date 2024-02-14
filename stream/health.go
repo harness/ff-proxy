@@ -55,6 +55,7 @@ func (h Health) SetHealthy(ctx context.Context) error {
 	var streamStatus domain.StreamStatus
 
 	defer func() {
+		h.log.Info("SetHealthy - Updating streamStatus", "streamStatus.State", streamStatus.State, "streamStatus.Since", streamStatus.Since)
 		h.inMemStatus.Set(streamStatus)
 	}()
 
@@ -151,6 +152,9 @@ func (h Health) StreamStatus(ctx context.Context) (domain.StreamStatus, error) {
 	if err := h.c.Get(ctx, h.key, &s); err != nil {
 		return domain.StreamStatus{}, err
 	}
+
+	inMemStatus := h.inMemStatus.Get()
+	h.log.Info("StreamStatus for health endpoint", "cachedStatus.Since", s.Since, "cachedStatus.State", s.State, "inMemStatus.State", inMemStatus.State, "inMemStatus.Since", inMemStatus.Since)
 
 	return s, nil
 }
