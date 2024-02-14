@@ -10,6 +10,12 @@ import (
 
 // StreamState is the connection state for a stream
 type StreamState string
+
+// String makes StreamState implement the Stringer interface
+func (s StreamState) String() string {
+	return string(s)
+}
+
 type ConfigState string
 
 const (

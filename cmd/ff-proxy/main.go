@@ -329,7 +329,7 @@ func main() {
 				"control_uri": "http://localhost:5561",
 			},
 		})
-		saasStreamHealth = stream.NewHealth("ffproxy_saas_stream_health", sdkCache)
+		saasStreamHealth = stream.NewHealth("ffproxy_saas_stream_health", sdkCache, logger)
 		connectedStreams = domain.NewSafeMap()
 
 		getConnectedStreams = func() map[string]interface{} {
@@ -339,6 +339,9 @@ func main() {
 		pushpinStream domain.Stream = stream.NewPushpin(gpc)
 		redisStream   domain.Stream = stream.NewRedisStream(redisClient)
 	)
+
+	// Kick of routine that makes sure the cachedStreamStatus is up to date with the inMemoryStreamStatus
+	go saasStreamHealth.VerifyStreamStatus(ctx, 60*time.Second)
 
 	// Get the underlying type from the pushpinStream which is currently the
 	// Stream interface. We can now pass the underlying Pushpin type that has
