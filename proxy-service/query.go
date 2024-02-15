@@ -38,6 +38,7 @@ func (q QueryStore) GetFlagMap() (map[string]*rest.FeatureConfig, error) {
 }
 
 // GenerateQueryStore returns a QueryStore object which can be passed to the go sdk evaluator
+// nolint:cyclop
 func (s Service) GenerateQueryStore(ctx context.Context, environmentID string) QueryStore {
 	return QueryStore{
 		F: func(identifier string) (rest.FeatureConfig, error) {
