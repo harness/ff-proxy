@@ -341,7 +341,9 @@ func main() {
 	)
 
 	// Kick of routine that makes sure the cachedStreamStatus is up to date with the inMemoryStreamStatus
-	go saasStreamHealth.VerifyStreamStatus(ctx, 60*time.Second)
+	if !readReplica {
+		go saasStreamHealth.VerifyStreamStatus(ctx, 60*time.Second)
+	}
 
 	// Get the underlying type from the pushpinStream which is currently the
 	// Stream interface. We can now pass the underlying Pushpin type that has

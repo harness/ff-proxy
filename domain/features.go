@@ -86,20 +86,23 @@ func toSDKRules(rules *[]clientgen.ServingRule) []rest.ServingRule {
 	for i := 0; i < len(*rules); i++ {
 		r := rulesCopy[i]
 
+		var distribution *rest.Distribution
+		if r.Serve.Distribution != nil {
+			distribution = &rest.Distribution{
+				BucketBy:   r.Serve.Distribution.BucketBy,
+				Variations: toSDKWeightedVariations(r.Serve.Distribution.Variations),
+			}
+		}
+
 		clauses := toSDKClause(&r.Clauses)
-		distribution := SafePtrDereference(r.Serve.Distribution)
-		weightedVariations := toSDKWeightedVariations(distribution.Variations)
 
 		result = append(result, rest.ServingRule{
 			Clauses:  clauses,
 			Priority: r.Priority,
 			RuleId:   SafePtrDereference(r.RuleId),
 			Serve: rest.Serve{
-				Distribution: &rest.Distribution{
-					BucketBy:   distribution.BucketBy,
-					Variations: weightedVariations,
-				},
-				Variation: r.Serve.Variation,
+				Distribution: distribution,
+				Variation:    r.Serve.Variation,
 			},
 		})
 	}
