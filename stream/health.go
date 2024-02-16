@@ -44,6 +44,7 @@ func NewHealth(k string, c cache.Cache, l log.Logger) Health {
 	// It's fine for us to ignore this error, if we fail to set the status
 	// to initialising we'll end up setting it as Connected or Disconnected
 	// in our OnConnect/OnDisconnect handlers when we attempt to stream
+	h.log.Info("setting stream status in cache", "state", defaultStreamStatus.State, "since", defaultStreamStatus.Since)
 	_ = h.c.Set(ctx, h.key, defaultStreamStatus)
 
 	return h
@@ -51,10 +52,16 @@ func NewHealth(k string, c cache.Cache, l log.Logger) Health {
 
 // SetHealthy sets the stream status as CONNECTED in the cache.
 // If the stream status is already CONNECTED it does nothing.
-func (h Health) SetHealthy(ctx context.Context) error {
+func (h Health) SetHealthy(ctx context.Context) (err error) {
 	var streamStatus domain.StreamStatus
 
 	defer func() {
+		// If we got an error that means we got an InternalError from redis
+		// and shouldn't modify the inMemStatus
+		if err != nil {
+			return
+		}
+
 		h.log.Info("SetHealthy - Updating streamStatus", "streamStatus.State", streamStatus.State, "streamStatus.Since", streamStatus.Since)
 		h.inMemStatus.Set(streamStatus)
 	}()
@@ -75,15 +82,22 @@ func (h Health) SetHealthy(ctx context.Context) error {
 	streamStatus.State = domain.StreamStateConnected
 	streamStatus.Since = time.Now().UnixMilli()
 
+	h.log.Info("setting stream status in cache", "state", streamStatus.State, "since", streamStatus.Since)
 	return h.c.Set(ctx, h.key, streamStatus)
 }
 
 // SetUnhealthy sets the stream status as DISCONNECTED in the cache.
 // If the stream status is already DISCONNECTED it does nothing.
-func (h Health) SetUnhealthy(ctx context.Context) error {
+func (h Health) SetUnhealthy(ctx context.Context) (err error) {
 	var streamStatus domain.StreamStatus
 
 	defer func() {
+		// If we got an error that means we got an InternalError from redis
+		// and shouldn't modify the inMemStatus
+		if err != nil {
+			return
+		}
+
 		h.inMemStatus.Set(streamStatus)
 	}()
 
@@ -104,6 +118,7 @@ func (h Health) SetUnhealthy(ctx context.Context) error {
 	streamStatus.State = domain.StreamStateDisconnected
 	streamStatus.Since = time.Now().UnixMilli()
 
+	h.log.Info("setting stream status in cache", "state", streamStatus.State, "since", streamStatus.Since)
 	return h.c.Set(ctx, h.key, streamStatus)
 }
 
@@ -138,6 +153,7 @@ func (h Health) VerifyStreamStatus(ctx context.Context, interval time.Duration) 
 			// cachedState then it's possible there was a network error when we tried to update the
 			// cachedState in SetHealthy or SetUnhealthy and we should try to update the cachedState again
 			if cachedStatus.State != inMemStatus.State {
+				h.log.Info("setting stream status in cache", "state", inMemStatus.State, "since", inMemStatus.Since)
 				if err := h.c.Set(ctx, h.key, inMemStatus); err != nil {
 					h.log.Error("failed to update cached stream state to match in memory stream state", "err", err)
 				}
@@ -150,6 +166,7 @@ func (h Health) VerifyStreamStatus(ctx context.Context, interval time.Duration) 
 func (h Health) StreamStatus(ctx context.Context) (domain.StreamStatus, error) {
 	var s domain.StreamStatus
 	if err := h.c.Get(ctx, h.key, &s); err != nil {
+		h.log.Error("failed to get stream status from cache", "err", err)
 		return domain.StreamStatus{}, err
 	}
 
