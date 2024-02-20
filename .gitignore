@@ -12,7 +12,7 @@ api/openapi/v1.pb
 __debug_bin
 cf.session.sql
 
-ff-proxy
+./ff-proxy
 .*
 !.*.env
 ff-example-sdk
