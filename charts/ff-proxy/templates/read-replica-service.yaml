@@ -1,0 +1,18 @@
+{{- if .Values.readReplica.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "ff-proxy.readReplica.name" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "ff-proxy.labels" . | nindent 4 }}
+spec:
+  type: {{ .Values.readReplica.service.type }}
+  ports:
+    - port: {{ .Values.readReplica.service.port }}
+      targetPort: sdk
+      protocol: TCP
+      name: sdk
+  selector:
+    {{- include "ff-proxy.readReplica.SelectorLabels" . | nindent 4 }}
+{{- end }}

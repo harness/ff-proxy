@@ -1,0 +1,33 @@
+{{- if .Values.readReplica.autoscaling.enabled }}
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: {{ include "ff-proxy.readReplica.name" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "ff-proxy.labels" . | nindent 4 }}
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: {{ include "ff-proxy.readReplica.name" . }}
+  minReplicas: {{ .Values.readReplica.autoscaling.minReplicas }}
+  maxReplicas: {{ .Values.readReplica.autoscaling.maxReplicas }}
+  metrics:
+    {{- if .Values.readReplica.autoscaling.targetCPUUtilizationPercentage }}
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: {{ .Values.readReplica.autoscaling.targetCPUUtilizationPercentage }}
+    {{- end }}
+    {{- if .Values.readReplica.autoscaling.targetMemoryUtilizationPercentage }}
+    - type: Resource
+      resource:
+        name: memory
+        target:
+          type: Utilization
+          averageUtilization: {{ .Values.readReplica.autoscaling.targetMemoryUtilizationPercentage }}
+    {{- end }}
+{{- end }}

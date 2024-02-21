@@ -1,0 +1,85 @@
+{{- if .Values.readReplica.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "ff-proxy.readReplica.name" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "ff-proxy.labels" . | nindent 4 }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "ff-proxy.readReplica.SelectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      {{- with .Values.readReplica.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      labels:
+        {{- include "ff-proxy.readReplica.SelectorLabels" . | nindent 8 }}
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      serviceAccountName: {{ include "ff-proxy.serviceAccountName" . }}
+      securityContext:
+        {{- toYaml .Values.readReplica.podSecurityContext | nindent 8 }}
+      containers:
+        - name: {{ include "ff-proxy.readReplica.name" . }}
+          securityContext:
+            {{- toYaml .Values.readReplica.securityContext | nindent 12 }}
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - name: sdk
+              containerPort: 7000
+              protocol: TCP
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: sdk
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: sdk
+          resources:
+            {{- toYaml .Values.readReplica.resources | nindent 12 }}
+          envFrom:
+            - configMapRef:
+                name: {{ include "ff-proxy.readReplica.name" . }}
+            - secretRef:
+                name: {{ include "ff-proxy.proxyKey" . }}
+            - secretRef:
+                name: {{ include "ff-proxy.authSecret" . }}
+            {{- if or .Values.redis.password .Values.redis.existingPassword}}
+            - secretRef:
+                name: {{ include "ff-proxy.redisPassword" . }}
+            {{- end }}
+          {{- with .Values.readReplica.custom_envs }}
+          env:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          volumeMounts:
+          {{- with .Values.readReplica.custom_mounts }}
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+      volumes:
+      {{- with .Values.readReplica.custom_volumes }}
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.readReplica.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.readReplica.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.readReplica.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+{{- end }}

@@ -1,0 +1,225 @@
+# Default values for ff-proxy.
+# This is a YAML-formatted file.
+# Declare variables to be passed into your templates.
+
+# The ProxyKey you want to configure your Proxy to use
+proxyKey:
+
+# Use existing Secret which stores PROXY_KEY key instead of creating a new one. The value should be set with the `PROXY_KEY` key inside the secret.
+## If set, this parameter takes precedence over "proxyKey".
+existingProxyKey:
+
+# Used by the Proxy to sign the JWT tokens it creates and returns to SDKs when they authenticate with the Proxy. The Proxy then checks that the token provided in any subsequent reqeusts by SDKs has been signed with this secret to ensure auth tokens can't be spoofed.
+authSecret:
+
+# Use existing Secret which stores AUTH_SECRET key instead of creating a new one. The value should be set with the `AUTH_SECRET` key inside the secret.
+## If set, this parameter takes precedence over "authSecret".
+existingAuthSecret:
+
+# The host and port of the redis server you want your Proxy to connect to
+redis:
+  address:
+  db: 0
+  password:
+  # Use existing Secret which stores REDIS_PASSWORD key instead of creating a new one. The value should be set with the `REDIS_PASSWORD` key inside the secret.
+  ## If set, this parameter takes precedence over "redis.password".
+  existingPassword:
+
+image:
+  repository: harness/ff-proxy
+  pullPolicy: IfNotPresent
+  # Overrides the image tag whose default is the chart appVersion.
+  tag: ""
+
+imagePullSecrets: []
+nameOverride: ""
+fullnameOverride: ""
+
+serviceAccount:
+  # Specifies whether a service account should be created
+  create: true
+  # Annotations to add to the service account
+  annotations: {}
+  # The name of the service account to use.
+  # If not set and create is true, a name is generated using the fullname template
+  name: ""
+
+# configuration specific to the writer pods
+writer:
+  service:
+    enabled: false
+    type: ClusterIP
+    port: 7000
+
+  resources:
+    limits:
+      memory: 1Gi
+    requests:
+      cpu: 2
+      memory: 1Gi
+  
+  ingress:
+    enabled: false
+    className: ""
+    annotations: {}
+      # kubernetes.io/ingress.class: nginx
+      # kubernetes.io/tls-acme: "true"
+    hosts:
+      - host: chart-example.local
+        paths:
+          - path: /
+            pathType: ImplementationSpecific
+    tls: []
+    #  - secretName: chart-example-tls
+    #    hosts:
+    #      - chart-example.local
+
+  podAnnotations: {}
+
+  podSecurityContext: {}
+    # fsGroup: 2000
+
+  securityContext: {}
+    # capabilities:
+    #   drop:
+    #   - ALL
+    # readOnlyRootFilesystem: true
+    # runAsNonRoot: true
+    # runAsUser: 1000
+  
+  nodeSelector: {}
+
+  tolerations: []
+
+  affinity: {}
+
+  # additional environment variables
+  custom_envs:
+    # - name: DELEGATE_TASK_CAPACITY
+    #   value: "10"
+
+  # mounts for the delegate pod
+  custom_mounts:
+    # - name: certs
+    #   mountPath: /shared/customer-artifacts/certificates/
+
+  # volumes to add to the delegate container
+  custom_volumes:
+    # - name: certs
+    #   persistentVolumeClaim:
+    #     claimName: harness-delegate-ng-certs
+
+# configuration specific to the read replica pods
+readReplica:
+
+  # disable the read replica to run in single pod mode, not advised for production
+  enabled: true
+  
+  service:
+    type: ClusterIP
+    port: 7000
+
+  replicaCount: 2
+
+  resources:
+    limits:
+      memory: 1Gi
+    requests:
+      cpu: 2
+      memory: 1Gi
+
+  autoscaling:
+    enabled: false
+    minReplicas: 1
+    maxReplicas: 100
+    targetCPUUtilizationPercentage: 80
+    # targetMemoryUtilizationPercentage: 80
+
+  ingress:
+    enabled: false
+    className: ""
+    annotations: {}
+      # kubernetes.io/ingress.class: nginx
+      # kubernetes.io/tls-acme: "true"
+    hosts:
+      - host: chart-example.local
+        paths:
+          - path: /
+            pathType: ImplementationSpecific
+    tls: []
+    #  - secretName: chart-example-tls
+    #    hosts:
+    #      - chart-example.local
+
+  podAnnotations: {}
+
+  podSecurityContext: {}
+    # fsGroup: 2000
+
+  securityContext: {}
+    # capabilities:
+    #   drop:
+    #   - ALL
+    # readOnlyRootFilesystem: true
+    # runAsNonRoot: true
+    # runAsUser: 1000
+  
+  nodeSelector: {}
+
+  tolerations: []
+
+  affinity: {}
+
+  # additional environment variables
+  custom_envs:
+    # - name: DELEGATE_TASK_CAPACITY
+    #   value: "10"
+
+  # mounts for the delegate pod
+  custom_mounts:
+    # - name: certs
+    #   mountPath: /shared/customer-artifacts/certificates/
+
+  # volumes to add to the delegate container
+  custom_volumes:
+    # - name: certs
+    #   persistentVolumeClaim:
+    #     claimName: harness-delegate-ng-certs
+
+# The url of the FF Client Service running in Harness Saas that the Proxy commuincates with to fetch configuration data
+clientService:
+
+# The url of the FF Metric Service running in Harness Saas that the Proxy forwards SDK metric data onto
+metricService:
+
+# Controls how frequently in seconds the Primary Proxy posts metrics to Harness. Setting this to 0 will disable metrics forwarding from the Proxy to Saas and the absolute minimum that it can be set to is 60 seconds. It's also worth knowing that the Primary forwards metrics on to Harness Saas whenever 60 seconds has elapsed OR it has received 1MB worth of data. So if there's a high volume of metrics data going through your Proxy you may see metrics requests forwarded to Harness Saas more frequently than the value you set here
+metricPostDuration:
+
+# How often in seconds the proxy pings its health function. Set to 0 to disable
+heartbeatInterval:
+
+# Port that the Proxy http server runs on inside the Relay Proxy container. This should only be changed for specific local dev purposes. The Pushpin Proxy that runs inside the Relay Proxy container expects the Proxy HTTP server to be available on port 8000. If you change this in a Production environment it is likely that SDK traffic won't be able to reach your Proxy
+port:
+
+# If true the proxy will use the tlsCert and tlsKey to run with https enabled
+tls:
+  enabled: false
+  # # Path to tls cert file
+  certPath:
+  # Path to tls key file
+  keyPath:
+
+# Contorls whether or not authentication is enforced on the Proxy's endpoints. This is ONLY used for local dev purposes to aid debugging, never set this to true in Production environments
+bypassAuth:
+
+# Contorls the logging level, valid options are INFO, DEBUG & ERROR
+logLevel:
+
+# Enables the GCP Cloud Profiler. If you're using the Profiler in GCP to monitor your applications CPU & Memory usage then setting this to true will mean the Proxy will appear there along side your other applications. If you aren't using the GCP Profiler then you can ignore this setting
+gcpProfilerEnabled:
+
+# Enables the golang profiler on port 6060. This is also only used for local development and we don't recommend enabling this in your production envrionments
+pprof:
+
+# Sets the max length of the redis stream that replicas use to send metrics to the Primary
+metricsStreamMaxLen:

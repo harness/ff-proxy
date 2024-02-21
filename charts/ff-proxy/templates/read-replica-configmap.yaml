@@ -1,0 +1,48 @@
+{{- if .Values.readReplica.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "ff-proxy.readReplica.name" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "ff-proxy.labels" . | nindent 4 }}
+data:
+  REDIS_ADDRESS: {{ .Values.redis.address }}
+  REDIS_DB: "{{ .Values.redis.db }}"
+  READ_REPLICA: "true"
+  {{- if .Values.clientService }}
+  CLIENT_SERVICE: {{ .Values.clientService }}
+  {{- end }}
+  {{- if .Values.metricService }}
+  METRICS_SERVICE: {{ .Values.metricService }}
+  {{- end }}
+  {{- if .Values.metricPostDuration }}
+  METRIC_POST_DURATION: {{ .Values.metricPostDuration }}
+  {{- end }}
+  {{- if .Values.heartbeatInterval }}
+  HEARTBEAT_INTERVAL: {{ .Values.heartbeatInterval }}
+  {{- end }}
+  {{- if .Values.port }}
+  PORT: {{ .Values.port }}
+  {{- end }}
+  {{- if .Values.tls.enabled }}
+  TLS_ENABLED: "{{ .Values.tls.enabled }}"
+  TLS_CERT: {{ .Values.tls.certPath }}
+  TLS_KEY: {{ .Values.tls.keyPath }}
+  {{- end }}
+  {{- if .Values.bypassAuth }}
+  BYPASS_AUTH: "{{ .Values.bypassAuth }}"
+  {{- end }}
+  {{- if .Values.logLevel }}
+  LOG_LEVEL: {{ .Values.logLevel }}
+  {{- end }}
+  {{- if .Values.gcpProfilerEnabled }}
+  GCP_PROFILER_ENABLED: "{{ .Values.gcpProfilerEnabled }}"
+  {{- end }}
+  {{- if .Values.pprof }}
+  PPROF: "{{ .Values.pprof }}"
+  {{- end }}
+  {{- if .Values.metricsStreamMaxLen }}
+  METRICS_STREAM_MAX_LEN: {{ .Values.metricsStreamMaxLen }}
+  {{- end }}
+{{- end }}
