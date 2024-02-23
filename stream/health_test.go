@@ -15,7 +15,7 @@ type mockCache struct {
 	cache.Cache
 	getFn func(value interface{}) error
 
-	value interface{}
+	cachedState domain.StreamStatus
 }
 
 func (m *mockCache) Get(ctx context.Context, key string, value interface{}) error {
@@ -23,7 +23,11 @@ func (m *mockCache) Get(ctx context.Context, key string, value interface{}) erro
 }
 
 func (m *mockCache) Set(ctx context.Context, key string, value interface{}) error {
-	m.value = value
+	t, ok := value.(domain.StreamStatus)
+	if !ok {
+		panic("ah")
+	}
+	m.cachedState = t
 	return nil
 }
 
@@ -92,7 +96,7 @@ func TestHealth_VerifyStreamStatus(t *testing.T) {
 
 			h.VerifyStreamStatus(ctx, tc.args.interval)
 
-			actual := tc.mocks.cache.value
+			actual := tc.mocks.cache.cachedState
 
 			assert.Equal(t, tc.expected.streamStatus, actual)
 		})
@@ -103,6 +107,8 @@ func TestHealth_VerifyStreamStatus(t *testing.T) {
 func TestHealth_SetHealthy(t *testing.T) {
 
 	type args struct {
+		startingInMemStatus  domain.StreamStatus
+		startingCachedStatus domain.StreamStatus
 	}
 
 	type mocks struct {
@@ -110,37 +116,228 @@ func TestHealth_SetHealthy(t *testing.T) {
 	}
 
 	type expected struct {
-		inMemStatus domain.StreamStatus
+		inMemStatus  domain.StreamStatus
+		cachedStatus domain.StreamStatus
 	}
 
 	testCases := map[string]struct {
+		then      string
 		args      args
 		mocks     mocks
 		expected  expected
 		shouldErr bool
 	}{
-		"Given I call health but the cache errors getting the current status": {
-			mocks: mocks{cache: &mockCache{getFn: func(value interface{}) error {
-				return domain.ErrCacheInternal
-			}}},
+		"Given the cachedState and inMemoryState=DISCONNECTED, I call SetHealthy and the Cache returns ErrInternal": {
+			then: "Then the inMemoryState shoud be CONNECTED and the cachedState should be DISCONNECTED",
+			args: args{
+				startingInMemStatus: domain.StreamStatus{
+					State: domain.StreamStateDisconnected,
+					Since: 123,
+				},
+				startingCachedStatus: domain.StreamStatus{
+					State: domain.StreamStateDisconnected,
+					Since: 123,
+				},
+			},
+			mocks: mocks{
+				cache: &mockCache{
+					getFn: func(value interface{}) error {
+						return domain.ErrCacheInternal
+					},
+				},
+			},
 			expected: expected{
 				inMemStatus: domain.StreamStatus{
 					State: domain.StreamStateConnected,
 					Since: 123,
 				},
+				cachedStatus: domain.StreamStatus{
+					State: domain.StreamStateDisconnected,
+					Since: 123,
+				},
 			},
 			shouldErr: true,
 		},
-		"Given the status of the stream in the cache is DISCONNECTED": {
-			mocks: mocks{cache: &mockCache{getFn: func(value interface{}) error {
-				value = domain.StreamStatus{
+		"Given the cachedState and inMemoryState=DISCONNECTED, I call SetHealthy and the Cache returns context.Canceled": {
+			then: "Then the inMemoryState shoud be CONNECTED and the cachedState should be DISCONNECTED",
+			args: args{
+				startingInMemStatus: domain.StreamStatus{
 					State: domain.StreamStateDisconnected,
-					Since: 456,
-				}
-				return nil
-			}}},
+					Since: 123,
+				},
+				startingCachedStatus: domain.StreamStatus{
+					State: domain.StreamStateDisconnected,
+					Since: 123,
+				},
+			},
+			mocks: mocks{
+				cache: &mockCache{
+					getFn: func(value interface{}) error {
+						return context.Canceled
+					},
+				},
+			},
 			expected: expected{
 				inMemStatus: domain.StreamStatus{
+					State: domain.StreamStateConnected,
+					Since: 123,
+				},
+				cachedStatus: domain.StreamStatus{
+					State: domain.StreamStateDisconnected,
+					Since: 123,
+				},
+			},
+			shouldErr: true,
+		},
+		"Given the cachedState and inMemoryState=DISCONNECTED, I call SetHealthy and the Cache returns context.DeadlineExceeded": {
+			then: "Then the inMemoryState shoud be CONNECTED and the cachedState should be DISCONNECTED",
+			args: args{
+				startingInMemStatus: domain.StreamStatus{
+					State: domain.StreamStateDisconnected,
+					Since: 123,
+				},
+				startingCachedStatus: domain.StreamStatus{
+					State: domain.StreamStateDisconnected,
+					Since: 123,
+				},
+			},
+			mocks: mocks{
+				cache: &mockCache{
+					getFn: func(value interface{}) error {
+						return context.DeadlineExceeded
+					},
+				},
+			},
+			expected: expected{
+				inMemStatus: domain.StreamStatus{
+					State: domain.StreamStateConnected,
+					Since: 123,
+				},
+				cachedStatus: domain.StreamStatus{
+					State: domain.StreamStateDisconnected,
+					Since: 123,
+				},
+			},
+			shouldErr: true,
+		},
+		"Given the cachedState and inMemoryState=DISCONNECTED, I call SetHealthy and the Cache returns no error": {
+			then: "Then the inMemoryState shoud be CONNECTED and the cachedState should be CONNNECTED",
+			args: args{
+				startingInMemStatus: domain.StreamStatus{
+					State: domain.StreamStateDisconnected,
+					Since: 123,
+				},
+				startingCachedStatus: domain.StreamStatus{
+					State: domain.StreamStateDisconnected,
+					Since: 123,
+				},
+			},
+			mocks: mocks{
+				cache: &mockCache{
+					getFn: func(value interface{}) error {
+						return nil
+					},
+				},
+			},
+			expected: expected{
+				inMemStatus: domain.StreamStatus{
+					State: domain.StreamStateConnected,
+					Since: 123,
+				},
+				cachedStatus: domain.StreamStatus{
+					State: domain.StreamStateConnected,
+					Since: 123,
+				},
+			},
+			shouldErr: false,
+		},
+		"Given the cachedState and inMemoryState=CONNECTED, I call SetHealthy and the Cache returns no error": {
+			then: "Then the inMemoryState shoud be CONNECTED and the cachedState should be CONNNECTED",
+			args: args{
+				startingInMemStatus: domain.StreamStatus{
+					State: domain.StreamStateConnected,
+					Since: 123,
+				},
+				startingCachedStatus: domain.StreamStatus{
+					State: domain.StreamStateConnected,
+					Since: 123,
+				},
+			},
+			mocks: mocks{
+				cache: &mockCache{
+					getFn: func(value interface{}) error {
+						return nil
+					},
+				},
+			},
+			expected: expected{
+				inMemStatus: domain.StreamStatus{
+					State: domain.StreamStateConnected,
+					Since: 123,
+				},
+				cachedStatus: domain.StreamStatus{
+					State: domain.StreamStateConnected,
+					Since: 123,
+				},
+			},
+			shouldErr: false,
+		},
+		"Given the cachedState=CONNECTED and inMemoryState=DISCONNECTED, I call SetHealthy and the Cache returns no error": {
+			then: "Then the inMemoryState shoud be CONNECTED and the cachedState should be CONNNECTED",
+			args: args{
+				startingInMemStatus: domain.StreamStatus{
+					State: domain.StreamStateDisconnected,
+					Since: 123,
+				},
+				startingCachedStatus: domain.StreamStatus{
+					State: domain.StreamStateConnected,
+					Since: 123,
+				},
+			},
+			mocks: mocks{
+				cache: &mockCache{
+					getFn: func(value interface{}) error {
+						return nil
+					},
+				},
+			},
+			expected: expected{
+				inMemStatus: domain.StreamStatus{
+					State: domain.StreamStateConnected,
+					Since: 123,
+				},
+				cachedStatus: domain.StreamStatus{
+					State: domain.StreamStateConnected,
+					Since: 123,
+				},
+			},
+			shouldErr: false,
+		},
+		"Given the cachedState=DISCONNECTED and inMemoryState=CONNECTED, I call SetHealthy and the Cache returns no error": {
+			then: "Then the inMemoryState shoud be CONNECTED and the cachedState should be CONNNECTED",
+			args: args{
+				startingInMemStatus: domain.StreamStatus{
+					State: domain.StreamStateConnected,
+					Since: 123,
+				},
+				startingCachedStatus: domain.StreamStatus{
+					State: domain.StreamStateDisconnected,
+					Since: 123,
+				},
+			},
+			mocks: mocks{
+				cache: &mockCache{
+					getFn: func(value interface{}) error {
+						return nil
+					},
+				},
+			},
+			expected: expected{
+				inMemStatus: domain.StreamStatus{
+					State: domain.StreamStateConnected,
+					Since: 123,
+				},
+				cachedStatus: domain.StreamStatus{
 					State: domain.StreamStateConnected,
 					Since: 123,
 				},
@@ -155,14 +352,12 @@ func TestHealth_SetHealthy(t *testing.T) {
 
 		t.Run(desc, func(t *testing.T) {
 
+			tc.mocks.cache.cachedState = tc.args.startingCachedStatus
 			h := Health{
-				log: log.NoOpLogger{},
-				c:   tc.mocks.cache,
-				key: "foo",
-				inMemStatus: domain.NewSafeStreamStatus(domain.StreamStatus{
-					State: domain.StreamStateConnected,
-					Since: 123,
-				}),
+				log:         log.NoOpLogger{},
+				c:           tc.mocks.cache,
+				key:         "foo",
+				inMemStatus: domain.NewSafeStreamStatus(tc.args.startingInMemStatus),
 			}
 
 			err := h.SetHealthy(context.Background())
@@ -172,15 +367,18 @@ func TestHealth_SetHealthy(t *testing.T) {
 				assert.Nil(t, err)
 			}
 
+			t.Log(tc.then)
 			assert.Equal(t, tc.expected.inMemStatus.State, h.inMemStatus.Get().State)
+			assert.Equal(t, tc.expected.cachedStatus.State, tc.mocks.cache.cachedState.State)
 		})
 	}
 }
 
-func TestHealth_SetUnHealthy(t *testing.T) {
+func TestHealth_SetUnhealthy(t *testing.T) {
 
 	type args struct {
-		startingState domain.StreamState
+		startingInMemStatus  domain.StreamStatus
+		startingCachedStatus domain.StreamStatus
 	}
 
 	type mocks struct {
@@ -188,40 +386,228 @@ func TestHealth_SetUnHealthy(t *testing.T) {
 	}
 
 	type expected struct {
-		inMemStatus domain.StreamStatus
+		inMemStatus  domain.StreamStatus
+		cachedStatus domain.StreamStatus
 	}
 
 	testCases := map[string]struct {
+		then      string
 		args      args
 		mocks     mocks
 		expected  expected
 		shouldErr bool
 	}{
-		"Given I call SetUnhealthy but the cache errors getting the current status": {
+		"Given the cachedState and inMemoryState=CONNECTED, I call SetUnhealthy and the Cache returns ErrInternal": {
+			then: "Then the inMemoryState should be DISCONNECTED and the cachedState should be CONNECTED",
 			args: args{
-				startingState: domain.StreamStateConnected,
+				startingInMemStatus: domain.StreamStatus{
+					State: domain.StreamStateConnected,
+					Since: 123,
+				},
+				startingCachedStatus: domain.StreamStatus{
+					State: domain.StreamStateConnected,
+					Since: 123,
+				},
 			},
-			mocks: mocks{cache: &mockCache{getFn: func(value interface{}) error {
-				return domain.ErrCacheInternal
-			}}},
+			mocks: mocks{
+				cache: &mockCache{
+					getFn: func(value interface{}) error {
+						return domain.ErrCacheInternal
+					},
+				},
+			},
 			expected: expected{
 				inMemStatus: domain.StreamStatus{
+					State: domain.StreamStateDisconnected,
+					Since: 123,
+				},
+				cachedStatus: domain.StreamStatus{
 					State: domain.StreamStateConnected,
 					Since: 123,
 				},
 			},
 			shouldErr: true,
 		},
-		"Given the status of the stream in the cache is CONNECTED": {
-			mocks: mocks{cache: &mockCache{getFn: func(value interface{}) error {
-				value = domain.StreamStatus{
+		"Given the cachedState and inMemoryState=CONNECTED, I call SetUnhealthy and the Cache returns context.Canceled": {
+			then: "Then the inMemoryState should be DISCONNECTED and the cachedState should be CONNECTED",
+			args: args{
+				startingInMemStatus: domain.StreamStatus{
 					State: domain.StreamStateConnected,
-					Since: 456,
-				}
-				return nil
-			}}},
+					Since: 123,
+				},
+				startingCachedStatus: domain.StreamStatus{
+					State: domain.StreamStateConnected,
+					Since: 123,
+				},
+			},
+			mocks: mocks{
+				cache: &mockCache{
+					getFn: func(value interface{}) error {
+						return context.Canceled
+					},
+				},
+			},
 			expected: expected{
 				inMemStatus: domain.StreamStatus{
+					State: domain.StreamStateDisconnected,
+					Since: 123,
+				},
+				cachedStatus: domain.StreamStatus{
+					State: domain.StreamStateConnected,
+					Since: 123,
+				},
+			},
+			shouldErr: true,
+		},
+		"Given the cachedState and inMemoryState=CONNECTED, I call SetUnhealthy and the Cache returns context.DeadlineExceeded": {
+			then: "Then the inMemoryState should be DISCONNECTED and the cachedState should be CONNECTED",
+			args: args{
+				startingInMemStatus: domain.StreamStatus{
+					State: domain.StreamStateConnected,
+					Since: 123,
+				},
+				startingCachedStatus: domain.StreamStatus{
+					State: domain.StreamStateConnected,
+					Since: 123,
+				},
+			},
+			mocks: mocks{
+				cache: &mockCache{
+					getFn: func(value interface{}) error {
+						return context.DeadlineExceeded
+					},
+				},
+			},
+			expected: expected{
+				inMemStatus: domain.StreamStatus{
+					State: domain.StreamStateDisconnected,
+					Since: 123,
+				},
+				cachedStatus: domain.StreamStatus{
+					State: domain.StreamStateConnected,
+					Since: 123,
+				},
+			},
+			shouldErr: true,
+		},
+		"Given the cachedState and inMemoryState=CONNECTED, I call SetUnhealthy and the Cache returns no error": {
+			then: "Then the inMemoryState should be DISCONNECTED and the cachedState should be DISCONNECTED",
+			args: args{
+				startingInMemStatus: domain.StreamStatus{
+					State: domain.StreamStateConnected,
+					Since: 123,
+				},
+				startingCachedStatus: domain.StreamStatus{
+					State: domain.StreamStateConnected,
+					Since: 123,
+				},
+			},
+			mocks: mocks{
+				cache: &mockCache{
+					getFn: func(value interface{}) error {
+						return nil
+					},
+				},
+			},
+			expected: expected{
+				inMemStatus: domain.StreamStatus{
+					State: domain.StreamStateDisconnected,
+					Since: 123,
+				},
+				cachedStatus: domain.StreamStatus{
+					State: domain.StreamStateDisconnected,
+					Since: 123,
+				},
+			},
+			shouldErr: false,
+		},
+		"Given the cachedState and inMemoryState=DISCONNECTED, I call SetUnhealthy and the Cache returns no error": {
+			then: "Then the inMemoryState should be DISCONNECTED and the cachedState should be DISCONNECTED",
+			args: args{
+				startingInMemStatus: domain.StreamStatus{
+					State: domain.StreamStateDisconnected,
+					Since: 123,
+				},
+				startingCachedStatus: domain.StreamStatus{
+					State: domain.StreamStateDisconnected,
+					Since: 123,
+				},
+			},
+			mocks: mocks{
+				cache: &mockCache{
+					getFn: func(value interface{}) error {
+						return nil
+					},
+				},
+			},
+			expected: expected{
+				inMemStatus: domain.StreamStatus{
+					State: domain.StreamStateDisconnected,
+					Since: 123,
+				},
+				cachedStatus: domain.StreamStatus{
+					State: domain.StreamStateDisconnected,
+					Since: 123,
+				},
+			},
+			shouldErr: false,
+		},
+		"Given the cachedState=DISCONNECTED and inMemoryState=CONNECTED, I call SetUnhealthy and the Cache returns no error": {
+			then: "Then the inMemoryState should be DISCONNECTED and the cachedState should be DISCONNECTED",
+			args: args{
+				startingInMemStatus: domain.StreamStatus{
+					State: domain.StreamStateConnected,
+					Since: 123,
+				},
+				startingCachedStatus: domain.StreamStatus{
+					State: domain.StreamStateDisconnected,
+					Since: 123,
+				},
+			},
+			mocks: mocks{
+				cache: &mockCache{
+					getFn: func(value interface{}) error {
+						return nil
+					},
+				},
+			},
+			expected: expected{
+				inMemStatus: domain.StreamStatus{
+					State: domain.StreamStateDisconnected,
+					Since: 123,
+				},
+				cachedStatus: domain.StreamStatus{
+					State: domain.StreamStateDisconnected,
+					Since: 123,
+				},
+			},
+			shouldErr: false,
+		},
+		"Given the cachedState=CONNECTED and inMemoryState=DISCONNECTED, I call SetUnhealthy and the Cache returns no error": {
+			then: "Then the inMemoryState should be DISCONNECTED and the cachedState should be DISCONNECTED",
+			args: args{
+				startingInMemStatus: domain.StreamStatus{
+					State: domain.StreamStateDisconnected,
+					Since: 123,
+				},
+				startingCachedStatus: domain.StreamStatus{
+					State: domain.StreamStateConnected,
+					Since: 123,
+				},
+			},
+			mocks: mocks{
+				cache: &mockCache{
+					getFn: func(value interface{}) error {
+						return nil
+					},
+				},
+			},
+			expected: expected{
+				inMemStatus: domain.StreamStatus{
+					State: domain.StreamStateDisconnected,
+					Since: 123,
+				},
+				cachedStatus: domain.StreamStatus{
 					State: domain.StreamStateDisconnected,
 					Since: 123,
 				},
@@ -236,13 +622,14 @@ func TestHealth_SetUnHealthy(t *testing.T) {
 
 		t.Run(desc, func(t *testing.T) {
 
+			tc.mocks.cache.cachedState = tc.args.startingCachedStatus
 			h := Health{
 				log: log.NoOpLogger{},
 				c:   tc.mocks.cache,
 				key: "foo",
 				inMemStatus: domain.NewSafeStreamStatus(domain.StreamStatus{
-					State: tc.args.startingState,
-					Since: 123,
+					State: tc.args.startingInMemStatus.State,
+					Since: tc.args.startingInMemStatus.Since,
 				}),
 			}
 
@@ -253,7 +640,9 @@ func TestHealth_SetUnHealthy(t *testing.T) {
 				assert.Nil(t, err)
 			}
 
+			t.Log(tc.then)
 			assert.Equal(t, tc.expected.inMemStatus.State, h.inMemStatus.Get().State)
+			assert.Equal(t, tc.expected.cachedStatus.State, tc.mocks.cache.cachedState.State)
 		})
 	}
 }

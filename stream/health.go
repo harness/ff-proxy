@@ -52,73 +52,60 @@ func NewHealth(k string, c cache.Cache, l log.Logger) Health {
 
 // SetHealthy sets the stream status as CONNECTED in the cache.
 // If the stream status is already CONNECTED it does nothing.
-func (h Health) SetHealthy(ctx context.Context) (err error) {
-	var streamStatus domain.StreamStatus
+func (h Health) SetHealthy(ctx context.Context) error {
+	streamStatus := domain.StreamStatus{
+		State: domain.StreamStateConnected,
+		Since: time.Now().UnixMilli(),
+	}
 
-	defer func() {
-		// If we got an error that means we got an InternalError from redis
-		// and shouldn't modify the inMemStatus
-		if err != nil {
-			return
-		}
+	h.log.Info("SetHealthy - Updating streamStatus", "streamStatus.State", streamStatus.State, "streamStatus.Since", streamStatus.Since)
 
-		h.log.Info("SetHealthy - Updating streamStatus", "streamStatus.State", streamStatus.State, "streamStatus.Since", streamStatus.Since)
-		h.inMemStatus.Set(streamStatus)
-	}()
+	cachedStatus := domain.StreamStatus{}
 
-	if err := h.c.Get(ctx, h.key, &streamStatus); err != nil {
+	if err := h.c.Get(ctx, h.key, &cachedStatus); err != nil {
 		// Ignore NotFound errors for this key because if the key doesn't
 		// exist we'll end up setting it at the end of this function
 		if !errors.Is(err, domain.ErrCacheNotFound) {
+			h.inMemStatus.Set(streamStatus)
 			return err
 		}
 	}
 
 	// If current status is healthy then don't do anything
-	if streamStatus.State == domain.StreamStateConnected {
+	if cachedStatus.State == domain.StreamStateConnected {
 		return nil
 	}
 
-	streamStatus.State = domain.StreamStateConnected
-	streamStatus.Since = time.Now().UnixMilli()
-
 	h.log.Info("setting stream status in cache", "state", streamStatus.State, "since", streamStatus.Since)
+	h.inMemStatus.Set(streamStatus)
 	return h.c.Set(ctx, h.key, streamStatus)
 }
 
 // SetUnhealthy sets the stream status as DISCONNECTED in the cache.
 // If the stream status is already DISCONNECTED it does nothing.
-func (h Health) SetUnhealthy(ctx context.Context) (err error) {
-	var streamStatus domain.StreamStatus
+func (h Health) SetUnhealthy(ctx context.Context) error {
+	streamStatus := domain.StreamStatus{
+		State: domain.StreamStateDisconnected,
+		Since: time.Now().UnixMilli(),
+	}
 
-	defer func() {
-		// If we got an error that means we got an InternalError from redis
-		// and shouldn't modify the inMemStatus
-		if err != nil {
-			return
-		}
-
-		h.inMemStatus.Set(streamStatus)
-	}()
-
-	if err := h.c.Get(ctx, h.key, &streamStatus); err != nil {
+	cachedStatus := &domain.StreamStatus{}
+	if err := h.c.Get(ctx, h.key, &cachedStatus); err != nil {
 		// Ignore NotFound errors for this key because if the key doesn't
 		// exist we'll end up setting it at the end of this function
 		if !errors.Is(err, domain.ErrCacheNotFound) {
+			h.inMemStatus.Set(streamStatus)
 			return err
 		}
 	}
 
 	// If current status is disconnected then we don't need to do anything
-	if streamStatus.State == domain.StreamStateDisconnected {
+	if cachedStatus.State == domain.StreamStateDisconnected {
 		return nil
 	}
 
-	// Otherwise we update the state and since to be now
-	streamStatus.State = domain.StreamStateDisconnected
-	streamStatus.Since = time.Now().UnixMilli()
-
 	h.log.Info("setting stream status in cache", "state", streamStatus.State, "since", streamStatus.Since)
+	h.inMemStatus.Set(streamStatus)
 	return h.c.Set(ctx, h.key, streamStatus)
 }
 
