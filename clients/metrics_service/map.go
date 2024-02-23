@@ -83,7 +83,7 @@ func (m *metricsMap) aggregate(r domain.MetricsRequest) ([]clientgen.MetricsData
 	if r.MetricsData == nil {
 		return []clientgen.MetricsData{}, errors.New("metrics data is nil")
 	}
-	
+
 	metricsData := *r.MetricsData
 	for i := 0; i < len(metricsData); i++ {
 		keyName := getKeyEntry(r.EnvironmentID, &metricsData[i])
