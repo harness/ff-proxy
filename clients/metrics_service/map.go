@@ -11,7 +11,7 @@ import (
 
 const (
 	// TODO What should it be?
-	genericProxyTargetIdentifier = "generic_proxy_target"
+	genericProxyTargetIdentifier = "__global__cf_target"
 )
 
 // metricsMap is a type that stores metrics requests
