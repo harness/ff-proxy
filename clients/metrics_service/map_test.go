@@ -1,12 +1,15 @@
 package metricsservice
 
 import (
+	"log"
 	"sync"
 	"testing"
+	"time"
+
+	"github.com/stretchr/testify/assert"
 
 	"github.com/harness/ff-proxy/v2/domain"
 	clientgen "github.com/harness/ff-proxy/v2/gen/client"
-	"github.com/stretchr/testify/assert"
 )
 
 func TestMap_add(t *testing.T) {
@@ -283,5 +286,153 @@ func TestMetricsMap_flush(t *testing.T) {
 			assert.Equal(t, tc.expected.data, tc.metricsMap.metrics)
 			assert.Equal(t, tc.expected.size, tc.metricsMap.currentSize)
 		})
+	}
+}
+
+func TestMap_aggregate(t *testing.T) {
+
+	mr := domain.MetricsRequest{
+		Size:          6,
+		EnvironmentID: "123",
+		Metrics: clientgen.Metrics{
+			MetricsData: &[]clientgen.MetricsData{
+				{
+					Attributes:  createAttributes("testTarget1", "featureID_1", "variationID_1", "JavaScript", "JavaScript", "client", "1.21.0"),
+					Count:       1,
+					MetricsType: "FFMETRICS",
+					Timestamp:   111,
+				},
+				{
+					Attributes:  createAttributes("testTarget2", "featureID_1", "variationID_1", "JavaScript", "JavaScript", "client", "1.21.0"),
+					Count:       1,
+					MetricsType: "FFMETRICS",
+					Timestamp:   111,
+				},
+				{
+					Attributes:  createAttributes("testTarget3", "featureID_1", "variationID_1", "JavaScript", "JavaScript", "client", "1.21.0"),
+					Count:       1,
+					MetricsType: "FFMETRICS",
+					Timestamp:   111,
+				},
+				{
+					Attributes:  createAttributes("testTarget4", "featureID_2", "variationID_1", "JavaScript", "JavaScript", "client", "1.21.0"),
+					Count:       1,
+					MetricsType: "FFMETRICS",
+					Timestamp:   111,
+				},
+				{
+					Attributes:  createAttributes("testTarget5", "featureID_1", "variationID_1", "JavaScript", "JavaScript", "client", "1.21.0"),
+					Count:       1,
+					MetricsType: "FFMETRICS",
+					Timestamp:   111,
+				},
+				{
+					Attributes:  createAttributes("testTarget6", "featureID_2", "variationID_1", "JavaScript", "JavaScript", "client", "1.21.0"),
+					Count:       1,
+					MetricsType: "FFMETRICS",
+					Timestamp:   111,
+				},
+			},
+		},
+	}
+
+	type args struct {
+		metricRequest domain.MetricsRequest
+	}
+
+	type expected struct {
+		data []clientgen.MetricsData
+		size int
+	}
+
+	testCases := map[string]struct {
+		metricsMap *metricsMap
+		args       args
+		expected   expected
+	}{
+		"Given I have same flags evaluated by different targets - aggregate records": {
+			metricsMap: &metricsMap{
+				RWMutex: &sync.RWMutex{},
+				metrics: map[string]domain.MetricsRequest{
+					"123": mr,
+				},
+				currentSize: mr.Size,
+			},
+			args: args{
+				metricRequest: mr,
+			},
+			expected: expected{
+				data: []clientgen.MetricsData{
+					{
+						Attributes:  createAttributes(genericProxyTargetIdentifier, "featureID_1", "variationID_1", "JavaScript", "JavaScript", "client", "1.21.0"),
+						Count:       4,
+						MetricsType: "FFMETRICS",
+						Timestamp:   time.Now().UnixMilli(),
+					},
+					{
+						Attributes:  createAttributes(genericProxyTargetIdentifier, "featureID_2", "variationID_1", "JavaScript", "JavaScript", "client", "1.21.0"),
+						Count:       2,
+						MetricsType: "FFMETRICS",
+						Timestamp:   time.Now().UnixMilli(),
+					},
+				},
+				size: 2,
+			},
+		},
+	}
+
+	for desc, tc := range testCases {
+		desc := desc
+		tc := tc
+
+		t.Run(desc, func(t *testing.T) {
+
+			aggregated, err := tc.metricsMap.aggregate(tc.args.metricRequest)
+			if err != nil {
+				log.Fatal("failed")
+			}
+			assert.Equal(t, tc.expected.size, len(aggregated))
+		})
+	}
+}
+
+func createAttributes(target, featureIdentifier, variationIdentifier, sdkName, sdkLanguage, sdkType, sdkVersion string) []clientgen.KeyValue {
+	return []clientgen.KeyValue{
+		{
+			Key:   "featureIdentifier",
+			Value: featureIdentifier,
+		},
+		{
+			Key:   "featureName",
+			Value: featureIdentifier,
+		},
+		{
+			Key:   "featureIdentifier",
+			Value: featureIdentifier,
+		},
+		{
+			Key:   "variationIdentifier",
+			Value: variationIdentifier,
+		},
+		{
+			Key:   "target",
+			Value: target,
+		},
+		{
+			Key:   "SDK_NAME",
+			Value: sdkName,
+		},
+		{
+			Key:   "SDK_LANGUAGE",
+			Value: sdkLanguage,
+		},
+		{
+			Key:   "SDK_TYPE",
+			Value: sdkType,
+		},
+		{
+			Key:   "SDK_VERSION",
+			Value: sdkVersion,
+		},
 	}
 }
