@@ -76,16 +76,15 @@ func (m *metricsMap) add(r domain.MetricsRequest) {
 
 // aggregate will convert and aggregate all the entries into the Metrics data and update new object.
 func (m *metricsMap) aggregate(r domain.MetricsRequest) []clientgen.MetricsData {
-	envId := r.EnvironmentID
-	aggregatedMetricsMap := map[string]*clientgen.MetricsData{}
 
+	aggregatedMetricsMap := map[string]*clientgen.MetricsData{}
 	// dereference here
 	metricsData := *r.MetricsData
 	for i := 0; i < len(metricsData); i++ {
-		keyName := getKeyEntry(envId, &metricsData[i])
+		keyName := getKeyEntry(r.EnvironmentID, &metricsData[i])
 		//if we have a key we want to increment
 		if _, ok := aggregatedMetricsMap[keyName]; ok {
-			aggregatedMetricsMap[keyName].Count += 1
+			aggregatedMetricsMap[keyName].Count++
 		} else {
 			// update timestamp + create new map entry.
 			metricsData[i].Timestamp = time.Now().UnixMilli()
@@ -102,7 +101,7 @@ func (m *metricsMap) aggregate(r domain.MetricsRequest) []clientgen.MetricsData 
 }
 
 // getKeyEntry works out key entry for data item and updates the user.
-func getKeyEntry(envId string, m *clientgen.MetricsData) string {
+func getKeyEntry(envID string, m *clientgen.MetricsData) string {
 	var featureIdentifier, variationIdentifier, sdkName, sdkLanguage, sdkType, sdkVersion string
 	// TODO is each of these items guaranteed ?
 	// loop through the list of attributes for each data item
@@ -126,7 +125,7 @@ func getKeyEntry(envId string, m *clientgen.MetricsData) string {
 			m.Attributes[i].Value = genericProxyTargetIdentifier
 		}
 	}
-	return fmt.Sprintf("%s-%s-%s-%s-%s-%s-%s", envId, featureIdentifier, variationIdentifier, sdkName, sdkLanguage, sdkType, sdkVersion)
+	return fmt.Sprintf("%s-%s-%s-%s-%s-%s-%s", envID, featureIdentifier, variationIdentifier, sdkName, sdkLanguage, sdkType, sdkVersion)
 }
 
 func (m *metricsMap) get() map[string]domain.MetricsRequest {
