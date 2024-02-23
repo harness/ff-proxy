@@ -1,7 +1,7 @@
 package metricsservice
 
 import (
-	"log"
+	"fmt"
 	"sync"
 	"testing"
 	"time"
@@ -335,14 +335,23 @@ func TestMap_aggregate(t *testing.T) {
 			},
 		},
 	}
+	mrNil := domain.MetricsRequest{
+		Size:          6,
+		EnvironmentID: "123",
+		Metrics: clientgen.Metrics{
+			MetricsData: nil,
+		},
+	}
 
 	type args struct {
 		metricRequest domain.MetricsRequest
 	}
 
 	type expected struct {
-		data []clientgen.MetricsData
-		size int
+		shouldError bool
+		err         error
+		data        []clientgen.MetricsData
+		size        int
 	}
 
 	testCases := map[string]struct {
@@ -376,7 +385,26 @@ func TestMap_aggregate(t *testing.T) {
 						Timestamp:   time.Now().UnixMilli(),
 					},
 				},
-				size: 2,
+				size:        2,
+				shouldError: false,
+			},
+		},
+
+		"Given I nil metrics data should error": {
+			metricsMap: &metricsMap{
+				RWMutex: &sync.RWMutex{},
+				metrics: map[string]domain.MetricsRequest{
+					"123": mr,
+				},
+				currentSize: mr.Size,
+			},
+			args: args{
+				metricRequest: mrNil,
+			},
+			expected: expected{
+				data:        []clientgen.MetricsData{},
+				size:        0,
+				shouldError: true,
 			},
 		},
 	}
@@ -388,10 +416,13 @@ func TestMap_aggregate(t *testing.T) {
 		t.Run(desc, func(t *testing.T) {
 
 			aggregated, err := tc.metricsMap.aggregate(tc.args.metricRequest)
-			if err != nil {
-				log.Fatal("failed")
+			if tc.expected.shouldError {
+				assert.Error(t, err, fmt.Errorf("metrics data is nil"))
+			} else {
+				assert.Nil(t, err)
+				assert.Equal(t, tc.expected.size, len(aggregated))
 			}
-			assert.Equal(t, tc.expected.size, len(aggregated))
+
 		})
 	}
 }
