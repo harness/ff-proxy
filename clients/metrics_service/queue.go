@@ -70,6 +70,13 @@ func (q Queue) flush(ctx context.Context) {
 // StoreMetrics adds a metrics request to the queue
 func (q Queue) StoreMetrics(ctx context.Context, m domain.MetricsRequest) error {
 	if q.metrics.size() < maxQueueSize {
+		aggregatedMetricsData := q.metrics.aggregate(m)
+		originalSize := len(*m.MetricsData)
+		aggregatedSize := len(aggregatedMetricsData)
+		// set aggregated data to be stored
+		m.MetricsData = &aggregatedMetricsData
+		// aggregate the list.
+		q.log.Debug("aggregated metrics data", "originalSize", originalSize, "aggregatedSize", aggregatedSize)
 		q.metrics.add(m)
 		return nil
 	}

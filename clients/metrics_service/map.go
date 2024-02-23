@@ -1,10 +1,15 @@
 package metricsservice
 
 import (
+	"fmt"
 	"sync"
 
 	"github.com/harness/ff-proxy/v2/domain"
 	clientgen "github.com/harness/ff-proxy/v2/gen/client"
+)
+
+const (
+	genericProxyTargetIdentifier = "generic_proxy_target"
 )
 
 // metricsMap is a type that stores metrics requests
@@ -65,6 +70,60 @@ func (m *metricsMap) add(r domain.MetricsRequest) {
 	}
 
 	m.metrics[r.EnvironmentID] = currentMetrics
+}
+
+// aggregate will convert and aggregate all the entries into the Metrics data and update new object.
+func (m *metricsMap) aggregate(r domain.MetricsRequest) []clientgen.MetricsData {
+	envId := r.EnvironmentID
+	aggregatedMetricsMap := map[string]*clientgen.MetricsData{}
+
+	// dereference here
+	metricsData := *r.MetricsData
+	for i := 0; i < len(metricsData); i++ {
+		keyName := getKeyEntry(envId, &metricsData[i])
+		//if we have a key we want to increment
+		if _, ok := aggregatedMetricsMap[keyName]; ok {
+			aggregatedMetricsMap[keyName].Count += 1
+		} else {
+			// we create new map entry.
+			aggregatedMetricsMap[keyName] = &metricsData[i]
+		}
+	}
+	// convert map of aggregatedMetrics to the array and then return it.
+	aggregatedMetricsData := make([]clientgen.MetricsData, 0, len(aggregatedMetricsMap))
+	for _, v := range aggregatedMetricsMap {
+		aggregatedMetricsData = append(aggregatedMetricsData, *v)
+	}
+	// assign new list.
+	return aggregatedMetricsData
+}
+
+// getKeyEntry works out key entry for data item and updates the user.
+func getKeyEntry(envId string, m *clientgen.MetricsData) string {
+	var featureIdentifier, variationIdentifier, sdkName, sdkLanguage, sdkType, sdkVersion string
+	// TODO is each of these items guaranteed ?
+	// loop through the list of attributes for each data item
+	for i := 0; i < len(m.Attributes); i++ {
+		switch m.Attributes[i].Key {
+		case "featureIdentifier":
+			featureIdentifier = m.Attributes[i].Value
+		case "variationIdentifier":
+			variationIdentifier = m.Attributes[i].Value
+		case "SDK_NAME":
+			sdkName = m.Attributes[i].Value
+		case "SDK_LANGUAGE":
+			sdkLanguage = m.Attributes[i].Value
+		case "SDK_TYPE":
+			sdkType = m.Attributes[i].Value
+		case "SDK_VERSION":
+			sdkVersion = m.Attributes[i].Value
+		case "target":
+			// update the user to generic one
+			// TODO what is the generic user?
+			m.Attributes[i].Value = genericProxyTargetIdentifier
+		}
+	}
+	return fmt.Sprintf("%s-%s-%s-%s-%s-%s-%s", envId, featureIdentifier, variationIdentifier, sdkName, sdkLanguage, sdkType, sdkVersion)
 }
 
 func (m *metricsMap) get() map[string]domain.MetricsRequest {
