@@ -1,6 +1,7 @@
 package metricsservice
 
 import (
+	"errors"
 	"fmt"
 	"sync"
 	"time"
@@ -75,10 +76,14 @@ func (m *metricsMap) add(r domain.MetricsRequest) {
 }
 
 // aggregate will convert and aggregate all the entries into the Metrics data and update new object.
-func (m *metricsMap) aggregate(r domain.MetricsRequest) []clientgen.MetricsData {
+func (m *metricsMap) aggregate(r domain.MetricsRequest) ([]clientgen.MetricsData, error) {
 
 	aggregatedMetricsMap := map[string]*clientgen.MetricsData{}
 	// dereference here
+	if r.MetricsData == nil {
+		return []clientgen.MetricsData{}, errors.New("metrics data is nil")
+	}
+	
 	metricsData := *r.MetricsData
 	for i := 0; i < len(metricsData); i++ {
 		keyName := getKeyEntry(r.EnvironmentID, &metricsData[i])
@@ -97,7 +102,7 @@ func (m *metricsMap) aggregate(r domain.MetricsRequest) []clientgen.MetricsData 
 		aggregatedMetricsData = append(aggregatedMetricsData, *v)
 	}
 	// assign new list.
-	return aggregatedMetricsData
+	return aggregatedMetricsData, nil
 }
 
 // getKeyEntry works out key entry for data item and updates the user.
