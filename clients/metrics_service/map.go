@@ -3,12 +3,14 @@ package metricsservice
 import (
 	"fmt"
 	"sync"
+	"time"
 
 	"github.com/harness/ff-proxy/v2/domain"
 	clientgen "github.com/harness/ff-proxy/v2/gen/client"
 )
 
 const (
+	// TODO What should it be?
 	genericProxyTargetIdentifier = "generic_proxy_target"
 )
 
@@ -85,7 +87,8 @@ func (m *metricsMap) aggregate(r domain.MetricsRequest) []clientgen.MetricsData 
 		if _, ok := aggregatedMetricsMap[keyName]; ok {
 			aggregatedMetricsMap[keyName].Count += 1
 		} else {
-			// we create new map entry.
+			// update timestamp + create new map entry.
+			metricsData[i].Timestamp = time.Now().UnixMilli()
 			aggregatedMetricsMap[keyName] = &metricsData[i]
 		}
 	}
