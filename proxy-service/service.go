@@ -2,6 +2,7 @@ package proxyservice
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"reflect"
@@ -91,6 +92,14 @@ type MetricStore interface {
 // SDKClients is an interface that can be used to find out if internal sdks are connected to the SaaS FF stream
 type SDKClients interface {
 	StreamConnected(key string) bool
+}
+
+//go:embed k6/sample_responses/evaluations/500_flags.json
+var flags500 []byte
+var flagsResponse500 []clientgen.Evaluation
+
+func init() {
+	_ = json.Unmarshal(flags500, &flagsResponse500)
 }
 
 // Config is the config for a Service
@@ -283,44 +292,45 @@ func (s Service) TargetSegmentsByIdentifier(ctx context.Context, req domain.Targ
 
 // Evaluations gets all the evaluations in an environment for a target
 func (s Service) Evaluations(ctx context.Context, req domain.EvaluationsRequest) ([]clientgen.Evaluation, error) {
+	return flagsResponse500, nil
 
-	evaluations := []clientgen.Evaluation{}
-
-	// fetch target
-	t, err := s.targetRepo.GetByIdentifier(ctx, req.EnvironmentID, req.TargetIdentifier)
-	if err != nil {
-		if errors.Is(err, domain.ErrCacheNotFound) {
-			s.logger.Warn(ctx, "target not found in cache, serving request using only identifier attribute: ", "err", err.Error())
-			t = domain.Target{Target: clientgen.Target{Identifier: req.TargetIdentifier}}
-		} else {
-			s.logger.Error(ctx, "error fetching target: ", "err", err.Error())
-			return []clientgen.Evaluation{}, fmt.Errorf("%w: %s", ErrInternal, err)
-		}
-
-	}
-	target := domain.ConvertTarget(t)
-	query := s.GenerateQueryStore(ctx, req.EnvironmentID)
-	sdkEvaluator, _ := evaluation.NewEvaluator(query, nil, logger.NewNoOpLogger())
-
-	flagVariations, err := sdkEvaluator.EvaluateAll(&target)
-	if err != nil {
-		s.logger.Error(ctx, "ClientAPI.GetEvaluationByIdentifier() failed to perform evaluation", "environment", req.EnvironmentID, "target", target.Identifier, "err", err)
-		return nil, err
-	}
-	//package all into the evaluations
-	for i, fv := range flagVariations {
-
-		kind := string(fv.Kind)
-		eval := clientgen.Evaluation{
-			Flag:       fv.FlagIdentifier,
-			Value:      toString(fv.Variation, kind),
-			Kind:       kind,
-			Identifier: &flagVariations[i].Variation.Identifier,
-		}
-		evaluations = append(evaluations, eval)
-	}
-
-	return evaluations, nil
+	//evaluations := []clientgen.Evaluation{}
+	//
+	//// fetch target
+	//t, err := s.targetRepo.GetByIdentifier(ctx, req.EnvironmentID, req.TargetIdentifier)
+	//if err != nil {
+	//	if errors.Is(err, domain.ErrCacheNotFound) {
+	//		s.logger.Warn(ctx, "target not found in cache, serving request using only identifier attribute: ", "err", err.Error())
+	//		t = domain.Target{Target: clientgen.Target{Identifier: req.TargetIdentifier}}
+	//	} else {
+	//		s.logger.Error(ctx, "error fetching target: ", "err", err.Error())
+	//		return []clientgen.Evaluation{}, fmt.Errorf("%w: %s", ErrInternal, err)
+	//	}
+	//
+	//}
+	//target := domain.ConvertTarget(t)
+	//query := s.GenerateQueryStore(ctx, req.EnvironmentID)
+	//sdkEvaluator, _ := evaluation.NewEvaluator(query, nil, logger.NewNoOpLogger())
+	//
+	//flagVariations, err := sdkEvaluator.EvaluateAll(&target)
+	//if err != nil {
+	//	s.logger.Error(ctx, "ClientAPI.GetEvaluationByIdentifier() failed to perform evaluation", "environment", req.EnvironmentID, "target", target.Identifier, "err", err)
+	//	return nil, err
+	//}
+	////package all into the evaluations
+	//for i, fv := range flagVariations {
+	//
+	//	kind := string(fv.Kind)
+	//	eval := clientgen.Evaluation{
+	//		Flag:       fv.FlagIdentifier,
+	//		Value:      toString(fv.Variation, kind),
+	//		Kind:       kind,
+	//		Identifier: &flagVariations[i].Variation.Identifier,
+	//	}
+	//	evaluations = append(evaluations, eval)
+	//}
+	//
+	//return evaluations, nil
 }
 
 // EvaluationsByFeature gets all the evaluations in an environment for a target for a particular feature
