@@ -2,7 +2,10 @@ package repository
 
 import (
 	"context"
+	"crypto/md5"
 	"fmt"
+
+	jsoniter "github.com/json-iterator/go"
 
 	clientgen "github.com/harness/ff-proxy/v2/gen/client"
 
@@ -59,8 +62,25 @@ func (f FeatureFlagRepo) Add(ctx context.Context, config ...domain.FlagConfig) e
 
 	for _, cfg := range config {
 		k := domain.NewFeatureConfigsKey(cfg.EnvironmentID)
-
 		if err := f.cache.Set(ctx, string(k), cfg.FeatureConfigs); err != nil {
+			errs = append(errs, addError{
+				key:        string(k),
+				identifier: "feature-configs",
+				err:        err,
+			})
+		}
+
+		// add the latest featureConifgs hash to the redis.
+		fg, err := jsoniter.Marshal(cfg.FeatureConfigs)
+		if err != nil {
+			return fmt.Errorf("unable to marshall feature config %v", err)
+		}
+		hasher := md5.New()
+		hasher.Write(fg)
+		latestHash := fmt.Sprintf("%x", hasher.Sum(nil))
+		latestHashBytes, _ := jsoniter.Marshal(latestHash)
+		latestHashKey := string(k) + "-latest"
+		if err := f.cache.Set(ctx, latestHashKey, latestHashBytes); err != nil {
 			errs = append(errs, addError{
 				key:        string(k),
 				identifier: "feature-configs",
