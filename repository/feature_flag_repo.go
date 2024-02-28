@@ -2,7 +2,7 @@ package repository
 
 import (
 	"context"
-	"crypto/md5"
+	"crypto/sha256"
 	"fmt"
 
 	jsoniter "github.com/json-iterator/go"
@@ -75,12 +75,11 @@ func (f FeatureFlagRepo) Add(ctx context.Context, config ...domain.FlagConfig) e
 		if err != nil {
 			return fmt.Errorf("unable to marshall feature config %v", err)
 		}
-		hasher := md5.New()
-		hasher.Write(fg)
-		latestHash := fmt.Sprintf("%x", hasher.Sum(nil))
-		latestHashBytes, _ := jsoniter.Marshal(latestHash)
+
+		latestHash := sha256.Sum256(fg)
+		latestHashString := fmt.Sprintf("%x", latestHash)
 		latestHashKey := string(k) + "-latest"
-		if err := f.cache.Set(ctx, latestHashKey, latestHashBytes); err != nil {
+		if err := f.cache.Set(ctx, latestHashKey, latestHashString); err != nil {
 			errs = append(errs, addError{
 				key:        string(k),
 				identifier: "feature-configs",
