@@ -81,7 +81,7 @@ func (f FeatureFlagRepo) Add(ctx context.Context, config ...domain.FlagConfig) e
 		latestHashKey := string(k) + "-latest"
 		if err := f.cache.Set(ctx, latestHashKey, latestHashString); err != nil {
 			errs = append(errs, addError{
-				key:        string(k),
+				key:        latestHashKey,
 				identifier: "feature-configs",
 				err:        err,
 			})
