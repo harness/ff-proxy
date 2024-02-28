@@ -244,7 +244,7 @@ func main() {
 			serviceName = fmt.Sprintf("%s.%s", serviceName, e)
 		}
 
-		err := profiler.Start(profiler.Config{Service: serviceName, ServiceVersion: build.Version})
+		err := profiler.Start(profiler.Config{Service: serviceName, ServiceVersion: build.Version, DebugLogging: true})
 		if err != nil {
 			logger.Info("unable to start gcp profiler", "err", err)
 		}
