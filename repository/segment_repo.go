@@ -2,7 +2,10 @@ package repository
 
 import (
 	"context"
+	"crypto/sha256"
 	"fmt"
+
+	jsoniter "github.com/json-iterator/go"
 
 	"github.com/harness/ff-proxy/v2/cache"
 
@@ -54,6 +57,23 @@ func (s SegmentRepo) Add(ctx context.Context, config ...domain.SegmentConfig) er
 		if err := s.cache.Set(ctx, string(k), cfg.Segments); err != nil {
 			errs = append(errs, addError{
 				key:        string(k),
+				identifier: "segments",
+				err:        err,
+			})
+		}
+
+		// add the latest featureConifgs hash to the redis.
+		sgs, err := jsoniter.Marshal(cfg.Segments)
+		if err != nil {
+			return fmt.Errorf("unable to marshall feature config %v", err)
+		}
+
+		latestHash := sha256.Sum256(sgs)
+		latestHashString := fmt.Sprintf("%x", latestHash)
+		latestHashKey := string(k) + "-latest"
+		if err := s.cache.Set(ctx, latestHashKey, latestHashString); err != nil {
+			errs = append(errs, addError{
+				key:        latestHashKey,
 				identifier: "segments",
 				err:        err,
 			})

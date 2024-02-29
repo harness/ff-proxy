@@ -29,12 +29,10 @@ func NewFeatureFlagRepo(c cache.Cache) FeatureFlagRepo {
 func (f FeatureFlagRepo) Get(ctx context.Context, envID string) ([]domain.FeatureFlag, error) {
 	var featureFlags []domain.FeatureFlag
 	key := domain.NewFeatureConfigsKey(envID)
-
 	err := f.cache.Get(ctx, string(key), &featureFlags)
 	if err != nil {
 		return []domain.FeatureFlag{}, err
 	}
-
 	return featureFlags, nil
 }
 

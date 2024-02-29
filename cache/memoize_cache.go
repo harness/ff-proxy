@@ -1,6 +1,7 @@
 package cache
 
 import (
+	"context"
 	"crypto/md5" //#nosec G501
 	"fmt"
 	"reflect"
@@ -34,29 +35,56 @@ type internalCache interface {
 
 type memoizeCache struct {
 	Cache
-	metrics memoizeMetrics
+	metrics    memoizeMetrics
+	localCache *gocache.Cache // local cache instance here.
 }
 
 // NewMemoizeCache creates a memoize cache
 func NewMemoizeCache(rc redis.UniversalClient, defaultExpiration, cleanupInterval time.Duration, metrics memoizeMetrics) Cache {
 	mc := memoizeCache{}
 	c := gocache.New(defaultExpiration, cleanupInterval)
-
 	if metrics == nil {
 		metrics = noOpMetrics{}
 	}
 	mc.metrics = metrics
+	mc.localCache = c
 
 	mc.Cache = NewKeyValCache(rc,
 		WithTTL(0),
-		WithMarshalFunc(mc.makeMarshalFunc(c)),
-		WithUnmarshalFunc(mc.makeUnmarshalFunc(c)),
+		WithMarshalFunc(mc.makeMarshalFunc(*c)),
+		WithUnmarshalFunc(mc.makeUnmarshalFunc(*c)),
 	)
-
 	return mc
 }
 
-func (m memoizeCache) makeMarshalFunc(ffCache internalCache) func(interface{}) ([]byte, error) {
+func (m memoizeCache) Get(ctx context.Context, key string, value interface{}) error {
+	var hash string
+	latestKey := fmt.Sprintf("%s-latest", key)
+	err := m.Cache.Get(ctx, latestKey, &hash)
+	if err == nil {
+		data, ok := m.localCache.Get(hash)
+		if ok {
+			// this is assigning value of the data to the value interface.
+			val := reflect.ValueOf(value)
+			respValue := reflect.ValueOf(data)
+			if respValue.Kind() == reflect.Ptr {
+				val.Elem().Set(respValue.Elem())
+			} else {
+				val.Elem().Set(respValue)
+			}
+			return nil
+		}
+	}
+	err = m.Cache.Get(ctx, key, value)
+	if err != nil {
+		return err
+	}
+	// set the value in local
+	m.localCache.Set(hash, value, 0)
+	return err
+}
+
+func (m memoizeCache) makeMarshalFunc(ffCache gocache.Cache) func(interface{}) ([]byte, error) {
 	return func(i interface{}) ([]byte, error) {
 		data, err := jsoniter.Marshal(i)
 		if err != nil {
@@ -73,7 +101,7 @@ func (m memoizeCache) makeMarshalFunc(ffCache internalCache) func(interface{}) (
 	}
 }
 
-func (m memoizeCache) makeUnmarshalFunc(ffCache internalCache) func([]byte, interface{}) error {
+func (m memoizeCache) makeUnmarshalFunc(ffCache gocache.Cache) func([]byte, interface{}) error {
 	return func(bytes []byte, i interface{}) error {
 
 		/* #nosec */
