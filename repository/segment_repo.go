@@ -96,7 +96,7 @@ func (s SegmentRepo) Add(ctx context.Context, config ...domain.SegmentConfig) er
 
 			segmentLatestHash := sha256.Sum256(sg)
 			segmentLatestHashString := fmt.Sprintf("%x", segmentLatestHash)
-			segmentLatestHashKey := string(k) + "-latest"
+			segmentLatestHashKey := string(key) + "-latest"
 			if err := s.cache.Set(ctx, segmentLatestHashKey, segmentLatestHashString); err != nil {
 				errs = append(errs, addError{
 					key:        segmentLatestHashKey,
