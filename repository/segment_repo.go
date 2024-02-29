@@ -65,7 +65,7 @@ func (s SegmentRepo) Add(ctx context.Context, config ...domain.SegmentConfig) er
 		// add the latest featureConifgs hash to the redis.
 		sgs, err := jsoniter.Marshal(cfg.Segments)
 		if err != nil {
-			return fmt.Errorf("unable to marshall feature config %v", err)
+			return fmt.Errorf("unable to marshall segments config %v", err)
 		}
 
 		latestHash := sha256.Sum256(sgs)
@@ -81,7 +81,6 @@ func (s SegmentRepo) Add(ctx context.Context, config ...domain.SegmentConfig) er
 
 		for _, seg := range cfg.Segments {
 			key := domain.NewSegmentKey(cfg.EnvironmentID, seg.Identifier)
-
 			if err := s.cache.Set(ctx, string(key), seg); err != nil {
 				errs = append(errs, addError{
 					key:        string(key),
@@ -89,6 +88,23 @@ func (s SegmentRepo) Add(ctx context.Context, config ...domain.SegmentConfig) er
 					err:        err,
 				})
 			}
+
+			sg, err := jsoniter.Marshal(seg)
+			if err != nil {
+				return fmt.Errorf("unable to marshall segment %v", err)
+			}
+
+			segmentLatestHash := sha256.Sum256(sg)
+			segmentLatestHashString := fmt.Sprintf("%x", segmentLatestHash)
+			segmentLatestHashKey := string(k) + "-latest"
+			if err := s.cache.Set(ctx, segmentLatestHashKey, segmentLatestHashString); err != nil {
+				errs = append(errs, addError{
+					key:        segmentLatestHashKey,
+					identifier: seg.Identifier,
+					err:        err,
+				})
+			}
+
 		}
 	}
 
