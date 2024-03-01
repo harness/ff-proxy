@@ -79,6 +79,7 @@ func (m memoizeCache) Set(ctx context.Context, key string, value interface{}) er
 	if err != nil {
 		return err
 	}
+	
 	//3. set document in redis
 	return m.Cache.Set(ctx, key, value)
 }
