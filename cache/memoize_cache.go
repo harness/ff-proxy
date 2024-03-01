@@ -51,8 +51,8 @@ func NewMemoizeCache(rc redis.UniversalClient, defaultExpiration, cleanupInterva
 
 	mc.Cache = NewKeyValCache(rc,
 		WithTTL(0),
-		WithMarshalFunc(mc.makeMarshalFunc(*c)),
-		WithUnmarshalFunc(mc.makeUnmarshalFunc(*c)),
+		WithMarshalFunc(mc.makeMarshalFunc(c)),
+		WithUnmarshalFunc(mc.makeUnmarshalFunc(c)),
 	)
 	return mc
 }
@@ -84,7 +84,7 @@ func (m memoizeCache) Get(ctx context.Context, key string, value interface{}) er
 	return err
 }
 
-func (m memoizeCache) makeMarshalFunc(ffCache gocache.Cache) func(interface{}) ([]byte, error) {
+func (m memoizeCache) makeMarshalFunc(ffCache *gocache.Cache) func(interface{}) ([]byte, error) {
 	return func(i interface{}) ([]byte, error) {
 		data, err := jsoniter.Marshal(i)
 		if err != nil {
@@ -101,7 +101,7 @@ func (m memoizeCache) makeMarshalFunc(ffCache gocache.Cache) func(interface{}) (
 	}
 }
 
-func (m memoizeCache) makeUnmarshalFunc(ffCache gocache.Cache) func([]byte, interface{}) error {
+func (m memoizeCache) makeUnmarshalFunc(ffCache *gocache.Cache) func([]byte, interface{}) error {
 	return func(bytes []byte, i interface{}) error {
 
 		/* #nosec */
