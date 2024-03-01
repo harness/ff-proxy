@@ -4,10 +4,29 @@ import (
 	"context"
 	"fmt"
 
+	_ "embed"
+
 	"github.com/harness/ff-proxy/v2/cache"
+	jsoniter "github.com/json-iterator/go"
 
 	"github.com/harness/ff-proxy/v2/domain"
 )
+
+var (
+	//go:embed k6/sample_responses/segments.json
+	segmentsData     []byte
+	segmentsResponse []domain.Segment
+
+	segmentsMap map[string]domain.Segment = make(map[string]domain.Segment)
+)
+
+func init() {
+	_ = jsoniter.Unmarshal(segmentsData, &segmentsResponse)
+
+	for _, s := range segmentsResponse {
+		segmentsMap[s.Identifier] = s
+	}
+}
 
 // SegmentRepo is a repository that stores Segments
 type SegmentRepo struct {
@@ -35,13 +54,19 @@ func (s SegmentRepo) Get(ctx context.Context, envID string) ([]domain.Segment, e
 
 // GetByIdentifier gets a Segment for a given key and identifer
 func (s SegmentRepo) GetByIdentifier(ctx context.Context, envID string, identifier string) (domain.Segment, error) {
-	segment := domain.Segment{}
-	key := domain.NewSegmentKey(envID, identifier)
+	//segment := domain.Segment{}
+	//key := domain.NewSegmentKey(envID, identifier)
 
-	if err := s.cache.Get(ctx, string(key), &segment); err != nil {
-		return domain.Segment{}, err
+	segment, ok := segmentsMap[identifier]
+	if !ok {
+		return domain.Segment{}, domain.ErrCacheNotFound
 	}
 	return segment, nil
+
+	//if err := s.cache.Get(ctx, string(key), &segment); err != nil {
+	//	return domain.Segment{}, err
+	//}
+	//return segment, nil
 }
 
 // Add stores SegmentConfig in the cache
