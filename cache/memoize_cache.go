@@ -75,12 +75,12 @@ func (m memoizeCache) Get(ctx context.Context, key string, value interface{}) er
 			return nil
 		}
 	}
-	err = m.Cache.Get(ctx, key, value)
-	if err != nil {
-		return err
-	}
+	//err = m.Cache.Get(ctx, key, value)
+	//if err != nil {
+	//	return err
+	//}
 	// set the value in local
-	m.localCache.Set(hash, value, 0)
+	//m.localCache.Set(hash, value, 0)
 	return err
 }
 
