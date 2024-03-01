@@ -3,8 +3,6 @@ package cache
 import (
 	"context"
 	"crypto/md5" //#nosec G501
-	"crypto/sha256"
-	"encoding/json"
 	"fmt"
 	"reflect"
 	"time"
@@ -59,57 +57,31 @@ func NewMemoizeCache(rc redis.UniversalClient, defaultExpiration, cleanupInterva
 	return mc
 }
 
-func (m memoizeCache) Set(ctx context.Context, key string, value interface{}) error {
-
-	latestKey := fmt.Sprintf("%s-latest", key)
-	jsonData, err := json.Marshal(value)
-	if err != nil {
-		return err
-	}
-	// 1. get hash of the document
-	latestHash := sha256.Sum256(jsonData)
-	latestHashString := fmt.Sprintf("%x", latestHash)
-
-	// 2. set the document in the local cache
-	//m.localCache.Set(latestHashString, value, 0)
-
-	m.localCache.Set(key, value, 0) //this will populate on key and value
-	// 2. set the hash in the redis
-	err = m.Cache.Set(ctx, latestKey, latestHashString)
-	if err != nil {
-		return err
-	}
-	
-	//3. set document in redis
-	return m.Cache.Set(ctx, key, value)
-}
-
 func (m memoizeCache) Get(ctx context.Context, key string, value interface{}) error {
 
-	//latestKey := fmt.Sprintf("%s-latest", key)
-	////hash, err := m.Cache.GetHash(ctx, latestKey)
-	//if err == nil {
-	data, ok := m.localCache.Get(key) //lets fetch key
-	if ok {
-		// this is assigning value of the data to the value interface.
-		val := reflect.ValueOf(value)
-		respValue := reflect.ValueOf(data)
-		if respValue.Kind() == reflect.Ptr {
-			val.Elem().Set(respValue.Elem())
-		} else {
-			val.Elem().Set(respValue)
+	latestKey := fmt.Sprintf("%s-latest", key)
+	hash, err := m.Cache.GetHash(ctx, latestKey)
+	if err == nil {
+		data, ok := m.localCache.Get(hash)
+		if ok {
+			// this is assigning value of the data to the value interface.
+			val := reflect.ValueOf(value)
+			respValue := reflect.ValueOf(data)
+			if respValue.Kind() == reflect.Ptr {
+				val.Elem().Set(respValue.Elem())
+			} else {
+				val.Elem().Set(respValue)
+			}
+			return nil
 		}
-		return nil
 	}
-	return nil
-	//}
-	//err = m.Cache.Get(ctx, key, value)
-	//if err != nil {
-	//	return err
-	//}
-	//// set the value in local
-	//m.localCache.Set(hash, value, 0)
-	//return err
+	err = m.Cache.Get(ctx, key, value)
+	if err != nil {
+		return err
+	}
+	// set the value in local
+	m.localCache.Set(hash, value, 0)
+	return err
 }
 
 func (m memoizeCache) makeMarshalFunc(ffCache *gocache.Cache) func(interface{}) ([]byte, error) {
