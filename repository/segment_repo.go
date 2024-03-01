@@ -4,23 +4,33 @@ import (
 	"context"
 	"crypto/sha256"
 	"fmt"
+	"reflect"
+	"time"
 
 	jsoniter "github.com/json-iterator/go"
+	gocache "github.com/patrickmn/go-cache"
 
 	"github.com/harness/ff-proxy/v2/cache"
 
 	"github.com/harness/ff-proxy/v2/domain"
 )
 
+type internalCache interface {
+	Get(key string) (interface{}, bool)
+	Set(key string, v interface{}, d time.Duration)
+}
+
 // SegmentRepo is a repository that stores Segments
 type SegmentRepo struct {
-	cache cache.Cache
+	cache      cache.Cache
+	localCache internalCache
 }
 
 // NewSegmentRepo creates a SegmentRepo. It can optionally preload the repo with data
 // from the passed config
 func NewSegmentRepo(c cache.Cache) SegmentRepo {
-	return SegmentRepo{cache: c}
+	l := gocache.New(1*time.Minute, 2*time.Minute)
+	return SegmentRepo{cache: c, localCache: l}
 }
 
 // Get gets all of the Segments for a given key
@@ -41,10 +51,48 @@ func (s SegmentRepo) GetByIdentifier(ctx context.Context, envID string, identifi
 	segment := domain.Segment{}
 	key := domain.NewSegmentKey(envID, identifier)
 
-	if err := s.cache.Get(ctx, string(key), &segment); err != nil {
+	if err := s.getFromLocalCache(ctx, key, &segment); err != nil {
 		return domain.Segment{}, err
 	}
+
+	//if err := s.cache.Get(ctx, string(key), &segment); err != nil {
+	//	return domain.Segment{}, err
+	//}
 	return segment, nil
+}
+
+func (s SegmentRepo) getFromLocalCache(ctx context.Context, key domain.SegmentKey, value interface{}) error {
+	var hash string
+	latestKey := fmt.Sprintf("%s-latest", key)
+
+	// If we Get the latest key from redis the check if it's in our local cache.
+	// If it's in our locla cache then we can return the bytes directly from it
+	// rather than unmarshaling.
+	if err := s.cache.Get(ctx, latestKey, &hash); err == nil {
+		data, ok := s.localCache.Get(hash)
+		if ok {
+			// this is assigning value of the data to the value interface.
+			val := reflect.ValueOf(value)
+			respValue := reflect.ValueOf(data)
+			if respValue.Kind() == reflect.Ptr {
+				val.Elem().Set(respValue.Elem())
+			} else {
+				val.Elem().Set(respValue)
+			}
+			return nil
+		}
+	}
+
+	// If we get here then the bytes weren't in our local cache
+	// so we need to fetch the full document
+	if err := s.cache.Get(ctx, string(key), value); err != nil {
+		return err
+	}
+
+	// Finally set the hash and full document in our local cache so
+	// we don't have to fetch them next time
+	s.localCache.Set(hash, value, 0)
+	return nil
 }
 
 // Add stores SegmentConfig in the cache
