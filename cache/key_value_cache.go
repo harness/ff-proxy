@@ -101,6 +101,18 @@ func (k *KeyValCache) Get(ctx context.Context, key string, value interface{}) er
 	return k.unmarshalFn(b, value)
 }
 
+// GetHash gets the value of a field for a given key
+func (k *KeyValCache) GetHash(ctx context.Context, key string) (string, error) {
+	b, err := k.redisClient.Get(ctx, key).Bytes()
+	if err != nil {
+		if err == redis.Nil {
+			return "", fmt.Errorf("%w: KeyValCache.GetHash key %s doesn't exist in cache: %s", domain.ErrCacheNotFound, key, err)
+		}
+		return "", fmt.Errorf("%w: KeyValCache.GetHash failed for key: %q", err, key)
+	}
+	return string(b[:]), nil
+}
+
 // Delete can be used to forcefully remove a key from the cache before it's TTL has expired
 func (k *KeyValCache) Delete(ctx context.Context, key string) error {
 	if err := k.redisClient.Del(ctx, key).Err(); err != nil {

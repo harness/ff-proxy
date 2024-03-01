@@ -10,6 +10,9 @@ type Cache interface {
 	// Get gets the value of a field for a given key
 	Get(ctx context.Context, key string, value interface{}) error
 
+	// GetHash gets hash  field for a given key
+	GetHash(ctx context.Context, key string) (string, error)
+
 	// Delete removes a key from the cache
 	Delete(ctx context.Context, key string) error
 

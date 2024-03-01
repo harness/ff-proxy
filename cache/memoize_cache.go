@@ -58,9 +58,9 @@ func NewMemoizeCache(rc redis.UniversalClient, defaultExpiration, cleanupInterva
 }
 
 func (m memoizeCache) Get(ctx context.Context, key string, value interface{}) error {
-	var hash string
+
 	latestKey := fmt.Sprintf("%s-latest", key)
-	err := m.Cache.Get(ctx, latestKey, &hash)
+	hash, err := m.Cache.GetHash(ctx, latestKey)
 	if err == nil {
 		data, ok := m.localCache.Get(hash)
 		if ok {

@@ -19,6 +19,11 @@ type MemCache struct {
 	data map[string][]byte
 }
 
+func (m MemCache) GetHash(ctx context.Context, key string) (string, error) {
+	//TODO implement me
+	panic("implement me")
+}
+
 // Scan all the keys for given key
 func (m MemCache) Scan(_ context.Context, _ string) (map[string]string, error) {
 	//TODO implement equivalent.

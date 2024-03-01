@@ -37,6 +37,11 @@ type MetricsCache struct {
 	scanCount   counter
 }
 
+func (c MetricsCache) GetHash(ctx context.Context, key string) (string, error) {
+	//TODO implement me
+	panic("implement me")
+}
+
 func (c MetricsCache) Scan(ctx context.Context, key string) (m map[string]string, err error) {
 	start := time.Now()
 	defer func() {
