@@ -296,10 +296,20 @@ func (s Service) Evaluations(ctx context.Context, req domain.EvaluationsRequest)
 			s.logger.Error(ctx, "error fetching target: ", "err", err.Error())
 			return []clientgen.Evaluation{}, fmt.Errorf("%w: %s", ErrInternal, err)
 		}
-
 	}
+
+	segments, err := s.segmentRepo.Get(ctx, req.EnvironmentID)
+	if err != nil {
+		return []clientgen.Evaluation{}, err
+	}
+
+	segmentMap := make(map[string]domain.Segment, len(segments))
+	for _, s := range segments {
+		segmentMap[s.Identifier] = s
+	}
+
 	target := domain.ConvertTarget(t)
-	query := s.GenerateQueryStore(ctx, req.EnvironmentID)
+	query := s.GenerateQueryStore(ctx, req.EnvironmentID, segmentMap)
 	sdkEvaluator, _ := evaluation.NewEvaluator(query, nil, logger.NewNoOpLogger())
 
 	flagVariations, err := sdkEvaluator.EvaluateAll(&target)
@@ -339,7 +349,7 @@ func (s Service) EvaluationsByFeature(ctx context.Context, req domain.Evaluation
 	}
 	target := domain.ConvertTarget(t)
 
-	query := s.GenerateQueryStore(ctx, req.EnvironmentID)
+	query := s.GenerateQueryStore(ctx, req.EnvironmentID, nil)
 
 	sdkEvaluator, _ := evaluation.NewEvaluator(query, nil, logger.NewNoOpLogger())
 	flagVariation, err := sdkEvaluator.Evaluate(req.FeatureIdentifier, &target)
