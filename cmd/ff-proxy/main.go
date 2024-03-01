@@ -304,7 +304,7 @@ func main() {
 		}
 		redisClient = redis.NewUniversalClient(&opts)
 		logger.Info("connecting to redis", "address", redisAddress)
-		sdkCache = cache.NewMetricsCache("redis", promReg, cache.NewMemoizeCache(redisClient, 1*time.Minute, 2*time.Minute, cache.NewMemoizeMetrics("proxy", promReg)))
+		sdkCache = cache.NewMetricsCache("redis", promReg, cache.NewMemoizeCache(redisClient, 30*time.Minute, 30*time.Minute, cache.NewMemoizeMetrics("proxy", promReg)))
 		err = sdkCache.HealthCheck(ctx)
 		if err != nil {
 			logger.Error("failed to connect to redis", "err", err)
