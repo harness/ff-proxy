@@ -39,10 +39,9 @@ func (q QueryStore) GetFlagMap() (map[string]*rest.FeatureConfig, error) {
 
 // GenerateQueryStore returns a QueryStore object which can be passed to the go sdk evaluator
 // nolint:cyclop
-func (s Service) GenerateQueryStore(ctx context.Context, environmentID string) QueryStore {
+func (s Service) GenerateQueryStore(ctx context.Context, environmentID string, segments map[string]domain.Segment) QueryStore {
 	return QueryStore{
 		F: func(identifier string) (rest.FeatureConfig, error) {
-
 			// fetch feature
 			flag, err := s.featureRepo.GetByIdentifier(ctx, environmentID, identifier)
 			if err != nil {
@@ -55,16 +54,25 @@ func (s Service) GenerateQueryStore(ctx context.Context, environmentID string) Q
 			return flag.ToSDKFeatureConfig(), nil
 		},
 		S: func(identifier string) (rest.Segment, error) {
-			// fetch segment
-			segment, err := s.segmentRepo.GetByIdentifier(ctx, environmentID, identifier)
-			if err != nil {
-				if !errors.Is(err, domain.ErrCacheNotFound) {
-					return rest.Segment{}, fmt.Errorf("%w: %s", ErrInternal, err)
-				}
-				s.logger.Debug(ctx, "segments not found in cache: ", "err", err.Error())
+			segment, ok := segments[identifier]
+			if !ok {
+				//if !errors.Is(err, domain.ErrCacheNotFound) {
+				//	return rest.Segment{}, fmt.Errorf("%w: %s", ErrInternal, err)
+				//}
+				s.logger.Debug(ctx, "segments not found in cache: ")
 			}
-
 			return segment.ToSDKSegment(), nil
+
+			// fetch segment
+			//segment, err := s.segmentRepo.GetByIdentifier(ctx, environmentID, identifier)
+			//if err != nil {
+			//	if !errors.Is(err, domain.ErrCacheNotFound) {
+			//		return rest.Segment{}, fmt.Errorf("%w: %s", ErrInternal, err)
+			//	}
+			//	s.logger.Debug(ctx, "segments not found in cache: ", "err", err.Error())
+			//}
+
+			//return segment.ToSDKSegment(), nil
 		},
 		L: func() ([]rest.FeatureConfig, error) {
 			// fetch flags
