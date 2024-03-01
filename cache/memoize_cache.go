@@ -100,7 +100,6 @@ func (m memoizeCache) Get(ctx context.Context, key string, value interface{}) er
 		}
 		return nil
 	}
-
 	return nil
 	//}
 	//err = m.Cache.Get(ctx, key, value)
