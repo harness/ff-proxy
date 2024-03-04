@@ -59,7 +59,7 @@ func NewMemoizeCache(rc redis.UniversalClient, defaultExpiration, cleanupInterva
 }
 
 func (m memoizeCache) Get(ctx context.Context, key string, value interface{}) error {
-	if !strings.Contains(key, "segment") {
+	if !strings.Contains(key, "segment") && !strings.Contains(key, "feature-config") {
 		return m.Cache.Get(ctx, key, value)
 	}
 
