@@ -108,7 +108,7 @@ func (m memoizeCache) makeMarshalFunc(ffCache *gocache.Cache) func(interface{}) 
 		ui := crc32.ChecksumIEEE(data)
 		hash := strconv.FormatUint(uint64(ui), 10)
 
-		ffCache.Set(string(hash), i, gocache.DefaultExpiration)
+		ffCache.Set(hash, i, gocache.DefaultExpiration)
 		m.metrics.cacheMarshalInc()
 		return data, nil
 	}
@@ -125,7 +125,7 @@ func (m memoizeCache) makeUnmarshalFunc(ffCache *gocache.Cache) func([]byte, int
 		ui := crc32.ChecksumIEEE(bytes)
 		hash := strconv.FormatUint(uint64(ui), 10)
 
-		if resp, ok := ffCache.Get(string(hash)); ok {
+		if resp, ok := ffCache.Get(hash); ok {
 			val := reflect.ValueOf(i)
 			if val.Kind() != reflect.Ptr {
 				m.metrics.cacheHitWithUnmarshalInc()
