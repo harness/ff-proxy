@@ -5,6 +5,7 @@ import (
 	"crypto/md5" //#nosec G501
 	"fmt"
 	"reflect"
+	"strings"
 	"time"
 
 	"github.com/go-redis/redis/v8"
@@ -58,6 +59,9 @@ func NewMemoizeCache(rc redis.UniversalClient, defaultExpiration, cleanupInterva
 }
 
 func (m memoizeCache) Get(ctx context.Context, key string, value interface{}) error {
+	if !strings.Contains(key, "segment") {
+		return m.Cache.Get(ctx, key, value)
+	}
 
 	latestKey := fmt.Sprintf("%s-latest", key)
 	hash, err := m.Cache.GetHash(ctx, latestKey)
