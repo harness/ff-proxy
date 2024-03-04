@@ -1,6 +1,14 @@
 package cache
 
 import (
+	"crypto/md5"
+	"crypto/sha1"
+	"crypto/sha256"
+	"crypto/sha512"
+	"hash/adler32"
+	"hash/crc32"
+	"hash/crc64"
+	"hash/fnv"
 	"testing"
 	"time"
 
@@ -10,6 +18,8 @@ import (
 	gocache "github.com/patrickmn/go-cache"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/assert"
+	"golang.org/x/crypto/blake2b"
+	"golang.org/x/crypto/sha3"
 )
 
 type mockInternalCache struct {
@@ -196,4 +206,101 @@ func setupTestKeyValCache() *KeyValCache {
 	}
 
 	return k
+}
+
+// create the benchmar test
+func generateBytes(length int) []byte {
+	// Create a byte slice of the desired length
+	bytes := make([]byte, length)
+	return bytes
+}
+
+// Test data
+var testData = generateBytes(1000)
+
+// Benchmark function for MD5
+func BenchmarkMD5Hash(b *testing.B) {
+	for i := 0; i < b.N; i++ {
+		md5.Sum(testData)
+	}
+}
+
+// Benchmark function for SHA-1
+func BenchmarkSHA1Hash(b *testing.B) {
+	for i := 0; i < b.N; i++ {
+		sha1.Sum(testData)
+	}
+}
+
+// Benchmark function for SHA-256
+func BenchmarkSHA256Hash(b *testing.B) {
+	for i := 0; i < b.N; i++ {
+		sha256.Sum256(testData)
+	}
+}
+
+// Benchmark function for SHA-512
+func BenchmarkSHA512Hash(b *testing.B) {
+	for i := 0; i < b.N; i++ {
+		sha512.Sum512(testData)
+	}
+}
+
+// Benchmark function for SHA-3
+func BenchmarkSHA3Hash(b *testing.B) {
+	for i := 0; i < b.N; i++ {
+		sha3.Sum256(testData)
+	}
+}
+
+// Benchmark function for BLAKE2b
+func BenchmarkBLAKE2bHash(b *testing.B) {
+	for i := 0; i < b.N; i++ {
+		blake2b.Sum256(testData)
+	}
+}
+
+// Benchmark function for Adler-32
+func BenchmarkAdler32Hash(b *testing.B) {
+	for i := 0; i < b.N; i++ {
+		adler32.Checksum(testData)
+	}
+}
+
+// Benchmark function for CRC-32
+func BenchmarkCRC32Hash(b *testing.B) {
+	for i := 0; i < b.N; i++ {
+		crc32.ChecksumIEEE(testData)
+	}
+}
+
+// Benchmark function for CRC-64
+func BenchmarkCRC64Hash(b *testing.B) {
+	table := crc64.MakeTable(crc64.ISO)
+	for i := 0; i < b.N; i++ {
+		crc64.Checksum(testData, table)
+	}
+}
+
+// Benchmark function for FNV-1a
+func BenchmarkFNV1aHash(b *testing.B) {
+	hasher := fnv.New64a()
+	for i := 0; i < b.N; i++ {
+		hasher.Reset()
+		hasher.Write(testData)
+		hasher.Sum64()
+	}
+}
+
+func BenchmarkAllHashFunctions(b *testing.B) {
+	b.Run("MD5Hash", BenchmarkMD5Hash)
+	b.Run("SHA1Hash", BenchmarkSHA1Hash)
+	b.Run("SHA256Hash", BenchmarkSHA256Hash)
+	b.Run("SHA512Hash", BenchmarkSHA512Hash)
+	b.Run("SHA3Hash", BenchmarkSHA3Hash)
+	b.Run("BLAKE2bHash", BenchmarkBLAKE2bHash)
+	b.Run("Adler32Hash", BenchmarkAdler32Hash)
+	b.Run("CRC32Hash", BenchmarkCRC32Hash)
+	b.Run("CRC64Hash", BenchmarkCRC64Hash)
+	b.Run("FNV1aHash", BenchmarkFNV1aHash)
 }
