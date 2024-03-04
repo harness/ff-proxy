@@ -1,9 +1,9 @@
 package cache
 
 import (
-	"context"
-	"crypto/md5" //#nosec G501
+	"context" //#nosec G501
 	"fmt"
+	"hash/crc32"
 	"reflect"
 	"strings"
 	"time"
@@ -96,9 +96,14 @@ func (m memoizeCache) makeMarshalFunc(ffCache *gocache.Cache) func(interface{}) 
 		}
 
 		/* #nosec */
-		hasher := md5.New()
-		hasher.Write(data)
+		//hasher := md5.New()
+		//hasher.Write(data)
+		//hash := hasher.Sum(nil)
+
+		hasher := crc32.NewIEEE()
+		hasher.Write([]byte(data))
 		hash := hasher.Sum(nil)
+
 		ffCache.Set(string(hash), i, gocache.DefaultExpiration)
 		m.metrics.cacheMarshalInc()
 		return data, nil
@@ -109,9 +114,14 @@ func (m memoizeCache) makeUnmarshalFunc(ffCache *gocache.Cache) func([]byte, int
 	return func(bytes []byte, i interface{}) error {
 
 		/* #nosec */
-		hasher := md5.New()
-		hasher.Write(bytes)
+
+		//hasher := md5.New()
+		//hasher.Write(bytes)
+		//hash := hasher.Sum(nil)
+		hasher := crc32.NewIEEE()
+		hasher.Write([]byte(bytes))
 		hash := hasher.Sum(nil)
+
 		if resp, ok := ffCache.Get(string(hash)); ok {
 			val := reflect.ValueOf(i)
 			if val.Kind() != reflect.Ptr {
