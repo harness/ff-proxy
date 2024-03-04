@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"hash/crc32"
 	"reflect"
+	"strconv"
 	"strings"
 	"time"
 
@@ -100,9 +101,12 @@ func (m memoizeCache) makeMarshalFunc(ffCache *gocache.Cache) func(interface{}) 
 		//hasher.Write(data)
 		//hash := hasher.Sum(nil)
 
-		hasher := crc32.NewIEEE()
-		hasher.Write([]byte(data))
-		hash := hasher.Sum(nil)
+		//hasher := crc32.NewIEEE()
+		//hasher.Write([]byte(data))
+		//hash := hasher.Sum(nil)
+
+		ui := crc32.ChecksumIEEE(data)
+		hash := strconv.FormatUint(uint64(ui), 10)
 
 		ffCache.Set(string(hash), i, gocache.DefaultExpiration)
 		m.metrics.cacheMarshalInc()
@@ -118,9 +122,8 @@ func (m memoizeCache) makeUnmarshalFunc(ffCache *gocache.Cache) func([]byte, int
 		//hasher := md5.New()
 		//hasher.Write(bytes)
 		//hash := hasher.Sum(nil)
-		hasher := crc32.NewIEEE()
-		hasher.Write([]byte(bytes))
-		hash := hasher.Sum(nil)
+		ui := crc32.ChecksumIEEE(bytes)
+		hash := strconv.FormatUint(uint64(ui), 10)
 
 		if resp, ok := ffCache.Get(string(hash)); ok {
 			val := reflect.ValueOf(i)
