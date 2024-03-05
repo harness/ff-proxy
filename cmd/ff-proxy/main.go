@@ -278,6 +278,7 @@ func main() {
 	// when we move to a pattern of allowing periodic config dumps to disk we can remove this requirement
 
 	var redisClient redis.UniversalClient
+	var hashCache *cache.HashCacher
 
 	if redisAddress != "" && !generateOfflineConfig { //nolint:nestif
 		// if address does not start with redis:// or rediss:// then default to redis://
@@ -304,12 +305,17 @@ func main() {
 		}
 		redisClient = redis.NewUniversalClient(&opts)
 		logger.Info("connecting to redis", "address", redisAddress)
-		sdkCache = cache.NewMetricsCache("redis", promReg, cache.NewMemoizeCache(redisClient, 1*time.Minute, 2*time.Minute, cache.NewMemoizeMetrics("proxy", promReg)))
+
+		mcCache := cache.NewMemoizeCache(redisClient, 1*time.Minute, 2*time.Minute, cache.NewMemoizeMetrics("proxy", promReg))
+		sdkCache = cache.NewMetricsCache("redis", promReg, mcCache)
+		hashCache = cache.NewHashRepo(mcCache, 1*time.Minute, 2*time.Minute)
+
 		err = sdkCache.HealthCheck(ctx)
 		if err != nil {
 			logger.Error("failed to connect to redis", "err", err)
 			os.Exit(1)
 		}
+
 	} else {
 		logger.Info("initialising default memcache")
 		sdkCache = cache.NewMetricsCache("in_mem", promReg, cache.NewMemCache())
@@ -387,8 +393,8 @@ func main() {
 
 	// Create repos
 	targetRepo := repository.NewTargetRepo(sdkCache, logger)
-	flagRepo := repository.NewFeatureFlagRepo(sdkCache)
-	segmentRepo := repository.NewSegmentRepo(sdkCache)
+	flagRepo := repository.NewFeatureFlagRepo(hashCache)
+	segmentRepo := repository.NewSegmentRepo(hashCache)
 	authRepo := repository.NewAuthRepo(sdkCache)
 	inventoryRepo := repository.NewInventoryRepo(sdkCache, logger)
 
