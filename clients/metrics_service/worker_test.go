@@ -101,9 +101,9 @@ func TestWorker_Start(t *testing.T) {
 	}
 
 	mr456 := domain.MetricsRequest{
-		Size:          24,
+		Size:          41,
 		EnvironmentID: "456",
-		Metrics:       clientgen.Metrics{},
+		Metrics:       clientgen.Metrics{MetricsData: &[]clientgen.MetricsData{}},
 	}
 
 	type args struct {
@@ -175,7 +175,41 @@ func TestWorker_Start(t *testing.T) {
 				}
 			}
 
-			assert.Equal(t, tc.expected.metrics, actual)
+			for i := 0; i < len(tc.expected.metrics); i++ {
+				exp := tc.expected.metrics[i]
+				act := actual[i]
+
+				assert.Equal(t, exp.EnvironmentID, act.EnvironmentID)
+				assert.Equal(t, exp.Size, act.Size)
+
+				if exp.MetricsData != nil {
+					for j := 0; j < len(*exp.MetricsData); j++ {
+						expCopy := *exp.MetricsData
+						actCopy := *act.MetricsData
+
+						expMD := expCopy[j]
+						actMD := actCopy[j]
+
+						assert.Equal(t, expMD.Count, actMD.Count)
+						assert.Equal(t, expMD.Attributes, actMD.Attributes)
+						assert.Equal(t, expMD.MetricsType, actMD.MetricsType)
+					}
+				}
+
+				if exp.TargetData != nil {
+					for j := 0; j < len(*exp.TargetData); j++ {
+						expCopy := *exp.TargetData
+						actCopy := *act.TargetData
+
+						expTD := expCopy[j]
+						actTD := actCopy[j]
+
+						assert.Equal(t, expTD.Name, actTD.Name)
+						assert.Equal(t, expTD.Identifier, actTD.Identifier)
+						assert.Equal(t, expTD.Attributes, actTD.Attributes)
+					}
+				}
+			}
 		})
 	}
 }

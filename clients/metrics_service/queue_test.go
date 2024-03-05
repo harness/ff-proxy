@@ -40,7 +40,7 @@ func TestQueue_StoreMetrics(t *testing.T) {
 	mr456 := domain.MetricsRequest{
 		Size:          8,
 		EnvironmentID: "456",
-		Metrics:       clientgen.Metrics{},
+		Metrics:       clientgen.Metrics{MetricsData: &[]clientgen.MetricsData{}},
 	}
 
 	type args struct {
@@ -143,7 +143,7 @@ func TestQueue_Listen(t *testing.T) {
 	mr456 := domain.MetricsRequest{
 		Size:          8,
 		EnvironmentID: "456",
-		Metrics:       clientgen.Metrics{},
+		Metrics:       clientgen.Metrics{MetricsData: &[]clientgen.MetricsData{}},
 	}
 
 	type args struct {
