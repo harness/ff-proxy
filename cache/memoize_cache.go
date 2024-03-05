@@ -207,6 +207,7 @@ func NewMemoizeMetrics(label string, reg *prometheus.Registry) MemoizeMetrics {
 		m.hitWithUnmarshal,
 		m.miss,
 		m.hit,
+		m.hashHit,
 	)
 
 	return m
