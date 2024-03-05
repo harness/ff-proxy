@@ -88,6 +88,18 @@ func (k *KeyValCache) Set(ctx context.Context, key string, value interface{}) er
 	return nil
 }
 
+// GetRawBytes gets a value from the cache specified by the key and return raw bytes
+func (k *KeyValCache) GetRawBytes(ctx context.Context, key string) ([]byte, error) {
+	b, err := k.redisClient.Get(ctx, key).Bytes()
+	if err != nil {
+		if err == redis.Nil {
+			return []byte{}, fmt.Errorf("%w: KeyValCache.GetHash key %s doesn't exist in cache: %s", domain.ErrCacheNotFound, key, err)
+		}
+		return []byte{}, fmt.Errorf("%w: KeyValCache.GetHash failed for key: %q", err, key)
+	}
+	return b[:], nil
+}
+
 // Get gets a value from the cache specified by the key
 func (k *KeyValCache) Get(ctx context.Context, key string, value interface{}) error {
 	b, err := k.redisClient.Get(ctx, key).Bytes()
