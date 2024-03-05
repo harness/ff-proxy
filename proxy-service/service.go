@@ -93,12 +93,17 @@ type SDKClients interface {
 	StreamConnected(key string) bool
 }
 
+type SegmentRepo interface {
+	GetByIdentifier(ctx context.Context, env string, identifier string) (domain.Segment, error)
+	Get(ctx context.Context, key string) ([]domain.Segment, error)
+}
+
 // Config is the config for a Service
 type Config struct {
 	Logger        log.ContextualLogger
 	FeatureRepo   repository.FeatureFlagRepo
 	TargetRepo    repository.TargetRepo
-	SegmentRepo   repository.SegmentRepo
+	SegmentRepo   SegmentRepo
 	AuthRepo      repository.AuthRepo
 	AuthFn        authTokenFn
 	ClientService clientService
@@ -119,7 +124,7 @@ type Service struct {
 	logger             log.ContextualLogger
 	featureRepo        repository.FeatureFlagRepo
 	targetRepo         repository.TargetRepo
-	segmentRepo        repository.SegmentRepo
+	segmentRepo        SegmentRepo
 	authRepo           repository.AuthRepo
 	authFn             authTokenFn
 	clientService      clientService

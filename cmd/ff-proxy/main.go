@@ -489,7 +489,7 @@ func main() {
 		Logger:        log.NewContextualLogger(logger, log.ExtractRequestValuesFromContext),
 		FeatureRepo:   flagRepo,
 		TargetRepo:    targetRepo,
-		SegmentRepo:   segmentRepo,
+		SegmentRepo:   repository.NewHashedSegmentRepo(cache.NewKeyValCache(redisClient), promReg),
 		AuthRepo:      authRepo,
 		AuthFn:        tokenSource.GenerateToken,
 		ClientService: clientSvc,
