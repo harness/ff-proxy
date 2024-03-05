@@ -2,27 +2,23 @@ package repository
 
 import (
 	"context"
-	"crypto/sha256"
 	"fmt"
 
-	jsoniter "github.com/json-iterator/go"
-
-	clientgen "github.com/harness/ff-proxy/v2/gen/client"
-
 	"github.com/harness/ff-proxy/v2/cache"
+	clientgen "github.com/harness/ff-proxy/v2/gen/client"
 
 	"github.com/harness/ff-proxy/v2/domain"
 )
 
 // FeatureFlagRepo is a repository that stores FeatureFlags
 type FeatureFlagRepo struct {
-	cache cache.Cache
+	cache cache.HashCacher
 }
 
 // NewFeatureFlagRepo creates a FeatureFlagRepo. It can optionally preload the repo with data
 // from the passed config
-func NewFeatureFlagRepo(c cache.Cache) FeatureFlagRepo {
-	return FeatureFlagRepo{cache: c}
+func NewFeatureFlagRepo(c *cache.HashCacher) FeatureFlagRepo {
+	return FeatureFlagRepo{cache: *c}
 }
 
 // Get gets all the FeatureFlag for a given key
@@ -59,7 +55,6 @@ func (f FeatureFlagRepo) GetByIdentifier(ctx context.Context, envID string, iden
 // Add stores FlagConfig in the cache
 func (f FeatureFlagRepo) Add(ctx context.Context, config ...domain.FlagConfig) error {
 	errs := []error{}
-
 	for _, cfg := range config {
 		k := domain.NewFeatureConfigsKey(cfg.EnvironmentID)
 		if err := f.cache.Set(ctx, string(k), cfg.FeatureConfigs); err != nil {
@@ -70,18 +65,11 @@ func (f FeatureFlagRepo) Add(ctx context.Context, config ...domain.FlagConfig) e
 			})
 		}
 
-		// add the latest featureConifgs hash to the redis.
-		fg, err := jsoniter.Marshal(cfg.FeatureConfigs)
+		// Adding featureConfigs to the redis.#
+		hashKey, err := f.cache.AddHashKey(ctx, string(k), cfg.FeatureConfigs)
 		if err != nil {
-			return fmt.Errorf("unable to marshall feature config %v", err)
-		}
-
-		latestHash := sha256.Sum256(fg)
-		latestHashString := fmt.Sprintf("%x", latestHash)
-		latestHashKey := string(k) + "-latest"
-		if err := f.cache.Set(ctx, latestHashKey, latestHashString); err != nil {
 			errs = append(errs, addError{
-				key:        latestHashKey,
+				key:        hashKey,
 				identifier: "feature-configs",
 				err:        err,
 			})
