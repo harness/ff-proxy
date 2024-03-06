@@ -69,6 +69,22 @@ func (hc HashCache) Get(ctx context.Context, key string, value interface{}) erro
 		return err
 	}
 	// set the value in local
-	hc.localCache.Set(hash, value, 0)
+	if hash != "" {
+		hc.localCache.Set(hash, value, 0)
+	}
 	return err
+}
+
+// Delete key from local cache as well as hash entry in the redis
+func (hc HashCache) Delete(ctx context.Context, key string) error {
+
+	latestKey := string(key) + "-latest"
+	var hash string
+	err := hc.Cache.Get(ctx, latestKey, &hash)
+	if err == nil {
+		//delete the latest hash entry in redis
+		hc.Cache.Delete(ctx, latestKey)
+		hc.localCache.Delete(hash)
+	}
+	return hc.Cache.Delete(ctx, key)
 }
