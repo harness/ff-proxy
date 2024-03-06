@@ -11,22 +11,22 @@ import (
 	gocache "github.com/patrickmn/go-cache"
 )
 
-// HashCacher ...
-type HashCacher struct {
+// HashCache ...
+type HashCache struct {
 	Cache
 	localCache *gocache.Cache
 }
 
-// NewHashCacher ...
-func NewHashCacher(c Cache, defaultExpiration, cleanupInterval time.Duration) *HashCacher {
-	return &HashCacher{
+// NewHashCache ...
+func NewHashCache(c Cache, defaultExpiration, cleanupInterval time.Duration) *HashCache {
+	return &HashCache{
 		Cache:      c,
 		localCache: gocache.New(defaultExpiration, cleanupInterval),
 	}
 }
 
 // AddHashKey adds hash key entry for the given key
-func (hc HashCacher) AddHashKey(ctx context.Context, key string, value interface{}) (string, error) {
+func (hc HashCache) AddHashKey(ctx context.Context, key string, value interface{}) (string, error) {
 	latestHashKey := string(key) + "-latest"
 	v, err := jsoniter.Marshal(value)
 	if err != nil {
@@ -42,7 +42,7 @@ func (hc HashCacher) AddHashKey(ctx context.Context, key string, value interface
 }
 
 // Get checks the local cache for the key and returns it if there.
-func (hc HashCacher) Get(ctx context.Context, key string, value interface{}) error {
+func (hc HashCache) Get(ctx context.Context, key string, value interface{}) error {
 	latestKey := fmt.Sprintf("%s-latest", key)
 	var hash string
 
