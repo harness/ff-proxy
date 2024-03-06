@@ -1,5 +1,15 @@
 package proxyservice
 
+import (
+	"context"
+	"errors"
+	"testing"
+
+	"github.com/harness/ff-proxy/v2/domain"
+	"github.com/harness/ff-proxy/v2/log"
+	"github.com/stretchr/testify/assert"
+)
+
 //type fileSystem struct {
 //	path string
 //}
@@ -332,3 +342,130 @@ package proxyservice
 //		})
 //	}
 //}
+
+type mockSegmentRepo struct {
+	getFn           func() ([]domain.Segment, error)
+	getIdentifierFn func() (domain.Segment, error)
+}
+
+func (m mockSegmentRepo) Get(ctx context.Context, environmentID string) ([]domain.Segment, error) {
+	return m.getFn()
+}
+
+func (m mockSegmentRepo) GetByIdentifier(ctx context.Context, environmentID string, identifier string) (domain.Segment, error) {
+	return m.getIdentifierFn()
+}
+
+func Test_makeSegmentMap(t *testing.T) {
+	fooSegment := domain.Segment{Identifier: "foo"}
+	fooSegment2 := domain.Segment{Identifier: "foo"}
+	barSegment := domain.Segment{Identifier: "bar"}
+
+	type mocks struct {
+		segmentRepo mockSegmentRepo
+	}
+
+	type expected struct {
+		segmentMap map[string]*domain.Segment
+	}
+
+	testCases := map[string]struct {
+		mocks    mocks
+		expected expected
+	}{
+		"Given I have a segment repo that error": {
+			mocks: mocks{
+				segmentRepo: mockSegmentRepo{
+					getFn: func() ([]domain.Segment, error) {
+						return []domain.Segment{}, errors.New("foo")
+					},
+				},
+			},
+			expected: expected{
+				segmentMap: nil,
+			},
+		},
+		"Given I have a segment repo that returns no segments": {
+			mocks: mocks{
+				segmentRepo: mockSegmentRepo{
+					getFn: func() ([]domain.Segment, error) {
+						return []domain.Segment{}, nil
+					},
+				},
+			},
+			expected: expected{
+				segmentMap: nil,
+			},
+		},
+		"Given I have a segment repo that returns one segment": {
+			mocks: mocks{
+				segmentRepo: mockSegmentRepo{
+					getFn: func() ([]domain.Segment, error) {
+						return []domain.Segment{
+							fooSegment,
+						}, nil
+					},
+				},
+			},
+			expected: expected{
+				segmentMap: map[string]*domain.Segment{
+					"foo": &fooSegment,
+				},
+			},
+		},
+		"Given I have a segment repo that returns two segments with the same identifier": {
+			mocks: mocks{
+				segmentRepo: mockSegmentRepo{
+					getFn: func() ([]domain.Segment, error) {
+						return []domain.Segment{
+							fooSegment,
+							fooSegment2,
+						}, nil
+					},
+				},
+			},
+			expected: expected{
+				segmentMap: map[string]*domain.Segment{
+					"foo": &fooSegment2,
+				},
+			},
+		},
+		"Given I have a segment repo that returns two segments with different identifiers": {
+			mocks: mocks{
+				segmentRepo: mockSegmentRepo{
+					getFn: func() ([]domain.Segment, error) {
+						return []domain.Segment{
+							fooSegment,
+							barSegment,
+						}, nil
+					},
+				},
+			},
+			expected: expected{
+				segmentMap: map[string]*domain.Segment{
+					"foo": &fooSegment,
+					"bar": &barSegment,
+				},
+			},
+		},
+	}
+
+	for desc, tc := range testCases {
+		desc := desc
+		tc := tc
+
+		t.Run(desc, func(t *testing.T) {
+			ctx := context.Background()
+
+			s := Service{
+				logger:      log.NewNoOpContextualLogger(),
+				segmentRepo: tc.mocks.segmentRepo,
+			}
+
+			actual := s.makeSegmentMap(ctx, "foo")
+
+			assert.Equal(t, len(tc.expected.segmentMap), len(actual))
+			assert.Equal(t, tc.expected.segmentMap, actual)
+		})
+	}
+}
