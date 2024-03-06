@@ -4,7 +4,9 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/assert"
 
 	"github.com/harness/ff-proxy/v2/cache"
@@ -13,6 +15,7 @@ import (
 )
 
 var (
+	//hashCache  = cache.NewHashCache(cache.NewMemCache(), cache.NewMemoizeMetrics("", prometheus.NewRegistry()), 1*time.Minute, 1*time.Minute)
 	segmentFoo = domain.Segment{
 		CreatedAt:   int64Ptr(123),
 		Environment: strPtr("featureFlagsQA"),
@@ -48,9 +51,8 @@ func TestSegmentRepo_GetByIdentifer(t *testing.T) {
 			Segments:      []domain.Segment{segmentFoo, segmentBar},
 		},
 	}
-
 	testCases := map[string]struct {
-		cache       cache.Cache
+		cache       *cache.HashCache
 		repoConfig  []domain.SegmentConfig
 		envID       string
 		identifier  string
@@ -59,7 +61,7 @@ func TestSegmentRepo_GetByIdentifer(t *testing.T) {
 		expectedErr error
 	}{
 		"Given I have an empty cache": {
-			cache:       cache.NewMemCache(),
+			cache:       cache.NewHashCache(cache.NewMemCache(), cache.NewMemoizeMetrics("", prometheus.NewRegistry()), 1*time.Minute, 1*time.Minute),
 			repoConfig:  emptyConfig,
 			envID:       "123",
 			identifier:  "foo",
@@ -68,7 +70,7 @@ func TestSegmentRepo_GetByIdentifer(t *testing.T) {
 			expectedErr: domain.ErrCacheNotFound,
 		},
 		"Given I have a populated cache and I get identifier=foo that's in the cache": {
-			cache:       cache.NewMemCache(),
+			cache:       cache.NewHashCache(cache.NewMemCache(), cache.NewMemoizeMetrics("", prometheus.NewRegistry()), 1*time.Minute, 1*time.Minute),
 			repoConfig:  populatedConfig,
 			envID:       "123",
 			identifier:  "foo",
@@ -77,7 +79,7 @@ func TestSegmentRepo_GetByIdentifer(t *testing.T) {
 			expectedErr: nil,
 		},
 		"Given I have a populated cache and I get an identifier=bar that's in the cache": {
-			cache:       cache.NewMemCache(),
+			cache:       cache.NewHashCache(cache.NewMemCache(), cache.NewMemoizeMetrics("", prometheus.NewRegistry()), 1*time.Minute, 1*time.Minute),
 			repoConfig:  populatedConfig,
 			envID:       "123",
 			identifier:  "bar",
@@ -86,7 +88,7 @@ func TestSegmentRepo_GetByIdentifer(t *testing.T) {
 			expectedErr: nil,
 		},
 		"Given I have a populated cache and I try to get an identifier that isn't in the cache": {
-			cache:       cache.NewMemCache(),
+			cache:       cache.NewHashCache(cache.NewMemCache(), cache.NewMemoizeMetrics("", prometheus.NewRegistry()), 1*time.Minute, 1*time.Minute),
 			repoConfig:  emptyConfig,
 			envID:       "123",
 			identifier:  "bar",
@@ -125,21 +127,20 @@ func TestSegmentRepoGet(t *testing.T) {
 			Segments:      []domain.Segment{segmentFoo, segmentBar},
 		},
 	}
-
 	testCases := map[string]struct {
-		cache      cache.MemCache
+		cache      *cache.HashCache
 		repoConfig []domain.SegmentConfig
 		shouldErr  bool
 		expected   []domain.Segment
 	}{
 		"Given I call Get with an empty SegmentRepo": {
-			cache:      cache.NewMemCache(),
+			cache:      cache.NewHashCache(cache.NewMemCache(), cache.NewMemoizeMetrics("", prometheus.NewRegistry()), 1*time.Minute, 1*time.Minute),
 			repoConfig: emptyConfig,
 			shouldErr:  true,
 			expected:   []domain.Segment{},
 		},
 		"Given I call Get with a populated SegmentRepo": {
-			cache:      cache.NewMemCache(),
+			cache:      cache.NewHashCache(cache.NewMemCache(), cache.NewMemoizeMetrics("", prometheus.NewRegistry()), 1*time.Minute, 1*time.Minute),
 			repoConfig: populatedConfig,
 			shouldErr:  false,
 			expected:   []domain.Segment{segmentFoo, segmentBar},
@@ -171,19 +172,19 @@ func TestSegmentRepo_Remove(t *testing.T) {
 			Segments:      []domain.Segment{segmentFoo, segmentBar},
 		},
 	}
-
+	hashCache := cache.NewHashCache(cache.NewMemCache(), cache.NewMemoizeMetrics("", prometheus.NewRegistry()), 1*time.Minute, 1*time.Minute)
 	testCases := map[string]struct {
-		cache      cache.MemCache
+		cache      *cache.HashCache
 		repoConfig []domain.SegmentConfig
 		shouldErr  bool
 	}{
 		"Given I call Remove with and the Segment config does not exist": {
-			cache:      cache.NewMemCache(),
+			cache:      hashCache,
 			repoConfig: emptyConfig,
 			shouldErr:  true,
 		},
 		"Given I call Remove with and the Segment config does exist": {
-			cache:      cache.NewMemCache(),
+			cache:      hashCache,
 			repoConfig: populatedConfig,
 			shouldErr:  false,
 		},
@@ -201,7 +202,7 @@ func TestSegmentRepo_Remove(t *testing.T) {
 				assert.Nil(t, repo.Add(ctx, tc.repoConfig...))
 				assert.Nil(t, repo.RemoveAllSegmentsForEnvironment(ctx, "123"))
 				flags, err := repo.Get(ctx, "123")
-				assert.Equal(t, flags, []domain.Segment{})
+				assert.Equal(t, []domain.Segment{}, flags)
 				assert.Error(t, err)
 
 			}
