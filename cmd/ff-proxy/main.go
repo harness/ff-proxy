@@ -278,7 +278,7 @@ func main() {
 	// when we move to a pattern of allowing periodic config dumps to disk we can remove this requirement
 
 	var redisClient redis.UniversalClient
-	var hashCache *cache.HashCacher
+	var hashCache *cache.HashCache
 
 	if redisAddress != "" && !generateOfflineConfig { //nolint:nestif
 		// if address does not start with redis:// or rediss:// then default to redis://
