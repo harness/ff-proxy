@@ -89,7 +89,7 @@ func (h Health) SetUnhealthy(ctx context.Context) error {
 		Since: time.Now().UnixMilli(),
 	}
 
-	cachedStatus := &domain.StreamStatus{}
+	cachedStatus := domain.StreamStatus{}
 	if err := h.c.Get(ctx, h.key, &cachedStatus); err != nil {
 		// Ignore NotFound errors for this key because if the key doesn't
 		// exist we'll end up setting it at the end of this function
