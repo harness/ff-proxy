@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 
@@ -160,7 +161,7 @@ func TestFeatureFlagRepo_GetByIdentifer(t *testing.T) {
 		expectedErr error
 	}{
 		"Given I have an empty cache": {
-			cache:       cache.NewMemCache(),
+			cache:       cache.NewHashCache(cache.NewMemCache(), 1*time.Minute, 1*time.Minute),
 			repoConfig:  emptyConfig,
 			envID:       "123",
 			identifier:  "foo",
@@ -169,7 +170,7 @@ func TestFeatureFlagRepo_GetByIdentifer(t *testing.T) {
 			expectedErr: domain.ErrCacheNotFound,
 		},
 		"Given I have a populated cache and I get an identifier that's in the cache": {
-			cache:       cache.NewMemCache(),
+			cache:       cache.NewHashCache(cache.NewMemCache(), 1*time.Minute, 1*time.Minute),
 			repoConfig:  populatedConfig,
 			envID:       "123",
 			identifier:  "foo",
@@ -178,7 +179,7 @@ func TestFeatureFlagRepo_GetByIdentifer(t *testing.T) {
 			expectedErr: nil,
 		},
 		"Given I have a populated cache and I try to get an identifier that isn't in the cache": {
-			cache:       cache.NewMemCache(),
+			cache:       cache.NewHashCache(cache.NewMemCache(), 1*time.Minute, 1*time.Minute),
 			repoConfig:  emptyConfig,
 			envID:       "123",
 			identifier:  "bar",
@@ -222,19 +223,19 @@ func TestFeatureFlagRepo_Get(t *testing.T) {
 	}
 
 	testCases := map[string]struct {
-		cache      cache.MemCache
+		cache      cache.Cache
 		repoConfig []domain.FlagConfig
 		shouldErr  bool
 		expected   []domain.FeatureFlag
 	}{
 		"Given I call Get with an empty FeatureFlagRepo": {
-			cache:      cache.NewMemCache(),
+			cache:      cache.NewHashCache(cache.NewMemCache(), 1*time.Minute, 1*time.Minute),
 			repoConfig: emptyConfig,
 			shouldErr:  true,
 			expected:   []domain.FeatureFlag{},
 		},
 		"Given I call Get with a populated FeatureFlagRepo": {
-			cache:      cache.NewMemCache(),
+			cache:      cache.NewHashCache(cache.NewMemCache(), 1*time.Minute, 1*time.Minute),
 			repoConfig: populatedConfig,
 			shouldErr:  false,
 			expected:   []domain.FeatureFlag{featureFlagFoo, featureFlagBar},
@@ -272,17 +273,17 @@ func TestFeatureFlagRepo_Remove(t *testing.T) {
 	}
 
 	testCases := map[string]struct {
-		cache      cache.MemCache
+		cache      cache.Cache
 		repoConfig []domain.FlagConfig
 		shouldErr  bool
 	}{
 		"Given I call Remove with and the Feature config does not exist": {
-			cache:      cache.NewMemCache(),
+			cache:      cache.NewHashCache(cache.NewMemCache(), 1*time.Minute, 1*time.Minute),
 			repoConfig: emptyConfig,
 			shouldErr:  true,
 		},
 		"Given I call Remove with and the Feature config does exist": {
-			cache:      cache.NewMemCache(),
+			cache:      cache.NewHashCache(cache.NewMemCache(), 1*time.Minute, 1*time.Minute),
 			repoConfig: populatedConfig,
 			shouldErr:  false,
 		},
@@ -300,7 +301,7 @@ func TestFeatureFlagRepo_Remove(t *testing.T) {
 				assert.Nil(t, repo.Add(ctx, tc.repoConfig...))
 				assert.Nil(t, repo.RemoveAllFeaturesForEnvironment(ctx, "123"))
 				flags, err := repo.Get(ctx, "123")
-				assert.Equal(t, flags, []domain.FeatureFlag{})
+				assert.Equal(t, []domain.FeatureFlag{}, flags)
 				assert.Error(t, err)
 
 			}

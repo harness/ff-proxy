@@ -2,14 +2,10 @@ package repository
 
 import (
 	"context"
-	"crypto/sha256"
 	"fmt"
 
-	jsoniter "github.com/json-iterator/go"
-
-	clientgen "github.com/harness/ff-proxy/v2/gen/client"
-
 	"github.com/harness/ff-proxy/v2/cache"
+	clientgen "github.com/harness/ff-proxy/v2/gen/client"
 
 	"github.com/harness/ff-proxy/v2/domain"
 )
@@ -59,29 +55,11 @@ func (f FeatureFlagRepo) GetByIdentifier(ctx context.Context, envID string, iden
 // Add stores FlagConfig in the cache
 func (f FeatureFlagRepo) Add(ctx context.Context, config ...domain.FlagConfig) error {
 	errs := []error{}
-
 	for _, cfg := range config {
 		k := domain.NewFeatureConfigsKey(cfg.EnvironmentID)
 		if err := f.cache.Set(ctx, string(k), cfg.FeatureConfigs); err != nil {
 			errs = append(errs, addError{
 				key:        string(k),
-				identifier: "feature-configs",
-				err:        err,
-			})
-		}
-
-		// add the latest featureConifgs hash to the redis.
-		fg, err := jsoniter.Marshal(cfg.FeatureConfigs)
-		if err != nil {
-			return fmt.Errorf("unable to marshall feature config %v", err)
-		}
-
-		latestHash := sha256.Sum256(fg)
-		latestHashString := fmt.Sprintf("%x", latestHash)
-		latestHashKey := string(k) + "-latest"
-		if err := f.cache.Set(ctx, latestHashKey, latestHashString); err != nil {
-			errs = append(errs, addError{
-				key:        latestHashKey,
 				identifier: "feature-configs",
 				err:        err,
 			})
