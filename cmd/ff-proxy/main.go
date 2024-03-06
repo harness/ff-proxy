@@ -306,9 +306,10 @@ func main() {
 		redisClient = redis.NewUniversalClient(&opts)
 		logger.Info("connecting to redis", "address", redisAddress)
 
-		mcCache := cache.NewMemoizeCache(redisClient, 1*time.Minute, 2*time.Minute, cache.NewMemoizeMetrics("proxy", promReg))
+		mcMetrics := cache.NewMemoizeMetrics("proxy", promReg)
+		mcCache := cache.NewMemoizeCache(redisClient, 1*time.Minute, 2*time.Minute, mcMetrics)
 		sdkCache = cache.NewMetricsCache("redis", promReg, mcCache)
-		hashCache = cache.NewHashRepo(mcCache, 1*time.Minute, 2*time.Minute)
+		hashCache = cache.NewHashCacher(cache.NewKeyValCache(redisClient), 30*time.Minute, 10*time.Minute)
 
 		err = sdkCache.HealthCheck(ctx)
 		if err != nil {
