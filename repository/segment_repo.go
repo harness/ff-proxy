@@ -11,12 +11,12 @@ import (
 
 // SegmentRepo is a repository that stores Segments
 type SegmentRepo struct {
-	cache cache.HashCacher
+	cache cache.HashCache
 }
 
 // NewSegmentRepo creates a SegmentRepo. It can optionally preload the repo with data
 // from the passed config
-func NewSegmentRepo(c *cache.HashCacher) SegmentRepo {
+func NewSegmentRepo(c *cache.HashCache) SegmentRepo {
 	return SegmentRepo{cache: *c}
 }
 

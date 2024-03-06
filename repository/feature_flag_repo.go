@@ -12,12 +12,12 @@ import (
 
 // FeatureFlagRepo is a repository that stores FeatureFlags
 type FeatureFlagRepo struct {
-	cache cache.HashCacher
+	cache cache.HashCache
 }
 
 // NewFeatureFlagRepo creates a FeatureFlagRepo. It can optionally preload the repo with data
 // from the passed config
-func NewFeatureFlagRepo(c *cache.HashCacher) FeatureFlagRepo {
+func NewFeatureFlagRepo(c *cache.HashCache) FeatureFlagRepo {
 	return FeatureFlagRepo{cache: *c}
 }
 
