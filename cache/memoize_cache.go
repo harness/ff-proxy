@@ -120,9 +120,8 @@ type MemoizeMetrics struct {
 	cacheMarshal     prometheus.Counter
 	hitWithUnmarshal prometheus.Counter
 
-	miss    prometheus.Counter
-	hit     prometheus.Counter
-	hashHit *prometheus.CounterVec
+	miss prometheus.Counter
+	hit  prometheus.Counter
 }
 
 // NewMemoizeMetrics creates a MemoizeMetrics struct that records prometheus metrics that tracks activity in the
@@ -173,10 +172,6 @@ func (m MemoizeMetrics) cacheHitWithUnmarshalInc() {
 
 func (m MemoizeMetrics) cacheHitInc() {
 	m.hit.Inc()
-}
-
-func (m MemoizeMetrics) hashInc(key string) {
-	m.hashHit.WithLabelValues(key).Inc()
 }
 
 type noOpMetrics struct{}
