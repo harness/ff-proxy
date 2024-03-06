@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"fmt"
 	"reflect"
+	"strings"
 	"time"
 
 	jsoniter "github.com/json-iterator/go"
@@ -15,39 +16,35 @@ import (
 type HashCache struct {
 	Cache
 	localCache *gocache.Cache
-	metrics    memoizeMetrics
 }
 
 // NewHashCache ...
-func NewHashCache(c Cache, m MemoizeMetrics, defaultExpiration, cleanupInterval time.Duration) *HashCache {
+func NewHashCache(c Cache, defaultExpiration, cleanupInterval time.Duration) *HashCache {
 	return &HashCache{
 		Cache:      c,
 		localCache: gocache.New(defaultExpiration, cleanupInterval),
-		metrics:    m,
 	}
 }
 
-// AddHashKey adds hash key entry for the given key
-func (hc HashCache) AddHashKey(ctx context.Context, key string, value interface{}) (string, error) {
+// Set adds hash key entry for the given key
+func (hc HashCache) Set(ctx context.Context, key string, value interface{}) error {
+	if !strings.HasSuffix(key, "segments") || !strings.HasSuffix(key, "feature-configs") {
+		return hc.Cache.Set(ctx, key, value)
+	}
 	latestHashKey := string(key) + "-latest"
 	v, err := jsoniter.Marshal(value)
 	if err != nil {
-		return latestHashKey, fmt.Errorf("unable to marshall config %s %v", latestHashKey, err)
+		return fmt.Errorf("unable to marshall config %s %v", latestHashKey, err)
 	}
 	latestHash := sha256.Sum256(v)
 	latestHashString := fmt.Sprintf("%x", latestHash)
-
-	if err := hc.Cache.Set(ctx, latestHashKey, latestHashString); err != nil {
-		return latestHashKey, err
-	}
-	return latestHashKey, nil
+	return hc.Cache.Set(ctx, latestHashKey, latestHashString)
 }
 
 // Get checks the local cache for the key and returns it if there.
 func (hc HashCache) Get(ctx context.Context, key string, value interface{}) error {
 	latestKey := fmt.Sprintf("%s-latest", key)
 	var hash string
-	hc.metrics.hashInc(latestKey)
 	err := hc.Cache.Get(ctx, latestKey, &hash)
 	if err == nil {
 		data, ok := hc.localCache.Get(hash)
@@ -83,8 +80,11 @@ func (hc HashCache) Delete(ctx context.Context, key string) error {
 	err := hc.Cache.Get(ctx, latestKey, &hash)
 	if err == nil {
 		//delete the latest hash entry in redis
-		hc.Cache.Delete(ctx, latestKey)
 		hc.localCache.Delete(hash)
+	}
+	err = hc.Cache.Delete(ctx, latestKey)
+	if err != nil {
+		return err
 	}
 	return hc.Cache.Delete(ctx, key)
 }

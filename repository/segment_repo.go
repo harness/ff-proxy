@@ -11,13 +11,13 @@ import (
 
 // SegmentRepo is a repository that stores Segments
 type SegmentRepo struct {
-	cache cache.HashCache
+	cache cache.Cache
 }
 
 // NewSegmentRepo creates a SegmentRepo. It can optionally preload the repo with data
 // from the passed config
-func NewSegmentRepo(c *cache.HashCache) SegmentRepo {
-	return SegmentRepo{cache: *c}
+func NewSegmentRepo(c cache.Cache) SegmentRepo {
+	return SegmentRepo{cache: c}
 }
 
 // Get gets all of the Segments for a given key
@@ -59,14 +59,14 @@ func (s SegmentRepo) Add(ctx context.Context, config ...domain.SegmentConfig) er
 			})
 		}
 
-		hashK, err := s.cache.AddHashKey(ctx, string(k), cfg.Segments)
-		if err != nil {
-			errs = append(errs, addError{
-				key:        hashK,
-				identifier: "segments",
-				err:        err,
-			})
-		}
+		//hashK, err := s.cache.AddHashKey(ctx, string(k), cfg.Segments)
+		//if err != nil {
+		//	errs = append(errs, addError{
+		//		key:        hashK,
+		//		identifier: "segments",
+		//		err:        err,
+		//	})
+		//}
 
 		for _, seg := range cfg.Segments {
 			key := domain.NewSegmentKey(cfg.EnvironmentID, seg.Identifier)

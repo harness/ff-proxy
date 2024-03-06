@@ -12,13 +12,13 @@ import (
 
 // FeatureFlagRepo is a repository that stores FeatureFlags
 type FeatureFlagRepo struct {
-	cache cache.HashCache
+	cache cache.Cache
 }
 
 // NewFeatureFlagRepo creates a FeatureFlagRepo. It can optionally preload the repo with data
 // from the passed config
-func NewFeatureFlagRepo(c *cache.HashCache) FeatureFlagRepo {
-	return FeatureFlagRepo{cache: *c}
+func NewFeatureFlagRepo(c cache.Cache) FeatureFlagRepo {
+	return FeatureFlagRepo{cache: c}
 }
 
 // Get gets all the FeatureFlag for a given key
@@ -65,15 +65,15 @@ func (f FeatureFlagRepo) Add(ctx context.Context, config ...domain.FlagConfig) e
 			})
 		}
 
-		// Adding featureConfigs to the redis.#
-		hashKey, err := f.cache.AddHashKey(ctx, string(k), cfg.FeatureConfigs)
-		if err != nil {
-			errs = append(errs, addError{
-				key:        hashKey,
-				identifier: "feature-configs",
-				err:        err,
-			})
-		}
+		//// Adding featureConfigs to the redis.#
+		//hashKey, err := f.cache.AddHashKey(ctx, string(k), cfg.FeatureConfigs)
+		//if err != nil {
+		//	errs = append(errs, addError{
+		//		key:        hashKey,
+		//		identifier: "feature-configs",
+		//		err:        err,
+		//	})
+		//}
 
 		for _, flag := range cfg.FeatureConfigs {
 			key := domain.NewFeatureConfigKey(cfg.EnvironmentID, flag.Feature)

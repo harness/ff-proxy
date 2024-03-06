@@ -309,7 +309,7 @@ func main() {
 		mcMetrics := cache.NewMemoizeMetrics("proxy", promReg)
 		mcCache := cache.NewMemoizeCache(redisClient, 1*time.Minute, 2*time.Minute, mcMetrics)
 		sdkCache = cache.NewMetricsCache("redis", promReg, mcCache)
-		hashCache = cache.NewHashCache(cache.NewKeyValCache(redisClient), mcMetrics, 30*time.Minute, 10*time.Minute)
+		hashCache = cache.NewHashCache(cache.NewKeyValCache(redisClient), 30*time.Minute, 10*time.Minute)
 
 		err = sdkCache.HealthCheck(ctx)
 		if err != nil {

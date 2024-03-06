@@ -6,7 +6,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/assert"
 
 	"github.com/harness/ff-proxy/v2/cache"
@@ -153,7 +152,7 @@ func TestFeatureFlagRepo_GetByIdentifer(t *testing.T) {
 	}
 
 	testCases := map[string]struct {
-		cache       *cache.HashCache
+		cache       cache.Cache
 		repoConfig  []domain.FlagConfig
 		envID       string
 		identifier  string
@@ -162,7 +161,7 @@ func TestFeatureFlagRepo_GetByIdentifer(t *testing.T) {
 		expectedErr error
 	}{
 		"Given I have an empty cache": {
-			cache:       cache.NewHashCache(cache.NewMemCache(), cache.NewMemoizeMetrics("", prometheus.NewRegistry()), 1*time.Minute, 1*time.Minute),
+			cache:       cache.NewHashCache(cache.NewMemCache(), 1*time.Minute, 1*time.Minute),
 			repoConfig:  emptyConfig,
 			envID:       "123",
 			identifier:  "foo",
@@ -171,7 +170,7 @@ func TestFeatureFlagRepo_GetByIdentifer(t *testing.T) {
 			expectedErr: domain.ErrCacheNotFound,
 		},
 		"Given I have a populated cache and I get an identifier that's in the cache": {
-			cache:       cache.NewHashCache(cache.NewMemCache(), cache.NewMemoizeMetrics("", prometheus.NewRegistry()), 1*time.Minute, 1*time.Minute),
+			cache:       cache.NewHashCache(cache.NewMemCache(), 1*time.Minute, 1*time.Minute),
 			repoConfig:  populatedConfig,
 			envID:       "123",
 			identifier:  "foo",
@@ -180,7 +179,7 @@ func TestFeatureFlagRepo_GetByIdentifer(t *testing.T) {
 			expectedErr: nil,
 		},
 		"Given I have a populated cache and I try to get an identifier that isn't in the cache": {
-			cache:       cache.NewHashCache(cache.NewMemCache(), cache.NewMemoizeMetrics("", prometheus.NewRegistry()), 1*time.Minute, 1*time.Minute),
+			cache:       cache.NewHashCache(cache.NewMemCache(), 1*time.Minute, 1*time.Minute),
 			repoConfig:  emptyConfig,
 			envID:       "123",
 			identifier:  "bar",
@@ -224,19 +223,19 @@ func TestFeatureFlagRepo_Get(t *testing.T) {
 	}
 
 	testCases := map[string]struct {
-		cache      *cache.HashCache
+		cache      cache.Cache
 		repoConfig []domain.FlagConfig
 		shouldErr  bool
 		expected   []domain.FeatureFlag
 	}{
 		"Given I call Get with an empty FeatureFlagRepo": {
-			cache:      cache.NewHashCache(cache.NewMemCache(), cache.NewMemoizeMetrics("", prometheus.NewRegistry()), 1*time.Minute, 1*time.Minute),
+			cache:      cache.NewHashCache(cache.NewMemCache(), 1*time.Minute, 1*time.Minute),
 			repoConfig: emptyConfig,
 			shouldErr:  true,
 			expected:   []domain.FeatureFlag{},
 		},
 		"Given I call Get with a populated FeatureFlagRepo": {
-			cache:      cache.NewHashCache(cache.NewMemCache(), cache.NewMemoizeMetrics("", prometheus.NewRegistry()), 1*time.Minute, 1*time.Minute),
+			cache:      cache.NewHashCache(cache.NewMemCache(), 1*time.Minute, 1*time.Minute),
 			repoConfig: populatedConfig,
 			shouldErr:  false,
 			expected:   []domain.FeatureFlag{featureFlagFoo, featureFlagBar},
@@ -274,17 +273,17 @@ func TestFeatureFlagRepo_Remove(t *testing.T) {
 	}
 
 	testCases := map[string]struct {
-		cache      *cache.HashCache
+		cache      cache.Cache
 		repoConfig []domain.FlagConfig
 		shouldErr  bool
 	}{
 		"Given I call Remove with and the Feature config does not exist": {
-			cache:      cache.NewHashCache(cache.NewMemCache(), cache.NewMemoizeMetrics("", prometheus.NewRegistry()), 1*time.Minute, 1*time.Minute),
+			cache:      cache.NewHashCache(cache.NewMemCache(), 1*time.Minute, 1*time.Minute),
 			repoConfig: emptyConfig,
 			shouldErr:  true,
 		},
 		"Given I call Remove with and the Feature config does exist": {
-			cache:      cache.NewHashCache(cache.NewMemCache(), cache.NewMemoizeMetrics("", prometheus.NewRegistry()), 1*time.Minute, 1*time.Minute),
+			cache:      cache.NewHashCache(cache.NewMemCache(), 1*time.Minute, 1*time.Minute),
 			repoConfig: populatedConfig,
 			shouldErr:  false,
 		},
