@@ -150,15 +150,6 @@ func (h Health) VerifyStreamStatus(ctx context.Context, interval time.Duration) 
 }
 
 // StreamStatus returns the StreamStatus from the cache
-func (h Health) StreamStatus(ctx context.Context) (domain.StreamStatus, error) {
-	var s domain.StreamStatus
-	if err := h.c.Get(ctx, h.key, &s); err != nil {
-		h.log.Error("failed to get stream status from cache", "err", err)
-		return domain.StreamStatus{}, err
-	}
-
-	inMemStatus := h.inMemStatus.Get()
-	h.log.Info("StreamStatus for health endpoint", "cachedStatus.Since", s.Since, "cachedStatus.State", s.State, "inMemStatus.State", inMemStatus.State, "inMemStatus.Since", inMemStatus.Since)
-
-	return s, nil
+func (h Health) StreamStatus(_ context.Context) (domain.StreamStatus, error) {
+	return h.inMemStatus.Get(), nil
 }
