@@ -15,13 +15,15 @@ import (
 type HashCache struct {
 	Cache
 	localCache *gocache.Cache
+	metrics    memoizeMetrics
 }
 
 // NewHashCache ...
-func NewHashCache(c Cache, defaultExpiration, cleanupInterval time.Duration) *HashCache {
+func NewHashCache(c Cache, m MemoizeMetrics, defaultExpiration, cleanupInterval time.Duration) *HashCache {
 	return &HashCache{
 		Cache:      c,
 		localCache: gocache.New(defaultExpiration, cleanupInterval),
+		metrics:    m,
 	}
 }
 
@@ -45,8 +47,7 @@ func (hc HashCache) AddHashKey(ctx context.Context, key string, value interface{
 func (hc HashCache) Get(ctx context.Context, key string, value interface{}) error {
 	latestKey := fmt.Sprintf("%s-latest", key)
 	var hash string
-
-	//hc.metrics.hashInc(latestKey)
+	hc.metrics.hashInc(latestKey)
 	err := hc.Cache.Get(ctx, latestKey, &hash)
 	if err == nil {
 		data, ok := hc.localCache.Get(hash)

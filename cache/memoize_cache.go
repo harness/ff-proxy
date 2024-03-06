@@ -25,6 +25,8 @@ type memoizeMetrics interface {
 	// cacheHitWithUnmarshalInc increments a counter whenever we've found the raw bytes in the memoize cache but have
 	// still had to perform an unmarshal. This shouldn't happen but this counter will let us know if it is occuring
 	cacheHitWithUnmarshalInc()
+
+	hashInc(string)
 }
 
 type internalCache interface {
@@ -120,8 +122,9 @@ type MemoizeMetrics struct {
 	cacheMarshal     prometheus.Counter
 	hitWithUnmarshal prometheus.Counter
 
-	miss prometheus.Counter
-	hit  prometheus.Counter
+	miss    prometheus.Counter
+	hit     prometheus.Counter
+	hashHit *prometheus.CounterVec
 }
 
 // NewMemoizeMetrics creates a MemoizeMetrics struct that records prometheus metrics that tracks activity in the
@@ -146,6 +149,10 @@ func NewMemoizeMetrics(label string, reg *prometheus.Registry) MemoizeMetrics {
 			Name: fmt.Sprintf("ff_%s_memoize_cache_hit_with_unmarshal", label),
 			Help: "Tracks the number of hits we get performing lookups in our memoize cache but we've still had to perform a full unmarshal",
 		}),
+		hashHit: prometheus.NewCounterVec(prometheus.CounterOpts{
+			Name: fmt.Sprintf("ff_%s_memoize_cache_hash_hit", label),
+			Help: "Tracks the number of times we fetch the hash from redis",
+		}, []string{"key"}),
 	}
 
 	reg.MustRegister(
@@ -153,6 +160,7 @@ func NewMemoizeMetrics(label string, reg *prometheus.Registry) MemoizeMetrics {
 		m.hitWithUnmarshal,
 		m.miss,
 		m.hit,
+		m.hashHit,
 	)
 
 	return m
@@ -174,6 +182,10 @@ func (m MemoizeMetrics) cacheHitInc() {
 	m.hit.Inc()
 }
 
+func (m MemoizeMetrics) hashInc(key string) {
+	m.hashHit.WithLabelValues(key).Inc()
+}
+
 type noOpMetrics struct{}
 
 func (n noOpMetrics) cacheMarshalInc() {}
@@ -183,3 +195,5 @@ func (n noOpMetrics) cacheMissInc() {}
 func (n noOpMetrics) cacheHitWithUnmarshalInc() {}
 
 func (n noOpMetrics) cacheHitInc() {}
+
+func (n noOpMetrics) hashInc(key string) {}
