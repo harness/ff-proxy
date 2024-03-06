@@ -39,7 +39,7 @@ func (q QueryStore) GetFlagMap() (map[string]*rest.FeatureConfig, error) {
 
 // GenerateQueryStore returns a QueryStore object which can be passed to the go sdk evaluator
 // nolint:cyclop
-func (s Service) GenerateQueryStore(ctx context.Context, environmentID string) QueryStore {
+func (s Service) GenerateQueryStore(ctx context.Context, environmentID string, segments map[string]*domain.Segment) QueryStore {
 	return QueryStore{
 		F: func(identifier string) (rest.FeatureConfig, error) {
 
@@ -55,6 +55,16 @@ func (s Service) GenerateQueryStore(ctx context.Context, environmentID string) Q
 			return flag.ToSDKFeatureConfig(), nil
 		},
 		S: func(identifier string) (rest.Segment, error) {
+			// If our segment map has been populated then lets use it
+			// instead of doing a lookup in the repo. If for some reason
+			// the segment doesn't exist in our map then we'll fall back
+			// to hitting the repo
+			if segments != nil {
+				if seg, ok := segments[identifier]; ok {
+					return seg.ToSDKSegment(), nil
+				}
+			}
+
 			// fetch segment
 			segment, err := s.segmentRepo.GetByIdentifier(ctx, environmentID, identifier)
 			if err != nil {

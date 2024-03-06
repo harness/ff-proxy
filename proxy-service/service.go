@@ -114,12 +114,17 @@ type Config struct {
 	Health func(ctx context.Context) domain.HealthResponse
 }
 
+type segmentRepo interface {
+	Get(ctx context.Context, environmentID string) ([]domain.Segment, error)
+	GetByIdentifier(ctx context.Context, environmentID string, identifier string) (domain.Segment, error)
+}
+
 // Service is the proxy service implementation
 type Service struct {
 	logger             log.ContextualLogger
 	featureRepo        repository.FeatureFlagRepo
 	targetRepo         repository.TargetRepo
-	segmentRepo        repository.SegmentRepo
+	segmentRepo        segmentRepo
 	authRepo           repository.AuthRepo
 	authFn             authTokenFn
 	clientService      clientService
@@ -283,7 +288,6 @@ func (s Service) TargetSegmentsByIdentifier(ctx context.Context, req domain.Targ
 
 // Evaluations gets all the evaluations in an environment for a target
 func (s Service) Evaluations(ctx context.Context, req domain.EvaluationsRequest) ([]clientgen.Evaluation, error) {
-
 	evaluations := []clientgen.Evaluation{}
 
 	// fetch target
@@ -296,10 +300,16 @@ func (s Service) Evaluations(ctx context.Context, req domain.EvaluationsRequest)
 			s.logger.Error(ctx, "error fetching target: ", "err", err.Error())
 			return []clientgen.Evaluation{}, fmt.Errorf("%w: %s", ErrInternal, err)
 		}
-
 	}
 	target := domain.ConvertTarget(t)
-	query := s.GenerateQueryStore(ctx, req.EnvironmentID)
+
+	// We fetch all the segments ahead of time and build up a map that we can
+	// pass to the QueryStore. This might be overkill for users that don't have
+	// a lot of rules but for users that do have lots of rules it saves the query
+	// store from making a ton of individual segment calls to the cache.
+	segmentMap := s.makeSegmentMap(ctx, req.EnvironmentID)
+
+	query := s.GenerateQueryStore(ctx, req.EnvironmentID, segmentMap)
 	sdkEvaluator, _ := evaluation.NewEvaluator(query, nil, logger.NewNoOpLogger())
 
 	flagVariations, err := sdkEvaluator.EvaluateAll(&target)
@@ -339,7 +349,7 @@ func (s Service) EvaluationsByFeature(ctx context.Context, req domain.Evaluation
 	}
 	target := domain.ConvertTarget(t)
 
-	query := s.GenerateQueryStore(ctx, req.EnvironmentID)
+	query := s.GenerateQueryStore(ctx, req.EnvironmentID, nil)
 
 	sdkEvaluator, _ := evaluation.NewEvaluator(query, nil, logger.NewNoOpLogger())
 	flagVariation, err := sdkEvaluator.Evaluate(req.FeatureIdentifier, &target)
@@ -409,4 +419,25 @@ func toString(variation rest.Variation, kind string) string {
 		}
 	}
 	return value
+}
+
+func (s Service) makeSegmentMap(ctx context.Context, envID string) map[string]*domain.Segment {
+	var segmentMap map[string]*domain.Segment
+
+	segments, err := s.segmentRepo.Get(ctx, envID)
+	if err != nil {
+		// Not much else we can really do here other than log the error
+		s.logger.Error(ctx, "makeSegmentMap failed to get segments from cache: ", "err", err)
+		return segmentMap
+	}
+
+	if len(segments) > 0 {
+		segmentMap = make(map[string]*domain.Segment)
+		for i := 0; i < len(segments); i++ {
+			seg := segments[i]
+			segmentMap[seg.Identifier] = &seg
+		}
+	}
+
+	return segmentMap
 }
