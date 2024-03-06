@@ -19,11 +19,6 @@ type MemCache struct {
 	data map[string][]byte
 }
 
-func (m MemCache) GetRawBytes(ctx context.Context, key string) ([]byte, error) {
-	//TODO implement me
-	panic("implement me")
-}
-
 // Scan all the keys for given key
 func (m MemCache) Scan(_ context.Context, _ string) (map[string]string, error) {
 	//TODO implement equivalent.

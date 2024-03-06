@@ -10,9 +10,6 @@ type Cache interface {
 	// Get gets the value of a field for a given key
 	Get(ctx context.Context, key string, value interface{}) error
 
-	// GetRawBytes gets a value from the cache specified by the key and return raw bytes
-	GetRawBytes(ctx context.Context, key string) ([]byte, error)
-
 	// Delete removes a key from the cache
 	Delete(ctx context.Context, key string) error
 
