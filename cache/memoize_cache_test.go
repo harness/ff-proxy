@@ -30,11 +30,6 @@ type mockMetrics struct {
 	cacheUnmarshal      int
 	localCacheUnmarshal int
 	localCacheHit       int
-	hashCache           int
-}
-
-func (m *mockMetrics) hashInc(s string) {
-	m.hashCache++
 }
 
 func (m *mockMetrics) cacheMarshalInc() {
