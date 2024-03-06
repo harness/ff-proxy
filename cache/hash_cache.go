@@ -31,14 +31,14 @@ func (hc HashCache) Set(ctx context.Context, key string, value interface{}) erro
 	if !strings.HasSuffix(key, "segments") || !strings.HasSuffix(key, "feature-configs") {
 		return hc.Cache.Set(ctx, key, value)
 	}
-	latestHashKey := string(key) + "-latest"
+	latestKey := fmt.Sprintf("%s-latest", key)
 	v, err := jsoniter.Marshal(value)
 	if err != nil {
-		return fmt.Errorf("unable to marshall config %s %v", latestHashKey, err)
+		return fmt.Errorf("unable to marshall config %s %v", latestKey, err)
 	}
 	latestHash := sha256.Sum256(v)
 	latestHashString := fmt.Sprintf("%x", latestHash)
-	return hc.Cache.Set(ctx, latestHashKey, latestHashString)
+	return hc.Cache.Set(ctx, latestKey, latestHashString)
 }
 
 // Get checks the local cache for the key and returns it if there.
@@ -75,7 +75,7 @@ func (hc HashCache) Get(ctx context.Context, key string, value interface{}) erro
 // Delete key from local cache as well as hash entry in the redis
 func (hc HashCache) Delete(ctx context.Context, key string) error {
 
-	latestKey := string(key) + "-latest"
+	latestKey := fmt.Sprintf("%s-latest", key)
 	var hash string
 	err := hc.Cache.Get(ctx, latestKey, &hash)
 	if err == nil {

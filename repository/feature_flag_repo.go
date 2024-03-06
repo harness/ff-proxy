@@ -65,16 +65,6 @@ func (f FeatureFlagRepo) Add(ctx context.Context, config ...domain.FlagConfig) e
 			})
 		}
 
-		//// Adding featureConfigs to the redis.#
-		//hashKey, err := f.cache.AddHashKey(ctx, string(k), cfg.FeatureConfigs)
-		//if err != nil {
-		//	errs = append(errs, addError{
-		//		key:        hashKey,
-		//		identifier: "feature-configs",
-		//		err:        err,
-		//	})
-		//}
-
 		for _, flag := range cfg.FeatureConfigs {
 			key := domain.NewFeatureConfigKey(cfg.EnvironmentID, flag.Feature)
 
