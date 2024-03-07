@@ -15,7 +15,7 @@ import (
 // HashCache ...
 type HashCache struct {
 	Cache
-	localCache *gocache.Cache
+	localCache internalCache
 }
 
 // NewHashCache ...
@@ -28,9 +28,17 @@ func NewHashCache(c Cache, defaultExpiration, cleanupInterval time.Duration) *Ha
 
 // Set adds hash key entry for the given key
 func (hc HashCache) Set(ctx context.Context, key string, value interface{}) error {
-	if !strings.HasSuffix(key, "segments") || !strings.HasSuffix(key, "feature-configs") {
+	// First set the key, value that we've been given
+	if err := hc.Cache.Set(ctx, key, value); err != nil {
+		return fmt.Errorf("HashCache.Set failed to set key=%s in cache: %s", key, err)
+	}
+
+	// If the key isn't a segments or feature-configs key then we're done.
+	// If it is then we'll want to carry on and set a latest hash for these keys
+	if !strings.HasSuffix(key, "segments") && !strings.HasSuffix(key, "feature-configs") {
 		return hc.Cache.Set(ctx, key, value)
 	}
+
 	latestKey := fmt.Sprintf("%s-latest", key)
 	v, err := jsoniter.Marshal(value)
 	if err != nil {
@@ -38,6 +46,7 @@ func (hc HashCache) Set(ctx context.Context, key string, value interface{}) erro
 	}
 	latestHash := sha256.Sum256(v)
 	latestHashString := fmt.Sprintf("%x", latestHash)
+
 	return hc.Cache.Set(ctx, latestKey, latestHashString)
 }
 
