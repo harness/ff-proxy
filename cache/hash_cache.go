@@ -36,7 +36,7 @@ func (hc HashCache) Set(ctx context.Context, key string, value interface{}) erro
 	// If the key isn't a segments or feature-configs key then we're done.
 	// If it is then we'll want to carry on and set a latest hash for these keys
 	if !strings.HasSuffix(key, "segments") && !strings.HasSuffix(key, "feature-configs") {
-		return hc.Cache.Set(ctx, key, value)
+		return nil
 	}
 
 	latestKey := fmt.Sprintf("%s-latest", key)
