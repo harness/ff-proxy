@@ -8,7 +8,7 @@ import (
 
 func TestSafeBool(t *testing.T) {
 
-	b := NewSafeBool()
+	b := NewSafeBool(false)
 	assert.Equal(t, false, b.Get())
 
 	b.Set(true)
