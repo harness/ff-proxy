@@ -123,6 +123,9 @@ func (k *KeyValCache) Keys(ctx context.Context, key string) ([]string, error) {
 
 // HealthCheck pings the underlying redis cache
 func (k *KeyValCache) HealthCheck(ctx context.Context) error {
+	ctx, cancel := context.WithTimeout(ctx, 1*time.Minute)
+	defer cancel()
+
 	return k.redisClient.Ping(ctx).Err()
 }
 

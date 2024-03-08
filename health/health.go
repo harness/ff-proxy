@@ -86,6 +86,8 @@ type ProxyHealth struct {
 	configHealth domain.ConfigStatus
 	streamHealth func(context.Context) (domain.StreamStatus, error)
 	cacheHealth  func(context.Context) error
+
+	cacheHealthy *domain.SafeBool
 }
 
 // NewProxyHealth creates a ProxyHealth
@@ -95,19 +97,13 @@ func NewProxyHealth(l log.Logger, config domain.ConfigStatus, stream func(ctx co
 		configHealth: config,
 		streamHealth: stream,
 		cacheHealth:  cache,
+		cacheHealthy: domain.NewSafeBool(false),
 	}
 }
 
 // Health returns the status of the Proxy's Stream and Cache
 func (p ProxyHealth) Health(ctx context.Context) domain.HealthResponse {
-	cacheHealthy := true
-
-	// check health functions
-	err := p.cacheHealth(ctx)
-	if err != nil {
-		cacheHealthy = false
-		p.logger.Error("cache healthcheck failed", "err", err)
-	}
+	cacheHealthy := p.cacheHealthy.Get()
 
 	streamStatus, err := p.streamHealth(ctx)
 	if err != nil {
@@ -123,6 +119,41 @@ func (p ProxyHealth) Health(ctx context.Context) domain.HealthResponse {
 		StreamStatus: streamStatus,
 		CacheStatus:  boolToHealthString(cacheHealthy),
 	}
+}
+
+func (p ProxyHealth) PollCacheHealth(ctx context.Context, interval time.Duration) {
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+
+	// Check cache health when we first start so we don't have to wait for the
+	// ticker to expire before we know the state of the cache health at startup
+	if err := p.cacheHealth(ctx); err != nil {
+		p.cacheHealthy.Set(false)
+	} else {
+		p.cacheHealthy.Set(true)
+	}
+
+	go func() {
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				if err := p.cacheHealth(ctx); err != nil {
+					p.cacheHealthy.Set(false)
+					continue
+				}
+
+				// If the current status is already healthy then we don't
+				// need to do anything
+				if currentStatus := p.cacheHealthy.Get(); currentStatus {
+					continue
+				}
+
+				p.cacheHealthy.Set(true)
+			}
+		}
+	}()
 }
 
 func boolToHealthString(healthy bool) string {
