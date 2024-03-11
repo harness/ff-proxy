@@ -9,8 +9,8 @@ import (
 )
 
 const (
-	maxMeticQueueSize  = 1 << 20 // 1MB
-	maxTargetQueueSize = 1 << 20
+	maxEvaluationQueueSize = 1 << 20 // 1MB
+	maxTargetQueueSize     = 1 << 20
 )
 
 // Queue is an in memory queue storing metrics requests. It flushes its contents
@@ -38,6 +38,7 @@ func NewQueue(ctx context.Context, l log.Logger, duration time.Duration) Queue {
 
 	// Start a routine that flushes the queue when the ticker expires
 	go q.flush(ctx, q.metricsData)
+	time.Sleep(time.Millisecond * 100) // so we don't attempt post at the same time
 	go q.flush(ctx, q.targetData)
 
 	return q
@@ -90,7 +91,7 @@ func (q Queue) StoreMetrics(ctx context.Context, m domain.MetricsRequest) error 
 
 func (q Queue) handleMetricsData(ctx context.Context, m domain.MetricsRequest) error {
 	// we are aggregating the metrics Data and set it to its map.
-	if q.metricsData.size() < maxMeticQueueSize {
+	if q.metricsData.size() < maxEvaluationQueueSize {
 		aggregatedMetricsData, err := q.metricsData.aggregate(m)
 		if err != nil {
 			q.log.Error("unable to aggregate metrics data", "method", "StoreMetrics", "err", err)
