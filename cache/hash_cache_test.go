@@ -52,6 +52,10 @@ func (c *mCache) Get(ctx context.Context, key string, value interface{}) error {
 	return nil
 }
 
+func (c *mCache) GetOnce(ctx context.Context, key string, value interface{}, doFn DoFn) error {
+	return c.Get(ctx, key, value)
+}
+
 type mockLocalCache struct {
 	internalCache
 	data    map[string]interface{}
@@ -176,8 +180,8 @@ func TestHashCache_Set(t *testing.T) {
 			ctx := context.Background()
 
 			hc := HashCache{
-				Cache:      tc.mocks.cache,
-				localCache: nil,
+				singleFlightCache: tc.mocks.cache,
+				localCache:        nil,
 			}
 
 			err := hc.Set(ctx, tc.args.key, tc.args.value)
@@ -279,8 +283,8 @@ func TestHashCache_Get(t *testing.T) {
 			ctx := context.Background()
 
 			hc := HashCache{
-				Cache:      tc.mocks.cache,
-				localCache: tc.mocks.localCache,
+				singleFlightCache: tc.mocks.cache,
+				localCache:        tc.mocks.localCache,
 			}
 
 			// Set key before we run Get test
