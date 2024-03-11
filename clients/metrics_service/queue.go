@@ -24,8 +24,6 @@ type Queue struct {
 	queue       chan map[string]domain.MetricsRequest
 	metricsData *metricsMap
 	targetData  *metricsMap
-	//ticker         *time.Ticker
-	//tickerDuration time.Duration
 }
 
 // NewQueue creates a Queue //asz should really return both queues.
