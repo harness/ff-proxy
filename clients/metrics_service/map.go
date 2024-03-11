@@ -11,22 +11,27 @@ import (
 )
 
 const (
-	// TODO What should it be?
 	genericProxyTargetIdentifier = "__global__cf_target"
+	metricsVariant               = "metrics"
+	targetVariant                = "target"
 )
 
 // metricsMap is a type that stores metrics requests
 // and aggregates them by environment
 type metricsMap struct {
 	*sync.RWMutex
-	metrics     map[string]domain.MetricsRequest
-	currentSize int
+	metrics        map[string]domain.MetricsRequest
+	currentSize    int
+	tickerDuration time.Duration
+	ticker         *time.Ticker
 }
 
-func newMetricsMap() *metricsMap {
+func newMetricsMap(duration time.Duration) *metricsMap {
 	return &metricsMap{
-		RWMutex: &sync.RWMutex{},
-		metrics: make(map[string]domain.MetricsRequest),
+		RWMutex:        &sync.RWMutex{},
+		metrics:        make(map[string]domain.MetricsRequest),
+		tickerDuration: duration,
+		ticker:         time.NewTicker(duration),
 	}
 }
 

@@ -9,7 +9,8 @@ import (
 )
 
 const (
-	maxQueueSize = 1 << 20 // 1MB
+	maxMeticQueueSize  = 1 << 20 // 1MB
+	maxTargetQueueSize = 1 << 20
 )
 
 // Queue is an in memory queue storing metrics requests. It flushes its contents
@@ -18,41 +19,41 @@ const (
 // to before flushing. This allows other processes to receive the metrics once the queue
 // is full.
 type Queue struct {
-	log            log.Logger
-	queue          chan map[string]domain.MetricsRequest
-	metrics        *metricsMap
-	ticker         *time.Ticker
-	tickerDuration time.Duration
+	log log.Logger
+	//that is used to flush...
+	queue       chan map[string]domain.MetricsRequest
+	metricsData *metricsMap
+	targetData  *metricsMap
+	//ticker         *time.Ticker
+	//tickerDuration time.Duration
 }
 
-// NewQueue creates a Queue
+// NewQueue creates a Queue //asz should really return both queues.
 func NewQueue(ctx context.Context, l log.Logger, duration time.Duration) Queue {
 	l.With("component", "Queue")
-	ticker := time.NewTicker(duration)
-
 	q := Queue{
-		log:            l,
-		queue:          make(chan map[string]domain.MetricsRequest),
-		metrics:        newMetricsMap(),
-		ticker:         ticker,
-		tickerDuration: duration,
+		log:         l,
+		queue:       make(chan map[string]domain.MetricsRequest),
+		metricsData: newMetricsMap(duration),
+		targetData:  newMetricsMap(duration),
 	}
 
 	// Start a routine that flushes the queue when the ticker expires
-	go q.flush(ctx)
+	go q.flush(ctx, q.metricsData)
+	go q.flush(ctx, q.targetData)
 
 	return q
 }
 
-func (q Queue) flush(ctx context.Context) {
+func (q Queue) flush(ctx context.Context, mMap *metricsMap) {
 	for {
 		select {
 		case <-ctx.Done():
 			q.log.Info("exiting Queue.flush because context was cancelled")
 			return
 
-		case <-q.ticker.C:
-			metrics := q.metrics.get()
+		case <-mMap.ticker.C:
+			metrics := mMap.get()
 			if len(metrics) == 0 {
 				continue
 			}
@@ -62,15 +63,37 @@ func (q Queue) flush(ctx context.Context) {
 				// but lets still log it anyway
 				q.log.Error("unable to flush metrics to channel", "method", "flush", "err", err)
 			}
-			q.metrics.flush()
+			mMap.flush()
 		}
 	}
 }
 
 // StoreMetrics adds a metrics request to the queue
 func (q Queue) StoreMetrics(ctx context.Context, m domain.MetricsRequest) error {
-	if q.metrics.size() < maxQueueSize {
-		aggregatedMetricsData, err := q.metrics.aggregate(m)
+
+	// take a copy of the requests and delete variant
+	tRequest := m
+	mRequest := m
+	tRequest.MetricsData = nil
+	mRequest.TargetData = nil
+
+	// handle target metrics
+	err := q.handleTargetData(ctx, tRequest)
+	if err != nil {
+		return err
+	}
+	// handle client metrics
+	err = q.handleMetricsData(ctx, mRequest)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (q Queue) handleMetricsData(ctx context.Context, m domain.MetricsRequest) error {
+	// we are aggregating the metrics Data and set it to its map.
+	if q.metricsData.size() < maxMeticQueueSize {
+		aggregatedMetricsData, err := q.metricsData.aggregate(m)
 		if err != nil {
 			q.log.Error("unable to aggregate metrics data", "method", "StoreMetrics", "err", err)
 			return err
@@ -81,11 +104,10 @@ func (q Queue) StoreMetrics(ctx context.Context, m domain.MetricsRequest) error 
 		m.MetricsData = &aggregatedMetricsData
 		// aggregate the list.
 		q.log.Debug("aggregated metrics data", "originalSize", originalSize, "aggregatedSize", aggregatedSize)
-		q.metrics.add(m)
+		q.metricsData.add(m)
 		return nil
 	}
-
-	metrics := q.metrics.get()
+	metrics := q.metricsData.get()
 	if len(metrics) == 0 {
 		return nil
 	}
@@ -98,9 +120,34 @@ func (q Queue) StoreMetrics(ctx context.Context, m domain.MetricsRequest) error 
 
 	// Flush all the existing metrics because the max size has been reached,
 	// reset the ticker and add the new metric to the map
-	q.ticker.Reset(q.tickerDuration)
-	q.metrics.flush()
-	q.metrics.add(m)
+	q.metricsData.ticker.Reset(q.metricsData.tickerDuration)
+	q.metricsData.flush()
+	q.metricsData.add(m)
+	return nil
+}
+func (q Queue) handleTargetData(ctx context.Context, m domain.MetricsRequest) error {
+	// check if we have maxed out target metrics
+	if q.targetData.size() < maxTargetQueueSize {
+		//add and  increment for target
+		q.targetData.add(m)
+		return nil
+	}
+
+	metrics := q.targetData.get()
+	if len(metrics) == 0 {
+		return nil
+	}
+	if err := send(ctx, q.queue, metrics); err != nil {
+		// The only possible error here is a context canceled or deadline exceeded
+		// lets still bubble it up to the caller
+		return err
+	}
+
+	// Flush all the existing metrics because the max size has been reached,
+	// reset the ticker and add the new metric to the map
+	q.targetData.ticker.Reset(q.targetData.tickerDuration)
+	q.targetData.flush()
+	q.targetData.add(m)
 	return nil
 }
 
