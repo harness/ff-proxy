@@ -30,6 +30,7 @@ type memoizeMetrics interface {
 type internalCache interface {
 	Get(key string) (interface{}, bool)
 	Set(key string, v interface{}, d time.Duration)
+	Delete(key string)
 }
 
 type memoizeCache struct {

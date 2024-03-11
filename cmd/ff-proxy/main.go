@@ -347,9 +347,14 @@ func main() {
 		redisStream   domain.Stream = stream.NewRedisStream(redisClient)
 	)
 
-	// Kick of routine that makes sure the cachedStreamStatus is up to date with the inMemoryStreamStatus
+	// If we're running as the primary we kick off a routine to make sure that cached status matches
+	// the in memory status.
+	// If we're running as replicas we kick off a routine to make sure the in memory status matches the
+	// cached status
 	if !readReplica {
 		go saasStreamHealth.VerifyStreamStatus(ctx, 60*time.Second)
+	} else {
+		go saasStreamHealth.UpdateInMemStreamStatus(ctx, 60*time.Second)
 	}
 
 	// Get the underlying type from the pushpinStream which is currently the
@@ -490,6 +495,7 @@ func main() {
 	apiKeyHasher := hash.NewSha256()
 	tokenSource := token.NewSource(logger, authRepo, apiKeyHasher, []byte(authSecret))
 	proxyHealth := health.NewProxyHealth(logger, configStatus, saasStreamHealth.StreamStatus, cacheHealthCheck)
+	proxyHealth.PollCacheHealth(ctx, 1*time.Minute)
 
 	// Setup service and middleware
 	service := proxyservice.NewService(proxyservice.Config{
