@@ -6,10 +6,10 @@ import (
 	"reflect"
 	"time"
 
-	"github.com/go-redis/redis/v8"
 	jsoniter "github.com/json-iterator/go"
 	gocache "github.com/patrickmn/go-cache"
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/redis/go-redis/v9"
 )
 
 type memoizeMetrics interface {

@@ -188,13 +188,10 @@ func setupTestKeyValCache() *KeyValCache {
 		Addr: mr.Addr(),
 	})
 
-	k := &KeyValCache{
-		ttl:         0,
-		localCache:  nil,
-		marshalFn:   jsoniter.Marshal,
-		unmarshalFn: jsoniter.Unmarshal,
-		redisClient: redisClient,
-	}
-
-	return k
+	return NewKeyValCache(
+		redisClient,
+		WithMarshalFunc(jsoniter.Marshal),
+		WithUnmarshalFunc(jsoniter.Unmarshal),
+		WithTTL(1*time.Minute),
+	)
 }

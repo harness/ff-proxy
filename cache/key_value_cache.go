@@ -6,9 +6,9 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/go-redis/cache/v8"
-	"github.com/go-redis/redis/v8"
+	"github.com/go-redis/cache/v9"
 	jsoniter "github.com/json-iterator/go"
+	"github.com/redis/go-redis/v9"
 
 	"github.com/harness/ff-proxy/v2/domain"
 )
@@ -40,31 +40,28 @@ func WithTTL(ttl time.Duration) Options {
 	}
 }
 
-// WithLocalCache lets you configure the LocalCache e.g.
-// NewKeyValCache("localhost:6379", WithLocalCache(cache.NewTinyLFU(5000, 1 * time.Hour))
-func WithLocalCache(lc cache.LocalCache) Options {
-	return func(k *KeyValCache) {
-		k.localCache = lc
-	}
-}
-
 // KeyValCache is a cache that stores KeyValue pairs
 type KeyValCache struct {
 	marshalFn   cache.MarshalFunc
 	unmarshalFn cache.UnmarshalFunc
 	ttl         time.Duration
-	localCache  cache.LocalCache
 	redisClient redis.UniversalClient
+
+	onceCache *cache.Cache
 }
 
 // NewKeyValCache instantiates and returns a KeyValCache
 func NewKeyValCache(rc redis.UniversalClient, opts ...Options) *KeyValCache {
 	k := &KeyValCache{
 		// Set sane defaults, these can be overridden using the Option funcs
-		ttl:         0,
-		localCache:  nil,
 		marshalFn:   jsoniter.Marshal,
 		unmarshalFn: jsoniter.Unmarshal,
+		onceCache: cache.New(&cache.Options{
+			Redis:      rc,
+			LocalCache: cache.NewTinyLFU(1000, 1*time.Minute),
+			Marshal:    jsoniter.Marshal,
+			Unmarshal:  jsoniter.Unmarshal,
+		}),
 	}
 
 	for _, opt := range opts {
@@ -77,18 +74,30 @@ func NewKeyValCache(rc redis.UniversalClient, opts ...Options) *KeyValCache {
 
 // Set sets a key in the cache
 func (k *KeyValCache) Set(ctx context.Context, key string, value interface{}) error {
-	v, err := k.marshalFn(value)
-	if err != nil {
-		return fmt.Errorf("%w: KeyValCache.Set failed to marshal value", err)
-	}
+	//v, err := k.marshalFn(value)
+	//if err != nil {
+	//	return fmt.Errorf("%w: KeyValCache.Set failed to marshal value", err)
+	//}
+	//
+	//if err := k.redisClient.Set(ctx, key, v, 0).Err(); err != nil {
+	//	return fmt.Errorf("%w: KeyValCache.Set failed for key: %q", err, key)
+	//}
+	//return nil
 
-	if err := k.redisClient.Set(ctx, key, v, k.ttl).Err(); err != nil {
+	err := k.onceCache.Set(&cache.Item{
+		Ctx:            ctx,
+		Key:            key,
+		Value:          value,
+		Do:             nil,
+		SkipLocalCache: false,
+	})
+	if err != nil {
 		return fmt.Errorf("%w: KeyValCache.Set failed for key: %q", err, key)
 	}
+
 	return nil
 }
 
-// Get gets a value from the cache specified by the key
 func (k *KeyValCache) Get(ctx context.Context, key string, value interface{}) error {
 	b, err := k.redisClient.Get(ctx, key).Bytes()
 	if err != nil {
@@ -143,4 +152,21 @@ func (k *KeyValCache) Scan(ctx context.Context, key string) (map[string]string, 
 		return scan, fmt.Errorf("%w: KeyValCache.Scan failed to iterate over keset for key %q", err, key)
 	}
 	return scan, nil
+}
+
+func (k *KeyValCache) GetOnce(ctx context.Context, key string, value interface{}, doFn DoFn) error {
+	err := k.onceCache.Once(&cache.Item{
+		Ctx:            ctx,
+		Key:            key,
+		Value:          value,
+		Do:             doFn,
+		SkipLocalCache: false,
+	})
+	if err != nil {
+		if err == cache.ErrCacheMiss {
+			return fmt.Errorf("%w: key %s doesn't exist in cache: %s", domain.ErrCacheNotFound, key, err)
+		}
+		return fmt.Errorf("%w: KeyValCache.GetOnce failed for key %q", err, key)
+	}
+	return nil
 }

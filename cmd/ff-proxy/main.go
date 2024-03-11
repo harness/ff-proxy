@@ -29,7 +29,7 @@ import (
 
 	"cloud.google.com/go/profiler"
 
-	"github.com/go-redis/redis/v8"
+	"github.com/redis/go-redis/v9"
 
 	"github.com/harness/ff-proxy/v2/cache"
 	"github.com/harness/ff-proxy/v2/config"
@@ -309,7 +309,7 @@ func main() {
 		mcMetrics := cache.NewMemoizeMetrics("proxy", promReg)
 		mcCache := cache.NewMemoizeCache(redisClient, 1*time.Minute, 2*time.Minute, mcMetrics)
 		sdkCache = cache.NewMetricsCache("redis", promReg, mcCache)
-		hashCache = cache.NewHashCache(cache.NewKeyValCache(redisClient), 30*time.Minute, 10*time.Minute)
+		hashCache = cache.NewHashCache(cache.NewKeyValCache(redisClient), 10*time.Minute, 20*time.Minute)
 
 		err = sdkCache.HealthCheck(ctx)
 		if err != nil {

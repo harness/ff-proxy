@@ -8,28 +8,36 @@ import (
 	"strings"
 	"time"
 
+	"github.com/go-redis/cache/v9"
 	jsoniter "github.com/json-iterator/go"
 	gocache "github.com/patrickmn/go-cache"
 )
 
+// singleFlightCache is a cache with a GetOnce method that makes sure only a single request
+// is in flight at a given time
+type singleFlightCache interface {
+	Cache
+	GetOnce(ctx context.Context, key string, value interface{}, doFn DoFn) error
+}
+
 // HashCache ...
 type HashCache struct {
-	Cache
+	singleFlightCache
 	localCache internalCache
 }
 
 // NewHashCache ...
-func NewHashCache(c Cache, defaultExpiration, cleanupInterval time.Duration) *HashCache {
+func NewHashCache(c singleFlightCache, defaultExpiration, cleanupInterval time.Duration) *HashCache {
 	return &HashCache{
-		Cache:      c,
-		localCache: gocache.New(defaultExpiration, cleanupInterval),
+		singleFlightCache: c,
+		localCache:        gocache.New(defaultExpiration, cleanupInterval),
 	}
 }
 
 // Set adds hash key entry for the given key
 func (hc HashCache) Set(ctx context.Context, key string, value interface{}) error {
 	// First set the key, value that we've been given
-	if err := hc.Cache.Set(ctx, key, value); err != nil {
+	if err := hc.singleFlightCache.Set(ctx, key, value); err != nil {
 		return fmt.Errorf("HashCache.Set failed to set key=%s in cache: %s", key, err)
 	}
 
@@ -47,14 +55,15 @@ func (hc HashCache) Set(ctx context.Context, key string, value interface{}) erro
 	latestHash := sha256.Sum256(v)
 	latestHashString := fmt.Sprintf("%x", latestHash)
 
-	return hc.Cache.Set(ctx, latestKey, latestHashString)
+	return hc.singleFlightCache.Set(ctx, latestKey, latestHashString)
 }
 
 // Get checks the local cache for the key and returns it if there.
 func (hc HashCache) Get(ctx context.Context, key string, value interface{}) error {
 	latestKey := fmt.Sprintf("%s-latest", key)
 	var hash string
-	err := hc.Cache.Get(ctx, latestKey, &hash)
+
+	err := hc.getOnce(ctx, latestKey, &hash)
 	if err == nil {
 		data, ok := hc.localCache.Get(hash)
 		if ok {
@@ -70,7 +79,7 @@ func (hc HashCache) Get(ctx context.Context, key string, value interface{}) erro
 		}
 	}
 	// fetch from redis
-	err = hc.Cache.Get(ctx, key, value)
+	err = hc.getOnce(ctx, key, value)
 	if err != nil {
 		return err
 	}
@@ -86,14 +95,21 @@ func (hc HashCache) Delete(ctx context.Context, key string) error {
 
 	latestKey := fmt.Sprintf("%s-latest", key)
 	var hash string
-	err := hc.Cache.Get(ctx, latestKey, &hash)
+	err := hc.getOnce(ctx, latestKey, &hash)
 	if err == nil {
 		//delete the latest hash entry in redis
 		hc.localCache.Delete(hash)
 	}
-	err = hc.Cache.Delete(ctx, latestKey)
+	err = hc.singleFlightCache.Delete(ctx, latestKey)
 	if err != nil {
 		return err
 	}
-	return hc.Cache.Delete(ctx, key)
+	return hc.singleFlightCache.Delete(ctx, key)
+}
+
+func (hc HashCache) getOnce(ctx context.Context, key string, value interface{}) error {
+	return hc.singleFlightCache.GetOnce(ctx, key, value, func(item *cache.Item) (interface{}, error) {
+		err := hc.singleFlightCache.Get(ctx, key, value)
+		return value, err
+	})
 }
