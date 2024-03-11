@@ -92,3 +92,9 @@ func (m MemCache) Keys(_ context.Context, key string) ([]string, error) {
 func (m MemCache) HealthCheck(_ context.Context) error {
 	return nil
 }
+
+// GetOnce makes MemCache implement the Cache interface. Since the memcache holds everything in memory
+// there is no need for it to have single flight behaviour so we just call Get
+func (m MemCache) GetOnce(ctx context.Context, key string, value interface{}, _ DoFn) error {
+	return m.Get(ctx, key, value)
+}
