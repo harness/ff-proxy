@@ -14,10 +14,10 @@ import (
 	"time"
 
 	"github.com/alicebob/miniredis/v2"
-	"github.com/go-redis/redis/v8"
 	sdkstream "github.com/harness/ff-golang-server-sdk/stream"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/r3labs/sse"
+	"github.com/redis/go-redis/v9"
 	"github.com/stretchr/testify/assert"
 
 	"github.com/harness/ff-proxy/v2/cache"
