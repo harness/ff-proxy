@@ -75,6 +75,8 @@ func (w Worker) subscribe(ctx context.Context) <-chan []byte {
 				// we disconnect we can resume from that point
 				id = latestID
 
+				w.log.Info("metrics replica got metrics message", "id", latestID)
+
 				s, ok := v.(string)
 				if !ok {
 					w.log.Warn("unexpected message format received", "stream", SDKMetricsStream, "type", reflect.TypeOf(v))
@@ -138,6 +140,7 @@ func (w Worker) handleMetrics(ctx context.Context, metrics <-chan []byte) {
 func (w Worker) postMetrics(ctx context.Context) {
 	for metrics := range w.metricsStore.Listen(ctx) {
 
+		w.log.Info("metrics replica posting metrics to saas")
 		for envID, metric := range metrics {
 			if err := w.metricsService.PostMetrics(ctx, envID, metric, w.clusterIdentifier); err != nil {
 				w.log.Error("sending metrics failed", "environment", envID, "error", err)

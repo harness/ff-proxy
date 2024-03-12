@@ -76,6 +76,9 @@ var (
 	// RedisStreams
 	metricsStreamMaxLen          int64
 	metricsStreamReadConcurrency int
+
+	// Metrics Scalability
+	metricsReplica bool
 )
 
 // Environment Variables
@@ -112,6 +115,8 @@ const (
 	// RedisStreams
 	metricsStreamMaxLenEnv          = "METRICS_STREAM_MAX_LEN"
 	metricsStreamReadConcurrencyEnv = "METRIC_STREAM_READ_CONCURRENCY"
+
+	metricsReplicaEnv = "METRICS_REPLICA"
 )
 
 // Flags
@@ -148,6 +153,7 @@ const (
 	// RedisStreams
 	metricsStreamMaxLenFlag         = "metrics-stream-max-len"
 	metricStreamReadConcurrencyFlag = "metrics-stream-read-concurrency"
+	metricsReplicaFlag              = "metrics-replica"
 )
 
 // nolint:gochecknoinits
@@ -185,6 +191,9 @@ func init() {
 	flag.Int64Var(&metricsStreamMaxLen, metricsStreamMaxLenFlag, 1000, "Sets the max length of the redis stream that replicas use to send metrics to the Primary")
 	flag.IntVar(&metricsStreamReadConcurrency, metricStreamReadConcurrencyFlag, 10, "Controls the number of threads running in the Primary that listen for metrics data being sent by replicas")
 
+	//  Metrics Rpelcia
+	flag.BoolVar(&metricsReplica, metricsReplicaFlag, false, "Starts the service as a metrics replica")
+
 	loadFlagsFromEnv(map[string]string{
 		bypassAuthEnv:                   bypassAuthFlag,
 		logLevelEnv:                     logLevelFlag,
@@ -209,6 +218,7 @@ func init() {
 		readReplicaEnv:                  readReplicaFlag,
 		metricsStreamMaxLenEnv:          metricsStreamMaxLenFlag,
 		metricsStreamReadConcurrencyEnv: metricStreamReadConcurrencyFlag,
+		metricsReplicaEnv:               metricsReplicaFlag,
 	})
 
 	flag.Parse()
@@ -271,7 +281,11 @@ func main() {
 	promReg := prometheus.NewRegistry()
 	promReg.MustRegister(collectors.NewGoCollector())
 
-	logger.Info("service config", "pprof", pprofEnabled, "log-level", logLevel, "bypass-auth", bypassAuth, "offline", offline, "port", port, "redis-addr", redisAddress, "redis-db", redisDB, "heartbeat-interval", fmt.Sprintf("%ds", heartbeatInterval), "config-dir", configDir, "tls-enabled", tlsEnabled, "tls-cert", tlsCert, "tls-key", tlsKey, "read-replica", readReplica, "client-service", clientService, "metrics-service", metricService)
+	logger.Info("service config", "pprof", pprofEnabled, "log-level", logLevel, "bypass-auth", bypassAuth, "offline", offline, "port", port, "redis-addr", redisAddress, "redis-db", redisDB, "heartbeat-interval", fmt.Sprintf("%ds", heartbeatInterval), "config-dir", configDir, "tls-enabled", tlsEnabled, "tls-cert", tlsCert, "tls-key", tlsKey, "read-replica", readReplica, "client-service", clientService, "metrics-service", metricService, "metrics-replica", metricsReplica)
+
+	if metricsReplica {
+		startMetricsReplica(ctx, logger, promReg)
+	}
 
 	// Create cache
 	// if we're just generating the offline config we should only use in memory mode for now
@@ -611,4 +625,101 @@ func newMetricStore(ctx context.Context, logger log.Logger, readReplica bool, re
 	}
 
 	return metricsservice.NewQueue(ctx, logger, time.Duration(metricPostDuration)*time.Second)
+}
+
+func startMetricsReplica(ctx context.Context, logger log.Logger, promReg *prometheus.Registry) {
+	redisClient := newRedisClient(logger)
+
+	clientSvc, err := clientservice.NewClient(logger, clientService, promReg)
+	if err != nil {
+		logger.Error("failed to create client for the feature flags client service", "err", err)
+		os.Exit(1)
+	}
+
+	conf, err := config.NewConfig(offline, configDir, proxyKey, clientSvc, stream.Stream{})
+	if err != nil {
+		logger.Error("failed to load config", "err", err)
+		os.Exit(1)
+	}
+
+	t, err := conf.RefreshToken()
+	if err != nil {
+		logger.Error("failed to fetch auth token", "err", err)
+		os.Exit(1)
+	}
+
+	tokenFn := func() string {
+		return t
+	}
+
+	ms, err := metricsservice.NewClient(logger, metricService, tokenFn, promReg)
+	if err != nil {
+		logger.Error("failed to create client for the feature flags metric service", "err", err)
+		os.Exit(1)
+	}
+
+	metricsStore := metricsservice.NewQueue(ctx, logger, time.Duration(metricPostDuration)*time.Second)
+	metricsStreamConsumer := stream.NewPrometheusStream("ff_proxy_primary_metrics_stream_consumer", stream.NewRedisStream(redisClient), promReg)
+	worker := metricsservice.NewWorker(logger, metricsStore, ms, metricsStreamConsumer, metricsStreamReadConcurrency, conf.ClusterIdentifier())
+	worker.Start(ctx)
+
+	service := proxyservice.MetricsService{}
+
+	// Configure endpoints and server
+	endpoints := transport.NewEndpoints(service)
+	server := transport.NewHTTPServer(port, endpoints, logger, tlsEnabled, tlsCert, tlsKey, promReg)
+	server.Use(
+		middleware.NewEchoRequestIDMiddleware(),
+		middleware.NewEchoLoggingMiddleware(logger),
+		middleware.NewPrometheusMiddleware(promReg),
+	)
+
+	go func() {
+		<-ctx.Done()
+		logger.Info("received interrupt, shutting down server...")
+
+		if err := server.Shutdown(ctx); err != nil {
+			logger.Error("server error'd during shutdown", "err", err)
+			os.Exit(1)
+		}
+	}()
+
+	protocol := "http"
+	if tlsEnabled {
+		protocol = "https"
+	}
+	health.Heartbeat(ctx, heartbeatInterval, fmt.Sprintf("%s://localhost:%d", protocol, port), logger)
+
+	if err := server.Serve(); err != nil {
+		logger.Error("server stopped", "err", err)
+	}
+}
+
+func newRedisClient(logger log.Logger) redis.UniversalClient {
+	// if address does not start with redis:// or rediss:// then default to redis://
+	// if the connection string starts with rediss:// it means we'll connect with TLS enabled
+	redisConnectionString := redisAddress
+	if !strings.HasPrefix(redisAddress, "redis://") && !strings.HasPrefix(redisAddress, "rediss://") {
+		redisConnectionString = fmt.Sprintf("redis://%s", redisAddress)
+	}
+	parsed, err := redis.ParseURL(redisConnectionString)
+	if err != nil {
+		logger.Error("failed to parse redis address url", "connection string", redisConnectionString, "err", err)
+		os.Exit(1)
+	}
+	// TODO - going forward we can open up support for more of these query param connection string options e.g. max_retries etc
+	// we would first need to test the impact that these would have if unset vs current defaults
+	opts := redis.UniversalOptions{}
+	opts.DB = parsed.DB
+	opts.Addrs = []string{parsed.Addr}
+	opts.Username = parsed.Username
+	opts.Password = parsed.Password
+	opts.TLSConfig = parsed.TLSConfig
+	if redisPassword != "" {
+		opts.Password = redisPassword
+	}
+	redisClient := redis.NewUniversalClient(&opts)
+	logger.Info("connecting to redis", "address", redisAddress)
+
+	return redisClient
 }

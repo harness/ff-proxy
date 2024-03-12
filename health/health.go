@@ -15,7 +15,7 @@ import (
 
 // Heartbeat kicks off a goroutine that polls the /health endpoint at intervals
 // determined by how frequently events are sent on the tick channel.
-func Heartbeat(ctx context.Context, heartbeatInterval int, listenAddr string, logger log.StructuredLogger) {
+func Heartbeat(ctx context.Context, heartbeatInterval int, listenAddr string, logger log.Logger) {
 	go func() {
 		ticker := time.NewTicker(time.Duration(heartbeatInterval) * time.Second)
 		defer ticker.Stop()
