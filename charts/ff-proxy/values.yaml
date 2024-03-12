@@ -50,6 +50,17 @@ writer:
     enabled: false
     type: ClusterIP
     port: 7000
+  
+  istio:
+    enabled: false
+    gateways:
+    - istio-gateways/istio-gateway
+    hosts: []
+    # - ff-proxy-writer.mycompany.net
+    tls:
+      enabled: true
+      port: 443
+
 
   resources:
     limits:
@@ -118,6 +129,16 @@ readReplica:
   service:
     type: ClusterIP
     port: 7000
+
+  istio:
+    enabled: false
+    gateways:
+    - istio-gateways/istio-gateway
+    hosts: []
+    # - ff-proxy-writer.mycompany.net
+    tls:
+      enabled: true
+      port: 443
 
   replicaCount: 2
 
