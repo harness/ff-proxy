@@ -112,6 +112,8 @@ type Config struct {
 	SDKStreamConnected func(envID string)
 
 	Health func(ctx context.Context) domain.HealthResponse
+
+	ForwardTargets bool
 }
 
 type segmentRepo interface {
@@ -135,6 +137,8 @@ type Service struct {
 	sdkStreamConnected func(envID string)
 
 	health func(ctx context.Context) domain.HealthResponse
+
+	forwardTargets bool
 }
 
 // NewService creates and returns a ProxyService
@@ -154,6 +158,7 @@ func NewService(c Config) Service {
 		healthySassStream:  c.HealthySaasStream,
 		sdkStreamConnected: c.SDKStreamConnected,
 		health:             c.Health,
+		forwardTargets:     c.ForwardTargets,
 	}
 }
 
@@ -183,22 +188,19 @@ func (s Service) Authenticate(ctx context.Context, req domain.AuthRequest) (doma
 		return domain.AuthResponse{AuthToken: token.TokenString()}, nil
 	}
 
-	// We forward the auth request to the client service so that the Target is
-	// updated/added in FeatureFlags. Potentially a bold assumption but since the
-	// Target is added to the cache above I don't think this is in the critical
-	// path so we can call it in a goroutine and just log out if it fails since
-	// the proxy will continue to work for the SDKs with this Target. That being
-	// said I'm not sure what the long term solution is here if it fails for
-	// having Target parity between Feature Flags and the Proxy
-	go func() {
-		newCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-		defer cancel()
+	// If we aren't forwarding targets to Saas we're done
+	if s.forwardTargets {
+		// Otherwise forward targets in a goroutine so we don't block the auth request
+		go func() {
+			newCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+			defer cancel()
 
-		if _, err := s.clientService.Authenticate(newCtx, req.APIKey, req.Target); err != nil {
-			s.logger.Error(ctx, "failed to forward Target registration via auth request to client service", "err", err)
-		}
-		s.logger.Debug(ctx, "successfully registered target with feature flags", "target_identifier", req.Target.Target.Identifier)
-	}()
+			if _, err := s.clientService.Authenticate(newCtx, req.APIKey, req.Target); err != nil {
+				s.logger.Error(ctx, "failed to forward Target registration via auth request to client service", "err", err)
+			}
+			s.logger.Debug(ctx, "successfully registered target with feature flags", "target_identifier", req.Target.Target.Identifier)
+		}()
+	}
 
 	return domain.AuthResponse{AuthToken: token.TokenString()}, nil
 }
