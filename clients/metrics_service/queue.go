@@ -36,15 +36,14 @@ type Queue struct {
 func NewQueue(ctx context.Context, l log.Logger, duration time.Duration) Queue {
 	l.With("component", "Queue")
 	q := Queue{
-		log:         l,
-		queue:       make(chan map[string]domain.MetricsRequest),
-		metricsData: newMetricsMap(),
-		targetData:  newMetricsMap(),
-
-		metricsTicker:   time.NewTicker(duration),
-		targetsTicker:   time.NewTicker(duration),
+		log:             l,
+		queue:           make(chan map[string]domain.MetricsRequest),
 		metricsDuration: duration,
 		targetsDuration: duration,
+		metricsTicker:   time.NewTicker(duration),
+		targetsTicker:   time.NewTicker(duration),
+		metricsData:     newMetricsMap(),
+		targetData:      newMetricsMap(),
 	}
 
 	// Start a routine that flushes the queue when the ticker expires
