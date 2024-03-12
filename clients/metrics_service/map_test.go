@@ -13,7 +13,7 @@ import (
 )
 
 const (
-	testDuration = 10 * time.Second
+	testDuration = 1 * time.Second
 )
 
 func TestMap_add(t *testing.T) {
@@ -83,7 +83,7 @@ func TestMap_add(t *testing.T) {
 		expected   expected
 	}{
 		"Given I add one element to an empty map": {
-			metricsMap: newMetricsMap(testDuration),
+			metricsMap: newMetricsMap(),
 			args: args{
 				metricRequest: mr123,
 			},
@@ -171,7 +171,7 @@ func TestMetricsMap_get(t *testing.T) {
 		expected   expected
 	}{
 		"Given I have an empty metrics map": {
-			metricsMap: newMetricsMap(testDuration),
+			metricsMap: newMetricsMap(),
 			expected:   expected{data: make(map[string]domain.MetricsRequest)},
 		},
 		"Given I have a metrics map with one item in it": {
@@ -222,7 +222,7 @@ func TestMetricsMap_size(t *testing.T) {
 		expected   expected
 	}{
 		"Given I have an empty metrics map": {
-			metricsMap: newMetricsMap(testDuration),
+			metricsMap: newMetricsMap(),
 			expected:   expected{size: 0},
 		},
 		"Given I have a metrics map with a size of 11": {
@@ -259,7 +259,7 @@ func TestMetricsMap_flush(t *testing.T) {
 		expected   expected
 	}{
 		"Given I have an empty metrics map and I call flush": {
-			metricsMap: newMetricsMap(testDuration),
+			metricsMap: newMetricsMap(),
 			expected: expected{
 				data: make(map[string]domain.MetricsRequest),
 				size: 0,

@@ -24,6 +24,12 @@ type Queue struct {
 	queue       chan map[string]domain.MetricsRequest
 	metricsData *metricsMap
 	targetData  *metricsMap
+
+	metricsTicker *time.Ticker
+	targetsTicker *time.Ticker
+
+	metricsDuration time.Duration
+	targetsDuration time.Duration
 }
 
 // NewQueue creates a Queue //asz should really return both queues.
@@ -32,37 +38,49 @@ func NewQueue(ctx context.Context, l log.Logger, duration time.Duration) Queue {
 	q := Queue{
 		log:         l,
 		queue:       make(chan map[string]domain.MetricsRequest),
-		metricsData: newMetricsMap(duration),
-		targetData:  newMetricsMap(duration),
+		metricsData: newMetricsMap(),
+		targetData:  newMetricsMap(),
+
+		metricsTicker:   time.NewTicker(duration),
+		targetsTicker:   time.NewTicker(duration),
+		metricsDuration: duration,
+		targetsDuration: duration,
 	}
 
 	// Start a routine that flushes the queue when the ticker expires
-	go q.flush(ctx, q.metricsData)
-	time.Sleep(time.Millisecond * 100) // so we don't attempt post at the same time
-	go q.flush(ctx, q.targetData)
-
+	go q.flush(ctx)
 	return q
 }
 
-func (q Queue) flush(ctx context.Context, mMap *metricsMap) {
+func (q Queue) flush(ctx context.Context) {
 	for {
 		select {
 		case <-ctx.Done():
 			q.log.Info("exiting Queue.flush because context was cancelled")
 			return
 
-		case <-mMap.ticker.C:
-			metrics := mMap.get()
+		case <-q.metricsTicker.C:
+			metrics := q.metricsData.get()
 			if len(metrics) == 0 {
 				continue
 			}
-
 			if err := send(context.Background(), q.queue, metrics); err != nil {
 				// The only possible error here is a context canceled or deadline exceeded
 				// but lets still log it anyway
 				q.log.Error("unable to flush metrics to channel", "method", "flush", "err", err)
 			}
-			mMap.flush()
+			q.metricsData.flush()
+		case <-q.targetsTicker.C:
+			metrics := q.targetData.get()
+			if len(metrics) == 0 {
+				continue
+			}
+			if err := send(context.Background(), q.queue, metrics); err != nil {
+				// The only possible error here is a context canceled or deadline exceeded
+				// but lets still log it anyway
+				q.log.Error("unable to flush metrics to channel", "method", "flush", "err", err)
+			}
+			q.targetData.flush()
 		}
 	}
 }
@@ -76,13 +94,13 @@ func (q Queue) StoreMetrics(ctx context.Context, m domain.MetricsRequest) error 
 	tRequest.MetricsData = nil
 	mRequest.TargetData = nil
 
-	// handle target metrics
-	err := q.handleTargetData(ctx, tRequest)
+	// handle client metrics
+	err := q.handleMetricsData(ctx, mRequest)
 	if err != nil {
 		return err
 	}
-	// handle client metrics
-	err = q.handleMetricsData(ctx, mRequest)
+	// handle target metrics
+	err = q.handleTargetData(ctx, tRequest)
 	if err != nil {
 		return err
 	}
@@ -119,7 +137,7 @@ func (q Queue) handleMetricsData(ctx context.Context, m domain.MetricsRequest) e
 
 	// Flush all the existing metrics because the max size has been reached,
 	// reset the ticker and add the new metric to the map
-	q.metricsData.ticker.Reset(q.metricsData.tickerDuration)
+	q.metricsTicker.Reset(q.metricsDuration)
 	q.metricsData.flush()
 	q.metricsData.add(m)
 	return nil
@@ -144,7 +162,7 @@ func (q Queue) handleTargetData(ctx context.Context, m domain.MetricsRequest) er
 
 	// Flush all the existing metrics because the max size has been reached,
 	// reset the ticker and add the new metric to the map
-	q.targetData.ticker.Reset(q.targetData.tickerDuration)
+	q.targetsTicker.Reset(q.targetsDuration)
 	q.targetData.flush()
 	q.targetData.add(m)
 	return nil
