@@ -10,6 +10,7 @@ import (
 
 	"github.com/harness/ff-proxy/v2/domain"
 	"github.com/stretchr/testify/assert"
+	"golang.org/x/sync/singleflight"
 )
 
 type mCache struct {
@@ -176,8 +177,9 @@ func TestHashCache_Set(t *testing.T) {
 			ctx := context.Background()
 
 			hc := HashCache{
-				Cache:      tc.mocks.cache,
-				localCache: nil,
+				Cache:        tc.mocks.cache,
+				localCache:   nil,
+				requestGroup: &singleflight.Group{},
 			}
 
 			err := hc.Set(ctx, tc.args.key, tc.args.value)
@@ -279,8 +281,9 @@ func TestHashCache_Get(t *testing.T) {
 			ctx := context.Background()
 
 			hc := HashCache{
-				Cache:      tc.mocks.cache,
-				localCache: tc.mocks.localCache,
+				Cache:        tc.mocks.cache,
+				localCache:   tc.mocks.localCache,
+				requestGroup: &singleflight.Group{},
 			}
 
 			// Set key before we run Get test
