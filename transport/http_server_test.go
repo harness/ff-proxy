@@ -269,6 +269,7 @@ func setupHTTPServer(t *testing.T, bypassAuth bool, opts ...setupOpts) *HTTPServ
 		Hasher:             hash.NewSha256(),
 		HealthySaasStream:  setupConfig.healthySaasStream,
 		SDKStreamConnected: func(envID string) {},
+		ForwardTargets:     true,
 	})
 	endpoints := NewEndpoints(service)
 

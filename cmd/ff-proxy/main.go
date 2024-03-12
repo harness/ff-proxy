@@ -53,6 +53,7 @@ var (
 	heartbeatInterval     int
 	generateOfflineConfig bool
 	readReplica           bool
+	forwardTargets        bool
 
 	// Cache Config
 	offline       bool
@@ -89,6 +90,7 @@ const (
 	heartbeatIntervalEnv     = "HEARTBEAT_INTERVAL"
 	generateOfflineConfigEnv = "GENERATE_OFFLINE_CONFIG"
 	readReplicaEnv           = "READ_REPLICA"
+	forwardTargetsEnv        = "FORWARD_TARGETS"
 
 	// Cache Config
 	offlineEnv       = "OFFLINE"
@@ -125,6 +127,7 @@ const (
 	heartbeatIntervalFlag     = "heartbeat-interval"
 	generateOfflineConfigFlag = "generate-offline-config"
 	readReplicaFlag           = "readReplica"
+	forwardTargetsFlag        = "forward-targets"
 
 	// Cache Config
 	configDirFlag     = "config-dir"
@@ -161,6 +164,7 @@ func init() {
 	flag.IntVar(&heartbeatInterval, heartbeatIntervalFlag, 60, "How often in seconds the proxy polls pings it's health function. Set to 0 to disable.")
 	flag.BoolVar(&generateOfflineConfig, generateOfflineConfigFlag, false, "if true the proxy will produce offline config in the /config directory then terminate")
 	flag.BoolVar(&readReplica, readReplicaFlag, false, "if true the Proxy will operate as a read replica that only reads from the cache and doesn't fetch new data from Harness SaaS")
+	flag.BoolVar(&forwardTargets, forwardTargetsFlag, false, "determines if the Proxy forwards targets to Saas during the auth flow")
 
 	// Cache Config
 	flag.BoolVar(&offline, offlineFlag, false, "enables side loading of data from config dir")
@@ -209,6 +213,7 @@ func init() {
 		readReplicaEnv:                  readReplicaFlag,
 		metricsStreamMaxLenEnv:          metricsStreamMaxLenFlag,
 		metricsStreamReadConcurrencyEnv: metricStreamReadConcurrencyFlag,
+		forwardTargetsEnv:               forwardTargetsFlag,
 	})
 
 	flag.Parse()
@@ -521,6 +526,7 @@ func main() {
 		SDKStreamConnected: func(envID string) {
 			connectedStreams.Set(envID, "")
 		},
+		ForwardTargets: forwardTargets,
 	})
 
 	// Configure endpoints and server
