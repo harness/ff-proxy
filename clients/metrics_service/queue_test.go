@@ -6,10 +6,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
+
 	"github.com/harness/ff-proxy/v2/domain"
 	clientgen "github.com/harness/ff-proxy/v2/gen/client"
 	"github.com/harness/ff-proxy/v2/log"
-	"github.com/stretchr/testify/assert"
 )
 
 func TestQueue_StoreMetrics(t *testing.T) {
@@ -34,6 +35,22 @@ func TestQueue_StoreMetrics(t *testing.T) {
 					Name:       "Bar",
 				},
 			},
+		},
+	}
+	// this will send only metrics
+	mr123EvaluatonDataExpected := domain.MetricsRequest{
+		Size:          7,
+		EnvironmentID: "123",
+		Metrics: clientgen.Metrics{
+			MetricsData: &[]clientgen.MetricsData{
+				{
+					Attributes:  nil,
+					Count:       1,
+					MetricsType: "Server",
+					Timestamp:   111,
+				},
+			},
+			TargetData: nil,
 		},
 	}
 
@@ -61,20 +78,29 @@ func TestQueue_StoreMetrics(t *testing.T) {
 				metricRequest: mr123,
 			},
 			queue: Queue{
-				log:   logger,
-				queue: make(chan map[string]domain.MetricsRequest, 1), // Buffer so we don't have to run the test concurrently
-				metrics: &metricsMap{
+				log:             logger,
+				queue:           make(chan map[string]domain.MetricsRequest, 2), // Buffer so we don't have to run the test concurrently
+				metricsDuration: testDuration,
+				targetsDuration: testDuration,
+				metricsTicker:   time.NewTicker(testDuration),
+				targetsTicker:   time.NewTicker(testDuration),
+				metricsData: &metricsMap{
 					RWMutex: &sync.RWMutex{},
 					metrics: map[string]domain.MetricsRequest{
 						mr123.EnvironmentID: mr123,
 					},
-					currentSize: maxQueueSize * 2,
+					currentSize: maxEvaluationQueueSize * 2,
 				},
-				ticker:         time.NewTicker(30 * time.Second),
-				tickerDuration: 30 * time.Second,
+				targetData: &metricsMap{
+					RWMutex: &sync.RWMutex{},
+					metrics: map[string]domain.MetricsRequest{
+						mr123.EnvironmentID: mr123,
+					},
+					currentSize: maxTargetQueueSize * 2,
+				},
 			},
 			expected: expected{metrics: map[string]domain.MetricsRequest{
-				mr123.EnvironmentID: mr123,
+				mr123.EnvironmentID: mr123EvaluatonDataExpected,
 			}},
 		},
 		"Given I call StoreMetrics and we haven't exceeded the max queue size": {
@@ -82,20 +108,27 @@ func TestQueue_StoreMetrics(t *testing.T) {
 				metricRequest: mr456,
 			},
 			queue: Queue{
-				log:   logger,
-				queue: make(chan map[string]domain.MetricsRequest, 1), // Buffer so we don't have to run the test concurrently
-				metrics: &metricsMap{
+				log:             logger,
+				queue:           make(chan map[string]domain.MetricsRequest, 2), // Buffer so we don't have to run the test concurrently
+				metricsDuration: testDuration,
+				targetsDuration: testDuration,
+				metricsTicker:   time.NewTicker(testDuration),
+				targetsTicker:   time.NewTicker(testDuration),
+				metricsData: &metricsMap{
 					RWMutex: &sync.RWMutex{},
 					metrics: map[string]domain.MetricsRequest{
-						mr123.EnvironmentID: mr123,
+						mr123.EnvironmentID: mr123EvaluatonDataExpected, //we already have a metrics record.
 					},
 					currentSize: 0,
 				},
-				ticker:         time.NewTicker(30 * time.Second),
-				tickerDuration: 30 * time.Second,
+				targetData: &metricsMap{
+					RWMutex:     &sync.RWMutex{},
+					metrics:     map[string]domain.MetricsRequest{},
+					currentSize: 0,
+				},
 			},
 			expected: expected{metrics: map[string]domain.MetricsRequest{
-				mr123.EnvironmentID: mr123,
+				mr123.EnvironmentID: mr123EvaluatonDataExpected,
 				mr456.EnvironmentID: mr456,
 			}},
 		},
@@ -110,7 +143,7 @@ func TestQueue_StoreMetrics(t *testing.T) {
 
 			assert.Nil(t, tc.queue.StoreMetrics(ctx, tc.args.metricRequest))
 
-			assert.Equal(t, tc.expected.metrics, tc.queue.metrics.get())
+			assert.Equal(t, tc.expected.metrics, tc.queue.metricsData.get())
 		})
 	}
 }
@@ -139,11 +172,26 @@ func TestQueue_Listen(t *testing.T) {
 			},
 		},
 	}
-
 	mr456 := domain.MetricsRequest{
 		Size:          8,
 		EnvironmentID: "456",
 		Metrics:       clientgen.Metrics{MetricsData: &[]clientgen.MetricsData{}},
+	}
+
+	mr123EvaluatonDataExpected := domain.MetricsRequest{
+		Size:          7,
+		EnvironmentID: "123",
+		Metrics: clientgen.Metrics{
+			MetricsData: &[]clientgen.MetricsData{
+				{
+					Attributes:  nil,
+					Count:       1,
+					MetricsType: "Server",
+					Timestamp:   111,
+				},
+			},
+			TargetData: nil,
+		},
 	}
 
 	type args struct {
@@ -167,7 +215,7 @@ func TestQueue_Listen(t *testing.T) {
 			},
 			expected: expected{
 				metricsData: map[string]domain.MetricsRequest{
-					mr123.EnvironmentID: mr123,
+					mr123.EnvironmentID: mr123EvaluatonDataExpected,
 					mr456.EnvironmentID: mr456,
 				},
 				eventCount: 1,
@@ -206,7 +254,29 @@ func TestQueue_Listen(t *testing.T) {
 				}
 			}
 
-			assert.Equal(t, tc.expected.metricsData, actual)
+			for k, _ := range actual {
+				e := tc.expected.metricsData[k]
+				a := actual[k]
+
+				if !assert.Equal(t, e.Size, a.Size) ||
+					!assert.Equal(t, e.EnvironmentID, a.EnvironmentID) ||
+					!func() bool {
+						expMetrics := *e.MetricsData
+						actMetrics := *a.MetricsData
+						for i, _ := range expMetrics {
+							if !assert.Equal(t, expMetrics[i].MetricsType, actMetrics[i].MetricsType) ||
+								!assert.Equal(t, expMetrics[i].Attributes, actMetrics[i].Attributes) ||
+								!assert.Equal(t, expMetrics[i].Count, actMetrics[i].Count) {
+								return false
+							}
+						}
+						return true
+					}() {
+
+				}
+
+			}
+
 		})
 	}
 }
