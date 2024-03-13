@@ -18,10 +18,8 @@ const (
 // and aggregates them by environment
 type metricsMap struct {
 	*sync.RWMutex
-	metrics        map[string]domain.MetricsRequest
-	currentSize    int
-	tickerDuration time.Duration
-	ticker         *time.Ticker
+	metrics     map[string]domain.MetricsRequest
+	currentSize int
 }
 
 func newMetricsMap() *metricsMap {
