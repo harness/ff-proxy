@@ -49,10 +49,14 @@ spec:
           envFrom:
             - configMapRef:
                 name: {{ include "ff-proxy.writer.name" . }}
+            {{- if or .Values.proxyKey .Values.existingProxyKey}}
             - secretRef:
                 name: {{ include "ff-proxy.proxyKey" . }}
+            {{- end }}
+            {{- if or .Values.authSecret .Values.existingAuthSecret}}
             - secretRef:
                 name: {{ include "ff-proxy.authSecret" . }}
+            {{- end }}
             {{- if or .Values.redis.password .Values.redis.existingPassword}}
             - secretRef:
                 name: {{ include "ff-proxy.redisPassword" . }}
