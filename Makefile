@@ -49,7 +49,7 @@ build-race: generate ## Builds the ff-proxy service binary with the race detecto
 
 image: ## Builds a docker image for the proxy called ff-proxy:latest
 	@echo "Building Feature Flag Proxy Image"
-	@docker build -t harness/ff-proxy:latest -f ./Dockerfile .
+	@docker build -t harness/ff-proxy:latest -f ./Dockerfile --build-arg gitTag=${GIT_TAG} .
 
 PHONY+= test
 test: ## Run the go tests (runs with race detector enabled)
