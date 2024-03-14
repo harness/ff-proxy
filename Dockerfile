@@ -5,6 +5,9 @@ FROM golang:1.20 as builder
 
 WORKDIR /app
 
+ARG gitTag
+ENV GIT_TAG $gitTag
+
 # Fetch dependencies.
 COPY go.mod .
 COPY go.sum .
