@@ -33,6 +33,8 @@ type Config interface {
 
 	// SetProxyConfig sets the proxyConfig member
 	SetProxyConfig(proxyConfig []domain.ProxyConfig)
+
+	AccountID() string
 }
 
 // NewConfig creates either a local or remote config type that implements the Config interface

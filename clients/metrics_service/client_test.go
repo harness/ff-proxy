@@ -60,10 +60,9 @@ func TestMetricService_addAuthToken(t *testing.T) {
 
 			// create context and add token to it
 			ctx := context.Background()
-			ctx = context.WithValue(ctx, tokenKey, tc.token)
 
 			// check metrics are cleared after sending
-			err := addAuthToken(ctx, req)
+			err := addAuthToken(tc.token)(ctx, req)
 
 			// get auth header from updated request
 			assert.Equal(t, tc.expectedAuthHeader, req.Header.Get("Authorization"))

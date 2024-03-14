@@ -208,10 +208,11 @@ func (c Client) getProxyConfig(ctx context.Context, input domain.GetProxyConfigI
 		Key:         input.Key,
 	}
 
-	resp, err := c.client.GetProxyConfigWithResponse(ctx, &params, func(ctx context.Context, req *http.Request) error {
-		req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", input.AuthToken))
-		return nil
-	})
+	resp, err := c.client.GetProxyConfigWithResponse(
+		ctx,
+		&params,
+		addAuthToken(input.AuthToken),
+	)
 	if err != nil {
 		return clientgen.ProxyConfig{}, fmt.Errorf("%w: %s", ErrInternal, err)
 	}
@@ -228,10 +229,13 @@ func (c Client) getProxyConfig(ctx context.Context, input domain.GetProxyConfigI
 }
 
 func (c Client) FetchFeatureConfigForEnvironment(ctx context.Context, authToken, cluster, envID string) ([]clientgen.FeatureConfig, error) {
-	resp, err := c.client.GetFeatureConfigWithResponse(ctx, envID, &clientgen.GetFeatureConfigParams{Cluster: &cluster}, func(ctx context.Context, req *http.Request) error {
-		req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", authToken))
-		return nil
-	})
+	resp, err := c.client.GetFeatureConfigWithResponse(
+		ctx,
+		envID,
+		&clientgen.GetFeatureConfigParams{Cluster: &cluster},
+		addAuthToken(authToken),
+		domain.AddHarnessXHeaders(envID),
+	)
 	if err != nil {
 		return []clientgen.FeatureConfig{}, fmt.Errorf("%w: %s", ErrInternal, err)
 	}
@@ -249,10 +253,13 @@ func (c Client) FetchFeatureConfigForEnvironment(ctx context.Context, authToken,
 
 func (c Client) FetchSegmentConfigForEnvironment(ctx context.Context, authToken, cluster, envID string) ([]clientgen.Segment, error) {
 
-	resp, err := c.client.GetAllSegmentsWithResponse(ctx, envID, &clientgen.GetAllSegmentsParams{Cluster: &cluster}, func(ctx context.Context, req *http.Request) error {
-		req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", authToken))
-		return nil
-	})
+	resp, err := c.client.GetAllSegmentsWithResponse(
+		ctx,
+		envID,
+		&clientgen.GetAllSegmentsParams{Cluster: &cluster},
+		addAuthToken(authToken),
+		domain.AddHarnessXHeaders(envID),
+	)
 	if err != nil {
 		return []clientgen.Segment{}, fmt.Errorf("%w: %s", ErrInternal, err)
 	}
@@ -266,4 +273,11 @@ func (c Client) FetchSegmentConfigForEnvironment(ctx context.Context, authToken,
 	}
 
 	return *resp.JSON200, nil
+}
+
+func addAuthToken(authToken string) func(ctx context.Context, req *http.Request) error {
+	return func(ctx context.Context, req *http.Request) error {
+		req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", authToken))
+		return nil
+	}
 }
