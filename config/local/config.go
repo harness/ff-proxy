@@ -63,6 +63,10 @@ func (c Config) Key() string {
 	return ""
 }
 
+func (c Config) AccountID() string {
+	return ""
+}
+
 // SetProxyConfig sets the proxyConfig member
 func (c Config) SetProxyConfig(_ []domain.ProxyConfig) {
 

@@ -276,7 +276,7 @@ func main() {
 	promReg := prometheus.NewRegistry()
 	promReg.MustRegister(collectors.NewGoCollector())
 
-	logger.Info("service config", "pprof", pprofEnabled, "log-level", logLevel, "bypass-auth", bypassAuth, "offline", offline, "port", port, "redis-addr", redisAddress, "redis-db", redisDB, "heartbeat-interval", fmt.Sprintf("%ds", heartbeatInterval), "config-dir", configDir, "tls-enabled", tlsEnabled, "tls-cert", tlsCert, "tls-key", tlsKey, "read-replica", readReplica, "client-service", clientService, "metrics-service", metricService)
+	logger.Info("service config", "version", build.Version, "pprof", pprofEnabled, "log-level", logLevel, "bypass-auth", bypassAuth, "offline", offline, "port", port, "redis-addr", redisAddress, "redis-db", redisDB, "heartbeat-interval", fmt.Sprintf("%ds", heartbeatInterval), "config-dir", configDir, "tls-enabled", tlsEnabled, "tls-cert", tlsCert, "tls-key", tlsKey, "read-replica", readReplica, "client-service", clientService, "metrics-service", metricService)
 
 	// Create cache
 	// if we're just generating the offline config we should only use in memory mode for now
@@ -429,6 +429,10 @@ func main() {
 		} else {
 			configStatus = domain.NewConfigStatus(domain.ConfigStateSynced)
 		}
+
+		// Set the accountID in the context, this way it can be included in headers
+		// for any requests the Proxy makes to Saas
+		ctx = context.WithValue(ctx, domain.ContextKeyAccountID, conf.AccountID())
 	}
 
 	// If we're running as a read replica then we want to subscribe to two streams
@@ -456,7 +460,7 @@ func main() {
 		messageHandler = stream.NewForwarder(logger, pushpinStream, redisForwarder)
 
 		streamURL := fmt.Sprintf("%s/stream?cluster=%s", clientService, conf.ClusterIdentifier())
-		sseClient := stream.NewSSEClient(logger, streamURL, proxyKey, conf.Token())
+		sseClient := stream.NewSSEClient(logger, streamURL, proxyKey, conf.Token(), conf.AccountID())
 
 		saasStream := stream.NewStream(
 			logger,

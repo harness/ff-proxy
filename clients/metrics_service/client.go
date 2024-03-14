@@ -11,12 +11,6 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 )
 
-type key string
-
-const (
-	tokenKey key = "token"
-)
-
 // doer is a simple http client that gets passed to the generated admin client
 // and injects the service token into the header before any requests are made
 type doer struct {
@@ -92,11 +86,13 @@ func (c Client) PostMetrics(ctx context.Context, envID string, metric domain.Met
 		c.trackSDKUsage(metric)
 	}()
 
-	ctx = context.WithValue(ctx, tokenKey, c.token())
 	res, err := c.client.PostMetricsWithResponse(ctx, envID, &clientgen.PostMetricsParams{Cluster: &clusterIdentifier}, clientgen.PostMetricsJSONRequestBody{
 		MetricsData: metric.MetricsData,
 		TargetData:  metric.TargetData,
-	}, addAuthToken)
+	},
+		addAuthToken(c.token()),
+		domain.AddHarnessXHeaders(envID),
+	)
 	if err != nil {
 		return err
 	}
@@ -137,14 +133,15 @@ func getSDKVersion(m map[string]string) string {
 	return ""
 }
 
-func addAuthToken(ctx context.Context, req *http.Request) error {
-	token := ctx.Value(tokenKey)
-	if token == nil || token == "" {
-		return fmt.Errorf("no auth token exists in context")
-	}
-	req.Header.Add("Authorization", fmt.Sprintf("Bearer %s", token))
+func addAuthToken(token string) func(ctx context.Context, req *http.Request) error {
+	return func(ctx context.Context, req *http.Request) error {
+		if token == "" {
+			return fmt.Errorf("no auth token exists in context")
+		}
 
-	return nil
+		req.Header.Add("Authorization", fmt.Sprintf("Bearer %s", token))
+		return nil
+	}
 }
 
 func (c Client) trackSDKUsage(req domain.MetricsRequest) {

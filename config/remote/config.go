@@ -3,11 +3,14 @@ package remote
 import (
 	"context"
 	"fmt"
+	"strings"
 	"sync"
 	"time"
 
+	"github.com/golang-jwt/jwt"
 	"github.com/harness/ff-proxy/v2/domain"
 	"github.com/harness/ff-proxy/v2/stream"
+	jsoniter "github.com/json-iterator/go"
 )
 
 type safeString struct {
@@ -35,6 +38,7 @@ type Config struct {
 	proxyConfig       []domain.ProxyConfig
 	ClientService     domain.ClientService
 	stream            stream.Stream
+	accountID         string
 }
 
 // NewConfig creates a new Config
@@ -51,6 +55,11 @@ func NewConfig(key string, cs domain.ClientService, s stream.Stream) *Config {
 // Token returns the authToken that the Config uses to communicate with Harness SaaS
 func (c *Config) Token() string {
 	return c.token.Get()
+}
+
+// AccountID returns the accountID for the account the Proxy is configured to work with
+func (c *Config) AccountID() string {
+	return c.accountID
 }
 
 func (c *Config) RefreshToken() (string, error) {
@@ -95,6 +104,10 @@ func (c *Config) FetchAndPopulate(ctx context.Context, inventory domain.Inventor
 	if err != nil {
 		return err
 	}
+
+	// It's not the end of the world if we fail to
+	// get the accountID from the auth token
+	c.accountID, _ = parseAuthToken(authResp.Token)
 
 	// TODO we probably should defer that
 	// compare new and old config assets and delete difference.
@@ -235,4 +248,31 @@ func retrieveConfig(key string, authToken string, clusterIdentifier string, cs d
 	defer cancel()
 
 	return cs.PageProxyConfig(ctx, input)
+}
+
+// parseAuthToken extracts the accountID from the auth token.
+// If we need to extract more than the accountID in the future we
+// can modify this function to return more than just the accountID string
+func parseAuthToken(token string) (string, error) {
+	if token == "" {
+		return "", fmt.Errorf("cannot parse empty token")
+	}
+
+	payloadIndex := 1
+	payload := strings.Split(token, ".")[payloadIndex]
+	payloadData, err := jwt.DecodeSegment(payload)
+	if err != nil {
+		return "", err
+	}
+
+	var claims map[string]interface{}
+	if err = jsoniter.Unmarshal(payloadData, &claims); err != nil {
+		return "", err
+	}
+
+	if accountID, ok := claims["account"].(string); ok {
+		return accountID, nil
+	}
+
+	return "", fmt.Errorf("accountID not present in auth token")
 }
