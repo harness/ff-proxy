@@ -14,10 +14,10 @@ import (
 	"time"
 
 	"github.com/alicebob/miniredis/v2"
-	"github.com/go-redis/redis/v8"
 	"github.com/harness-community/sse/v3"
 	sdkstream "github.com/harness/ff-golang-server-sdk/stream"
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/redis/go-redis/v9"
 	"github.com/stretchr/testify/assert"
 
 	"github.com/harness/ff-proxy/v2/cache"
@@ -274,8 +274,8 @@ func setupHTTPServer(t *testing.T, bypassAuth bool, opts ...setupOpts) *HTTPServ
 	endpoints := NewEndpoints(service)
 
 	repo := mockRepo{
-		getFn: func(context context.Context, key domain.AuthAPIKey) (string, bool) {
-			return "", true
+		getFn: func(context context.Context, key domain.AuthAPIKey) (string, bool, error) {
+			return "", true, nil
 		},
 	}
 
@@ -283,7 +283,7 @@ func setupHTTPServer(t *testing.T, bypassAuth bool, opts ...setupOpts) *HTTPServ
 	server.Use(
 		middleware.NewEchoRequestIDMiddleware(),
 		middleware.NewEchoLoggingMiddleware(logger),
-		middleware.NewEchoAuthMiddleware(repo, []byte(`secret`), bypassAuth),
+		middleware.NewEchoAuthMiddleware(logger, repo, []byte(`secret`), bypassAuth),
 		middleware.NewPrometheusMiddleware(prometheus.NewRegistry()),
 	)
 	return server
@@ -1640,9 +1640,9 @@ func trimHeader(size int, data []byte) []byte {
 }
 
 type mockRepo struct {
-	getFn func(context context.Context, key domain.AuthAPIKey) (string, bool)
+	getFn func(context context.Context, key domain.AuthAPIKey) (string, bool, error)
 }
 
-func (m mockRepo) Get(ctx context.Context, key domain.AuthAPIKey) (string, bool) {
+func (m mockRepo) Get(ctx context.Context, key domain.AuthAPIKey) (string, bool, error) {
 	return m.getFn(ctx, key)
 }

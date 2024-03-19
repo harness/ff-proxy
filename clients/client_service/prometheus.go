@@ -53,8 +53,10 @@ func (p prometheusClient) AuthenticateWithResponse(ctx context.Context, body cli
 func (p prometheusClient) AuthenticateProxyKeyWithResponse(ctx context.Context, body clientgen.AuthenticateProxyKeyJSONRequestBody, reqEditors ...clientgen.RequestEditorFn) (resp *clientgen.AuthenticateProxyKeyResponse, err error) {
 	start := time.Now()
 	defer func() {
-		p.requestCount.WithLabelValues("/proxy/auth", "", strconv.Itoa(resp.StatusCode())).Inc()
-		p.requestDuration.WithLabelValues("/proxy/auth", "").Observe(time.Since(start).Seconds())
+		if resp != nil {
+			p.requestCount.WithLabelValues("/proxy/auth", "", strconv.Itoa(resp.StatusCode())).Inc()
+			p.requestDuration.WithLabelValues("/proxy/auth", "").Observe(time.Since(start).Seconds())
+		}
 	}()
 
 	return p.next.AuthenticateProxyKeyWithResponse(ctx, body, reqEditors...)

@@ -12,7 +12,7 @@ import (
 )
 
 type authRepo interface {
-	Get(context context.Context, key domain.AuthAPIKey) (string, bool)
+	Get(context context.Context, key domain.AuthAPIKey) (string, bool, error)
 }
 
 type hasher interface {
@@ -39,7 +39,10 @@ func (a Source) GenerateToken(key string) (domain.Token, error) {
 
 	k := domain.NewAuthAPIKey(h)
 
-	env, ok := a.repo.Get(context.Background(), k)
+	env, ok, err := a.repo.Get(context.Background(), k)
+	if err != nil {
+		a.log.Error("failed to get auth key from cache to generate token", "err", err)
+	}
 	if !ok {
 		return domain.Token{}, fmt.Errorf("key %q not found", key)
 	}
