@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"runtime"
 	"strings"
 	"time"
 
@@ -61,6 +62,7 @@ var (
 	redisAddress  string
 	redisPassword string
 	redisDB       int
+	redisPoolSize int
 
 	// Server Config
 	port       int
@@ -98,6 +100,7 @@ const (
 	redisAddrEnv     = "REDIS_ADDRESS"
 	redisPasswordEnv = "REDIS_PASSWORD"
 	redisDBEnv       = "REDIS_DB"
+	redisPoolSizeEnv = "REDIS_POOL_SIZE"
 
 	// Server Config
 	portEnv       = "PORT"
@@ -135,6 +138,7 @@ const (
 	redisAddressFlag  = "redis-address"
 	redisPasswordFlag = "redis-password"
 	redisDBFlag       = "redis-db"
+	redisPoolSizeFlag = "redis-pool-size"
 
 	// Server Config
 	portFlag       = "port"
@@ -172,6 +176,7 @@ func init() {
 	flag.StringVar(&redisAddress, redisAddressFlag, "", "Redis host:port address")
 	flag.StringVar(&redisPassword, redisPasswordFlag, "", "Optional. Redis password")
 	flag.IntVar(&redisDB, redisDBFlag, 0, "Database to be selected after connecting to the server.")
+	flag.IntVar(&redisPoolSize, redisPoolSizeFlag, 10, "sets the redi connection pool size, to this value multipled by the number of CPU available. E.g if this value is 10 and you've 2 CPU the connection pool size will be 20")
 
 	// Server Config
 	flag.IntVar(&port, portFlag, 8000, "port the relay proxy service is exposed on, default's to 8000")
@@ -199,6 +204,7 @@ func init() {
 		redisAddrEnv:                    redisAddressFlag,
 		redisPasswordEnv:                redisPasswordFlag,
 		redisDBEnv:                      redisDBFlag,
+		redisPoolSizeEnv:                redisPoolSizeFlag,
 		metricPostDurationEnv:           metricPostDurationFlag,
 		heartbeatIntervalEnv:            heartbeatIntervalFlag,
 		pprofEnabledEnv:                 pprofEnabledFlag,
@@ -305,6 +311,7 @@ func main() {
 		opts.Username = parsed.Username
 		opts.Password = parsed.Password
 		opts.TLSConfig = parsed.TLSConfig
+		opts.PoolSize = redisPoolSize * runtime.NumCPU()
 		if redisPassword != "" {
 			opts.Password = redisPassword
 		}
