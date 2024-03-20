@@ -1292,7 +1292,7 @@ func TestHTTPServer_Stream(t *testing.T) {
 				"Content-Type":    []string{"text/event-stream"},
 				"Grip-Hold":       []string{"stream"},
 				"Grip-Channel":    []string{envID},
-				"Grip-Keep-Alive": []string{"\\n; format=cstring; timeout=15"},
+				"Grip-Keep-Alive": []string{":\\n\\n; format=cstring; timeout=15"},
 			},
 		},
 
