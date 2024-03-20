@@ -4,8 +4,8 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/harness-community/sse/v3"
 	"github.com/harness/ff-proxy/v2/build"
-	"github.com/r3labs/sse/v2"
 	"gopkg.in/cenkalti/backoff.v1"
 
 	"github.com/harness/ff-proxy/v2/domain"
