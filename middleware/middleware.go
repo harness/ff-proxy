@@ -20,7 +20,7 @@ import (
 
 // keyLookUp checks if the key exists in cache
 type keyLookUp interface {
-	Get(context context.Context, key domain.AuthAPIKey) (string, bool)
+	Get(context context.Context, key domain.AuthAPIKey) (string, bool, error)
 }
 
 // NewEchoLoggingMiddleware returns a new echo middleware that logs requests and
@@ -41,7 +41,7 @@ func NewEchoLoggingMiddleware(l log.Logger) echo.MiddlewareFunc {
 
 // NewEchoAuthMiddleware returns an echo middleware that checks if auth headers
 // are valid
-func NewEchoAuthMiddleware(authRepo keyLookUp, secret []byte, bypassAuth bool) echo.MiddlewareFunc {
+func NewEchoAuthMiddleware(logger log.Logger, authRepo keyLookUp, secret []byte, bypassAuth bool) echo.MiddlewareFunc {
 	return middleware.JWTWithConfig(middleware.JWTConfig{
 		AuthScheme:  "Bearer",
 		TokenLookup: "header:Authorization",
@@ -57,7 +57,7 @@ func NewEchoAuthMiddleware(authRepo keyLookUp, secret []byte, bypassAuth bool) e
 				return nil, err
 			}
 
-			if claims, ok := token.Claims.(*domain.Claims); ok && token.Valid && isKeyInCache(authRepo, claims) {
+			if claims, ok := token.Claims.(*domain.Claims); ok && token.Valid && isKeyInCache(c.Request().Context(), logger, authRepo, claims) {
 				return nil, nil
 			}
 			return nil, errors.New("invalid token")
@@ -78,9 +78,15 @@ func NewEchoAuthMiddleware(authRepo keyLookUp, secret []byte, bypassAuth bool) e
 	})
 }
 
-func isKeyInCache(repo keyLookUp, claims *domain.Claims) bool {
+func isKeyInCache(ctx context.Context, logger log.Logger, repo keyLookUp, claims *domain.Claims) bool {
+	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+
 	key := claims.APIKey
-	_, exists := repo.Get(context.Background(), domain.AuthAPIKey(key))
+	_, exists, err := repo.Get(ctx, domain.AuthAPIKey(key))
+	if err != nil {
+		logger.Error("auth middleware failed to lookup key in cache", "err", err)
+	}
 	return exists
 }
 

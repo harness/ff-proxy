@@ -318,7 +318,7 @@ func main() {
 			opts.Password = redisPassword
 		}
 		redisClient = redis.NewUniversalClient(&opts)
-		logger.Info("connecting to redis", "address", redisAddress)
+		logger.Info("connecting to redis", "address", redisAddress, "poolSize", opts.PoolSize)
 
 		mcMetrics := cache.NewMemoizeMetrics("proxy", promReg)
 		mcCache := cache.NewMemoizeCache(redisClient, 1*time.Minute, 2*time.Minute, mcMetrics)
@@ -548,7 +548,7 @@ func main() {
 	server.Use(
 		middleware.NewEchoRequestIDMiddleware(),
 		middleware.NewEchoLoggingMiddleware(logger),
-		middleware.NewEchoAuthMiddleware(authRepo, []byte(authSecret), bypassAuth),
+		middleware.NewEchoAuthMiddleware(logger, authRepo, []byte(authSecret), bypassAuth),
 		middleware.NewPrometheusMiddleware(promReg),
 	)
 

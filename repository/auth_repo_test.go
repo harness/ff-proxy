@@ -30,28 +30,32 @@ func TestAuthRepo_Get(t *testing.T) {
 	}
 
 	testCases := map[string]struct {
-		cache    cache.Cache
-		data     []domain.AuthConfig
-		key      string
-		expected expected
+		cache     cache.Cache
+		data      []domain.AuthConfig
+		key       string
+		shouldErr bool
+		expected  expected
 	}{
 		"Given I have an empty AuthRepo": {
-			cache:    cache.NewMemCache(),
-			data:     unpopulated,
-			key:      "apikey-foo",
-			expected: expected{strVal: "", boolVal: false},
+			cache:     cache.NewMemCache(),
+			data:      unpopulated,
+			key:       "apikey-foo",
+			shouldErr: true,
+			expected:  expected{strVal: "", boolVal: false},
 		},
 		"Given I have a populated AuthRepo but try to get a key that doesn't exist": {
-			cache:    cache.NewMemCache(),
-			data:     populated,
-			key:      "foo",
-			expected: expected{strVal: "", boolVal: false},
+			cache:     cache.NewMemCache(),
+			data:      populated,
+			key:       "foo",
+			shouldErr: true,
+			expected:  expected{strVal: "", boolVal: false},
 		},
 		"Given I have a populated AuthRepo and try to get a key that does exist": {
-			cache:    cache.NewMemCache(),
-			data:     populated,
-			key:      "apikey-foo",
-			expected: expected{strVal: "env-approved", boolVal: true},
+			cache:     cache.NewMemCache(),
+			data:      populated,
+			key:       "apikey-foo",
+			shouldErr: false,
+			expected:  expected{strVal: "env-approved", boolVal: true},
 		},
 	}
 	for desc, tc := range testCases {
@@ -62,7 +66,12 @@ func TestAuthRepo_Get(t *testing.T) {
 
 			assert.Nil(t, repo.Add(ctx, tc.data...))
 
-			actual, ok := repo.Get(ctx, domain.AuthAPIKey(tc.key))
+			actual, ok, err := repo.Get(ctx, domain.AuthAPIKey(tc.key))
+			if tc.shouldErr {
+				assert.NotNil(t, err)
+			} else {
+				assert.Nil(t, err)
+			}
 
 			assert.Equal(t, tc.expected.boolVal, ok)
 			assert.Equal(t, tc.expected.strVal, actual)

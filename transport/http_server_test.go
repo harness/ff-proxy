@@ -274,8 +274,8 @@ func setupHTTPServer(t *testing.T, bypassAuth bool, opts ...setupOpts) *HTTPServ
 	endpoints := NewEndpoints(service)
 
 	repo := mockRepo{
-		getFn: func(context context.Context, key domain.AuthAPIKey) (string, bool) {
-			return "", true
+		getFn: func(context context.Context, key domain.AuthAPIKey) (string, bool, error) {
+			return "", true, nil
 		},
 	}
 
@@ -283,7 +283,7 @@ func setupHTTPServer(t *testing.T, bypassAuth bool, opts ...setupOpts) *HTTPServ
 	server.Use(
 		middleware.NewEchoRequestIDMiddleware(),
 		middleware.NewEchoLoggingMiddleware(logger),
-		middleware.NewEchoAuthMiddleware(repo, []byte(`secret`), bypassAuth),
+		middleware.NewEchoAuthMiddleware(logger, repo, []byte(`secret`), bypassAuth),
 		middleware.NewPrometheusMiddleware(prometheus.NewRegistry()),
 	)
 	return server
@@ -1640,9 +1640,9 @@ func trimHeader(size int, data []byte) []byte {
 }
 
 type mockRepo struct {
-	getFn func(context context.Context, key domain.AuthAPIKey) (string, bool)
+	getFn func(context context.Context, key domain.AuthAPIKey) (string, bool, error)
 }
 
-func (m mockRepo) Get(ctx context.Context, key domain.AuthAPIKey) (string, bool) {
+func (m mockRepo) Get(ctx context.Context, key domain.AuthAPIKey) (string, bool, error) {
 	return m.getFn(ctx, key)
 }

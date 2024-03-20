@@ -382,7 +382,10 @@ func (s Service) Stream(ctx context.Context, req domain.StreamRequest) (domain.S
 	}
 
 	hashedAPIKey := s.hasher.Hash(req.APIKey)
-	envID, ok := s.authRepo.Get(ctx, domain.NewAuthAPIKey(hashedAPIKey))
+	envID, ok, err := s.authRepo.Get(ctx, domain.NewAuthAPIKey(hashedAPIKey))
+	if err != nil {
+		s.logger.Error(ctx, "stream handler failed to check if key exists in cache", "err", err)
+	}
 	if !ok {
 		return domain.StreamResponse{}, fmt.Errorf("%w: no environment found for apiKey %q", ErrNotFound, req.APIKey)
 	}
