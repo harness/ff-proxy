@@ -5,7 +5,7 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/r3labs/sse/v2"
+	"github.com/harness-community/sse/v3"
 	"github.com/stretchr/testify/assert"
 )
 

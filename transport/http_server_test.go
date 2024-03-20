@@ -15,9 +15,9 @@ import (
 
 	"github.com/alicebob/miniredis/v2"
 	"github.com/go-redis/redis/v8"
+	"github.com/harness-community/sse/v3"
 	sdkstream "github.com/harness/ff-golang-server-sdk/stream"
 	"github.com/prometheus/client_golang/prometheus"
-	"github.com/r3labs/sse"
 	"github.com/stretchr/testify/assert"
 
 	"github.com/harness/ff-proxy/v2/cache"
