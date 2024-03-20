@@ -12,6 +12,8 @@ import (
 	"strings"
 	"time"
 
+	_ "net/http/pprof"
+
 	"gopkg.in/cenkalti/backoff.v1"
 
 	"github.com/harness/ff-proxy/v2/domain"
