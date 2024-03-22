@@ -22,6 +22,10 @@ var (
 // to the client. If we need to we can write specific encodeResponse functions
 // for endpoints that require one.
 func encodeResponse(_ context.Context, w http.ResponseWriter, response interface{}) error {
+	if response == nil {
+		return nil
+	}
+
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	return jsoniter.NewEncoder(w).Encode(response)
 }
