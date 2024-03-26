@@ -53,6 +53,7 @@ var (
 	heartbeatInterval     int
 	generateOfflineConfig bool
 	readReplica           bool
+	forwardTargets        bool
 
 	// Cache Config
 	offline       bool
@@ -89,6 +90,7 @@ const (
 	heartbeatIntervalEnv     = "HEARTBEAT_INTERVAL"
 	generateOfflineConfigEnv = "GENERATE_OFFLINE_CONFIG"
 	readReplicaEnv           = "READ_REPLICA"
+	forwardTargetsEnv        = "FORWARD_TARGETS"
 
 	// Cache Config
 	offlineEnv       = "OFFLINE"
@@ -125,6 +127,7 @@ const (
 	heartbeatIntervalFlag     = "heartbeat-interval"
 	generateOfflineConfigFlag = "generate-offline-config"
 	readReplicaFlag           = "readReplica"
+	forwardTargetsFlag        = "forward-targets"
 
 	// Cache Config
 	configDirFlag     = "config-dir"
@@ -161,6 +164,7 @@ func init() {
 	flag.IntVar(&heartbeatInterval, heartbeatIntervalFlag, 60, "How often in seconds the proxy polls pings it's health function. Set to 0 to disable.")
 	flag.BoolVar(&generateOfflineConfig, generateOfflineConfigFlag, false, "if true the proxy will produce offline config in the /config directory then terminate")
 	flag.BoolVar(&readReplica, readReplicaFlag, false, "if true the Proxy will operate as a read replica that only reads from the cache and doesn't fetch new data from Harness SaaS")
+	flag.BoolVar(&forwardTargets, forwardTargetsFlag, false, "determines if the Proxy forwards targets to Saas during the auth flow")
 
 	// Cache Config
 	flag.BoolVar(&offline, offlineFlag, false, "enables side loading of data from config dir")
@@ -209,6 +213,7 @@ func init() {
 		readReplicaEnv:                  readReplicaFlag,
 		metricsStreamMaxLenEnv:          metricsStreamMaxLenFlag,
 		metricsStreamReadConcurrencyEnv: metricStreamReadConcurrencyFlag,
+		forwardTargetsEnv:               forwardTargetsFlag,
 	})
 
 	flag.Parse()
@@ -271,13 +276,14 @@ func main() {
 	promReg := prometheus.NewRegistry()
 	promReg.MustRegister(collectors.NewGoCollector())
 
-	logger.Info("service config", "pprof", pprofEnabled, "log-level", logLevel, "bypass-auth", bypassAuth, "offline", offline, "port", port, "redis-addr", redisAddress, "redis-db", redisDB, "heartbeat-interval", fmt.Sprintf("%ds", heartbeatInterval), "config-dir", configDir, "tls-enabled", tlsEnabled, "tls-cert", tlsCert, "tls-key", tlsKey, "read-replica", readReplica, "client-service", clientService, "metrics-service", metricService)
+	logger.Info("service config", "version", build.Version, "pprof", pprofEnabled, "log-level", logLevel, "bypass-auth", bypassAuth, "offline", offline, "port", port, "redis-addr", redisAddress, "redis-db", redisDB, "heartbeat-interval", fmt.Sprintf("%ds", heartbeatInterval), "config-dir", configDir, "tls-enabled", tlsEnabled, "tls-cert", tlsCert, "tls-key", tlsKey, "read-replica", readReplica, "client-service", clientService, "metrics-service", metricService)
 
 	// Create cache
 	// if we're just generating the offline config we should only use in memory mode for now
 	// when we move to a pattern of allowing periodic config dumps to disk we can remove this requirement
 
 	var redisClient redis.UniversalClient
+	var hashCache *cache.HashCache
 
 	if redisAddress != "" && !generateOfflineConfig { //nolint:nestif
 		// if address does not start with redis:// or rediss:// then default to redis://
@@ -304,12 +310,18 @@ func main() {
 		}
 		redisClient = redis.NewUniversalClient(&opts)
 		logger.Info("connecting to redis", "address", redisAddress)
-		sdkCache = cache.NewMetricsCache("redis", promReg, cache.NewMemoizeCache(redisClient, 1*time.Minute, 2*time.Minute, cache.NewMemoizeMetrics("proxy", promReg)))
+
+		mcMetrics := cache.NewMemoizeMetrics("proxy", promReg)
+		mcCache := cache.NewMemoizeCache(redisClient, 1*time.Minute, 2*time.Minute, mcMetrics)
+		sdkCache = cache.NewMetricsCache("redis", promReg, mcCache)
+		hashCache = cache.NewHashCache(cache.NewKeyValCache(redisClient), 10*time.Minute, 12*time.Minute)
+
 		err = sdkCache.HealthCheck(ctx)
 		if err != nil {
 			logger.Error("failed to connect to redis", "err", err)
 			os.Exit(1)
 		}
+
 	} else {
 		logger.Info("initialising default memcache")
 		sdkCache = cache.NewMetricsCache("in_mem", promReg, cache.NewMemCache())
@@ -329,7 +341,7 @@ func main() {
 				"control_uri": "http://localhost:5561",
 			},
 		})
-		saasStreamHealth = stream.NewHealth("ffproxy_saas_stream_health", sdkCache, logger)
+		saasStreamHealth = stream.NewHealth("ffproxy_saas_stream_health", cache.NewKeyValCache(redisClient), logger)
 		connectedStreams = domain.NewSafeMap()
 
 		getConnectedStreams = func() map[string]interface{} {
@@ -340,9 +352,14 @@ func main() {
 		redisStream   domain.Stream = stream.NewRedisStream(redisClient)
 	)
 
-	// Kick of routine that makes sure the cachedStreamStatus is up to date with the inMemoryStreamStatus
+	// If we're running as the primary we kick off a routine to make sure that cached status matches
+	// the in memory status.
+	// If we're running as replicas we kick off a routine to make sure the in memory status matches the
+	// cached status
 	if !readReplica {
 		go saasStreamHealth.VerifyStreamStatus(ctx, 60*time.Second)
+	} else {
+		go saasStreamHealth.UpdateInMemStreamStatus(ctx, 60*time.Second)
 	}
 
 	// Get the underlying type from the pushpinStream which is currently the
@@ -387,8 +404,8 @@ func main() {
 
 	// Create repos
 	targetRepo := repository.NewTargetRepo(sdkCache, logger)
-	flagRepo := repository.NewFeatureFlagRepo(sdkCache)
-	segmentRepo := repository.NewSegmentRepo(sdkCache)
+	flagRepo := repository.NewFeatureFlagRepo(hashCache)
+	segmentRepo := repository.NewSegmentRepo(hashCache)
 	authRepo := repository.NewAuthRepo(sdkCache)
 	inventoryRepo := repository.NewInventoryRepo(sdkCache, logger)
 
@@ -412,6 +429,10 @@ func main() {
 		} else {
 			configStatus = domain.NewConfigStatus(domain.ConfigStateSynced)
 		}
+
+		// Set the accountID in the context, this way it can be included in headers
+		// for any requests the Proxy makes to Saas
+		ctx = context.WithValue(ctx, domain.ContextKeyAccountID, conf.AccountID())
 	}
 
 	// If we're running as a read replica then we want to subscribe to two streams
@@ -439,7 +460,7 @@ func main() {
 		messageHandler = stream.NewForwarder(logger, pushpinStream, redisForwarder)
 
 		streamURL := fmt.Sprintf("%s/stream?cluster=%s", clientService, conf.ClusterIdentifier())
-		sseClient := stream.NewSSEClient(logger, streamURL, proxyKey, conf.Token())
+		sseClient := stream.NewSSEClient(logger, streamURL, proxyKey, conf.Token(), conf.AccountID())
 
 		saasStream := stream.NewStream(
 			logger,
@@ -483,6 +504,7 @@ func main() {
 	apiKeyHasher := hash.NewSha256()
 	tokenSource := token.NewSource(logger, authRepo, apiKeyHasher, []byte(authSecret))
 	proxyHealth := health.NewProxyHealth(logger, configStatus, saasStreamHealth.StreamStatus, cacheHealthCheck)
+	proxyHealth.PollCacheHealth(ctx, 1*time.Minute)
 
 	// Setup service and middleware
 	service := proxyservice.NewService(proxyservice.Config{
@@ -508,6 +530,7 @@ func main() {
 		SDKStreamConnected: func(envID string) {
 			connectedStreams.Set(envID, "")
 		},
+		ForwardTargets: forwardTargets,
 	})
 
 	// Configure endpoints and server

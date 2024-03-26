@@ -89,7 +89,7 @@ func (h Health) SetUnhealthy(ctx context.Context) error {
 		Since: time.Now().UnixMilli(),
 	}
 
-	cachedStatus := &domain.StreamStatus{}
+	cachedStatus := domain.StreamStatus{}
 	if err := h.c.Get(ctx, h.key, &cachedStatus); err != nil {
 		// Ignore NotFound errors for this key because if the key doesn't
 		// exist we'll end up setting it at the end of this function
@@ -149,16 +149,29 @@ func (h Health) VerifyStreamStatus(ctx context.Context, interval time.Duration) 
 	}
 }
 
-// StreamStatus returns the StreamStatus from the cache
-func (h Health) StreamStatus(ctx context.Context) (domain.StreamStatus, error) {
-	var s domain.StreamStatus
-	if err := h.c.Get(ctx, h.key, &s); err != nil {
-		h.log.Error("failed to get stream status from cache", "err", err)
-		return domain.StreamStatus{}, err
+// UpdateInMemStreamStatus polls for the cached status and makes sure the in memory status matches
+// This is only needed by replicas to avoid their in memory status always being stuck as 'INITIALIZING'
+func (h Health) UpdateInMemStreamStatus(ctx context.Context, interval time.Duration) {
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			h.log.Info("context canceled, stopping thread that checks the cached stream status matches the in memory status")
+			return
+		case <-ticker.C:
+			var cachedStatus domain.StreamStatus
+			if err := h.c.Get(ctx, h.key, &cachedStatus); err != nil {
+				h.log.Error("failed to get stream status from cache", "err", err)
+			}
+
+			h.inMemStatus.Set(cachedStatus)
+		}
 	}
+}
 
-	inMemStatus := h.inMemStatus.Get()
-	h.log.Info("StreamStatus for health endpoint", "cachedStatus.Since", s.Since, "cachedStatus.State", s.State, "inMemStatus.State", inMemStatus.State, "inMemStatus.Since", inMemStatus.Since)
-
-	return s, nil
+// StreamStatus returns the StreamStatus from the cache
+func (h Health) StreamStatus(_ context.Context) (domain.StreamStatus, error) {
+	return h.inMemStatus.Get(), nil
 }

@@ -41,7 +41,7 @@ generate: ## Generates the client for the ff-servers client service
 
 PHONY+= build
 build: ## Builds the ff-proxy service binary
-	CGO_ENABLED=0 go build -ldflags="-X github.com/harness/ff-proxy/build.Version=${GIT_TAG}" -o ff-proxy ./cmd/ff-proxy/main.go
+	CGO_ENABLED=0 go build -ldflags="-X github.com/harness/ff-proxy/v2/build.Version=${GIT_TAG}" -o ff-proxy ./cmd/ff-proxy/main.go
 
 PHONY+= build-race
 build-race: generate ## Builds the ff-proxy service binary with the race detector enabled
@@ -49,7 +49,7 @@ build-race: generate ## Builds the ff-proxy service binary with the race detecto
 
 image: ## Builds a docker image for the proxy called ff-proxy:latest
 	@echo "Building Feature Flag Proxy Image"
-	@docker build -t harness/ff-proxy:latest -f ./Dockerfile .
+	@docker build -t harness/ff-proxy:latest -f ./Dockerfile --build-arg gitTag=${GIT_TAG} .
 
 PHONY+= test
 test: ## Run the go tests (runs with race detector enabled)

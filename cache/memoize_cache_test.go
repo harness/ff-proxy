@@ -13,6 +13,7 @@ import (
 )
 
 type mockInternalCache struct {
+	internalCache
 	data map[string]interface{}
 }
 

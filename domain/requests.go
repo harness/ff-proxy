@@ -1,6 +1,11 @@
 package domain
 
 import (
+	"context"
+	"fmt"
+	"net/http"
+
+	"github.com/harness/ff-proxy/v2/build"
 	jsoniter "github.com/json-iterator/go"
 
 	clientgen "github.com/harness/ff-proxy/v2/gen/client"
@@ -95,4 +100,15 @@ type GetProxyConfigInput struct {
 type AuthenticateProxyKeyResponse struct {
 	Token             string
 	ClusterIdentifier string
+}
+
+func AddHarnessXHeaders(envID string) func(ctx context.Context, req *http.Request) error {
+	return func(ctx context.Context, req *http.Request) error {
+		accountID := ctx.Value(ContextKeyAccountID).(string)
+
+		req.Header.Set("Harness-Accountid", accountID)
+		req.Header.Set("Harness-Environmentid", envID)
+		req.Header.Set("Harness-Sdk-Info", fmt.Sprintf("Proxy %s", build.Version))
+		return nil
+	}
 }

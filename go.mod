@@ -15,6 +15,7 @@ require (
 	github.com/golang-jwt/jwt v3.2.2+incompatible
 	github.com/golang-jwt/jwt/v4 v4.4.3
 	github.com/google/uuid v1.4.0
+	github.com/harness-community/sse/v3 v3.1.0
 	github.com/harness/ff-golang-server-sdk v0.1.17
 	github.com/hashicorp/go-multierror v1.1.1
 	github.com/joho/godotenv v1.4.0
@@ -22,12 +23,11 @@ require (
 	github.com/labstack/echo/v4 v4.9.0
 	github.com/patrickmn/go-cache v2.1.0+incompatible
 	github.com/prometheus/client_golang v1.11.1
-	github.com/r3labs/sse v0.0.0-20201126193848-34e640891548
-	github.com/r3labs/sse/v2 v2.10.0
 	github.com/sirupsen/logrus v1.8.1
 	github.com/stretchr/testify v1.8.1
 	go.uber.org/zap v1.19.1
 	golang.org/x/exp v0.0.0-20231006140011-7918f672742d
+	golang.org/x/sync v0.4.0
 	gopkg.in/cenkalti/backoff.v1 v1.1.0
 	gopkg.in/yaml.v2 v2.4.0
 )
@@ -52,7 +52,6 @@ require (
 	github.com/google/s2a-go v0.1.7 // indirect
 	github.com/googleapis/enterprise-certificate-proxy v0.3.2 // indirect
 	github.com/googleapis/gax-go/v2 v2.12.0 // indirect
-	github.com/harness-community/sse/v3 v3.1.0 // indirect
 	github.com/hashicorp/errwrap v1.0.0 // indirect
 	github.com/hashicorp/go-cleanhttp v0.5.2 // indirect
 	github.com/hashicorp/go-retryablehttp v0.7.4 // indirect
@@ -86,7 +85,6 @@ require (
 	golang.org/x/crypto v0.16.0 // indirect
 	golang.org/x/net v0.19.0 // indirect
 	golang.org/x/oauth2 v0.13.0 // indirect
-	golang.org/x/sync v0.4.0 // indirect
 	golang.org/x/sys v0.15.0 // indirect
 	golang.org/x/text v0.14.0 // indirect
 	golang.org/x/time v0.0.0-20220411224347-583f2d630306 // indirect

@@ -15,9 +15,9 @@ import (
 
 	"github.com/alicebob/miniredis/v2"
 	"github.com/go-redis/redis/v8"
+	"github.com/harness-community/sse/v3"
 	sdkstream "github.com/harness/ff-golang-server-sdk/stream"
 	"github.com/prometheus/client_golang/prometheus"
-	"github.com/r3labs/sse"
 	"github.com/stretchr/testify/assert"
 
 	"github.com/harness/ff-proxy/v2/cache"
@@ -226,6 +226,10 @@ func setupHTTPServer(t *testing.T, bypassAuth bool, opts ...setupOpts) *HTTPServ
 	if setupConfig.healthFn == nil {
 		setupConfig.healthFn = func(ctx context.Context) domain.HealthResponse {
 			return domain.HealthResponse{
+				ConfigStatus: domain.ConfigStatus{
+					State: domain.ConfigStateSynced,
+					Since: 1699877509155,
+				},
 				StreamStatus: domain.StreamStatus{
 					State: domain.StreamStateConnected,
 					Since: 1699877509155,
@@ -265,6 +269,7 @@ func setupHTTPServer(t *testing.T, bypassAuth bool, opts ...setupOpts) *HTTPServ
 		Hasher:             hash.NewSha256(),
 		HealthySaasStream:  setupConfig.healthySaasStream,
 		SDKStreamConnected: func(envID string) {},
+		ForwardTargets:     true,
 	})
 	endpoints := NewEndpoints(service)
 
@@ -1124,15 +1129,18 @@ func TestAuthentication(t *testing.T) {
 // TestHTTPServer_Health sets up a service with health check functions
 // injects it into the HTTPServer and makes HTTP requests to the /health endpoint
 func TestHTTPServer_Health(t *testing.T) {
-	t.Skip("temp skip, will be fixed in FFM-10855")
-	healthyResponse := []byte(`{"streamStatus":{"state":"CONNECTED","since":1699877509155},"cacheStatus":"healthy"}
+	healthyResponse := []byte(`{"configStatus":{"state":"SYNCED","since":1699877509155},"streamStatus":{"state":"CONNECTED","since":1699877509155},"cacheStatus":"healthy"}
 `)
 
-	unhealthyResponse := []byte(`{"streamStatus":{"state":"DISCONNECTED","since":1699877509155},"cacheStatus":"unhealthy"}
+	unhealthyResponse := []byte(`{"error":"internal error"}
 `)
 
 	healthErr := func(ctx context.Context) domain.HealthResponse {
 		return domain.HealthResponse{
+			ConfigStatus: domain.ConfigStatus{
+				State: domain.ConfigStateFailedToSync,
+				Since: 1709648163438,
+			},
 			StreamStatus: domain.StreamStatus{
 				State: domain.StreamStateDisconnected,
 				Since: 1699877509155,
@@ -1159,7 +1167,7 @@ func TestHTTPServer_Health(t *testing.T) {
 		},
 		"Given I make a GET request and cache is unhealthy": {
 			method:               http.MethodGet,
-			expectedStatusCode:   http.StatusOK,
+			expectedStatusCode:   http.StatusInternalServerError,
 			healthFn:             healthErr,
 			expectedResponseBody: unhealthyResponse,
 		},
@@ -1284,7 +1292,7 @@ func TestHTTPServer_Stream(t *testing.T) {
 				"Content-Type":    []string{"text/event-stream"},
 				"Grip-Hold":       []string{"stream"},
 				"Grip-Channel":    []string{envID},
-				"Grip-Keep-Alive": []string{"\\n; format=cstring; timeout=15"},
+				"Grip-Keep-Alive": []string{":\\n\\n; format=cstring; timeout=15"},
 			},
 		},
 

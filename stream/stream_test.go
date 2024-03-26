@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/r3labs/sse/v2"
+	"github.com/harness-community/sse/v3"
 	"github.com/stretchr/testify/assert"
 	"gopkg.in/cenkalti/backoff.v1"
 

@@ -35,7 +35,7 @@ func encodeStreamResponse(_ context.Context, w http.ResponseWriter, response int
 	w.Header().Add("Content-Type", "text/event-stream")
 	w.Header().Add("Grip-Hold", "stream")
 	w.Header().Add("Grip-Channel", r.GripChannel)
-	w.Header().Add("Grip-Keep-Alive", "\\n; format=cstring; timeout=15")
+	w.Header().Add("Grip-Keep-Alive", ":\\n\\n; format=cstring; timeout=15")
 	return nil
 }
 

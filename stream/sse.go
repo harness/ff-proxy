@@ -4,7 +4,8 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/r3labs/sse/v2"
+	"github.com/harness-community/sse/v3"
+	"github.com/harness/ff-proxy/v2/build"
 	"gopkg.in/cenkalti/backoff.v1"
 
 	"github.com/harness/ff-proxy/v2/domain"
@@ -23,11 +24,13 @@ type SSEClient struct {
 }
 
 // NewSSEClient creates an SSEClient
-func NewSSEClient(l log.Logger, url string, key string, token string) *SSEClient {
+func NewSSEClient(l log.Logger, url string, key string, token string, accountID string) *SSEClient {
 	c := sse.NewClient(url)
 	c.Headers = map[string]string{
-		"Authorization": fmt.Sprintf("Bearer %s", token),
-		"API-Key":       key,
+		"Authorization":     fmt.Sprintf("Bearer %s", token),
+		"API-Key":           key,
+		"Harness-Accountid": accountID,
+		"Harness-Sdk-Info":  fmt.Sprintf("Proxy %s", build.Version),
 	}
 
 	// don't use the default exponentialBackoff strategy - we'll have our own disconnect logic

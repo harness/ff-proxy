@@ -112,6 +112,13 @@ type Config struct {
 	SDKStreamConnected func(envID string)
 
 	Health func(ctx context.Context) domain.HealthResponse
+
+	ForwardTargets bool
+}
+
+type segmentRepo interface {
+	Get(ctx context.Context, environmentID string) ([]domain.Segment, error)
+	GetByIdentifier(ctx context.Context, environmentID string, identifier string) (domain.Segment, error)
 }
 
 // Service is the proxy service implementation
@@ -119,7 +126,7 @@ type Service struct {
 	logger             log.ContextualLogger
 	featureRepo        repository.FeatureFlagRepo
 	targetRepo         repository.TargetRepo
-	segmentRepo        repository.SegmentRepo
+	segmentRepo        segmentRepo
 	authRepo           repository.AuthRepo
 	authFn             authTokenFn
 	clientService      clientService
@@ -130,6 +137,8 @@ type Service struct {
 	sdkStreamConnected func(envID string)
 
 	health func(ctx context.Context) domain.HealthResponse
+
+	forwardTargets bool
 }
 
 // NewService creates and returns a ProxyService
@@ -149,6 +158,7 @@ func NewService(c Config) Service {
 		healthySassStream:  c.HealthySaasStream,
 		sdkStreamConnected: c.SDKStreamConnected,
 		health:             c.Health,
+		forwardTargets:     c.ForwardTargets,
 	}
 }
 
@@ -178,22 +188,19 @@ func (s Service) Authenticate(ctx context.Context, req domain.AuthRequest) (doma
 		return domain.AuthResponse{AuthToken: token.TokenString()}, nil
 	}
 
-	// We forward the auth request to the client service so that the Target is
-	// updated/added in FeatureFlags. Potentially a bold assumption but since the
-	// Target is added to the cache above I don't think this is in the critical
-	// path so we can call it in a goroutine and just log out if it fails since
-	// the proxy will continue to work for the SDKs with this Target. That being
-	// said I'm not sure what the long term solution is here if it fails for
-	// having Target parity between Feature Flags and the Proxy
-	go func() {
-		newCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-		defer cancel()
+	// If we aren't forwarding targets to Saas we're done
+	if s.forwardTargets {
+		// Otherwise forward targets in a goroutine so we don't block the auth request
+		go func() {
+			newCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+			defer cancel()
 
-		if _, err := s.clientService.Authenticate(newCtx, req.APIKey, req.Target); err != nil {
-			s.logger.Error(ctx, "failed to forward Target registration via auth request to client service", "err", err)
-		}
-		s.logger.Debug(ctx, "successfully registered target with feature flags", "target_identifier", req.Target.Target.Identifier)
-	}()
+			if _, err := s.clientService.Authenticate(newCtx, req.APIKey, req.Target); err != nil {
+				s.logger.Error(ctx, "failed to forward Target registration via auth request to client service", "err", err)
+			}
+			s.logger.Debug(ctx, "successfully registered target with feature flags", "target_identifier", req.Target.Target.Identifier)
+		}()
+	}
 
 	return domain.AuthResponse{AuthToken: token.TokenString()}, nil
 }
@@ -283,7 +290,6 @@ func (s Service) TargetSegmentsByIdentifier(ctx context.Context, req domain.Targ
 
 // Evaluations gets all the evaluations in an environment for a target
 func (s Service) Evaluations(ctx context.Context, req domain.EvaluationsRequest) ([]clientgen.Evaluation, error) {
-
 	evaluations := []clientgen.Evaluation{}
 
 	// fetch target
@@ -296,10 +302,16 @@ func (s Service) Evaluations(ctx context.Context, req domain.EvaluationsRequest)
 			s.logger.Error(ctx, "error fetching target: ", "err", err.Error())
 			return []clientgen.Evaluation{}, fmt.Errorf("%w: %s", ErrInternal, err)
 		}
-
 	}
 	target := domain.ConvertTarget(t)
-	query := s.GenerateQueryStore(ctx, req.EnvironmentID)
+
+	// We fetch all the segments ahead of time and build up a map that we can
+	// pass to the QueryStore. This might be overkill for users that don't have
+	// a lot of rules but for users that do have lots of rules it saves the query
+	// store from making a ton of individual segment calls to the cache.
+	segmentMap := s.makeSegmentMap(ctx, req.EnvironmentID)
+
+	query := s.GenerateQueryStore(ctx, req.EnvironmentID, segmentMap)
 	sdkEvaluator, _ := evaluation.NewEvaluator(query, nil, logger.NewNoOpLogger())
 
 	flagVariations, err := sdkEvaluator.EvaluateAll(&target)
@@ -339,7 +351,7 @@ func (s Service) EvaluationsByFeature(ctx context.Context, req domain.Evaluation
 	}
 	target := domain.ConvertTarget(t)
 
-	query := s.GenerateQueryStore(ctx, req.EnvironmentID)
+	query := s.GenerateQueryStore(ctx, req.EnvironmentID, nil)
 
 	sdkEvaluator, _ := evaluation.NewEvaluator(query, nil, logger.NewNoOpLogger())
 	flagVariation, err := sdkEvaluator.Evaluate(req.FeatureIdentifier, &target)
@@ -409,4 +421,25 @@ func toString(variation rest.Variation, kind string) string {
 		}
 	}
 	return value
+}
+
+func (s Service) makeSegmentMap(ctx context.Context, envID string) map[string]*domain.Segment {
+	var segmentMap map[string]*domain.Segment
+
+	segments, err := s.segmentRepo.Get(ctx, envID)
+	if err != nil {
+		// Not much else we can really do here other than log the error
+		s.logger.Error(ctx, "makeSegmentMap failed to get segments from cache: ", "err", err)
+		return segmentMap
+	}
+
+	if len(segments) > 0 {
+		segmentMap = make(map[string]*domain.Segment)
+		for i := 0; i < len(segments); i++ {
+			seg := segments[i]
+			segmentMap[seg.Identifier] = &seg
+		}
+	}
+
+	return segmentMap
 }
