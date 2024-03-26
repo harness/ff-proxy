@@ -15,9 +15,9 @@ import (
 
 	"github.com/alicebob/miniredis/v2"
 	"github.com/go-redis/redis/v8"
+	"github.com/harness-community/sse/v3"
 	sdkstream "github.com/harness/ff-golang-server-sdk/stream"
 	"github.com/prometheus/client_golang/prometheus"
-	"github.com/r3labs/sse"
 	"github.com/stretchr/testify/assert"
 
 	"github.com/harness/ff-proxy/v2/cache"
@@ -269,6 +269,7 @@ func setupHTTPServer(t *testing.T, bypassAuth bool, opts ...setupOpts) *HTTPServ
 		Hasher:             hash.NewSha256(),
 		HealthySaasStream:  setupConfig.healthySaasStream,
 		SDKStreamConnected: func(envID string) {},
+		ForwardTargets:     true,
 	})
 	endpoints := NewEndpoints(service)
 
@@ -1291,7 +1292,7 @@ func TestHTTPServer_Stream(t *testing.T) {
 				"Content-Type":    []string{"text/event-stream"},
 				"Grip-Hold":       []string{"stream"},
 				"Grip-Channel":    []string{envID},
-				"Grip-Keep-Alive": []string{"\\n; format=cstring; timeout=15"},
+				"Grip-Keep-Alive": []string{":\\n\\n; format=cstring; timeout=15"},
 			},
 		},
 

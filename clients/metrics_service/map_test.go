@@ -12,6 +12,10 @@ import (
 	clientgen "github.com/harness/ff-proxy/v2/gen/client"
 )
 
+const (
+	testDuration = 1 * time.Second
+)
+
 func TestMap_add(t *testing.T) {
 
 	mr123 := domain.MetricsRequest{

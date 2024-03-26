@@ -1,10 +1,10 @@
 version: "3.9"
 services:
   primary:
-    image: "harness/ff-proxy:v2.0.0-rc.13"
+    image: "harness/ff-proxy:2.0.0-rc18"
     environment:
       - LOG_LEVEL=INFO
-      - PROXY_KEY=<your proxy key>
+      - PROXY_KEY=<proxy key>
       - REDIS_ADDRESS=redis:6379
       - READ_REPLICA=false
       - AUTH_SECRET=foobar
@@ -14,7 +14,7 @@ services:
       - redis
 
   replica:
-    image: "harness/ff-proxy:v2.0.0-rc.13"
+    image: "harness/ff-proxy:2.0.0-rc18"
     environment:
       - LOG_LEVEL=INFO
       - REDIS_ADDRESS=redis:6379

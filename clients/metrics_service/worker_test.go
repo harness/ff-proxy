@@ -8,11 +8,12 @@ import (
 	"testing"
 	"time"
 
+	jsoniter "github.com/json-iterator/go"
+	"github.com/stretchr/testify/assert"
+
 	"github.com/harness/ff-proxy/v2/domain"
 	clientgen "github.com/harness/ff-proxy/v2/gen/client"
 	"github.com/harness/ff-proxy/v2/log"
-	jsoniter "github.com/json-iterator/go"
-	"github.com/stretchr/testify/assert"
 )
 
 type mockRedisStream struct {
@@ -106,6 +107,22 @@ func TestWorker_Start(t *testing.T) {
 		Metrics:       clientgen.Metrics{MetricsData: &[]clientgen.MetricsData{}},
 	}
 
+	mr123EvaluationMetricsExpected := domain.MetricsRequest{
+		Size:          176,
+		EnvironmentID: "123",
+		Metrics: clientgen.Metrics{
+			MetricsData: &[]clientgen.MetricsData{
+				{
+					Attributes:  nil,
+					Count:       1,
+					MetricsType: "Server",
+					Timestamp:   111,
+				},
+			},
+			TargetData: nil,
+		},
+	}
+
 	type args struct {
 	}
 
@@ -131,7 +148,7 @@ func TestWorker_Start(t *testing.T) {
 					metrics: make(chan domain.MetricsRequest),
 				},
 			},
-			expected: expected{metrics: []domain.MetricsRequest{mr123}},
+			expected: expected{metrics: []domain.MetricsRequest{mr123EvaluationMetricsExpected}},
 		},
 		"Given I have a redis stream with two metrics requests on it": {
 			mocks: mocks{
@@ -140,7 +157,7 @@ func TestWorker_Start(t *testing.T) {
 					metrics: make(chan domain.MetricsRequest),
 				},
 			},
-			expected: expected{metrics: []domain.MetricsRequest{mr123, mr456}},
+			expected: expected{metrics: []domain.MetricsRequest{mr123EvaluationMetricsExpected, mr456}},
 		},
 	}
 

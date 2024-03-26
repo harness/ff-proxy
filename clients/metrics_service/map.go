@@ -11,7 +11,6 @@ import (
 )
 
 const (
-	// TODO What should it be?
 	genericProxyTargetIdentifier = "__global__cf_target"
 )
 
