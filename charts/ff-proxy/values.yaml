@@ -92,22 +92,24 @@ writer:
   tolerations: []
 
   affinity: {}
-
+  
   # additional environment variables
   custom_envs:
-    # - name: DELEGATE_TASK_CAPACITY
-    #   value: "10"
+    # - name: SSL_CERT_DIR
+    #   value: "/etc/ssl/certs"
+    # - name: HTTPS_PROXY
+    #   value: "proxy.local:80"
 
   # mounts for the delegate pod
   custom_mounts:
     # - name: certs
-    #   mountPath: /shared/customer-artifacts/certificates/
+    #   mountPath: /etc/ssl/certs
 
   # volumes to add to the delegate container
   custom_volumes:
     # - name: certs
     #   persistentVolumeClaim:
-    #     claimName: harness-delegate-ng-certs
+    #     claimName: relay-proxy-certs
 
 # configuration specific to the read replica pods
 readReplica:
@@ -172,19 +174,21 @@ readReplica:
 
   # additional environment variables
   custom_envs:
-    # - name: DELEGATE_TASK_CAPACITY
-    #   value: "10"
+    # - name: SSL_CERT_DIR
+    #   value: "/etc/ssl/certs"
+    # - name: HTTPS_PROXY
+    #   value: "proxy.local:80"
 
   # mounts for the delegate pod
   custom_mounts:
     # - name: certs
-    #   mountPath: /shared/customer-artifacts/certificates/
+    #   mountPath: /etc/ssl/certs
 
   # volumes to add to the delegate container
   custom_volumes:
     # - name: certs
     #   persistentVolumeClaim:
-    #     claimName: harness-delegate-ng-certs
+    #     claimName: relay-proxy-certs
 
 # The url of the FF Client Service running in Harness Saas that the Proxy commuincates with to fetch configuration data
 clientService:
