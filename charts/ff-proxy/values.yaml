@@ -123,9 +123,11 @@ writer:
   livenessProbe:
     initialDelaySeconds: 5
     periodSeconds: 30
+    timeoutSeconds: 60
   readinessProbe:
     initialDelaySeconds: 5
     periodSeconds: 30
+    timeoutSeconds: 60
 
 # configuration specific to the read replica pods
 readReplica:
