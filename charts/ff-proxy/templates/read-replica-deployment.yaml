@@ -7,7 +7,7 @@ metadata:
   labels:
     {{- include "ff-proxy.labels" . | nindent 4 }}
 spec:
-  replicas: 1
+  replicas: {{ .Values.readReplica.replicaCount }}
   selector:
     matchLabels:
       {{- include "ff-proxy.readReplica.SelectorLabels" . | nindent 6 }}
@@ -41,10 +41,16 @@ spec:
             httpGet:
               path: /health
               port: sdk
+            initialDelaySeconds: {{ .Values.readReplica.livenessProbe.initialDelaySeconds }}
+            periodSeconds: {{ .Values.readReplica.livenessProbe.periodSeconds }}
+            timeoutSeconds: {{ .Values.readReplica.livenessProbe.timeoutSeconds }}
           readinessProbe:
             httpGet:
               path: /health
               port: sdk
+            initialDelaySeconds: {{ .Values.readReplica.readinessProbe.initialDelaySeconds }}
+            periodSeconds: {{ .Values.readReplica.readinessProbe.periodSeconds }}
+            timeoutSeconds: {{ .Values.readReplica.livenessProbe.timeoutSeconds }}
           resources:
             {{- toYaml .Values.readReplica.resources | nindent 12 }}
           envFrom:

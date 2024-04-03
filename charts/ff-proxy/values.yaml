@@ -119,6 +119,13 @@ writer:
     # - name: certs
     #   persistentVolumeClaim:
     #     claimName: harness-delegate-ng-certs
+  
+  livenessProbe:
+    initialDelaySeconds: 5
+    periodSeconds: 30
+  readinessProbe:
+    initialDelaySeconds: 5
+    periodSeconds: 30
 
 # configuration specific to the read replica pods
 readReplica:
@@ -206,6 +213,16 @@ readReplica:
     # - name: certs
     #   persistentVolumeClaim:
     #     claimName: harness-delegate-ng-certs
+  
+  livenessProbe:
+    initialDelaySeconds: 5
+    periodSeconds: 30
+    timeoutSeconds: 60
+  readinessProbe:
+    initialDelaySeconds: 5
+    periodSeconds: 30
+    timeoutSeconds: 60
+
 
 # The url of the FF Client Service running in Harness Saas that the Proxy commuincates with to fetch configuration data
 clientService:

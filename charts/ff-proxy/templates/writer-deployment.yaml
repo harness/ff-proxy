@@ -40,10 +40,16 @@ spec:
             httpGet:
               path: /health
               port: sdk
+            initialDelaySeconds: {{ .Values.writer.livenessProbe.initialDelaySeconds }}
+            periodSeconds: {{ .Values.writer.livenessProbe.periodSeconds }}
+            timeoutSeconds: {{ .Values.writer.livenessProbe.timeoutSeconds }}
           readinessProbe:
             httpGet:
               path: /health
               port: sdk
+            initialDelaySeconds: {{ .Values.writer.readinessProbe.initialDelaySeconds }}
+            periodSeconds: {{ .Values.writer.readinessProbe.periodSeconds }}
+            timeoutSeconds: {{ .Values.writer.livenessProbe.timeoutSeconds }}
           resources:
             {{- toYaml .Values.writer.resources | nindent 12 }}
           envFrom:
