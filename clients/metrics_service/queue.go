@@ -63,7 +63,7 @@ func (q Queue) flush(ctx context.Context) {
 			if len(metrics) == 0 {
 				continue
 			}
-			if err := send(context.Background(), q.queue, metrics); err != nil {
+			if err := send(ctx, q.queue, metrics); err != nil {
 				// The only possible error here is a context canceled or deadline exceeded
 				// but lets still log it anyway
 				q.log.Error("unable to flush metrics to channel", "method", "flush", "err", err)
@@ -74,7 +74,7 @@ func (q Queue) flush(ctx context.Context) {
 			if len(metrics) == 0 {
 				continue
 			}
-			if err := send(context.Background(), q.queue, metrics); err != nil {
+			if err := send(ctx, q.queue, metrics); err != nil {
 				// The only possible error here is a context canceled or deadline exceeded
 				// but lets still log it anyway
 				q.log.Error("unable to flush metrics to channel", "method", "flush", "err", err)

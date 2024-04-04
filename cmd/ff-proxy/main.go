@@ -8,12 +8,16 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"runtime"
 	"strings"
 	"time"
+
+	_ "net/http/pprof" //nolint:gosec
 
 	"gopkg.in/cenkalti/backoff.v1"
 
 	"github.com/harness/ff-proxy/v2/domain"
+	"github.com/redis/go-redis/v9"
 
 	"github.com/fanout/go-gripcontrol"
 
@@ -28,8 +32,6 @@ import (
 	"github.com/harness/ff-proxy/v2/token"
 
 	"cloud.google.com/go/profiler"
-
-	"github.com/go-redis/redis/v8"
 
 	"github.com/harness/ff-proxy/v2/cache"
 	"github.com/harness/ff-proxy/v2/config"
@@ -61,6 +63,7 @@ var (
 	redisAddress  string
 	redisPassword string
 	redisDB       int
+	redisPoolSize int
 
 	// Server Config
 	port       int
@@ -98,6 +101,7 @@ const (
 	redisAddrEnv     = "REDIS_ADDRESS"
 	redisPasswordEnv = "REDIS_PASSWORD"
 	redisDBEnv       = "REDIS_DB"
+	redisPoolSizeEnv = "REDIS_POOL_SIZE"
 
 	// Server Config
 	portEnv       = "PORT"
@@ -135,6 +139,7 @@ const (
 	redisAddressFlag  = "redis-address"
 	redisPasswordFlag = "redis-password"
 	redisDBFlag       = "redis-db"
+	redisPoolSizeFlag = "redis-pool-size"
 
 	// Server Config
 	portFlag       = "port"
@@ -172,6 +177,7 @@ func init() {
 	flag.StringVar(&redisAddress, redisAddressFlag, "", "Redis host:port address")
 	flag.StringVar(&redisPassword, redisPasswordFlag, "", "Optional. Redis password")
 	flag.IntVar(&redisDB, redisDBFlag, 0, "Database to be selected after connecting to the server.")
+	flag.IntVar(&redisPoolSize, redisPoolSizeFlag, 10, "sets the redi connection pool size, to this value multipled by the number of CPU available. E.g if this value is 10 and you've 2 CPU the connection pool size will be 20")
 
 	// Server Config
 	flag.IntVar(&port, portFlag, 8000, "port the relay proxy service is exposed on, default's to 8000")
@@ -199,6 +205,7 @@ func init() {
 		redisAddrEnv:                    redisAddressFlag,
 		redisPasswordEnv:                redisPasswordFlag,
 		redisDBEnv:                      redisDBFlag,
+		redisPoolSizeEnv:                redisPoolSizeFlag,
 		metricPostDurationEnv:           metricPostDurationFlag,
 		heartbeatIntervalEnv:            heartbeatIntervalFlag,
 		pprofEnabledEnv:                 pprofEnabledFlag,
@@ -286,30 +293,7 @@ func main() {
 	var hashCache *cache.HashCache
 
 	if redisAddress != "" && !generateOfflineConfig { //nolint:nestif
-		// if address does not start with redis:// or rediss:// then default to redis://
-		// if the connection string starts with rediss:// it means we'll connect with TLS enabled
-		redisConnectionString := redisAddress
-		if !strings.HasPrefix(redisAddress, "redis://") && !strings.HasPrefix(redisAddress, "rediss://") {
-			redisConnectionString = fmt.Sprintf("redis://%s", redisAddress)
-		}
-		parsed, err := redis.ParseURL(redisConnectionString)
-		if err != nil {
-			logger.Error("failed to parse redis address url", "connection string", redisConnectionString, "err", err)
-			os.Exit(1)
-		}
-		// TODO - going forward we can open up support for more of these query param connection string options e.g. max_retries etc
-		// we would first need to test the impact that these would have if unset vs current defaults
-		opts := redis.UniversalOptions{}
-		opts.DB = parsed.DB
-		opts.Addrs = []string{parsed.Addr}
-		opts.Username = parsed.Username
-		opts.Password = parsed.Password
-		opts.TLSConfig = parsed.TLSConfig
-		if redisPassword != "" {
-			opts.Password = redisPassword
-		}
-		redisClient = redis.NewUniversalClient(&opts)
-		logger.Info("connecting to redis", "address", redisAddress)
+		redisClient = newRedisClient(redisAddress, logger)
 
 		mcMetrics := cache.NewMemoizeMetrics("proxy", promReg)
 		mcCache := cache.NewMemoizeCache(redisClient, 1*time.Minute, 2*time.Minute, mcMetrics)
@@ -539,7 +523,7 @@ func main() {
 	server.Use(
 		middleware.NewEchoRequestIDMiddleware(),
 		middleware.NewEchoLoggingMiddleware(logger),
-		middleware.NewEchoAuthMiddleware(authRepo, []byte(authSecret), bypassAuth),
+		middleware.NewEchoAuthMiddleware(logger, authRepo, []byte(authSecret), bypassAuth),
 		middleware.NewPrometheusMiddleware(promReg),
 	)
 
@@ -621,4 +605,37 @@ func newMetricStore(ctx context.Context, logger log.Logger, readReplica bool, re
 	}
 
 	return metricsservice.NewQueue(ctx, logger, time.Duration(metricPostDuration)*time.Second)
+}
+
+func newRedisClient(addr string, logger log.Logger) redis.UniversalClient {
+	splitAddr := strings.Split(addr, ",")
+
+	// if address does not start with redis:// or rediss:// then default to redis://
+	// if the connection string starts with rediss:// it means we'll connect with TLS enabled
+	redisConnectionString := addr
+	if !strings.HasPrefix(redisAddress, "redis://") && !strings.HasPrefix(redisAddress, "rediss://") {
+		redisConnectionString = fmt.Sprintf("redis://%s", redisAddress)
+	}
+
+	parsed, err := redis.ParseURL(redisConnectionString)
+	if err != nil {
+		logger.Error("failed to parse redis address url", "connection string", redisConnectionString, "err", err)
+		os.Exit(1)
+	}
+
+	opts := redis.UniversalOptions{
+		Addrs:     splitAddr,
+		DB:        parsed.DB,
+		Username:  parsed.Username,
+		Password:  parsed.Password,
+		PoolSize:  redisPoolSize * runtime.NumCPU(),
+		TLSConfig: parsed.TLSConfig,
+	}
+
+	if redisPassword != "" {
+		opts.Password = redisPassword
+	}
+
+	logger.Info("connecting to redis", "address", redisAddress, "poolSize", opts.PoolSize)
+	return redis.NewUniversalClient(&opts)
 }
