@@ -43,8 +43,10 @@ func newPrometheusClient(next ffClientService, reg *prometheus.Registry) prometh
 func (p prometheusClient) AuthenticateWithResponse(ctx context.Context, body clientgen.AuthenticateJSONRequestBody, reqEditors ...clientgen.RequestEditorFn) (resp *clientgen.AuthenticateResponse, err error) {
 	start := time.Now()
 	defer func() {
-		p.requestCount.WithLabelValues("/client/auth", "", strconv.Itoa(resp.StatusCode())).Inc()
-		p.requestDuration.WithLabelValues("/client/auth", "").Observe(time.Since(start).Seconds())
+		if resp != nil {
+			p.requestCount.WithLabelValues("/client/auth", "", strconv.Itoa(resp.StatusCode())).Inc()
+			p.requestDuration.WithLabelValues("/client/auth", "").Observe(time.Since(start).Seconds())
+		}
 	}()
 
 	return p.next.AuthenticateWithResponse(ctx, body, reqEditors...)
@@ -65,8 +67,10 @@ func (p prometheusClient) AuthenticateProxyKeyWithResponse(ctx context.Context, 
 func (p prometheusClient) GetProxyConfigWithResponse(ctx context.Context, params *clientgen.GetProxyConfigParams, reqEditors ...clientgen.RequestEditorFn) (resp *clientgen.GetProxyConfigResponse, err error) {
 	start := time.Now()
 	defer func() {
-		p.requestCount.WithLabelValues("/proxy/config", "", strconv.Itoa(resp.StatusCode())).Inc()
-		p.requestDuration.WithLabelValues("/proxy/config", "").Observe(time.Since(start).Seconds())
+		if resp != nil {
+			p.requestCount.WithLabelValues("/proxy/config", "", strconv.Itoa(resp.StatusCode())).Inc()
+			p.requestDuration.WithLabelValues("/proxy/config", "").Observe(time.Since(start).Seconds())
+		}
 	}()
 
 	return p.next.GetProxyConfigWithResponse(ctx, params, reqEditors...)
@@ -75,8 +79,10 @@ func (p prometheusClient) GetProxyConfigWithResponse(ctx context.Context, params
 func (p prometheusClient) GetAllSegmentsWithResponse(ctx context.Context, environmentUUID string, params *clientgen.GetAllSegmentsParams, reqEditors ...clientgen.RequestEditorFn) (resp *clientgen.GetAllSegmentsResponse, err error) {
 	start := time.Now()
 	defer func() {
-		p.requestCount.WithLabelValues("/client/env/:env/target-segments", environmentUUID, strconv.Itoa(resp.StatusCode())).Inc()
-		p.requestDuration.WithLabelValues("/client/env/:env/target-segments", environmentUUID).Observe(time.Since(start).Seconds())
+		if resp != nil {
+			p.requestCount.WithLabelValues("/client/env/:env/target-segments", environmentUUID, strconv.Itoa(resp.StatusCode())).Inc()
+			p.requestDuration.WithLabelValues("/client/env/:env/target-segments", environmentUUID).Observe(time.Since(start).Seconds())
+		}
 	}()
 
 	return p.next.GetAllSegmentsWithResponse(ctx, environmentUUID, params, reqEditors...)
@@ -85,8 +91,10 @@ func (p prometheusClient) GetAllSegmentsWithResponse(ctx context.Context, enviro
 func (p prometheusClient) GetFeatureConfigWithResponse(ctx context.Context, environmentUUID string, params *clientgen.GetFeatureConfigParams, reqEditors ...clientgen.RequestEditorFn) (resp *clientgen.GetFeatureConfigResponse, err error) {
 	start := time.Now()
 	defer func() {
-		p.requestCount.WithLabelValues("/client/env/:env/feature-configs", environmentUUID, strconv.Itoa(resp.StatusCode())).Inc()
-		p.requestDuration.WithLabelValues("/client/env/:env/feature-configs", environmentUUID).Observe(time.Since(start).Seconds())
+		if resp != nil {
+			p.requestCount.WithLabelValues("/client/env/:env/feature-configs", environmentUUID, strconv.Itoa(resp.StatusCode())).Inc()
+			p.requestDuration.WithLabelValues("/client/env/:env/feature-configs", environmentUUID).Observe(time.Since(start).Seconds())
+		}
 	}()
 
 	return p.next.GetFeatureConfigWithResponse(ctx, environmentUUID, params, reqEditors...)
