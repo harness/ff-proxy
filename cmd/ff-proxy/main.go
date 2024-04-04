@@ -12,7 +12,7 @@ import (
 	"strings"
 	"time"
 
-	_ "net/http/pprof"
+	_ "net/http/pprof" //nolint:gosec
 
 	"gopkg.in/cenkalti/backoff.v1"
 
