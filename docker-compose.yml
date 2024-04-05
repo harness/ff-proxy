@@ -1,7 +1,7 @@
 version: "3.9"
 services:
   proxy:
-    image: "harness/ff-proxy:v2.0.0-rc.4"
+    image: "harness/ff-proxy:v2.0.0-rc.20"
     environment:
       - DEBUG=${DEBUG}
       - LOG_LEVEL=INFO
