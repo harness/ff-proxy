@@ -1,6 +1,6 @@
-# HA Mode With Monitoring
+# HA Mode Proxy with Single Redis
 
-This example will spin up a Primary Proxy and a Read Replica Proxy along with Prometheus and Grafana.
+This example spins up a Primary & Read replica Proxy that connect to a single redis instance. It also starts up Prometheus and Grafana to demonstrate what monitoring we have available for the Proxy.
 
 ## Configure Proxy
 
