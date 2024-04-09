@@ -32,7 +32,7 @@ type Queue struct {
 	targetsDuration time.Duration
 }
 
-// NewQueue creates a Queue //asz should really return both queues.
+// NewQueue creates a Queue
 func NewQueue(ctx context.Context, l log.Logger, duration time.Duration) Queue {
 	l.With("component", "Queue")
 	q := Queue{
@@ -107,6 +107,11 @@ func (q Queue) StoreMetrics(ctx context.Context, m domain.MetricsRequest) error 
 }
 
 func (q Queue) handleMetricsData(ctx context.Context, m domain.MetricsRequest) error {
+	// If we've no metric data to handle then we can exit early
+	if m.MetricsData == nil {
+		return nil
+	}
+
 	// we are aggregating the metrics Data and set it to its map.
 	if q.metricsData.size() < maxEvaluationQueueSize {
 		aggregatedMetricsData, err := q.metricsData.aggregate(m)
@@ -142,6 +147,11 @@ func (q Queue) handleMetricsData(ctx context.Context, m domain.MetricsRequest) e
 	return nil
 }
 func (q Queue) handleTargetData(ctx context.Context, m domain.MetricsRequest) error {
+	// If we've no target data to handle then we can exit early
+	if m.TargetData == nil {
+		return nil
+	}
+
 	// check if we have maxed out target metrics
 	if q.targetData.size() < maxTargetQueueSize {
 		//add and  increment for target

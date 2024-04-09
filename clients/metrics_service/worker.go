@@ -140,7 +140,7 @@ func (w Worker) postMetrics(ctx context.Context) {
 
 		for envID, metric := range metrics {
 			if err := w.metricsService.PostMetrics(ctx, envID, metric, w.clusterIdentifier); err != nil {
-				w.log.Error("sending metrics failed", "environment", envID, "error", err)
+				w.log.Error("sending metrics failed", "environment", envID, "cluster_identifier", w.clusterIdentifier, "error", err)
 			}
 		}
 	}

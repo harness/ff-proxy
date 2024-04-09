@@ -98,7 +98,7 @@ func (c Client) PostMetrics(ctx context.Context, envID string, metric domain.Met
 	}
 
 	if res != nil && res.StatusCode() != 200 {
-		return fmt.Errorf("got non 200 status code from feature flags: status_code=%d", res.StatusCode())
+		return fmt.Errorf("got non 200 status code from feature flags: status_code=%d, body: %s", res.StatusCode(), res.Body)
 	}
 
 	return nil
