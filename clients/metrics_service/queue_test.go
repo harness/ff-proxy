@@ -66,6 +66,7 @@ func TestQueue_StoreMetrics(t *testing.T) {
 
 	type expected struct {
 		metrics map[string]domain.MetricsRequest
+		targets map[string]domain.MetricsRequest
 	}
 
 	testCases := map[string]struct {
@@ -99,9 +100,14 @@ func TestQueue_StoreMetrics(t *testing.T) {
 					currentSize: maxTargetQueueSize * 2,
 				},
 			},
-			expected: expected{metrics: map[string]domain.MetricsRequest{
-				mr123.EnvironmentID: mr123EvaluatonDataExpected,
-			}},
+			expected: expected{
+				metrics: map[string]domain.MetricsRequest{
+					mr123.EnvironmentID: mr123EvaluatonDataExpected,
+				},
+				targets: map[string]domain.MetricsRequest{
+					mr123.EnvironmentID: {Size: mr123.Size, EnvironmentID: mr123.EnvironmentID, Metrics: clientgen.Metrics{TargetData: mr123.TargetData}},
+				},
+			},
 		},
 		"Given I call StoreMetrics and we haven't exceeded the max queue size": {
 			args: args{
@@ -127,10 +133,46 @@ func TestQueue_StoreMetrics(t *testing.T) {
 					currentSize: 0,
 				},
 			},
-			expected: expected{metrics: map[string]domain.MetricsRequest{
-				mr123.EnvironmentID: mr123EvaluatonDataExpected,
-				mr456.EnvironmentID: mr456,
-			}},
+			expected: expected{
+				metrics: map[string]domain.MetricsRequest{
+					mr123.EnvironmentID: mr123EvaluatonDataExpected,
+					mr456.EnvironmentID: mr456,
+				},
+				targets: map[string]domain.MetricsRequest{},
+			},
+		},
+		"Given I call StoreMetrics with nil Target data": {
+			args: args{
+				metricRequest: domain.MetricsRequest{
+					EnvironmentID: mr123.EnvironmentID,
+					Metrics: clientgen.Metrics{
+						MetricsData: nil,
+						TargetData:  nil,
+					},
+				},
+			},
+			queue: Queue{
+				log:             logger,
+				queue:           make(chan map[string]domain.MetricsRequest, 2), // Buffer so we don't have to run the test concurrently
+				metricsDuration: testDuration,
+				targetsDuration: testDuration,
+				metricsTicker:   time.NewTicker(testDuration),
+				targetsTicker:   time.NewTicker(testDuration),
+				metricsData: &metricsMap{
+					RWMutex:     &sync.RWMutex{},
+					metrics:     map[string]domain.MetricsRequest{},
+					currentSize: 0,
+				},
+				targetData: &metricsMap{
+					RWMutex:     &sync.RWMutex{},
+					metrics:     map[string]domain.MetricsRequest{},
+					currentSize: 0,
+				},
+			},
+			expected: expected{
+				metrics: map[string]domain.MetricsRequest{},
+				targets: map[string]domain.MetricsRequest{},
+			},
 		},
 	}
 
@@ -144,6 +186,7 @@ func TestQueue_StoreMetrics(t *testing.T) {
 			assert.Nil(t, tc.queue.StoreMetrics(ctx, tc.args.metricRequest))
 
 			assert.Equal(t, tc.expected.metrics, tc.queue.metricsData.get())
+			assert.Equal(t, tc.expected.targets, tc.queue.targetData.get())
 		})
 	}
 }
