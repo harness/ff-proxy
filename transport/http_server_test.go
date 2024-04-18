@@ -280,7 +280,7 @@ func setupHTTPServer(t *testing.T, bypassAuth bool, opts ...setupOpts) *HTTPServ
 		},
 	}
 
-	server := NewHTTPServer(8000, endpoints, logger, false, "", "", prometheus.NewRegistry())
+	server := NewHTTPServer(8000, endpoints, logger, false, "", "")
 	server.Use(
 		middleware.NewEchoRequestIDMiddleware(),
 		middleware.NewEchoLoggingMiddleware(logger),
@@ -1451,7 +1451,7 @@ func TestHTTPServer_WithCustomHandler(t *testing.T) {
 		},
 		"Given I try to register a custom handler on /metrics/:environmentUUID": {
 			args: args{
-				method:  http.MethodGet,
+				method:  http.MethodPost,
 				route:   metricsRoute,
 				handler: nil,
 			},

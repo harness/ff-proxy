@@ -32,6 +32,8 @@ var proxyRoutes = domain.NewImmutableSet(map[string]struct{}{
 	featureConfigsIdentifierRoute: {},
 	segmentsRoute:                 {},
 	segmentsIdentifierRoute:       {},
+	evaluationsRoute:              {},
+	evaluationsFlagRoute:          {},
 	streamRoute:                   {},
 	metricsRoute:                  {},
 })
@@ -53,7 +55,7 @@ type HTTPServer struct {
 
 // NewHTTPServer registers the passed endpoints against routes and returns an
 // HTTPServer that's ready to use
-func NewHTTPServer(port int, e *Endpoints, l log.Logger, tlsEnabled bool, tlsCert string, tlsKey string, reg prometheusRegister) *HTTPServer {
+func NewHTTPServer(port int, e *Endpoints, l log.Logger, tlsEnabled bool, tlsCert string, tlsKey string) *HTTPServer {
 	l = l.With("component", "HTTPServer")
 
 	router := echo.New()
@@ -74,7 +76,7 @@ func NewHTTPServer(port int, e *Endpoints, l log.Logger, tlsEnabled bool, tlsCer
 		tlsCert:    tlsCert,
 		tlsKey:     tlsKey,
 	}
-	h.registerEndpoints(e, reg)
+	h.registerEndpoints(e)
 	return h
 }
 
@@ -106,7 +108,7 @@ func (h *HTTPServer) Use(mw ...echo.MiddlewareFunc) {
 	}
 }
 
-func (h *HTTPServer) registerEndpoints(e *Endpoints, reg prometheusRegister) {
+func (h *HTTPServer) registerEndpoints(e *Endpoints) {
 	h.router.POST(authRoute, NewUnaryHandler(
 		e.PostAuthenticate,
 		decodeAuthRequest,
