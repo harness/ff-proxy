@@ -16,6 +16,7 @@ import (
 	"github.com/alicebob/miniredis/v2"
 	"github.com/harness-community/sse/v3"
 	sdkstream "github.com/harness/ff-golang-server-sdk/stream"
+	"github.com/labstack/echo/v4"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/redis/go-redis/v9"
 	"github.com/stretchr/testify/assert"
@@ -279,7 +280,7 @@ func setupHTTPServer(t *testing.T, bypassAuth bool, opts ...setupOpts) *HTTPServ
 		},
 	}
 
-	server := NewHTTPServer(8000, endpoints, logger, false, "", "", prometheus.NewRegistry())
+	server := NewHTTPServer(8000, endpoints, logger, false, "", "")
 	server.Use(
 		middleware.NewEchoRequestIDMiddleware(),
 		middleware.NewEchoLoggingMiddleware(logger),
@@ -1361,6 +1362,135 @@ func TestHTTPServer_Stream(t *testing.T) {
 				}
 			}
 
+		})
+	}
+}
+
+func TestHTTPServer_WithCustomHandler(t *testing.T) {
+	type args struct {
+		method  string
+		route   string
+		handler http.Handler
+	}
+
+	type mocks struct {
+	}
+
+	type expected struct {
+	}
+
+	testCases := map[string]struct {
+		args      args
+		mocks     mocks
+		expected  expected
+		shouldErr bool
+	}{
+		"Given I try to register a custom handler on /client/auth": {
+			args: args{
+				method:  http.MethodGet,
+				route:   authRoute,
+				handler: nil,
+			},
+			shouldErr: true,
+		},
+		"Given I try to register a custom handler on /health": {
+			args: args{
+				method:  http.MethodGet,
+				route:   healthRoute,
+				handler: nil,
+			},
+			shouldErr: true,
+		},
+		"Given I try to register a custom handler on /feature-configs": {
+			args: args{
+				method:  http.MethodGet,
+				route:   featureConfigsRoute,
+				handler: nil,
+			},
+			shouldErr: true,
+		},
+		"Given I try to register a custom handler on /feature-configs/:identifier": {
+			args: args{
+				method:  http.MethodGet,
+				route:   featureConfigsIdentifierRoute,
+				handler: nil,
+			},
+			shouldErr: true,
+		},
+		"Given I try to register a custom handler on /target-segments": {
+			args: args{
+				method:  http.MethodGet,
+				route:   segmentsRoute,
+				handler: nil,
+			},
+			shouldErr: true,
+		},
+		"Given I try to register a custom handler on /target-segments/:identifier": {
+			args: args{
+				method:  http.MethodGet,
+				route:   segmentsRoute,
+				handler: nil,
+			},
+			shouldErr: true,
+		},
+		"Given I try to register a custom handler on /evaluations": {
+			args: args{
+				method:  http.MethodGet,
+				route:   evaluationsRoute,
+				handler: nil,
+			},
+			shouldErr: true,
+		},
+		"Given I try to register a custom handler on /evaluations/:feature": {
+			args: args{
+				method:  http.MethodGet,
+				route:   evaluationsFlagRoute,
+				handler: nil,
+			},
+			shouldErr: true,
+		},
+		"Given I try to register a custom handler on /metrics/:environmentUUID": {
+			args: args{
+				method:  http.MethodPost,
+				route:   metricsRoute,
+				handler: nil,
+			},
+			shouldErr: true,
+		},
+		"Given I try to register a custom handler on /stream": {
+			args: args{
+				method:  http.MethodGet,
+				route:   streamRoute,
+				handler: nil,
+			},
+			shouldErr: true,
+		},
+		"Given I try to register a custom handler on /metrics": {
+			args: args{
+				method:  http.MethodGet,
+				route:   "/metrics",
+				handler: nil,
+			},
+			shouldErr: false,
+		},
+	}
+
+	for desc, tc := range testCases {
+		desc := desc
+		tc := tc
+
+		t.Run(desc, func(t *testing.T) {
+
+			server := &HTTPServer{
+				router: echo.New(),
+			}
+
+			err := server.WithCustomHandler(tc.args.method, tc.args.route, tc.args.handler)
+			if tc.shouldErr {
+				assert.NotNil(t, err)
+			} else {
+				assert.Nil(t, err)
+			}
 		})
 	}
 }

@@ -6,11 +6,37 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/harness/ff-proxy/v2/domain"
 	"github.com/harness/ff-proxy/v2/log"
 	"github.com/labstack/echo/v4"
 	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
+
+const (
+	authRoute                     = "/client/auth"
+	healthRoute                   = "/health"
+	featureConfigsRoute           = "/client/env/:environment_uuid/feature-configs"
+	featureConfigsIdentifierRoute = "/client/env/:environment_uuid/feature-configs/:identifier"
+	segmentsRoute                 = "/client/env/:environment_uuid/target-segments"
+	segmentsIdentifierRoute       = "/client/env/:environment_uuid/target-segments/:identifier"
+	evaluationsRoute              = "/client/env/:environment_uuid/target/:target/evaluations"
+	evaluationsFlagRoute          = "/client/env/:environment_uuid/target/:target/evaluations/:feature"
+	streamRoute                   = "/stream"
+	metricsRoute                  = "/metrics/:environment_uuid"
+)
+
+var proxyRoutes = domain.NewImmutableSet(map[string]struct{}{
+	authRoute:                     {},
+	healthRoute:                   {},
+	featureConfigsRoute:           {},
+	featureConfigsIdentifierRoute: {},
+	segmentsRoute:                 {},
+	segmentsIdentifierRoute:       {},
+	evaluationsRoute:              {},
+	evaluationsFlagRoute:          {},
+	streamRoute:                   {},
+	metricsRoute:                  {},
+})
 
 type prometheusRegister interface {
 	prometheus.Registerer
@@ -29,7 +55,7 @@ type HTTPServer struct {
 
 // NewHTTPServer registers the passed endpoints against routes and returns an
 // HTTPServer that's ready to use
-func NewHTTPServer(port int, e *Endpoints, l log.Logger, tlsEnabled bool, tlsCert string, tlsKey string, reg prometheusRegister) *HTTPServer {
+func NewHTTPServer(port int, e *Endpoints, l log.Logger, tlsEnabled bool, tlsCert string, tlsKey string) *HTTPServer {
 	l = l.With("component", "HTTPServer")
 
 	router := echo.New()
@@ -50,7 +76,7 @@ func NewHTTPServer(port int, e *Endpoints, l log.Logger, tlsEnabled bool, tlsCer
 		tlsCert:    tlsCert,
 		tlsKey:     tlsKey,
 	}
-	h.registerEndpoints(e, reg)
+	h.registerEndpoints(e)
 	return h
 }
 
@@ -82,78 +108,96 @@ func (h *HTTPServer) Use(mw ...echo.MiddlewareFunc) {
 	}
 }
 
-func (h *HTTPServer) registerEndpoints(e *Endpoints, reg prometheusRegister) {
-	h.router.POST("/client/auth", NewUnaryHandler(
+func (h *HTTPServer) registerEndpoints(e *Endpoints) {
+	h.router.POST(authRoute, NewUnaryHandler(
 		e.PostAuthenticate,
 		decodeAuthRequest,
 		encodeResponse,
 		encodeEchoError,
 	))
 
-	h.router.GET("/health", NewUnaryHandler(
+	h.router.GET(healthRoute, NewUnaryHandler(
 		e.Health,
 		decodeHealthRequest,
 		encodeResponse,
 		encodeEchoError,
 	))
 
-	h.router.GET("/client/env/:environment_uuid/feature-configs", NewUnaryHandler(
+	h.router.GET(featureConfigsRoute, NewUnaryHandler(
 		e.GetFeatureConfigs,
 		decodeGetFeatureConfigsRequest,
 		encodeResponse,
 		encodeEchoError,
 	))
 
-	h.router.GET("/client/env/:environment_uuid/feature-configs/:identifier", NewUnaryHandler(
+	h.router.GET(featureConfigsIdentifierRoute, NewUnaryHandler(
 		e.GetFeatureConfigsByIdentifier,
 		decodeGetFeatureConfigsByIdentifierRequest,
 		encodeResponse,
 		encodeEchoError,
 	))
 
-	h.router.GET("/client/env/:environment_uuid/target-segments", NewUnaryHandler(
+	h.router.GET(segmentsRoute, NewUnaryHandler(
 		e.GetTargetSegments,
 		decodeGetTargetSegmentsRequest,
 		encodeResponse,
 		encodeEchoError,
 	))
 
-	h.router.GET("/client/env/:environment_uuid/target-segments/:identifier", NewUnaryHandler(
+	h.router.GET(segmentsIdentifierRoute, NewUnaryHandler(
 		e.GetTargetSegmentsByIdentifier,
 		decodeGetTargetSegmentsByIdentifierRequest,
 		encodeResponse,
 		encodeEchoError,
 	))
 
-	h.router.GET("/client/env/:environment_uuid/target/:target/evaluations", NewUnaryHandler(
+	h.router.GET(evaluationsRoute, NewUnaryHandler(
 		e.GetEvaluations,
 		decodeGetEvaluationsRequest,
 		encodeResponse,
 		encodeEchoError,
 	))
 
-	h.router.GET("/client/env/:environment_uuid/target/:target/evaluations/:feature", NewUnaryHandler(
+	h.router.GET(evaluationsFlagRoute, NewUnaryHandler(
 		e.GetEvaluationsByFeature,
 		decodeGetEvaluationsByFeatureRequest,
 		encodeResponse,
 		encodeEchoError,
 	))
 
-	h.router.GET("/stream", NewUnaryHandler(
+	h.router.GET(streamRoute, NewUnaryHandler(
 		e.GetStream,
 		decodeGetStreamRequest,
 		encodeStreamResponse,
 		encodeEchoError,
 	))
 
-	h.router.POST("/metrics/:environment_uuid", NewUnaryHandler(
+	h.router.POST(metricsRoute, NewUnaryHandler(
 		e.PostMetrics,
 		decodeMetricsRequest,
 		encodeResponse,
 		encodeEchoError,
 	))
+}
 
-	h.router.GET("/metrics", echo.WrapHandler(promhttp.HandlerFor(reg, promhttp.HandlerOpts{Registry: reg})))
+// WithCustomHandler lets you register a custom handler with the HTTPServer
+// It will error if you try to register a handler for a route that's already defined.
+func (h *HTTPServer) WithCustomHandler(method string, route string, handler http.Handler) error {
+	// Don't allow new handlers on routes that are already defined
+	if proxyRoutes.Has(route) {
+		return fmt.Errorf("route=%s is reserved for the Proxy", route)
+	}
+
+	switch method {
+	case http.MethodGet:
+		h.router.GET(route, echo.WrapHandler(handler))
+		return nil
+
+	case http.MethodPost:
+		h.router.POST(route, echo.WrapHandler(handler))
+		return nil
+	}
+	return fmt.Errorf("http method %s not supported, update WithCustomHandler to add support", method)
 }
 
 func cors(next http.Handler) http.Handler {
