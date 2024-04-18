@@ -14,6 +14,7 @@ import (
 
 	_ "net/http/pprof" //nolint:gosec
 
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"gopkg.in/cenkalti/backoff.v1"
 
 	"github.com/harness/ff-proxy/v2/domain"
@@ -66,10 +67,11 @@ var (
 	redisPoolSize int
 
 	// Server Config
-	port       int
-	tlsEnabled bool
-	tlsCert    string
-	tlsKey     string
+	port           int
+	tlsEnabled     bool
+	tlsCert        string
+	tlsKey         string
+	prometheusPort int
 
 	// Dev/Debugging
 	bypassAuth         bool
@@ -104,10 +106,11 @@ const (
 	redisPoolSizeEnv = "REDIS_POOL_SIZE"
 
 	// Server Config
-	portEnv       = "PORT"
-	tlsEnabledEnv = "TLS_ENABLED"
-	tlsCertEnv    = "TLS_CERT"
-	tlsKeyEnv     = "TLS_KEY"
+	portEnv           = "PORT"
+	tlsEnabledEnv     = "TLS_ENABLED"
+	tlsCertEnv        = "TLS_CERT"
+	tlsKeyEnv         = "TLS_KEY"
+	prometheusPortEnv = "PROMETHEUS_PORT"
 
 	// Dev/Debugging
 	bypassAuthEnv         = "BYPASS_AUTH" //nolint:gosec
@@ -142,10 +145,11 @@ const (
 	redisPoolSizeFlag = "redis-pool-size"
 
 	// Server Config
-	portFlag       = "port"
-	tlsEnabledFlag = "tls-enabled"
-	tlsCertFlag    = "tls-cert"
-	tlsKeyFlag     = "tls-key"
+	portFlag           = "port"
+	tlsEnabledFlag     = "tls-enabled"
+	tlsCertFlag        = "tls-cert"
+	tlsKeyFlag         = "tls-key"
+	prometheusPortFlag = "prometheus-port"
 
 	// Dev/Debugging
 	bypassAuthFlag         = "bypass-auth"
@@ -184,6 +188,7 @@ func init() {
 	flag.BoolVar(&tlsEnabled, tlsEnabledFlag, false, "if true the proxy will use the tlsCert and tlsKey to run with https enabled")
 	flag.StringVar(&tlsCert, tlsCertFlag, "", "Path to tls cert file. Required if tls enabled is true.")
 	flag.StringVar(&tlsKey, tlsKeyFlag, "", "Path to tls key file. Required if tls enabled is true.")
+	flag.IntVar(&prometheusPort, prometheusPortFlag, 8000, "port that the prometheus metrics are exposed on, defaults to 8000")
 
 	// Dev/Debugging
 	flag.BoolVar(&bypassAuth, bypassAuthFlag, false, "bypasses authentication")
@@ -215,6 +220,7 @@ func init() {
 		tlsEnabledEnv:                   tlsEnabledFlag,
 		tlsCertEnv:                      tlsCertFlag,
 		tlsKeyEnv:                       tlsKeyFlag,
+		prometheusPortEnv:               prometheusPortFlag,
 		gcpProfilerEnabledEnv:           gcpProfilerEnabledFlag,
 		proxyKeyEnv:                     proxyKeyFlag,
 		readReplicaEnv:                  readReplicaFlag,
@@ -283,7 +289,7 @@ func main() {
 	promReg := prometheus.NewRegistry()
 	promReg.MustRegister(collectors.NewGoCollector())
 
-	logger.Info("service config", "version", build.Version, "pprof", pprofEnabled, "log-level", logLevel, "bypass-auth", bypassAuth, "offline", offline, "port", port, "redis-addr", redisAddress, "redis-db", redisDB, "heartbeat-interval", fmt.Sprintf("%ds", heartbeatInterval), "config-dir", configDir, "tls-enabled", tlsEnabled, "tls-cert", tlsCert, "tls-key", tlsKey, "read-replica", readReplica, "client-service", clientService, "metrics-service", metricService)
+	logger.Info("service config", "version", build.Version, "pprof", pprofEnabled, "log-level", logLevel, "bypass-auth", bypassAuth, "offline", offline, "port", port, "redis-addr", redisAddress, "redis-db", redisDB, "heartbeat-interval", fmt.Sprintf("%ds", heartbeatInterval), "config-dir", configDir, "tls-enabled", tlsEnabled, "tls-cert", tlsCert, "tls-key", tlsKey, "read-replica", readReplica, "client-service", clientService, "metrics-service", metricService, "prometheus-port", prometheusPort)
 
 	// Create cache
 	// if we're just generating the offline config we should only use in memory mode for now
@@ -527,6 +533,23 @@ func main() {
 		middleware.NewPrometheusMiddleware(promReg),
 	)
 
+	// We want to be able to expose prometheus metrics on a different server than the
+	// main Proxy server but also need to maintain backwards compatability. By default,
+	// the prometheusPort is set to the same value as the main Proxy server port
+	// which means the default behaviour is for Prometheus metrics to be exposed on the
+	// main Proxy server
+	//
+	// But if users configure `prometheusPort` to be different from `port`, then we'll start up
+	// a dedicated server for exposing prometheus metrics
+	if prometheusPort == port {
+		prometheusHandler := promhttp.HandlerFor(promReg, promhttp.HandlerOpts{Registry: promReg})
+		if err := server.WithCustomHandler(http.MethodGet, "/metrics", prometheusHandler); err != nil {
+			logger.Error("failed to register prometheus handler on Proxy Server", "err", err)
+		}
+	} else {
+		runPrometheusServer(ctx, prometheusPort, promReg, logger)
+	}
+
 	go func() {
 		<-ctx.Done()
 		logger.Info("received interrupt, shutting down server...")
@@ -535,6 +558,7 @@ func main() {
 			logger.Error("server error'd during shutdown", "err", err)
 			os.Exit(1)
 		}
+
 	}()
 
 	protocol := "http"
@@ -638,4 +662,25 @@ func newRedisClient(addr string, logger log.Logger) redis.UniversalClient {
 
 	logger.Info("connecting to redis", "address", redisAddress, "poolSize", opts.PoolSize)
 	return redis.NewUniversalClient(&opts)
+}
+
+func runPrometheusServer(ctx context.Context, port int, promReg *prometheus.Registry, logger log.Logger) {
+	promServer := transport.NewPrometheusServer(port, promReg, logger)
+
+	go func() {
+		if err := promServer.Serve(); err != nil {
+			logger.Error("prometheus server stopped unexpectedly", "err", err)
+		}
+	}()
+
+	go func() {
+		<-ctx.Done()
+
+		logger.Info("received interrupt, shutting down prometheus server...")
+
+		if err := promServer.Shutdown(ctx); err != nil {
+			logger.Error("prometheus server error'd during shutdown", "err", err)
+			os.Exit(1)
+		}
+	}()
 }
