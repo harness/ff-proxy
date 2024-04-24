@@ -55,12 +55,12 @@ func SaasStreamOnDisconnect(l log.Logger, streamHealth Health, pp Pushpin, redis
 }
 
 // SaasStreamOnConnect sets the status of the SaaS stream to healthy in the cache
-func SaasStreamOnConnect(l log.Logger, streamHealth Health, reloadConfig func() error) func() {
+func SaasStreamOnConnect(l log.Logger, streamHealth Health, reloadConfig func() error, redisSSEStream Stream) func() {
 	return func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 1*time.Minute)
 		defer cancel()
 
-		status, err := streamHealth.StreamStatus(ctx)
+		status, err := streamHealth.Status(ctx)
 		if err != nil {
 			l.Error("SaasOnConnectHandler failed to get stream state from cache", "err", err)
 		}
@@ -79,6 +79,12 @@ func SaasStreamOnConnect(l log.Logger, streamHealth Health, reloadConfig func() 
 		l.Info("connected to Harness SaaS SSE Stream")
 		if err := streamHealth.SetHealthy(ctx); err != nil {
 			l.Error("failed to update SaaS stream status in cache", "err", err)
+		}
+
+		// Publish an event to the redis stream that the read replica proxy's are listening on to let them
+		// know we've connected to SaaS.
+		if err := redisSSEStream.Publish(ctx, domain.SSEMessage{Event: "stream_action", Domain: "connect"}); err != nil {
+			l.Error("failed to publish stream connect message to redis", "err", err)
 		}
 	}
 }

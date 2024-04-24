@@ -84,7 +84,7 @@ func TestHealth_VerifyStreamStatus(t *testing.T) {
 
 		t.Run(desc, func(t *testing.T) {
 
-			h := Health{
+			h := PrimaryHealth{
 				log:         log.NoOpLogger{},
 				c:           tc.mocks.cache,
 				key:         "foo",
@@ -353,7 +353,7 @@ func TestHealth_SetHealthy(t *testing.T) {
 		t.Run(desc, func(t *testing.T) {
 
 			tc.mocks.cache.cachedState = tc.args.startingCachedStatus
-			h := Health{
+			h := PrimaryHealth{
 				log:         log.NoOpLogger{},
 				c:           tc.mocks.cache,
 				key:         "foo",
@@ -623,7 +623,7 @@ func TestHealth_SetUnhealthy(t *testing.T) {
 		t.Run(desc, func(t *testing.T) {
 
 			tc.mocks.cache.cachedState = tc.args.startingCachedStatus
-			h := Health{
+			h := PrimaryHealth{
 				log: log.NoOpLogger{},
 				c:   tc.mocks.cache,
 				key: "foo",
