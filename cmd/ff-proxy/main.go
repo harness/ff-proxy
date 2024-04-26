@@ -331,7 +331,7 @@ func main() {
 				"control_uri": "http://localhost:5561",
 			},
 		})
-		saasStreamHealth = stream.NewHealth("ffproxy_saas_stream_health", cache.NewKeyValCache(redisClient), logger)
+		streamHealth     = stream.NewHealth(logger, "ffproxy_saas_stream_health", cache.NewKeyValCache(redisClient), readReplica)
 		connectedStreams = domain.NewSafeMap()
 
 		getConnectedStreams = func() map[string]interface{} {
@@ -347,9 +347,13 @@ func main() {
 	// If we're running as replicas we kick off a routine to make sure the in memory status matches the
 	// cached status
 	if !readReplica {
-		go saasStreamHealth.VerifyStreamStatus(ctx, 60*time.Second)
+		if h, ok := streamHealth.(stream.PrimaryHealth); ok {
+			go h.VerifyStreamStatus(ctx, 60*time.Second)
+		}
 	} else {
-		go saasStreamHealth.UpdateInMemStreamStatus(ctx, 60*time.Second)
+		if h, ok := streamHealth.(stream.ReplicaHealth); ok {
+			go h.GetStreamStatus(ctx)
+		}
 	}
 
 	// Get the underlying type from the pushpinStream which is currently the
@@ -387,7 +391,7 @@ func main() {
 		logger,
 		"proxy:primary_to_replica_control_events",
 		redisStream,
-		domain.NewReadReplicaMessageHandler(),
+		domain.NewReadReplicaMessageHandler(logger, streamHealth),
 		stream.WithOnDisconnect(stream.ReadReplicaSSEStreamOnDisconnect(logger, pushpin, getConnectedStreams)),
 		stream.WithBackoff(backoff.NewConstantBackOff(1*time.Minute)),
 	)
@@ -450,24 +454,21 @@ func main() {
 		messageHandler = stream.NewForwarder(logger, pushpinStream, redisForwarder)
 
 		streamURL := fmt.Sprintf("%s/stream?cluster=%s", clientService, conf.ClusterIdentifier())
-		sseClient := stream.NewSSEClient(logger, streamURL, proxyKey, conf.Token(), conf.AccountID())
+		sseClient := stream.NewSSEClient(
+			logger,
+			streamURL,
+			proxyKey,
+			conf.Token(),
+			conf.AccountID(),
+			stream.SaasStreamOnConnect(logger, streamHealth, reloadConfig, primaryToReplicaControlStream),
+			stream.SaasStreamOnDisconnect(logger, streamHealth, pushpin, primaryToReplicaControlStream, getConnectedStreams, reloadConfig),
+		)
 
 		saasStream := stream.NewStream(
 			logger,
 			"*",
 			stream.NewPrometheusStream("ff_proxy_saas_to_primary_sse_consumer", sseClient, promReg),
 			messageHandler,
-			stream.WithOnConnect(stream.SaasStreamOnConnect(logger, saasStreamHealth, reloadConfig)),
-			stream.WithOnDisconnect(
-				stream.SaasStreamOnDisconnect(
-					logger,
-					saasStreamHealth,
-					pushpin,
-					primaryToReplicaControlStream, // When we disconnect we send a message on this stream to the replica to let it know the saas stream has disconnected
-					getConnectedStreams,
-					reloadConfig,
-				),
-			),
 		)
 		saasStream.Subscribe(ctx)
 	}
@@ -493,7 +494,7 @@ func main() {
 
 	apiKeyHasher := hash.NewSha256()
 	tokenSource := token.NewSource(logger, authRepo, apiKeyHasher, []byte(authSecret))
-	proxyHealth := health.NewProxyHealth(logger, configStatus, saasStreamHealth.StreamStatus, cacheHealthCheck)
+	proxyHealth := health.NewProxyHealth(logger, configStatus, streamHealth.Status, cacheHealthCheck)
 	proxyHealth.PollCacheHealth(ctx, 1*time.Minute)
 
 	// Setup service and middleware
@@ -510,7 +511,7 @@ func main() {
 		Hasher:        apiKeyHasher,
 		Health:        proxyHealth.Health,
 		HealthySaasStream: func() bool {
-			streamStatus, err := saasStreamHealth.StreamStatus(ctx)
+			streamStatus, err := streamHealth.Status(ctx)
 			if err != nil {
 				logger.Error("failed to check status of saas -> proxy stream health", "err", err)
 				return false

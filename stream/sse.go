@@ -24,7 +24,7 @@ type SSEClient struct {
 }
 
 // NewSSEClient creates an SSEClient
-func NewSSEClient(l log.Logger, url string, key string, token string, accountID string) *SSEClient {
+func NewSSEClient(l log.Logger, url string, key string, token string, accountID string, onConn func(), onDisconn func()) *SSEClient {
 	c := sse.NewClient(url)
 	c.Headers = map[string]string{
 		"Authorization":     fmt.Sprintf("Bearer %s", token),
@@ -32,6 +32,14 @@ func NewSSEClient(l log.Logger, url string, key string, token string, accountID 
 		"Harness-Accountid": accountID,
 		"Harness-Sdk-Info":  fmt.Sprintf("Proxy %s", build.Version),
 	}
+
+	c.OnConnect(func(c *sse.Client) {
+		onConn()
+	})
+
+	c.OnDisconnect(func(c *sse.Client) {
+		onDisconn()
+	})
 
 	// don't use the default exponentialBackoff strategy - we'll have our own disconnect logic
 	// that we'll implement
