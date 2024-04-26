@@ -646,3 +646,77 @@ func TestHealth_SetUnhealthy(t *testing.T) {
 		})
 	}
 }
+
+func TestReplicaHealth_SetHealthy(t *testing.T) {
+
+	type expected struct {
+		state domain.StreamState
+	}
+
+	testCases := map[string]struct {
+		expected  expected
+		shouldErr bool
+	}{
+		"Given I have a status of INITIALIZING and call SetHealthy": {
+			expected:  expected{state: domain.StreamStateConnected},
+			shouldErr: false,
+		},
+	}
+
+	for desc, tc := range testCases {
+		desc := desc
+		tc := tc
+
+		t.Run(desc, func(t *testing.T) {
+
+			r := NewReplicaHealth("", nil, log.NoOpLogger{})
+
+			err := r.SetHealthy(context.Background())
+			if tc.shouldErr {
+				assert.NotNil(t, err)
+			} else {
+				assert.Nil(t, err)
+			}
+
+			actual := r.inMemStatus.Get().State
+			assert.Equal(t, tc.expected.state, actual)
+		})
+	}
+}
+
+func TestReplicaHealth_SetUnhealthy(t *testing.T) {
+
+	type expected struct {
+		state domain.StreamState
+	}
+
+	testCases := map[string]struct {
+		expected  expected
+		shouldErr bool
+	}{
+		"Given I have a status of INITIALIZING and call SetUnhealthy": {
+			expected:  expected{state: domain.StreamStateDisconnected},
+			shouldErr: false,
+		},
+	}
+
+	for desc, tc := range testCases {
+		desc := desc
+		tc := tc
+
+		t.Run(desc, func(t *testing.T) {
+
+			r := NewReplicaHealth("", nil, log.NoOpLogger{})
+
+			err := r.SetUnhealthy(context.Background())
+			if tc.shouldErr {
+				assert.NotNil(t, err)
+			} else {
+				assert.Nil(t, err)
+			}
+
+			actual := r.inMemStatus.Get().State
+			assert.Equal(t, tc.expected.state, actual)
+		})
+	}
+}
