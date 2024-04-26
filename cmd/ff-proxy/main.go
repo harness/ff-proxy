@@ -454,24 +454,21 @@ func main() {
 		messageHandler = stream.NewForwarder(logger, pushpinStream, redisForwarder)
 
 		streamURL := fmt.Sprintf("%s/stream?cluster=%s", clientService, conf.ClusterIdentifier())
-		sseClient := stream.NewSSEClient(logger, streamURL, proxyKey, conf.Token(), conf.AccountID())
+		sseClient := stream.NewSSEClient(
+			logger,
+			streamURL,
+			proxyKey,
+			conf.Token(),
+			conf.AccountID(),
+			stream.SaasStreamOnConnect(logger, streamHealth, reloadConfig, primaryToReplicaControlStream),
+			stream.SaasStreamOnDisconnect(logger, streamHealth, pushpin, primaryToReplicaControlStream, getConnectedStreams, reloadConfig),
+		)
 
 		saasStream := stream.NewStream(
 			logger,
 			"*",
 			stream.NewPrometheusStream("ff_proxy_saas_to_primary_sse_consumer", sseClient, promReg),
 			messageHandler,
-			stream.WithOnConnect(stream.SaasStreamOnConnect(logger, streamHealth, reloadConfig, primaryToReplicaControlStream)),
-			stream.WithOnDisconnect(
-				stream.SaasStreamOnDisconnect(
-					logger,
-					streamHealth,
-					pushpin,
-					primaryToReplicaControlStream, // When we disconnect we send a message on this stream to the replica to let it know the saas stream has disconnected
-					getConnectedStreams,
-					reloadConfig,
-				),
-			),
 		)
 		saasStream.Subscribe(ctx)
 	}

@@ -253,8 +253,7 @@ func (r ReplicaHealth) GetStreamStatus(ctx context.Context) {
 
 	status := domain.StreamStatus{}
 
-	done := false
-	for !done {
+	for {
 		select {
 		case <-ctx.Done():
 			return
@@ -262,20 +261,22 @@ func (r ReplicaHealth) GetStreamStatus(ctx context.Context) {
 			r.log.Info("getting cached stream status as a part of the startup flow")
 
 			if err := r.c.Get(ctx, r.key, &status); err != nil {
-				r.log.Error("failed to get stream status from cache", "err", err)
+				r.log.Error("failed to get stream status from cache, backing off and retrying in 5 seconds", "err", err)
+				continue
+			}
+
+			if status.State == domain.StreamStateInitializing {
+				r.log.Info("cached stream status is still initializing... backing off and fetching it again in 5 seconds")
 				continue
 			}
 
 			// Once we've sucessfully fetched the status once from the cache at startup we're done
 			// and can rely on receiving events from the Primary to find out the stream status
 			if status.State == domain.StreamStateConnected || status.State == domain.StreamStateDisconnected {
-				done = true
+				r.inMemStatus.Set(status)
+				r.log.Info("successfully retreived cached status and set it in memory", "state", status.State, "since", status.Since)
+				return
 			}
-
-			r.inMemStatus.Set(status)
 		}
 	}
-
-	r.inMemStatus.Set(status)
-	r.log.Info("successfully retrieved cached stream status and set it in memory")
 }
