@@ -1,6 +1,7 @@
 package metricsservice
 
 import (
+	"reflect"
 	"testing"
 
 	"github.com/harness/ff-proxy/v2/domain"
@@ -53,38 +54,6 @@ func TestMap2_Add(t *testing.T) {
 		MetricsType: "Server",
 		Timestamp:   0,
 	}
-
-	//flagTwoFalse := clientgen.MetricsData{
-	//	Attributes: []clientgen.KeyValue{
-	//		{
-	//			Key:   "featureIdentifier",
-	//			Value: "two",
-	//		},
-	//		{
-	//			Key:   "variationIdentifier",
-	//			Value: "false",
-	//		},
-	//	},
-	//	Count:       1,
-	//	MetricsType: "Server",
-	//	Timestamp:   0,
-	//}
-	//
-	//flagTwoTrue := clientgen.MetricsData{
-	//	Attributes: []clientgen.KeyValue{
-	//		{
-	//			Key:   "featureIdentifier",
-	//			Value: "two",
-	//		},
-	//		{
-	//			Key:   "variationIdentifier",
-	//			Value: "true",
-	//		},
-	//	},
-	//	Count:       1,
-	//	MetricsType: "Server",
-	//	Timestamp:   0,
-	//}
 
 	type args struct {
 		envID           string
@@ -297,6 +266,9 @@ func TestMap2_Add(t *testing.T) {
 			for k, v := range actual {
 				expValue := tc.expected.data[k]
 
+				if !reflect.DeepEqual(expValue, v) {
+					t.Log("foo")
+				}
 				assert.Equal(t, expValue, v)
 			}
 

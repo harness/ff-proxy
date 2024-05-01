@@ -3,7 +3,6 @@ package metricsservice
 import (
 	"context"
 	"errors"
-	"reflect"
 	"time"
 
 	"github.com/harness/ff-proxy/v2/domain"
@@ -75,19 +74,22 @@ func (w Worker) subscribe(ctx context.Context) <-chan []byte {
 				// we disconnect we can resume from that point
 				id = latestID
 
-				s, ok := v.(string)
-				if !ok {
-					w.log.Warn("unexpected message format received", "stream", SDKMetricsStream, "type", reflect.TypeOf(v))
-					return nil
-				}
-
-				select {
-				case <-ctx.Done():
-					return ctx.Err()
-				case out <- []byte(s):
-				}
-
+				// TMP just read and discard to find max throughput
 				return nil
+
+				//s, ok := v.(string)
+				//if !ok {
+				//	w.log.Warn("unexpected message format received", "stream", SDKMetricsStream, "type", reflect.TypeOf(v))
+				//	return nil
+				//}
+				//
+				//select {
+				//case <-ctx.Done():
+				//	return ctx.Err()
+				//case out <- []byte(s):
+				//}
+				//
+				//return nil
 			})
 			if err != nil {
 				if errors.Is(err, context.Canceled) {
