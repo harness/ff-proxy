@@ -14,22 +14,22 @@ const (
 	genericProxyTargetIdentifier = "__global__cf_target"
 )
 
-// metricsMap is a type that stores metrics requests
+// safeTargetsMap is a type that stores targets from metrics requests
 // and aggregates them by environment
-type metricsMap struct {
+type safeTargetsMap struct {
 	*sync.RWMutex
 	metrics     map[string]domain.MetricsRequest
 	currentSize int
 }
 
-func newMetricsMap() *metricsMap {
-	return &metricsMap{
+func newSafeTargetsMap() *safeTargetsMap {
+	return &safeTargetsMap{
 		RWMutex: &sync.RWMutex{},
 		metrics: make(map[string]domain.MetricsRequest),
 	}
 }
 
-func (m *metricsMap) add(r domain.MetricsRequest) {
+func (m *safeTargetsMap) add(r domain.MetricsRequest) {
 	m.Lock()
 	defer m.Unlock()
 
@@ -75,7 +75,7 @@ func (m *metricsMap) add(r domain.MetricsRequest) {
 }
 
 // aggregate will convert and aggregate all the entries into the Metrics data and update new object.
-func (m *metricsMap) aggregate(r domain.MetricsRequest) ([]clientgen.MetricsData, error) {
+func (m *safeTargetsMap) aggregate(r domain.MetricsRequest) ([]clientgen.MetricsData, error) {
 
 	aggregatedMetricsMap := map[string]*clientgen.MetricsData{}
 	// dereference here
@@ -132,14 +132,14 @@ func getKeyEntry(envID string, m *clientgen.MetricsData) string {
 	return fmt.Sprintf("%s-%s-%s-%s-%s-%s-%s", envID, featureIdentifier, variationIdentifier, sdkName, sdkLanguage, sdkType, sdkVersion)
 }
 
-func (m *metricsMap) get() map[string]domain.MetricsRequest {
+func (m *safeTargetsMap) get() map[string]domain.MetricsRequest {
 	m.RLock()
 	defer m.RUnlock()
 
 	return m.metrics
 }
 
-func (m *metricsMap) flush() {
+func (m *safeTargetsMap) flush() {
 	m.Lock()
 	defer m.Unlock()
 
@@ -147,7 +147,7 @@ func (m *metricsMap) flush() {
 	m.currentSize = 0
 }
 
-func (m *metricsMap) size() int {
+func (m *safeTargetsMap) size() int {
 	m.RLock()
 	defer m.RUnlock()
 

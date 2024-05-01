@@ -85,14 +85,14 @@ func TestQueue_StoreMetrics(t *testing.T) {
 				targetsDuration: testDuration,
 				metricsTicker:   time.NewTicker(testDuration),
 				targetsTicker:   time.NewTicker(testDuration),
-				metricsData: &metricsMap{
+				metricsData: &safeTargetsMap{
 					RWMutex: &sync.RWMutex{},
 					metrics: map[string]domain.MetricsRequest{
 						mr123.EnvironmentID: mr123,
 					},
 					currentSize: maxEvaluationQueueSize * 2,
 				},
-				targetData: &metricsMap{
+				targetData: &safeTargetsMap{
 					RWMutex: &sync.RWMutex{},
 					metrics: map[string]domain.MetricsRequest{
 						mr123.EnvironmentID: mr123,
@@ -120,14 +120,14 @@ func TestQueue_StoreMetrics(t *testing.T) {
 				targetsDuration: testDuration,
 				metricsTicker:   time.NewTicker(testDuration),
 				targetsTicker:   time.NewTicker(testDuration),
-				metricsData: &metricsMap{
+				metricsData: &safeTargetsMap{
 					RWMutex: &sync.RWMutex{},
 					metrics: map[string]domain.MetricsRequest{
 						mr123.EnvironmentID: mr123EvaluatonDataExpected, //we already have a metrics record.
 					},
 					currentSize: 0,
 				},
-				targetData: &metricsMap{
+				targetData: &safeTargetsMap{
 					RWMutex:     &sync.RWMutex{},
 					metrics:     map[string]domain.MetricsRequest{},
 					currentSize: 0,
@@ -158,12 +158,12 @@ func TestQueue_StoreMetrics(t *testing.T) {
 				targetsDuration: testDuration,
 				metricsTicker:   time.NewTicker(testDuration),
 				targetsTicker:   time.NewTicker(testDuration),
-				metricsData: &metricsMap{
+				metricsData: &safeTargetsMap{
 					RWMutex:     &sync.RWMutex{},
 					metrics:     map[string]domain.MetricsRequest{},
 					currentSize: 0,
 				},
-				targetData: &metricsMap{
+				targetData: &safeTargetsMap{
 					RWMutex:     &sync.RWMutex{},
 					metrics:     map[string]domain.MetricsRequest{},
 					currentSize: 0,
