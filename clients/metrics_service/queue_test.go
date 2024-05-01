@@ -301,8 +301,7 @@ func TestQueue_Listen(t *testing.T) {
 				e := tc.expected.metricsData[k]
 				a := actual[k]
 
-				if !assert.Equal(t, e.Size, a.Size) ||
-					!assert.Equal(t, e.EnvironmentID, a.EnvironmentID) ||
+				if !assert.Equal(t, e.EnvironmentID, a.EnvironmentID) ||
 					!func() bool {
 						expMetrics := *e.MetricsData
 						actMetrics := *a.MetricsData

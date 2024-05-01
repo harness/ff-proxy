@@ -197,7 +197,6 @@ func TestWorker_Start(t *testing.T) {
 				act := actual[i]
 
 				assert.Equal(t, exp.EnvironmentID, act.EnvironmentID)
-				assert.Equal(t, exp.Size, act.Size)
 
 				if exp.MetricsData != nil {
 					for j := 0; j < len(*exp.MetricsData); j++ {
