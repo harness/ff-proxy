@@ -99,6 +99,8 @@ func (r RedisStream) Sub(ctx context.Context, stream string, id string, handleMe
 						}
 						continue
 					}
+
+					id = msg.ID
 				}
 			}
 		}
