@@ -8,7 +8,6 @@ import (
 	"github.com/harness/ff-proxy/v2/domain"
 	clientgen "github.com/harness/ff-proxy/v2/gen/client"
 	"github.com/harness/ff-proxy/v2/log"
-	jsoniter "github.com/json-iterator/go"
 	"github.com/prometheus/client_golang/prometheus"
 )
 
@@ -86,18 +85,6 @@ func (c Client) PostMetrics(ctx context.Context, envID string, metric domain.Met
 
 		c.trackSDKUsage(metric)
 	}()
-
-	payload := clientgen.Metrics{
-		MetricsData: metric.MetricsData,
-		TargetData:  metric.TargetData,
-	}
-
-	b, err := jsoniter.Marshal(payload)
-	if err != nil {
-		c.log.Error("failed to marshal metrics request", "err", err)
-	}
-
-	c.log.Info("posting metrics payload to saas", "body", string(b))
 
 	res, err := c.client.PostMetricsWithResponse(ctx, envID, &clientgen.PostMetricsParams{Cluster: &clusterIdentifier}, clientgen.PostMetricsJSONRequestBody{
 		MetricsData: metric.MetricsData,

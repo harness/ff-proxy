@@ -8,6 +8,8 @@ import (
 	clientgen "github.com/harness/ff-proxy/v2/gen/client"
 )
 
+// safeMetricsRequestMap is a map that aggregates metrics by
+// environment, flag identifier & flag variation
 type safeMetricsRequestMap struct {
 	*sync.RWMutex
 	detailed map[string]map[string]clientgen.MetricsData
@@ -90,6 +92,8 @@ func (s *safeMetricsRequestMap) add(value domain.MetricsRequest) {
 }
 
 func (s *safeMetricsRequestMap) get() map[string]domain.MetricsRequest {
+	// Take a copy an unlock so we don't block other thread
+	// marshaling to the response type
 	s.RLock()
 	cpy := s.detailed
 	s.RUnlock()
