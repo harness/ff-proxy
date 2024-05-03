@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"sort"
 	"sync"
 	"testing"
 	"time"
@@ -194,6 +195,22 @@ func TestWorker_Start(t *testing.T) {
 			for i := 0; i < len(tc.expected.metrics); i++ {
 				exp := tc.expected.metrics[i]
 				act := actual[i]
+
+				// Sort the slices inside the payload so the assertion doesn't fail just because
+				// the values are in a different order
+				sort.Slice(domain.SafePtrDereference(exp.MetricsData), func(i, j int) bool {
+					iKey := makeKey("", domain.SafePtrDereference(exp.MetricsData)[i].Attributes)
+					jKey := makeKey("", domain.SafePtrDereference(exp.MetricsData)[j].Attributes)
+
+					return iKey < jKey
+				})
+
+				sort.Slice(domain.SafePtrDereference(act.MetricsData), func(i, j int) bool {
+					iKey := makeKey("", domain.SafePtrDereference(act.MetricsData)[i].Attributes)
+					jKey := makeKey("", domain.SafePtrDereference(act.MetricsData)[j].Attributes)
+
+					return iKey < jKey
+				})
 
 				assert.Equal(t, exp.EnvironmentID, act.EnvironmentID)
 
