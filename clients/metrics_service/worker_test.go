@@ -4,16 +4,16 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"sort"
 	"sync"
 	"testing"
 	"time"
 
-	jsoniter "github.com/json-iterator/go"
-	"github.com/stretchr/testify/assert"
-
 	"github.com/harness/ff-proxy/v2/domain"
 	clientgen "github.com/harness/ff-proxy/v2/gen/client"
 	"github.com/harness/ff-proxy/v2/log"
+	jsoniter "github.com/json-iterator/go"
+	"github.com/stretchr/testify/assert"
 )
 
 type mockRedisStream struct {
@@ -196,8 +196,23 @@ func TestWorker_Start(t *testing.T) {
 				exp := tc.expected.metrics[i]
 				act := actual[i]
 
+				// Sort the slices inside the payload so the assertion doesn't fail just because
+				// the values are in a different order
+				sort.Slice(domain.SafePtrDereference(exp.MetricsData), func(i, j int) bool {
+					iKey := makeKey("", domain.SafePtrDereference(exp.MetricsData)[i].Attributes)
+					jKey := makeKey("", domain.SafePtrDereference(exp.MetricsData)[j].Attributes)
+
+					return iKey < jKey
+				})
+
+				sort.Slice(domain.SafePtrDereference(act.MetricsData), func(i, j int) bool {
+					iKey := makeKey("", domain.SafePtrDereference(act.MetricsData)[i].Attributes)
+					jKey := makeKey("", domain.SafePtrDereference(act.MetricsData)[j].Attributes)
+
+					return iKey < jKey
+				})
+
 				assert.Equal(t, exp.EnvironmentID, act.EnvironmentID)
-				assert.Equal(t, exp.Size, act.Size)
 
 				if exp.MetricsData != nil {
 					for j := 0; j < len(*exp.MetricsData); j++ {

@@ -13,6 +13,13 @@ const (
 	maxTargetQueueSize     = 1 << 20
 )
 
+type metricsMap interface {
+	add(request domain.MetricsRequest)
+	get() map[string]domain.MetricsRequest
+	size() int
+	flush()
+}
+
 // Queue is an in memory queue storing metrics requests. It flushes its contents
 // whenever the max queue size in MB has been reached or the ticker expires, whichever
 // occurs first. It exposes a channel via the Listen() method where it writes metrics
@@ -22,8 +29,8 @@ type Queue struct {
 	log log.Logger
 	//that is used to flush...
 	queue       chan map[string]domain.MetricsRequest
-	metricsData *metricsMap
-	targetData  *metricsMap
+	metricsData metricsMap
+	targetData  metricsMap
 
 	metricsTicker *time.Ticker
 	targetsTicker *time.Ticker
@@ -42,8 +49,8 @@ func NewQueue(ctx context.Context, l log.Logger, duration time.Duration) Queue {
 		targetsDuration: duration,
 		metricsTicker:   time.NewTicker(duration),
 		targetsTicker:   time.NewTicker(duration),
-		metricsData:     newMetricsMap(),
-		targetData:      newMetricsMap(),
+		metricsData:     newSafeMetricsRequestMap(),
+		targetData:      newSafeTargetsMap(),
 	}
 
 	// Start a routine that flushes the queue when the ticker expires
@@ -114,20 +121,10 @@ func (q Queue) handleMetricsData(ctx context.Context, m domain.MetricsRequest) e
 
 	// we are aggregating the metrics Data and set it to its map.
 	if q.metricsData.size() < maxEvaluationQueueSize {
-		aggregatedMetricsData, err := q.metricsData.aggregate(m)
-		if err != nil {
-			q.log.Error("unable to aggregate metrics data", "method", "StoreMetrics", "err", err)
-			return err
-		}
-		originalSize := len(*m.MetricsData)
-		aggregatedSize := len(aggregatedMetricsData)
-		// set aggregated data to be stored
-		m.MetricsData = &aggregatedMetricsData
-		// aggregate the list.
-		q.log.Debug("aggregated metrics data", "originalSize", originalSize, "aggregatedSize", aggregatedSize)
 		q.metricsData.add(m)
 		return nil
 	}
+
 	metrics := q.metricsData.get()
 	if len(metrics) == 0 {
 		return nil
