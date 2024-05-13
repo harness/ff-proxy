@@ -114,6 +114,12 @@ func NewEchoRequestIDMiddleware() echo.MiddlewareFunc {
 	}
 }
 
+func AllowQuerySemicolons() echo.MiddlewareFunc {
+	return echo.WrapMiddleware(func(next http.Handler) http.Handler {
+		return http.AllowQuerySemicolons(next)
+	})
+}
+
 type prometheusMiddleware struct {
 	requestCount    *prometheus.CounterVec
 	requestDuration *prometheus.HistogramVec

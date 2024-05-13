@@ -532,6 +532,7 @@ func main() {
 		middleware.NewEchoLoggingMiddleware(logger),
 		middleware.NewEchoAuthMiddleware(logger, authRepo, []byte(authSecret), bypassAuth),
 		middleware.NewPrometheusMiddleware(promReg),
+		middleware.AllowQuerySemicolons(),
 	)
 
 	// We want to be able to expose prometheus metrics on a different server than the
