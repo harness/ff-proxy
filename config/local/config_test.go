@@ -4,12 +4,12 @@ import (
 	"context"
 	"embed"
 	"errors"
+	"sort"
 	"testing"
-
-	"github.com/stretchr/testify/assert"
 
 	"github.com/harness/ff-proxy/v2/domain"
 	clientgen "github.com/harness/ff-proxy/v2/gen/client"
+	"github.com/stretchr/testify/assert"
 )
 
 var (
@@ -296,6 +296,10 @@ func TestConfig_Populate(t *testing.T) {
 			EnvironmentID: domain.EnvironmentID("1234"),
 			APIKey:        domain.NewAuthAPIKey("35ab1e0411c4cc6ecaaa676a4c7fef259798799ed40ad09fb07adae902bd0c7a"),
 		},
+		{
+			EnvironmentID: domain.EnvironmentID("456"),
+			APIKey:        domain.NewAuthAPIKey("544b475aa58160b84ede02d8c534c18bc1b10055f7dfabeaa7d449fe7994e0cd"),
+		},
 	}
 
 	expectedFlagConfig := []domain.FlagConfig{
@@ -306,12 +310,20 @@ func TestConfig_Populate(t *testing.T) {
 				yetAnotherFlagConfig,
 			},
 		},
+		{
+			EnvironmentID:  "456",
+			FeatureConfigs: []domain.FeatureFlag{},
+		},
 	}
 
 	expectedSegmentConfig := []domain.SegmentConfig{
 		{
 			EnvironmentID: "1234",
 			Segments:      []domain.Segment{flagsTeamSegment},
+		},
+		{
+			EnvironmentID: "456",
+			Segments:      []domain.Segment{},
 		},
 	}
 
@@ -436,6 +448,26 @@ func TestConfig_Populate(t *testing.T) {
 			} else {
 				assert.Nil(t, err)
 			}
+
+			sort.Slice(tc.expected.authConfig, func(i, j int) bool {
+				return tc.expected.authConfig[i].EnvironmentID < tc.expected.authConfig[j].EnvironmentID
+			})
+			sort.Slice(tc.expected.flagConfig, func(i, j int) bool {
+				return tc.expected.flagConfig[i].EnvironmentID < tc.expected.flagConfig[j].EnvironmentID
+			})
+			sort.Slice(tc.expected.segmentConfig, func(i, j int) bool {
+				return tc.expected.segmentConfig[i].EnvironmentID < tc.expected.segmentConfig[j].EnvironmentID
+			})
+
+			sort.Slice(tc.mocks.authRepo.config, func(i, j int) bool {
+				return tc.mocks.authRepo.config[i].EnvironmentID < tc.mocks.authRepo.config[j].EnvironmentID
+			})
+			sort.Slice(tc.mocks.flagRepo.config, func(i, j int) bool {
+				return tc.mocks.flagRepo.config[i].EnvironmentID < tc.mocks.flagRepo.config[j].EnvironmentID
+			})
+			sort.Slice(tc.mocks.segmentRepo.config, func(i, j int) bool {
+				return tc.mocks.segmentRepo.config[i].EnvironmentID < tc.mocks.segmentRepo.config[j].EnvironmentID
+			})
 
 			assert.Equal(t, tc.expected.authConfig, tc.mocks.authRepo.config)
 			assert.Equal(t, tc.expected.flagConfig, tc.mocks.flagRepo.config)

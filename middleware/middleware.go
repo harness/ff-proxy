@@ -3,6 +3,7 @@ package middleware
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -17,6 +18,10 @@ import (
 
 	"github.com/harness/ff-proxy/v2/domain"
 	"github.com/harness/ff-proxy/v2/log"
+)
+
+var (
+	errInvalidEnvironment = errors.New("invalid environment")
 )
 
 // keyLookUp checks if the key exists in cache
@@ -44,25 +49,9 @@ func NewEchoLoggingMiddleware(l log.Logger) echo.MiddlewareFunc {
 // are valid
 func NewEchoAuthMiddleware(logger log.Logger, authRepo keyLookUp, secret []byte, bypassAuth bool) echo.MiddlewareFunc {
 	return middleware.JWTWithConfig(middleware.JWTConfig{
-		AuthScheme:  "Bearer",
-		TokenLookup: "header:Authorization",
-		ParseTokenFunc: func(auth string, c echo.Context) (interface{}, error) {
-			if auth == "" {
-				return nil, errors.New("token was empty")
-			}
-
-			token, err := jwt.ParseWithClaims(auth, &domain.Claims{}, func(t *jwt.Token) (interface{}, error) {
-				return secret, nil
-			})
-			if err != nil {
-				return nil, err
-			}
-
-			if claims, ok := token.Claims.(*domain.Claims); ok && token.Valid && isKeyInCache(c.Request().Context(), logger, authRepo, claims) {
-				return nil, nil
-			}
-			return nil, errors.New("invalid token")
-		},
+		AuthScheme:     "Bearer",
+		TokenLookup:    "header:Authorization",
+		ParseTokenFunc: newParseAuthTokenFunc(logger, authRepo, secret),
 		Skipper: func(c echo.Context) bool {
 			if bypassAuth {
 				return true
@@ -74,9 +63,40 @@ func NewEchoAuthMiddleware(logger log.Logger, authRepo keyLookUp, secret []byte,
 			return urlPath == "/client/auth" || urlPath == "/health" || prometheusRequest
 		},
 		ErrorHandlerWithContext: func(err error, c echo.Context) error {
-			return c.JSON(http.StatusUnauthorized, err)
+			if errors.Is(err, errInvalidEnvironment) {
+				return echo.NewHTTPError(http.StatusForbidden, err.Error())
+			}
+			return echo.NewHTTPError(http.StatusUnauthorized, err.Error())
 		},
 	})
+}
+
+func newParseAuthTokenFunc(logger log.Logger, authRepo keyLookUp, secret []byte) func(auth string, c echo.Context) (interface{}, error) {
+	return func(auth string, c echo.Context) (interface{}, error) {
+		if auth == "" {
+			return nil, errors.New("token was empty")
+		}
+
+		token, err := jwt.ParseWithClaims(auth, &domain.Claims{}, func(t *jwt.Token) (interface{}, error) {
+			return secret, nil
+		})
+		if err != nil {
+			return nil, err
+		}
+
+		if claims, ok := token.Claims.(*domain.Claims); ok && token.Valid && isKeyInCache(c.Request().Context(), logger, authRepo, claims) {
+
+			// Also check that the envID in the claims matches then envID in the request
+			environmentUUID := c.Param("environment_uuid")
+			if claims.Environment != environmentUUID {
+				logger.Info("environment %q mismatch with requested %q", claims.Environment, environmentUUID)
+				return nil, fmt.Errorf("%w: environmentID %s mismatch with requested environmentID %s", errInvalidEnvironment, claims.Environment, environmentUUID)
+			}
+
+			return nil, nil
+		}
+		return nil, errors.New("invalid token")
+	}
 }
 
 func isKeyInCache(ctx context.Context, logger log.Logger, repo keyLookUp, claims *domain.Claims) bool {
