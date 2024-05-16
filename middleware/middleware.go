@@ -208,3 +208,12 @@ func NewPrometheusMiddleware(reg prometheus.Registerer) echo.MiddlewareFunc {
 		}
 	}
 }
+
+// NewCorsMiddleware returns a cors middleware
+func NewCorsMiddleware() echo.MiddlewareFunc {
+	return middleware.CORSWithConfig(middleware.CORSConfig{
+		AllowOrigins: []string{"*"},
+		AllowMethods: []string{http.MethodGet, http.MethodOptions, http.MethodPost},
+		AllowHeaders: []string{"*", "Authorization"},
+	})
+}
