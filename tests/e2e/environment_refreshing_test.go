@@ -112,6 +112,10 @@ func TestEnvironmentCreation(t *testing.T) {
 				_, err = io.Copy(featureConfigsBody, r.Body)
 				assert.Nil(t, err)
 
+				if r.StatusCode != http.StatusOK {
+					t.Errorf("got status %d, want %d", r.StatusCode, http.StatusOK)
+				}
+
 				assert.Nil(t, jsoniter.Unmarshal(featureConfigsBody.Bytes(), &featureConfigs))
 
 				return len(featureConfigs) == tc.expected.numFeatureConfigs
