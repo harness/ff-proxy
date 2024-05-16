@@ -1,7 +1,7 @@
 package metricsservice
 
 import (
-	"reflect"
+	"sort"
 	"testing"
 
 	"github.com/harness/ff-proxy/v2/domain"
@@ -400,10 +400,24 @@ func Test_SafeMetricsRequestMap(t *testing.T) {
 			for k, v := range actual {
 				expValue := tc.expected.data[k]
 
-				if !reflect.DeepEqual(expValue, v) {
-					t.Log("foo")
-				}
-				assert.Equal(t, expValue, v)
+				expMetricData := domain.SafePtrDereference(expValue.MetricsData)
+
+				sort.Slice(expMetricData, func(i, j int) bool {
+					iKey := makeKey("", expMetricData[i].Attributes)
+					jKey := makeKey("", expMetricData[j].Attributes)
+
+					return iKey < jKey
+				})
+
+				actMetricData := domain.SafePtrDereference(v.MetricsData)
+				sort.Slice(actMetricData, func(i, j int) bool {
+					iKey := makeKey("", actMetricData[i].Attributes)
+					jKey := makeKey("", actMetricData[j].Attributes)
+
+					return iKey < jKey
+				})
+
+				assert.Equal(t, expMetricData, actMetricData)
 			}
 
 			assert.Equal(t, tc.expected.mapSize, m2.size())
