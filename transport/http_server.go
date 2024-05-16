@@ -61,7 +61,7 @@ func NewHTTPServer(port int, e *Endpoints, l log.Logger, tlsEnabled bool, tlsCer
 	router := echo.New()
 	server := &http.Server{
 		Addr:              fmt.Sprintf(":%d", port),
-		Handler:           cors(router),
+		Handler:           router,
 		ReadTimeout:       30 * time.Second,
 		ReadHeaderTimeout: 30 * time.Second,
 		WriteTimeout:      30 * time.Second,
@@ -198,18 +198,4 @@ func (h *HTTPServer) WithCustomHandler(method string, route string, handler http
 		return nil
 	}
 	return fmt.Errorf("http method %s not supported, update WithCustomHandler to add support", method)
-}
-
-func cors(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Add("Access-Control-Allow-Origin", "*")
-		w.Header().Add("Access-Control-Allow-Methods", "GET,OPTIONS,POST")
-		w.Header().Add("Access-Control-Allow-Headers", "*")
-
-		if r.Method == http.MethodOptions {
-			return
-		}
-
-		next.ServeHTTP(w, r)
-	})
 }
