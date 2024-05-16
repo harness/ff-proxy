@@ -1,6 +1,9 @@
 version: "3.9"
 services:
   proxy:
+    build:
+      context: .
+      dockerfile: Dockerfile
     environment:
       - DEBUG=${DEBUG}
       - LOG_LEVEL=INFO
@@ -14,9 +17,6 @@ services:
       - PORT=${PORT}
       - BYPASS_AUTH=${BYPASS_AUTH}
       - ACCOUNT_IDENTIFIER=${ACCOUNT_IDENTIFIER}
-    build:
-      context: ./
-      dockerfile: ./Dockerfile
     volumes:
       - ${CONFIG_VOLUME:-./config:/config}
       - ./tests/e2e/certs:/certs

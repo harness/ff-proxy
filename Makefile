@@ -103,7 +103,7 @@ e2e-online-in-mem: ## brings up proxy in online in memory mode and runs e2e sdk 
 	RUN_METRICS_TESTS=true STREAM_URL=https://localhost:7000 go test -p 1 -v ./tests/... -env=".env.online" | tee /dev/stderr | go-junit-report -set-exit-code > online-in-memory.xml
 
 e2e-online-redis: ## brings up proxy in online in redis mode and runs e2e sdk tests against it
-	docker-compose --env-file .env.online_redis -f ./docker-compose.yml up -d --remove-orphans proxy redis
+	docker-compose --env-file .env.online_redis -f ./docker-compose.yml up -d --build --remove-orphans proxy redis
 	sleep 5  ## TODO replace with a check for the proxy and all envs being healthy
 	go test -p 1 -v ./tests/... -env=".env.online" | tee /dev/stderr | go-junit-report -set-exit-code > online-redis.xml
 
