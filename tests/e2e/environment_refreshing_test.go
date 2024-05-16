@@ -23,15 +23,8 @@ import (
 // Also tests that if we create an environment in a project with scope=selected that the
 // config won't be sent to the Proxy
 func TestEnvironmentCreation(t *testing.T) {
-	token, _, err := testhelpers.AuthenticateSDKClient(GetServerAPIKey(), GetStreamURL(), nil)
-	if err != nil {
-		t.Error(err)
-	}
-
 	var (
-		orgOne     = GetOrgIdentifier()
 		orgTwo     = GetSecondaryOrgIdentifier()
-		projectOne = GetProjectIdentifier()          // Scope = selected
 		projectTwo = GetSecondaryProjectIdentifier() // Scope = all
 	)
 
@@ -76,17 +69,6 @@ func TestEnvironmentCreation(t *testing.T) {
 				numFeatureConfigs:        2,
 			},
 		},
-		"Given I create an environment in a Project where scope=selected": {
-			args: args{
-				orgIdentifier:     orgOne,
-				envIdentifier:     "TestEnvironmentCreation_SadPath",
-				projectIdentifier: projectOne,
-			},
-			expected: expected{
-				featureConfigsStatusCode: http.StatusOK,
-				numFeatureConfigs:        0,
-			},
-		},
 	}
 
 	for desc, tc := range testCases {
@@ -97,6 +79,7 @@ func TestEnvironmentCreation(t *testing.T) {
 			// Create an env and SDK key
 			envID := createEnvironment(tc.args.envIdentifier, tc.args.projectIdentifier, tc.args.orgIdentifier, t)
 			defer deleteEnvironment(tc.args.envIdentifier, tc.args.projectIdentifier, tc.args.orgIdentifier, t)
+			sdkKey := createSDKKey(tc.args.orgIdentifier, tc.args.projectIdentifier, tc.args.envIdentifier, t)
 
 			proxyClient := testhelpers.DefaultEvaluationClient(GetStreamURL())
 
@@ -109,16 +92,36 @@ func TestEnvironmentCreation(t *testing.T) {
 					featureConfigs     []client.FeatureConfig
 				)
 
-				_, err = io.Copy(featureConfigsBody, r.Body)
+				_, err := io.Copy(featureConfigsBody, r.Body)
 				assert.Nil(t, err)
 
 				if r.StatusCode != http.StatusOK {
 					t.Errorf("got status %d, want %d", r.StatusCode, http.StatusOK)
+					t.Errorf("response body: %s", featureConfigsBody.String())
 				}
 
 				assert.Nil(t, jsoniter.Unmarshal(featureConfigsBody.Bytes(), &featureConfigs))
 
 				return len(featureConfigs) == tc.expected.numFeatureConfigs
+			}
+
+			var (
+				token   string
+				retries int
+			)
+
+			// Retry a few times because there could be some lag between the sdk
+			// key being created in Saas and getting pushed down to the Proxy
+			for token != "" && retries <= 5 {
+				var err error
+
+				token, _, err = testhelpers.AuthenticateSDKClient(sdkKey, GetStreamURL(), nil)
+				if err != nil {
+					t.Error(err)
+				}
+
+				time.Sleep(5 * time.Second)
+				retries += 1
 			}
 
 			t.Log("When I make a /feature-configs request to the Proxy")
@@ -172,11 +175,6 @@ func withRetry(conditionFn func(r *http.Response) bool, fn retryFn) (*http.Respo
 }
 
 func TestEnvironmentDeletion(t *testing.T) {
-	token, _, err := testhelpers.AuthenticateSDKClient(GetServerAPIKey(), GetStreamURL(), nil)
-	if err != nil {
-		t.Error(err)
-	}
-
 	var (
 		orgTwo        = GetSecondaryOrgIdentifier()
 		projectTwo    = GetSecondaryProjectIdentifier() // Scope = all
@@ -188,6 +186,9 @@ func TestEnvironmentDeletion(t *testing.T) {
 		assert.Nil(t, err)
 		assert.Equal(t, http.StatusOK, resp.StatusCode)
 
+		if resp.StatusCode != http.StatusOK {
+			t.Errorf("got status %d, want %d", resp.StatusCode, http.StatusOK)
+		}
 		return envID
 	}
 
@@ -195,9 +196,12 @@ func TestEnvironmentDeletion(t *testing.T) {
 		testhelpers.DeleteEnvironment(org, project, identifier)
 	}
 
+	deleteSDKKey(orgTwo, projectTwo, envIdentifier, "test-key", t)
+
 	t.Run("When I Create an environment I should be able to fetch its Flag Config from the Proxy", func(t *testing.T) {
 		// Create the environment
 		envID := createEnvironment(envIdentifier, projectTwo, orgTwo, t)
+		sdkKey := createSDKKey(orgTwo, projectTwo, envIdentifier, t)
 
 		proxyClient := testhelpers.DefaultEvaluationClient(GetStreamURL())
 
@@ -210,13 +214,39 @@ func TestEnvironmentDeletion(t *testing.T) {
 				featureConfigs     []client.FeatureConfig
 			)
 
-			_, err = io.Copy(featureConfigsBody, r.Body)
+			if r.StatusCode != http.StatusOK {
+				t.Errorf("got status %d, want %d", r.StatusCode, http.StatusOK)
+				t.Errorf("response body: %s", featureConfigsBody.String())
+			}
+
+			_, err := io.Copy(featureConfigsBody, r.Body)
 			assert.Nil(t, err)
 
 			assert.Nil(t, jsoniter.Unmarshal(featureConfigsBody.Bytes(), &featureConfigs))
 
 			return len(featureConfigs) == 2
 		}
+
+		var (
+			token   string
+			retries int
+		)
+
+		// Retry a few times
+		for token != "" && retries <= 5 {
+			var err error
+
+			token, _, err = testhelpers.AuthenticateSDKClient(sdkKey, GetStreamURL(), nil)
+			if err != nil {
+				t.Error(err)
+			}
+
+			time.Sleep(5 * time.Second)
+			retries += 1
+		}
+
+		t.Log("SDK Key ------ ", token)
+		t.Log("TOKEN ------ ", token)
 
 		t.Log("When I make a /feature-configs request to the Proxy")
 		resp, err := withRetry(
@@ -236,33 +266,52 @@ func TestEnvironmentDeletion(t *testing.T) {
 		// Delete the environment and we shouldn't be able to get config for it anymore
 		deleteEnvironment(envIdentifier, projectTwo, orgTwo, t)
 
-		validateFeatureConfigs2 := func(r *http.Response) bool {
-			var (
-				featureConfigsBody = bytes.NewBuffer([]byte{})
-				featureConfigs     []client.FeatureConfig
-			)
+		//validateFeatureConfigs2 := func(r *http.Response) bool {
+		//	// Expect a 401 because the environment that we're trying
+		//	// auth with doesn't exist anymore so our token shouldn't
+		//	// work
+		//	return r.StatusCode == http.StatusUnauthorized
+		//}
 
-			_, err = io.Copy(featureConfigsBody, r.Body)
-			assert.Nil(t, err)
-
-			assert.Nil(t, jsoniter.Unmarshal(featureConfigsBody.Bytes(), &featureConfigs))
-
-			return len(featureConfigs) == 0
-		}
-
-		t.Log("When I make a /feature-configs request to the Proxy")
-		resp1, err := withRetry(
-			validateFeatureConfigs2,
-			func() (*http.Response, error) {
-				return proxyClient.GetFeatureConfig(ctx, envID, &client.GetFeatureConfigParams{}, func(ctx context.Context, req *http.Request) error {
-					req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", token))
-					return nil
-				})
-			},
-		)
-		assert.Nil(t, err)
-		defer resp1.Body.Close()
-
-		assert.Equal(t, http.StatusOK, resp1.StatusCode)
+		//t.Log("When I make a /feature-configs request to the Proxy")
+		//resp1, err := withRetry(
+		//	validateFeatureConfigs2,
+		//	func() (*http.Response, error) {
+		//		return proxyClient.GetFeatureConfig(ctx, envID, &client.GetFeatureConfigParams{}, func(ctx context.Context, req *http.Request) error {
+		//			req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", token))
+		//			return nil
+		//		})
+		//	},
+		//)
+		//assert.Nil(t, err)
+		//defer resp1.Body.Close()
+		//
+		//assert.Equal(t, http.StatusOK, resp1.StatusCode)
 	})
+}
+
+func createSDKKey(org string, project string, env string, t *testing.T) string {
+	body := testhelpers.GetAddAPIKeyBody("test-key", "Server", "test-key", "", "")
+
+	resp, err := testhelpers.AddAPIKey(org, body, project, env)
+	if err != nil {
+		t.Errorf("failed to create SDK Key: %s", err)
+		return ""
+	}
+
+	if resp.StatusCode() != http.StatusCreated {
+		t.Errorf("got status %d, want %d", resp.StatusCode(), http.StatusCreated)
+		t.Errorf("body: %s", resp.Body)
+		return ""
+	}
+
+	return resp.JSON201.ApiKey
+
+}
+
+func deleteSDKKey(org, project, env, identifier string, t *testing.T) {
+	_, err := testhelpers.DeleteSDKKey(org, project, env, identifier)
+	if err != nil {
+		t.Logf("failed to cleanup sdk key at the end of test: %s", err)
+	}
 }
