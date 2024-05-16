@@ -122,14 +122,18 @@ func makeKey(envID string, attributes []clientgen.KeyValue) string {
 	var (
 		variationIdentifier string
 		flagIdentifier      string
+		sdkLanguage         string
+		sdkVersion          string
 
-		gotVariation bool
-		gotFlag      bool
+		gotVariation   bool
+		gotFlag        bool
+		gotSDKLanguage bool
+		gotSDKVersion  bool
 	)
 
 	// We need to get the flag and variation from the attributes to build up the key
 	for _, attr := range attributes {
-		if gotVariation && gotFlag {
+		if gotVariation && gotFlag && gotSDKLanguage && gotSDKVersion {
 			break
 		}
 
@@ -144,7 +148,19 @@ func makeKey(envID string, attributes []clientgen.KeyValue) string {
 			gotFlag = true
 			continue
 		}
+
+		if attr.Key == "SDK_LANGUAGE" {
+			sdkLanguage = attr.Value
+			gotSDKLanguage = true
+			continue
+		}
+
+		if attr.Key == "SDK_VERSION" {
+			sdkVersion = attr.Value
+			gotSDKVersion = true
+			continue
+		}
 	}
 
-	return fmt.Sprintf("%s-%s-%s", envID, flagIdentifier, variationIdentifier)
+	return fmt.Sprintf("%s-%s-%s-%s-%s", envID, flagIdentifier, variationIdentifier, sdkLanguage, sdkVersion)
 }
