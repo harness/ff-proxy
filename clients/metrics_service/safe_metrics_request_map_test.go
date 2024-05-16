@@ -1,7 +1,7 @@
 package metricsservice
 
 import (
-	"reflect"
+	"sort"
 	"testing"
 
 	"github.com/harness/ff-proxy/v2/domain"
@@ -9,7 +9,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestMap2_Add(t *testing.T) {
+func Test_SafeMetricsRequestMap(t *testing.T) {
 
 	flagOneTrue := clientgen.MetricsData{
 		Attributes: []clientgen.KeyValue{
@@ -20,6 +20,14 @@ func TestMap2_Add(t *testing.T) {
 			{
 				Key:   "variationIdentifier",
 				Value: "true",
+			},
+			{
+				Key:   "SDK_LANGUAGE",
+				Value: "golang",
+			},
+			{
+				Key:   "SDK_VERSION",
+				Value: "1.0.0",
 			},
 		},
 		Count:       1,
@@ -48,6 +56,86 @@ func TestMap2_Add(t *testing.T) {
 			{
 				Key:   "variationIdentifier",
 				Value: "false",
+			},
+			{
+				Key:   "SDK_LANGUAGE",
+				Value: "golang",
+			},
+			{
+				Key:   "SDK_VERSION",
+				Value: "1.0.0",
+			},
+		},
+		Count:       1,
+		MetricsType: "Server",
+		Timestamp:   0,
+	}
+
+	flagOneFalseGolangOne := clientgen.MetricsData{
+		Attributes: []clientgen.KeyValue{
+			{
+				Key:   "featureIdentifier",
+				Value: "one",
+			},
+			{
+				Key:   "variationIdentifier",
+				Value: "false",
+			},
+			{
+				Key:   "SDK_LANGUAGE",
+				Value: "golang",
+			},
+			{
+				Key:   "SDK_VERSION",
+				Value: "1.0.0",
+			},
+		},
+		Count:       1,
+		MetricsType: "Server",
+		Timestamp:   0,
+	}
+
+	flagOneFalseGolangOneTwo := clientgen.MetricsData{
+		Attributes: []clientgen.KeyValue{
+			{
+				Key:   "featureIdentifier",
+				Value: "one",
+			},
+			{
+				Key:   "variationIdentifier",
+				Value: "false",
+			},
+			{
+				Key:   "SDK_LANGUAGE",
+				Value: "golang",
+			},
+			{
+				Key:   "SDK_VERSION",
+				Value: "1.2.0",
+			},
+		},
+		Count:       1,
+		MetricsType: "Server",
+		Timestamp:   0,
+	}
+
+	flagOneFalseJaveOne := clientgen.MetricsData{
+		Attributes: []clientgen.KeyValue{
+			{
+				Key:   "featureIdentifier",
+				Value: "one",
+			},
+			{
+				Key:   "variationIdentifier",
+				Value: "false",
+			},
+			{
+				Key:   "SDK_LANGUAGE",
+				Value: "java",
+			},
+			{
+				Key:   "SDK_VERSION",
+				Value: "1.0.0",
 			},
 		},
 		Count:       1,
@@ -246,6 +334,52 @@ func TestMap2_Add(t *testing.T) {
 				},
 			},
 		},
+		"Given I have a two metrics requests for the same flag, variation, sdkLanguage but different SDK versions": {
+			args: args{
+				envID: "123",
+				metricsRequests: []domain.MetricsRequest{
+					makeMetricsRequest("123", 12, flagOneFalseGolangOne),
+					makeMetricsRequest("123", 12, flagOneFalseGolangOneTwo),
+				},
+			},
+			expected: expected{
+				mapSize: 24, // Expect 24 because we've to store objects for both variations of the flag
+				data: map[string]domain.MetricsRequest{
+					"123": {
+						EnvironmentID: "123",
+						Metrics: clientgen.Metrics{
+							MetricsData: domain.ToPtr([]clientgen.MetricsData{
+								flagOneFalseGolangOne,
+								flagOneFalseGolangOneTwo,
+							}),
+						},
+					},
+				},
+			},
+		},
+		"Given I have a two metrics requests for the same flag, variation but different sdk languages in different payloads": {
+			args: args{
+				envID: "123",
+				metricsRequests: []domain.MetricsRequest{
+					makeMetricsRequest("123", 12, flagOneFalseGolangOne),
+					makeMetricsRequest("123", 12, flagOneFalseJaveOne),
+				},
+			},
+			expected: expected{
+				mapSize: 24, // Expect 24 because we've to store objects for both variations of the flag
+				data: map[string]domain.MetricsRequest{
+					"123": {
+						EnvironmentID: "123",
+						Metrics: clientgen.Metrics{
+							MetricsData: domain.ToPtr([]clientgen.MetricsData{
+								flagOneFalseGolangOne,
+								flagOneFalseJaveOne,
+							}),
+						},
+					},
+				},
+			},
+		},
 	}
 
 	for desc, tc := range testCases {
@@ -266,10 +400,24 @@ func TestMap2_Add(t *testing.T) {
 			for k, v := range actual {
 				expValue := tc.expected.data[k]
 
-				if !reflect.DeepEqual(expValue, v) {
-					t.Log("foo")
-				}
-				assert.Equal(t, expValue, v)
+				expMetricData := domain.SafePtrDereference(expValue.MetricsData)
+
+				sort.Slice(expMetricData, func(i, j int) bool {
+					iKey := makeKey("", expMetricData[i].Attributes)
+					jKey := makeKey("", expMetricData[j].Attributes)
+
+					return iKey < jKey
+				})
+
+				actMetricData := domain.SafePtrDereference(v.MetricsData)
+				sort.Slice(actMetricData, func(i, j int) bool {
+					iKey := makeKey("", actMetricData[i].Attributes)
+					jKey := makeKey("", actMetricData[j].Attributes)
+
+					return iKey < jKey
+				})
+
+				assert.Equal(t, expMetricData, actMetricData)
 			}
 
 			assert.Equal(t, tc.expected.mapSize, m2.size())
