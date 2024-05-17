@@ -79,7 +79,8 @@ func TestEnvironmentCreation(t *testing.T) {
 			// Create an env and SDK key
 			envID := createEnvironment(tc.args.envIdentifier, tc.args.projectIdentifier, tc.args.orgIdentifier, t)
 			defer deleteEnvironment(tc.args.envIdentifier, tc.args.projectIdentifier, tc.args.orgIdentifier, t)
-			sdkKey := createSDKKey(tc.args.orgIdentifier, tc.args.projectIdentifier, tc.args.envIdentifier, t)
+			sdkKey := createSDKKey(tc.args.orgIdentifier, tc.args.projectIdentifier, tc.args.envIdentifier, "env_creation_sdk_key", t)
+			defer deleteSDKKey(tc.args.orgIdentifier, tc.args.projectIdentifier, tc.args.envIdentifier, "env_creation_sdk_key", t)
 
 			proxyClient := testhelpers.DefaultEvaluationClient(GetStreamURL())
 
@@ -112,7 +113,7 @@ func TestEnvironmentCreation(t *testing.T) {
 
 			// Retry a few times because there could be some lag between the sdk
 			// key being created in Saas and getting pushed down to the Proxy
-			for token != "" && retries <= 5 {
+			for token == "" && retries <= 5 {
 				var err error
 
 				token, _, err = testhelpers.AuthenticateSDKClient(sdkKey, GetStreamURL(), nil)
@@ -120,8 +121,10 @@ func TestEnvironmentCreation(t *testing.T) {
 					t.Error(err)
 				}
 
-				time.Sleep(5 * time.Second)
-				retries += 1
+				if token == "" {
+					time.Sleep(5 * time.Second)
+					retries += 1
+				}
 			}
 
 			t.Log("When I make a /feature-configs request to the Proxy")
@@ -201,7 +204,8 @@ func TestEnvironmentDeletion(t *testing.T) {
 	t.Run("When I Create an environment I should be able to fetch its Flag Config from the Proxy", func(t *testing.T) {
 		// Create the environment
 		envID := createEnvironment(envIdentifier, projectTwo, orgTwo, t)
-		sdkKey := createSDKKey(orgTwo, projectTwo, envIdentifier, t)
+		sdkKey := createSDKKey(orgTwo, projectTwo, envIdentifier, "env_deletion_sdk_key", t)
+		defer deleteSDKKey(orgTwo, projectTwo, envIdentifier, "env_deletion_sdk_key", t)
 
 		proxyClient := testhelpers.DefaultEvaluationClient(GetStreamURL())
 
@@ -233,7 +237,7 @@ func TestEnvironmentDeletion(t *testing.T) {
 		)
 
 		// Retry a few times
-		for token != "" && retries <= 5 {
+		for token == "" && retries <= 5 {
 			var err error
 
 			token, _, err = testhelpers.AuthenticateSDKClient(sdkKey, GetStreamURL(), nil)
@@ -241,12 +245,11 @@ func TestEnvironmentDeletion(t *testing.T) {
 				t.Error(err)
 			}
 
-			time.Sleep(5 * time.Second)
-			retries += 1
+			if token != "" {
+				time.Sleep(5 * time.Second)
+				retries += 1
+			}
 		}
-
-		t.Log("SDK Key ------ ", token)
-		t.Log("TOKEN ------ ", token)
 
 		t.Log("When I make a /feature-configs request to the Proxy")
 		resp, err := withRetry(
@@ -290,22 +293,42 @@ func TestEnvironmentDeletion(t *testing.T) {
 	})
 }
 
-func createSDKKey(org string, project string, env string, t *testing.T) string {
-	body := testhelpers.GetAddAPIKeyBody("test-key", "Server", "test-key", "", "")
+func createSDKKey(org string, project string, env string, identifier string, t *testing.T) string {
+	body := testhelpers.GetAddAPIKeyBody(identifier, "Server", identifier, "", "")
 
-	resp, err := testhelpers.AddAPIKey(org, body, project, env)
+	var sdkKey string
+
+	err := retry.Do(func() error {
+		resp, err := testhelpers.AddAPIKey(org, body, project, env)
+		if err != nil {
+			t.Errorf("failed to create SDK Key: %s", err)
+			return err
+		}
+
+		if resp.JSON201 == nil {
+			return fmt.Errorf("SDK Key was not created: status_code=%d", resp.StatusCode())
+		}
+
+		sdkKey = resp.JSON201.ApiKey
+		return nil
+	})
 	if err != nil {
-		t.Errorf("failed to create SDK Key: %s", err)
-		return ""
+		t.Error(err)
 	}
 
-	if resp.StatusCode() != http.StatusCreated {
-		t.Errorf("got status %d, want %d", resp.StatusCode(), http.StatusCreated)
-		t.Errorf("body: %s", resp.Body)
-		return ""
-	}
+	//resp, err := testhelpers.AddAPIKey(org, body, project, env)
+	//if err != nil {
+	//	t.Errorf("failed to create SDK Key: %s", err)
+	//	return ""
+	//}
+	//
+	//if resp.StatusCode() != http.StatusCreated {
+	//	t.Errorf("got status %d, want %d", resp.StatusCode(), http.StatusCreated)
+	//	t.Errorf("body: %s", resp.Body)
+	//	return ""
+	//}
 
-	return resp.JSON201.ApiKey
+	return sdkKey
 
 }
 
