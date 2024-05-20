@@ -3,6 +3,7 @@ package middleware
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net/http"
 	"strconv"
 	"strings"
@@ -16,6 +17,10 @@ import (
 
 	"github.com/harness/ff-proxy/v2/domain"
 	"github.com/harness/ff-proxy/v2/log"
+)
+
+var (
+	errInvalidEnvironment = errors.New("invalid environment")
 )
 
 // keyLookUp checks if the key exists in cache
@@ -58,6 +63,13 @@ func NewEchoAuthMiddleware(logger log.Logger, authRepo keyLookUp, secret []byte,
 			}
 
 			if claims, ok := token.Claims.(*domain.Claims); ok && token.Valid && isKeyInCache(c.Request().Context(), logger, authRepo, claims) {
+				// Also check that the envID in the claims matches then envID in the request
+				environmentUUID := c.Param("environment_uuid")
+				if claims.Environment != environmentUUID {
+					logger.Info("environment %q mismatch with requested %q", claims.Environment, environmentUUID)
+					return nil, fmt.Errorf("%w: environmentID %s mismatch with requested environmentID %s", errInvalidEnvironment, claims.Environment, environmentUUID)
+				}
+
 				return nil, nil
 			}
 			return nil, errors.New("invalid token")
