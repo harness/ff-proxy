@@ -16,6 +16,7 @@ import (
 	"github.com/alicebob/miniredis/v2"
 	"github.com/harness-community/sse/v3"
 	sdkstream "github.com/harness/ff-golang-server-sdk/stream"
+	jsoniter "github.com/json-iterator/go"
 	"github.com/labstack/echo/v4"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/redis/go-redis/v9"
@@ -31,6 +32,11 @@ import (
 	proxyservice "github.com/harness/ff-proxy/v2/proxy-service"
 	"github.com/harness/ff-proxy/v2/repository"
 	"github.com/harness/ff-proxy/v2/token"
+)
+
+const (
+	env1234MockSDKKey = "apikey1"
+	env456MockSDKKey  = "apiKey-env456"
 )
 
 type mockSDKClient struct {
@@ -274,20 +280,20 @@ func setupHTTPServer(t *testing.T, bypassAuth bool, opts ...setupOpts) *HTTPServ
 	})
 	endpoints := NewEndpoints(service)
 
-	repo := mockRepo{
-		getFn: func(context context.Context, key domain.AuthAPIKey) (string, bool, error) {
-			return "", true, nil
-		},
-	}
+	//repo := mockRepo{
+	//	getFn: func(context context.Context, key domain.AuthAPIKey) (string, bool, error) {
+	//		return "", true, nil
+	//	},
+	//}
 
 	server := NewHTTPServer(8000, endpoints, logger, false, "", "")
 	server.Use(
 		middleware.NewCorsMiddleware(),
+		middleware.AllowQuerySemicolons(),
 		middleware.NewEchoRequestIDMiddleware(),
 		middleware.NewEchoLoggingMiddleware(logger),
-		middleware.NewEchoAuthMiddleware(logger, repo, []byte(`secret`), bypassAuth),
+		middleware.NewEchoAuthMiddleware(logger, *setupConfig.authRepo, []byte(`secret`), bypassAuth),
 		middleware.NewPrometheusMiddleware(prometheus.NewRegistry()),
-		middleware.AllowQuerySemicolons(),
 	)
 	return server
 }
@@ -300,10 +306,10 @@ var featureConfig = []byte(`[{"defaultServe":{"variation":"true"},"environment":
 var emptyFeatureConfig = []byte(`[]
 `)
 
-// TestHTTPServer_GetFeatureConfig sets up an service with repositories populated
+// TestHTTPServer_GetFeatureConfig_AuthBypassed sets up an service with repositories populated
 // from config/test, injects it into the HTTPServer and makes HTTP requests
 // to the /client/env/{environmentUUID}/feature-configs endpoint
-func TestHTTPServer_GetFeatureConfig(t *testing.T) {
+func TestHTTPServer_GetFeatureConfig_AuthBypassed(t *testing.T) {
 	// setup HTTPServer & service with auth bypassed
 	server := setupHTTPServer(t, true)
 	testServer := httptest.NewServer(server)
@@ -376,14 +382,91 @@ func TestHTTPServer_GetFeatureConfig(t *testing.T) {
 	}
 }
 
+// TestHTTPServer_GetFeatureConfig_AuthBypassed sets up an service with repositories populated
+// from config/test, injects it into the HTTPServer and makes HTTP requests
+// to the /client/env/{environmentUUID}/feature-configs endpoint
+func TestHTTPServer_GetFeatureConfig_WithAuth(t *testing.T) {
+	// setup HTTPServer & service with auth bypassed
+	server := setupHTTPServer(t, false)
+	testServer := httptest.NewServer(server)
+	defer testServer.Close()
+
+	testCases := map[string]struct {
+		authToken            string
+		method               string
+		url                  string
+		expectedStatusCode   int
+		expectedResponseBody []byte
+	}{
+		"Given I make GET request for an environment that does exist": {
+			authToken:            getAuthToken(t, env1234MockSDKKey, testServer),
+			method:               http.MethodGet,
+			url:                  fmt.Sprintf("%s/client/env/1234/feature-configs", testServer.URL),
+			expectedStatusCode:   http.StatusOK,
+			expectedResponseBody: featureConfig,
+		},
+		"Given I make GET request for an environment that does exist using the token from another environment": {
+			authToken:          getAuthToken(t, env456MockSDKKey, testServer),
+			method:             http.MethodGet,
+			url:                fmt.Sprintf("%s/client/env/1234/feature-configs", testServer.URL),
+			expectedStatusCode: http.StatusForbidden,
+
+			// The newline in the expectedResponse body is deliberate
+			expectedResponseBody: []byte(`{"message":"invalid environment: environmentID 456 mismatch with requested environmentID 1234"}
+`),
+		},
+	}
+	for desc, tc := range testCases {
+		tc := tc
+		t.Run(desc, func(t *testing.T) {
+			var req *http.Request
+			var err error
+
+			switch tc.method {
+			case http.MethodPost:
+				req, err = http.NewRequest(http.MethodPost, tc.url, bytes.NewBuffer([]byte{}))
+				if err != nil {
+					t.Fatal(err)
+				}
+			case http.MethodGet:
+				req, err = http.NewRequest(http.MethodGet, tc.url, nil)
+				if err != nil {
+					t.Fatal(err)
+				}
+			}
+
+			req.Header.Add("Authorization", fmt.Sprintf("Bearer %s", tc.authToken))
+
+			resp, err := testServer.Client().Do(req)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer resp.Body.Close()
+
+			assert.Equal(t, tc.expectedStatusCode, resp.StatusCode)
+
+			if tc.expectedResponseBody != nil {
+				actual, err := io.ReadAll(resp.Body)
+				if err != nil {
+					t.Fatalf("(%s): failed to read response body: %s", desc, err)
+				}
+
+				if !assert.ElementsMatch(t, tc.expectedResponseBody, actual) {
+					t.Errorf("(%s) expected: %s \n got: %s ", desc, tc.expectedResponseBody, actual)
+				}
+			}
+		})
+	}
+}
+
 // harnessAppDemoDarkMode is the expected response body for a FeatureConfigsByIdentifier request where identifier='harnessappdemodarkmode' - the newline at the end is intentional
 var harnessAppDemoDarkMode = []byte(`{"defaultServe":{"variation":"true"},"environment":"featureflagsqa","feature":"harnessappdemodarkmode","kind":"boolean","offVariation":"false","prerequisites":[],"project":"FeatureFlagsQADemo","rules":[{"clauses":[{"attribute":"age","id":"79f5bca0-17ca-42c2-8934-5cee840fe2e0","negate":false,"op":"equal","values":["55"]}],"priority":1,"ruleId":"8756c207-abf8-4202-83fd-dedf5d27e2c2","serve":{"variation":"false"}}],"state":"on","variationToTargetMap":[{"targetSegments":["flagsTeam"],"targets":[{"identifier":"davej","name":"Dave Johnston"}],"variation":"false"}],"variations":[{"identifier":"true","name":"True","value":"true"},{"identifier":"false","name":"False","value":"false"}],"version":568}
 `)
 
-// TestHTTPServer_GetFeatureConfigByIdentifier sets up a service with repositories
+// TestHTTPServer_GetFeatureConfigByIdentifier_BypassAuth sets up a service with repositories
 // populated from config/test, injects it into the HTTPServer and makes HTTP
 // requests to the /client/env/{environmentUUID}/feature-configs/{identifier} endpoint
-func TestHTTPServer_GetFeatureConfigByIdentifier(t *testing.T) {
+func TestHTTPServer_GetFeatureConfigByIdentifier_BypassAuth(t *testing.T) {
 	// setup HTTPServer & service with auth bypassed
 	server := setupHTTPServer(t, true)
 	testServer := httptest.NewServer(server)
@@ -458,14 +541,96 @@ func TestHTTPServer_GetFeatureConfigByIdentifier(t *testing.T) {
 	}
 }
 
+// TestHTTPServer_GetFeatureConfigByIdentifier_BypassAuth sets up a service with repositories
+// populated from config/test, injects it into the HTTPServer and makes HTTP
+// requests to the /client/env/{environmentUUID}/feature-configs/{identifier} endpoint
+func TestHTTPServer_GetFeatureConfigByIdentifier_WithAuth(t *testing.T) {
+	// setup HTTPServer & service with auth bypassed
+	server := setupHTTPServer(t, false)
+	testServer := httptest.NewServer(server)
+	defer testServer.Close()
+
+	testCases := map[string]struct {
+		authToken            string
+		method               string
+		url                  string
+		expectedStatusCode   int
+		expectedResponseBody []byte
+	}{
+		"Given I make GET request for an identifier that doesn't exist": {
+			authToken:          getAuthToken(t, env1234MockSDKKey, testServer),
+			method:             http.MethodGet,
+			url:                fmt.Sprintf("%s/client/env/1234/feature-configs/foobar", testServer.URL),
+			expectedStatusCode: http.StatusNotFound,
+		},
+		"Given I make GET request for an environment and identifier that exist": {
+			authToken:            getAuthToken(t, env1234MockSDKKey, testServer),
+			method:               http.MethodGet,
+			url:                  fmt.Sprintf("%s/client/env/1234/feature-configs/harnessappdemodarkmode", testServer.URL),
+			expectedStatusCode:   http.StatusOK,
+			expectedResponseBody: harnessAppDemoDarkMode,
+		},
+		"Given I make GET request for an environment and identifier that exist with a token from another env": {
+			authToken:          getAuthToken(t, env456MockSDKKey, testServer),
+			method:             http.MethodGet,
+			url:                fmt.Sprintf("%s/client/env/1234/feature-configs/harnessappdemodarkmode", testServer.URL),
+			expectedStatusCode: http.StatusForbidden,
+			// The newline in the expectedResponse body is deliberate
+			expectedResponseBody: []byte(`{"message":"invalid environment: environmentID 456 mismatch with requested environmentID 1234"}
+`),
+		},
+	}
+	for desc, tc := range testCases {
+		tc := tc
+		t.Run(desc, func(t *testing.T) {
+			var req *http.Request
+			var err error
+
+			switch tc.method {
+			case http.MethodPost:
+				req, err = http.NewRequest(http.MethodPost, tc.url, bytes.NewBuffer([]byte{}))
+				if err != nil {
+					t.Fatal(err)
+				}
+			case http.MethodGet:
+				req, err = http.NewRequest(http.MethodGet, tc.url, nil)
+				if err != nil {
+					t.Fatal(err)
+				}
+			}
+
+			req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", tc.authToken))
+
+			resp, err := testServer.Client().Do(req)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer resp.Body.Close()
+
+			assert.Equal(t, tc.expectedStatusCode, resp.StatusCode)
+
+			if tc.expectedResponseBody != nil {
+				actual, err := io.ReadAll(resp.Body)
+				if err != nil {
+					t.Fatalf("(%s): failed to read response body: %s", desc, err)
+				}
+
+				if !assert.ElementsMatch(t, tc.expectedResponseBody, actual) {
+					t.Errorf("(%s) expected: %s \n got: %s ", desc, tc.expectedResponseBody, actual)
+				}
+			}
+		})
+	}
+}
+
 // targetSegments is the expected response body for a TargetSegments request - the newline at the end is intentional
 var targetSegments = []byte(`[{"createdAt":123,"environment":"featureflagsqa","excluded":[],"identifier":"flagsTeam","included":[],"modifiedAt":456,"name":"flagsTeam","rules":[{"attribute":"ip","id":"31c18ee7-8051-44cc-8507-b44580467ee5","negate":false,"op":"equal","values":["2a00:23c5:b672:2401:158:f2a6:67a0:6a79"]}],"version":1}]
 `)
 
-// TestHTTPServer_GetTargetSegments sets up a service with repositories
+// TestHTTPServer_GetTargetSegments_BypassAuth sets up a service with repositories
 // populated from config/test, injects it into the HTTPServer and makes HTTP
 // requests to the /client/env/{environmentUUID}/target-segments endpoint
-func TestHTTPServer_GetTargetSegments(t *testing.T) {
+func TestHTTPServer_GetTargetSegments_BypassAuth(t *testing.T) {
 	// setup HTTPServer & service with auth bypassed
 	server := setupHTTPServer(t, true)
 	testServer := httptest.NewServer(server)
@@ -538,14 +703,90 @@ func TestHTTPServer_GetTargetSegments(t *testing.T) {
 	}
 }
 
+// TestHTTPServer_GetTargetSegments_WithAuth sets up a service with repositories
+// populated from config/test, injects it into the HTTPServer and makes HTTP
+// requests to the /client/env/{environmentUUID}/target-segments endpoint
+func TestHTTPServer_GetTargetSegments_WithAuth(t *testing.T) {
+	// setup HTTPServer & service with auth bypassed
+	server := setupHTTPServer(t, false)
+	testServer := httptest.NewServer(server)
+	defer testServer.Close()
+
+	testCases := map[string]struct {
+		authToken            string
+		method               string
+		url                  string
+		expectedStatusCode   int
+		expectedResponseBody []byte
+	}{
+		"Given I make GET request for an environment and identifier that exist": {
+			authToken:            getAuthToken(t, env1234MockSDKKey, testServer),
+			method:               http.MethodGet,
+			url:                  fmt.Sprintf("%s/client/env/1234/target-segments", testServer.URL),
+			expectedStatusCode:   http.StatusOK,
+			expectedResponseBody: targetSegments,
+		},
+		"Given I make GET request for an environment and identifier that exist with a token for a different environment": {
+			authToken:          getAuthToken(t, env456MockSDKKey, testServer),
+			method:             http.MethodGet,
+			url:                fmt.Sprintf("%s/client/env/1234/target-segments", testServer.URL),
+			expectedStatusCode: http.StatusForbidden,
+			// The newline in the expectedResponse body is deliberate
+			expectedResponseBody: []byte(`{"message":"invalid environment: environmentID 456 mismatch with requested environmentID 1234"}
+`),
+		},
+	}
+	for desc, tc := range testCases {
+		tc := tc
+		t.Run(desc, func(t *testing.T) {
+			var req *http.Request
+			var err error
+
+			switch tc.method {
+			case http.MethodPost:
+				req, err = http.NewRequest(http.MethodPost, tc.url, bytes.NewBuffer([]byte{}))
+				if err != nil {
+					t.Fatal(err)
+				}
+			case http.MethodGet:
+				req, err = http.NewRequest(http.MethodGet, tc.url, nil)
+				if err != nil {
+					t.Fatal(err)
+				}
+			}
+
+			req.Header.Add("Authorization", fmt.Sprintf("Bearer %s", tc.authToken))
+
+			resp, err := testServer.Client().Do(req)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer resp.Body.Close()
+
+			assert.Equal(t, tc.expectedStatusCode, resp.StatusCode)
+
+			if tc.expectedResponseBody != nil {
+				actual, err := io.ReadAll(resp.Body)
+				if err != nil {
+					t.Fatalf("(%s): failed to read response body: %s", desc, err)
+				}
+
+				if !assert.ElementsMatch(t, tc.expectedResponseBody, actual) {
+					t.Errorf("(%s) expected: %s \n got: %s ", desc, tc.expectedResponseBody, actual)
+				}
+			}
+		})
+	}
+}
+
 // segmentFlagsTeam is the expected response body for a TargetSegmentsByIdentfier request where identifer='flagsTeam' - the newline at the end is intentional
 var segmentFlagsTeam = []byte(`{"createdAt":123,"environment":"featureflagsqa","excluded":[],"identifier":"flagsTeam","included":[],"modifiedAt":456,"name":"flagsTeam","rules":[{"attribute":"ip","id":"31c18ee7-8051-44cc-8507-b44580467ee5","negate":false,"op":"equal","values":["2a00:23c5:b672:2401:158:f2a6:67a0:6a79"]}],"version":1}
 `)
 
-// TestHTTPServer_GetTargetSegmentsByIdentifier sets up a service with repositories
+// TestHTTPServer_GetTargetSegmentsByIdentifier_BypassAuth sets up a service with repositories
 // populated from config/test, injects it into the HTTPServer and makes HTTP
 // requests to the /client/env/{environmentUUID}/target-segments/{identifier} endpoint
-func TestHTTPServer_GetTargetSegmentsByIdentifier(t *testing.T) {
+func TestHTTPServer_GetTargetSegmentsByIdentifier_BypassAuth(t *testing.T) {
 	// setup HTTPServer & service with auth bypassed
 	server := setupHTTPServer(t, true)
 	testServer := httptest.NewServer(server)
@@ -620,6 +861,88 @@ func TestHTTPServer_GetTargetSegmentsByIdentifier(t *testing.T) {
 	}
 }
 
+// TestHTTPServer_GetTargetSegmentsByIdentifier_WithAuth sets up a service with repositories
+// populated from config/test, injects it into the HTTPServer and makes HTTP
+// requests to the /client/env/{environmentUUID}/target-segments/{identifier} endpoint
+func TestHTTPServer_GetTargetSegmentsByIdentifier_WithAuth(t *testing.T) {
+	// setup HTTPServer & service with auth bypassed
+	server := setupHTTPServer(t, false)
+	testServer := httptest.NewServer(server)
+	defer testServer.Close()
+
+	testCases := map[string]struct {
+		authToken            string
+		method               string
+		url                  string
+		expectedStatusCode   int
+		expectedResponseBody []byte
+	}{
+		"Given I make GET request for an identifier that doesn't exist": {
+			authToken:          getAuthToken(t, env1234MockSDKKey, testServer),
+			method:             http.MethodGet,
+			url:                fmt.Sprintf("%s/client/env/1234/target-segments/bar", testServer.URL),
+			expectedStatusCode: http.StatusNotFound,
+		},
+		"Given I make GET request for an environment and identifier that exist": {
+			authToken:            getAuthToken(t, env1234MockSDKKey, testServer),
+			method:               http.MethodGet,
+			url:                  fmt.Sprintf("%s/client/env/1234/target-segments/flagsTeam", testServer.URL),
+			expectedStatusCode:   http.StatusOK,
+			expectedResponseBody: segmentFlagsTeam,
+		},
+		"Given I make GET request for an environment and identifier that exist with a token from a different environment": {
+			authToken:          getAuthToken(t, env456MockSDKKey, testServer),
+			method:             http.MethodGet,
+			url:                fmt.Sprintf("%s/client/env/1234/target-segments/flagsTeam", testServer.URL),
+			expectedStatusCode: http.StatusForbidden,
+			// The newline in the expectedResponse body is deliberate
+			expectedResponseBody: []byte(`{"message":"invalid environment: environmentID 456 mismatch with requested environmentID 1234"}
+`),
+		},
+	}
+	for desc, tc := range testCases {
+		tc := tc
+		t.Run(desc, func(t *testing.T) {
+			var req *http.Request
+			var err error
+
+			switch tc.method {
+			case http.MethodPost:
+				req, err = http.NewRequest(http.MethodPost, tc.url, bytes.NewBuffer([]byte{}))
+				if err != nil {
+					t.Fatal(err)
+				}
+			case http.MethodGet:
+				req, err = http.NewRequest(http.MethodGet, tc.url, nil)
+				if err != nil {
+					t.Fatal(err)
+				}
+			}
+
+			req.Header.Add("Authorization", fmt.Sprintf("Bearer %s", tc.authToken))
+
+			resp, err := testServer.Client().Do(req)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer resp.Body.Close()
+
+			assert.Equal(t, tc.expectedStatusCode, resp.StatusCode)
+
+			if tc.expectedResponseBody != nil {
+				actual, err := io.ReadAll(resp.Body)
+				if err != nil {
+					t.Fatalf("(%s): failed to read response body: %s", desc, err)
+				}
+
+				if !assert.ElementsMatch(t, tc.expectedResponseBody, actual) {
+					t.Errorf("(%s) expected: %s \n got: %s ", desc, tc.expectedResponseBody, actual)
+				}
+			}
+		})
+	}
+}
+
 var (
 	// targetJamesEvaluations is the expected response body for a Evaluations request - the newline at the end is intentional
 	targetJamesEvaluations = []byte(`[{"flag":"harnessappdemodarkmode","identifier":"false","kind":"boolean","value":"false"},{"flag":"yet_another_flag","identifier":"1","kind":"string","value":"1"}]
@@ -630,10 +953,10 @@ var (
 `)
 )
 
-// TestHTTPServer_GetEvaluations sets up a service with repositories populated
+// TestHTTPServer_GetEvaluations_BypassAuth sets up a service with repositories populated
 // from config/test, injects it into the HTTPServer and makes HTTP
 // requests to the /client/env/{environmentUUID}/evaluations endpoint
-func TestHTTPServer_GetEvaluations(t *testing.T) {
+func TestHTTPServer_GetEvaluations_BypassAuth(t *testing.T) {
 	// setup HTTPServer & service with auth bypassed
 	server := setupHTTPServer(t, true)
 	testServer := httptest.NewServer(server)
@@ -721,6 +1044,89 @@ func TestHTTPServer_GetEvaluations(t *testing.T) {
 	}
 }
 
+// TestHTTPServer_GetEvaluations_WithAuth sets up a service with repositories populated
+// from config/test, injects it into the HTTPServer and makes HTTP
+// requests to the /client/env/{environmentUUID}/evaluations endpoint
+func TestHTTPServer_GetEvaluations_WithAuth(t *testing.T) {
+	// setup HTTPServer & service with auth bypassed
+	server := setupHTTPServer(t, false)
+	testServer := httptest.NewServer(server)
+	defer testServer.Close()
+
+	testCases := map[string]struct {
+		authToken            string
+		method               string
+		url                  string
+		expectedStatusCode   int
+		expectedResponseBody []byte
+	}{
+		"Given I make GET request for target that doesn't exist": {
+			authToken:            getAuthToken(t, env1234MockSDKKey, testServer),
+			method:               http.MethodGet,
+			url:                  fmt.Sprintf("%s/client/env/1234/target/bar/evaluations", testServer.URL),
+			expectedStatusCode:   http.StatusOK,
+			expectedResponseBody: targetFooEvaluations,
+		},
+		"Given I make GET request for an environment and the target 'foo'": {
+			authToken:            getAuthToken(t, env1234MockSDKKey, testServer),
+			method:               http.MethodGet,
+			url:                  fmt.Sprintf("%s/client/env/1234/target/foo/evaluations", testServer.URL),
+			expectedStatusCode:   http.StatusOK,
+			expectedResponseBody: targetFooEvaluations,
+		},
+		"Given I make GET request for an environment and the target 'foo' with a token from a different environment": {
+			authToken:          getAuthToken(t, env456MockSDKKey, testServer),
+			method:             http.MethodGet,
+			url:                fmt.Sprintf("%s/client/env/1234/target/foo/evaluations", testServer.URL),
+			expectedStatusCode: http.StatusForbidden,
+			// The newline in the expectedResponse body is deliberate
+			expectedResponseBody: []byte(`{"message":"invalid environment: environmentID 456 mismatch with requested environmentID 1234"}
+`),
+		},
+	}
+	for desc, tc := range testCases {
+		tc := tc
+		t.Run(desc, func(t *testing.T) {
+			var req *http.Request
+			var err error
+
+			switch tc.method {
+			case http.MethodPost:
+				req, err = http.NewRequest(http.MethodPost, tc.url, bytes.NewBuffer([]byte{}))
+				if err != nil {
+					t.Fatal(err)
+				}
+			case http.MethodGet:
+				req, err = http.NewRequest(http.MethodGet, tc.url, nil)
+				if err != nil {
+					t.Fatal(err)
+				}
+			}
+
+			req.Header.Add("Authorization", fmt.Sprintf("Bearer %s", tc.authToken))
+
+			resp, err := testServer.Client().Do(req)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer resp.Body.Close()
+
+			assert.Equal(t, tc.expectedStatusCode, resp.StatusCode)
+
+			if tc.expectedResponseBody != nil {
+				actual, err := io.ReadAll(resp.Body)
+				if err != nil {
+					t.Fatalf("(%s): failed to read response body: %s", desc, err)
+				}
+
+				if !assert.ElementsMatch(t, tc.expectedResponseBody, actual) {
+					t.Errorf("(%s) expected: %s \n got: %s ", desc, tc.expectedResponseBody, actual)
+				}
+			}
+		})
+	}
+}
+
 var (
 	// darkModeEvaluationFalse is the expected response body for a EvaluationsByFeature request when identifer='james' and feature='harnessappdemodarkmode '- the newline at the end is intentional
 	darkModeEvaluationFalse = []byte(`{"flag":"harnessappdemodarkmode","identifier":"false","kind":"boolean","value":"false"}
@@ -731,10 +1137,10 @@ var (
 `)
 )
 
-// TestHTTPServer_GetEvaluationsByFeature sets up an service with repositories
+// TestHTTPServer_GetEvaluationsByFeature_AuthBypassed sets up an service with repositories
 // populated from config/test, injects it into the HTTPServer and makes HTTP
 // requests to the /client/env/{environmentUUID}/evaluations/{feature} endpoint
-func TestHTTPServer_GetEvaluationsByFeature(t *testing.T) {
+func TestHTTPServer_GetEvaluationsByFeature_AuthBypassed(t *testing.T) {
 	// setup HTTPServer & service with auth bypassed
 	server := setupHTTPServer(t, true)
 	testServer := httptest.NewServer(server)
@@ -820,7 +1226,90 @@ func TestHTTPServer_GetEvaluationsByFeature(t *testing.T) {
 	}
 }
 
-func TestHTTPServer_PostMetrics(t *testing.T) {
+// TestHTTPServer_GetEvaluationsByFeature_WithAuth sets up an service with repositories
+// populated from config/test, injects it into the HTTPServer and makes HTTP
+// requests to the /client/env/{environmentUUID}/evaluations/{feature} endpoint
+func TestHTTPServer_GetEvaluationsByFeature_WithAuth(t *testing.T) {
+	// setup HTTPServer & service with auth bypassed
+	server := setupHTTPServer(t, false)
+	testServer := httptest.NewServer(server)
+	defer testServer.Close()
+
+	testCases := map[string]struct {
+		authToken            string
+		method               string
+		url                  string
+		expectedStatusCode   int
+		expectedResponseBody []byte
+	}{
+		"Given I make GET request for target that doesn't exist": {
+			authToken:            getAuthToken(t, env1234MockSDKKey, testServer),
+			method:               http.MethodGet,
+			url:                  fmt.Sprintf("%s/client/env/1234/target/bar/evaluations/harnessappdemodarkmode", testServer.URL),
+			expectedStatusCode:   http.StatusOK,
+			expectedResponseBody: darkModeEvaluationTrue,
+		},
+		"Given I make GET request for an environment and the target 'foo'": {
+			authToken:            getAuthToken(t, env1234MockSDKKey, testServer),
+			method:               http.MethodGet,
+			url:                  fmt.Sprintf("%s/client/env/1234/target/foo/evaluations/harnessappdemodarkmode", testServer.URL),
+			expectedStatusCode:   http.StatusOK,
+			expectedResponseBody: darkModeEvaluationTrue,
+		},
+		"Given I make GET request for an environment and the target 'foo' with a token for another env": {
+			authToken:          getAuthToken(t, env456MockSDKKey, testServer),
+			method:             http.MethodGet,
+			url:                fmt.Sprintf("%s/client/env/1234/target/foo/evaluations/harnessappdemodarkmode", testServer.URL),
+			expectedStatusCode: http.StatusForbidden,
+			// The newline in the expectedResponse body is deliberate
+			expectedResponseBody: []byte(`{"message":"invalid environment: environmentID 456 mismatch with requested environmentID 1234"}
+`),
+		},
+	}
+	for desc, tc := range testCases {
+		tc := tc
+		t.Run(desc, func(t *testing.T) {
+			var req *http.Request
+			var err error
+
+			switch tc.method {
+			case http.MethodPost:
+				req, err = http.NewRequest(http.MethodPost, tc.url, bytes.NewBuffer([]byte{}))
+				if err != nil {
+					t.Fatal(err)
+				}
+			case http.MethodGet:
+				req, err = http.NewRequest(http.MethodGet, tc.url, nil)
+				if err != nil {
+					t.Fatal(err)
+				}
+			}
+
+			req.Header.Add("Authorization", fmt.Sprintf("Bearer %s", tc.authToken))
+
+			resp, err := testServer.Client().Do(req)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer resp.Body.Close()
+
+			assert.Equal(t, tc.expectedStatusCode, resp.StatusCode)
+
+			if tc.expectedResponseBody != nil {
+				actual, err := io.ReadAll(resp.Body)
+				if err != nil {
+					t.Fatalf("(%s): failed to read response body: %s", desc, err)
+				}
+
+				if !assert.ElementsMatch(t, tc.expectedResponseBody, actual) {
+					t.Errorf("(%s) expected: %s \n got: %s ", desc, tc.expectedResponseBody, actual)
+				}
+			}
+		})
+	}
+}
+
+func TestHTTPServer_PostMetrics_BypassAuth(t *testing.T) {
 	// setup HTTPServer & service with auth bypassed
 	server := setupHTTPServer(t, true)
 	testServer := httptest.NewServer(server)
@@ -864,6 +1353,82 @@ func TestHTTPServer_PostMetrics(t *testing.T) {
 					t.Fatal(err)
 				}
 			}
+
+			resp, err := testServer.Client().Do(req)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer resp.Body.Close()
+
+			assert.Equal(t, tc.expectedStatusCode, resp.StatusCode)
+
+			if tc.expectedResponseBody != nil {
+				actual, err := io.ReadAll(resp.Body)
+				if err != nil {
+					t.Fatalf("(%s): failed to read response body: %s", desc, err)
+				}
+
+				if !assert.Equal(t, tc.expectedResponseBody, actual) {
+					t.Errorf("(%s) expected: %s \n got: %s ", desc, tc.expectedResponseBody, actual)
+				}
+			}
+		})
+	}
+}
+
+func TestHTTPServer_PostMetrics_WithAuth(t *testing.T) {
+	// setup HTTPServer & service with auth bypassed
+	server := setupHTTPServer(t, false)
+	testServer := httptest.NewServer(server)
+	defer testServer.Close()
+
+	testCases := map[string]struct {
+		authToken            string
+		method               string
+		url                  string
+		body                 []byte
+		expectedStatusCode   int
+		expectedResponseBody []byte
+	}{
+		"Given I make a POST request to /metrics/{environmentUUID}": {
+			authToken:          getAuthToken(t, env1234MockSDKKey, testServer),
+			method:             http.MethodPost,
+			url:                fmt.Sprintf("%s/metrics/1234", testServer.URL),
+			body:               []byte(`{}`),
+			expectedStatusCode: http.StatusOK,
+		},
+		"Given I make a POST request to /metrics/{environmentUUID} with an auth token from another env": {
+			authToken:          getAuthToken(t, env456MockSDKKey, testServer),
+			method:             http.MethodPost,
+			url:                fmt.Sprintf("%s/metrics/1234", testServer.URL),
+			body:               []byte(`{}`),
+			expectedStatusCode: http.StatusForbidden,
+			// The newline in the expectedResponse body is deliberate
+			expectedResponseBody: []byte(`{"message":"invalid environment: environmentID 456 mismatch with requested environmentID 1234"}
+`),
+		},
+	}
+
+	for desc, tc := range testCases {
+		tc := tc
+		t.Run(desc, func(t *testing.T) {
+			var req *http.Request
+			var err error
+
+			switch tc.method {
+			case http.MethodPost:
+				req, err = http.NewRequest(http.MethodPost, tc.url, bytes.NewBuffer(tc.body))
+				if err != nil {
+					t.Fatal(err)
+				}
+			case http.MethodGet:
+				req, err = http.NewRequest(http.MethodGet, tc.url, nil)
+				if err != nil {
+					t.Fatal(err)
+				}
+			}
+
+			req.Header.Add("Authorization", fmt.Sprintf("Bearer %s", tc.authToken))
 
 			resp, err := testServer.Client().Do(req)
 			if err != nil {
@@ -1095,13 +1660,13 @@ func TestAuthentication(t *testing.T) {
 			},
 			expectedStatusCode: http.StatusUnauthorized,
 		},
-		"Given I make requests to the service endpoints with a valid auth header": {
-			method: http.MethodGet,
-			headers: http.Header{
-				"Authorization": []string{fmt.Sprintf("Bearer %s", apiKey123Token)},
-			},
-			expectedStatusCode: http.StatusOK,
-		},
+		//"Given I make requests to the service endpoints with a valid auth header": {
+		//	method: http.MethodGet,
+		//	headers: http.Header{
+		//		"Authorization": []string{fmt.Sprintf("Bearer %s", apiKey123Token)},
+		//	},
+		//	expectedStatusCode: http.StatusOK,
+		//},
 	}
 
 	for desc, tc := range testCases {
@@ -1777,4 +2342,39 @@ type mockRepo struct {
 
 func (m mockRepo) Get(ctx context.Context, key domain.AuthAPIKey) (string, bool, error) {
 	return m.getFn(ctx, key)
+}
+
+func getAuthToken(t *testing.T, sdkKey string, testServer *httptest.Server) string {
+	authReq := domain.AuthRequest{
+		APIKey: sdkKey,
+	}
+
+	reqBody, err := jsoniter.Marshal(authReq)
+	if err != nil {
+		t.Fatalf("getAuthToken failed to marshal auth request: %s", err)
+	}
+
+	req, err := http.NewRequest(http.MethodPost, fmt.Sprintf("%s/client/auth", testServer.URL), bytes.NewBuffer(reqBody))
+	if err != nil {
+		t.Fatalf("getAuthToken failed to create request: %s", err)
+	}
+
+	resp, err := testServer.Client().Do(req)
+	if err != nil {
+		t.Fatalf("getAuthToken failed making auth request: %s", err)
+	}
+	defer resp.Body.Close()
+
+	buf := &bytes.Buffer{}
+	_, err = io.Copy(buf, resp.Body)
+	if err != nil {
+		t.Fatalf("getAuthToken to read response body from auth request: %s", err)
+	}
+
+	authResp := domain.AuthResponse{}
+	if err := json.Unmarshal(buf.Bytes(), &authResp); err != nil {
+		t.Fatalf("getAuthToken to read response unmarshal auth response: %s", err)
+	}
+
+	return authResp.AuthToken
 }
