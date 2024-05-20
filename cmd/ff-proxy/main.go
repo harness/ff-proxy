@@ -528,12 +528,12 @@ func main() {
 	endpoints := transport.NewEndpoints(service)
 	server := transport.NewHTTPServer(port, endpoints, logger, tlsEnabled, tlsCert, tlsKey)
 	server.Use(
+		middleware.AllowQuerySemicolons(),
 		middleware.NewCorsMiddleware(),
 		middleware.NewEchoRequestIDMiddleware(),
 		middleware.NewEchoLoggingMiddleware(logger),
 		middleware.NewEchoAuthMiddleware(logger, authRepo, []byte(authSecret), bypassAuth),
 		middleware.NewPrometheusMiddleware(promReg),
-		middleware.AllowQuerySemicolons(),
 	)
 
 	// We want to be able to expose prometheus metrics on a different server than the

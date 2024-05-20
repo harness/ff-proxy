@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
 	"time"
@@ -114,10 +115,25 @@ func NewEchoRequestIDMiddleware() echo.MiddlewareFunc {
 	}
 }
 
+// AllowQuerySemicolons is a middleware that re-writes ';' to '&' in URL query params
+// See golang.org/issue/25192
 func AllowQuerySemicolons() echo.MiddlewareFunc {
-	return echo.WrapMiddleware(func(next http.Handler) http.Handler {
-		return http.AllowQuerySemicolons(next)
-	})
+	return func(next echo.HandlerFunc) echo.HandlerFunc {
+		return func(c echo.Context) error {
+			req := c.Request()
+
+			if strings.Contains(req.URL.RawQuery, ";") {
+				r2 := new(http.Request)
+				*r2 = *req
+				r2.URL = new(url.URL)
+				*r2.URL = *req.URL
+				r2.URL.RawQuery = strings.ReplaceAll(req.URL.RawQuery, ";", "&")
+				c.SetRequest(r2)
+			}
+
+			return next(c)
+		}
+	}
 }
 
 type prometheusMiddleware struct {
