@@ -3,6 +3,7 @@ package middleware
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -86,11 +87,11 @@ func newParseAuthTokenFunc(logger log.Logger, authRepo keyLookUp, secret []byte)
 		if claims, ok := token.Claims.(*domain.Claims); ok && token.Valid && isKeyInCache(c.Request().Context(), logger, authRepo, claims) {
 
 			// Also check that the envID in the claims matches then envID in the request
-			//environmentUUID := c.Param("environment_uuid")
-			//if claims.Environment != environmentUUID {
-			//	logger.Info("environment %q mismatch with requested %q", claims.Environment, environmentUUID)
-			//	return nil, fmt.Errorf("%w: environmentID %s mismatch with requested environmentID %s", errInvalidEnvironment, claims.Environment, environmentUUID)
-			//}
+			environmentUUID := c.Param("environment_uuid")
+			if claims.Environment != environmentUUID {
+				logger.Info("environment %q mismatch with requested %q", claims.Environment, environmentUUID)
+				return nil, fmt.Errorf("%w: environmentID %s mismatch with requested environmentID %s", errInvalidEnvironment, claims.Environment, environmentUUID)
+			}
 
 			return nil, nil
 		}
