@@ -331,7 +331,7 @@ func main() {
 				"control_uri": "http://localhost:5561",
 			},
 		})
-		streamHealth     = stream.NewHealth(logger, "ffproxy_saas_stream_health", cache.NewKeyValCache(redisClient), readReplica)
+		streamHealth     = stream.NewStreamHealthMetrics(stream.NewHealth(logger, "ffproxy_saas_stream_health", cache.NewKeyValCache(redisClient), readReplica), promReg)
 		connectedStreams = domain.NewSafeMap()
 
 		getConnectedStreams = func() map[string]interface{} {
