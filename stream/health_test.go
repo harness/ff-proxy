@@ -8,6 +8,7 @@ import (
 	"github.com/harness/ff-proxy/v2/cache"
 	"github.com/harness/ff-proxy/v2/domain"
 	"github.com/harness/ff-proxy/v2/log"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -360,7 +361,9 @@ func TestHealth_SetHealthy(t *testing.T) {
 				inMemStatus: domain.NewSafeStreamStatus(tc.args.startingInMemStatus),
 			}
 
-			err := h.SetHealthy(context.Background())
+			h2 := NewStreamHealthMetrics(h, prometheus.NewRegistry())
+
+			err := h2.SetHealthy(context.Background())
 			if tc.shouldErr {
 				assert.NotNil(t, err)
 			} else {
@@ -633,7 +636,9 @@ func TestHealth_SetUnhealthy(t *testing.T) {
 				}),
 			}
 
-			err := h.SetUnhealthy(context.Background())
+			h2 := NewStreamHealthMetrics(h, prometheus.NewRegistry())
+
+			err := h2.SetUnhealthy(context.Background())
 			if tc.shouldErr {
 				assert.NotNil(t, err)
 			} else {
@@ -670,8 +675,9 @@ func TestReplicaHealth_SetHealthy(t *testing.T) {
 		t.Run(desc, func(t *testing.T) {
 
 			r := NewReplicaHealth("", nil, log.NoOpLogger{})
+			r2 := NewStreamHealthMetrics(r, prometheus.NewRegistry())
 
-			err := r.SetHealthy(context.Background())
+			err := r2.SetHealthy(context.Background())
 			if tc.shouldErr {
 				assert.NotNil(t, err)
 			} else {
@@ -707,8 +713,9 @@ func TestReplicaHealth_SetUnhealthy(t *testing.T) {
 		t.Run(desc, func(t *testing.T) {
 
 			r := NewReplicaHealth("", nil, log.NoOpLogger{})
+			r2 := NewStreamHealthMetrics(r, prometheus.NewRegistry())
 
-			err := r.SetUnhealthy(context.Background())
+			err := r2.SetUnhealthy(context.Background())
 			if tc.shouldErr {
 				assert.NotNil(t, err)
 			} else {

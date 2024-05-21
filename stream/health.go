@@ -3,11 +3,13 @@ package stream
 import (
 	"context"
 	"errors"
+	"os"
 	"time"
 
 	"github.com/harness/ff-proxy/v2/cache"
 	"github.com/harness/ff-proxy/v2/domain"
 	"github.com/harness/ff-proxy/v2/log"
+	"github.com/prometheus/client_golang/prometheus"
 )
 
 // Health defines the health interface for a Stream
@@ -279,4 +281,47 @@ func (r ReplicaHealth) GetStreamStatus(ctx context.Context) {
 			}
 		}
 	}
+}
+
+type streamHealthMetrics struct {
+	next     Health
+	gauge    *prometheus.GaugeVec
+	hostName string
+}
+
+func NewStreamHealthMetrics(next Health, r prometheus.Registerer) Health {
+	hostName, _ := os.Hostname()
+	if hostName == "" {
+		hostName = "unknown"
+	}
+
+	h := streamHealthMetrics{
+		next:     next,
+		hostName: hostName,
+		gauge: prometheus.NewGaugeVec(prometheus.GaugeOpts{
+			// Tracks the health of Proxy streaming i.e are we connected to Saas stream and
+			// are SDKs connected to Replica streams. Or are we disconnected fromm Saas & polling
+			// in which case SDKs would also be disconnected from replicas and polling
+			Name: "ff_proxy_stream_health",
+		},
+			[]string{"host"},
+		),
+	}
+
+	r.MustRegister(h.gauge)
+	return h
+}
+
+func (p streamHealthMetrics) SetHealthy(ctx context.Context) error {
+	p.gauge.WithLabelValues(p.hostName).Set(1)
+	return p.next.SetHealthy(ctx)
+}
+
+func (p streamHealthMetrics) SetUnhealthy(ctx context.Context) error {
+	p.gauge.WithLabelValues(p.hostName).Set(0)
+	return p.next.SetUnhealthy(ctx)
+}
+
+func (p streamHealthMetrics) Status(ctx context.Context) (domain.StreamStatus, error) {
+	return p.next.Status(ctx)
 }
