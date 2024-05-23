@@ -463,6 +463,8 @@ func main() {
 		redisForwarder := stream.NewForwarder(logger, redisStream, cacheRefresher, stream.WithStreamName(sseStreamTopic))
 		messageHandler = stream.NewForwarder(logger, pushpinStream, redisForwarder)
 
+		pollingStatus := stream.NewPollingStatusMetric(promReg)
+
 		streamURL := fmt.Sprintf("%s/stream?cluster=%s", clientService, conf.ClusterIdentifier())
 		sseClient := stream.NewSSEClient(
 			logger,
@@ -470,8 +472,8 @@ func main() {
 			proxyKey,
 			conf.Token(),
 			conf.AccountID(),
-			stream.SaasStreamOnConnect(logger, streamHealth, reloadConfig, primaryToReplicaControlStream),
-			stream.SaasStreamOnDisconnect(logger, streamHealth, pushpin, primaryToReplicaControlStream, getConnectedStreams, reloadConfig),
+			stream.SaasStreamOnConnect(logger, streamHealth, reloadConfig, primaryToReplicaControlStream, pollingStatus),
+			stream.SaasStreamOnDisconnect(logger, streamHealth, pushpin, primaryToReplicaControlStream, getConnectedStreams, reloadConfig, pollingStatus),
 		)
 
 		saasStream := stream.NewStream(

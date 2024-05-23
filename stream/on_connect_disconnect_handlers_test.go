@@ -7,6 +7,7 @@ import (
 
 	"github.com/harness/ff-proxy/v2/domain"
 	"github.com/harness/ff-proxy/v2/log"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -115,7 +116,9 @@ func TestSaasStreamOnDisconnect(t *testing.T) {
 				domain.NoOpMessageHandler{},
 			)
 
-			SaasStreamOnDisconnect(log.NoOpLogger{}, tc.mocks.health, tc.mocks.pushpin, redisStream, tc.mocks.connectedStreamsFunc, tc.mocks.pollFn)()
+			ps := NewPollingStatusMetric(prometheus.NewRegistry())
+
+			SaasStreamOnDisconnect(log.NoOpLogger{}, tc.mocks.health, tc.mocks.pushpin, redisStream, tc.mocks.connectedStreamsFunc, tc.mocks.pollFn, ps)()
 
 			t.Log("Then the stream status will become unhealthy")
 			assert.Equal(t, tc.expected.streamHealth, tc.mocks.health.getHealth())
@@ -175,8 +178,9 @@ func TestSaasStreamOnConnect(t *testing.T) {
 				tc.mocks.stream,
 				domain.NoOpMessageHandler{},
 			)
+			ps := NewPollingStatusMetric(prometheus.NewRegistry())
 
-			SaasStreamOnConnect(log.NoOpLogger{}, tc.mocks.health, tc.mocks.reloadConfig, redisStream)()
+			SaasStreamOnConnect(log.NoOpLogger{}, tc.mocks.health, tc.mocks.reloadConfig, redisStream, ps)()
 
 			t.Log("Then the stream status will become healthy")
 			assert.Equal(t, tc.expected.streamHealth, tc.mocks.health.getHealth())
