@@ -331,7 +331,8 @@ func main() {
 				"control_uri": "http://localhost:5561",
 			},
 		})
-		streamHealth     = stream.NewStreamHealthMetrics(stream.NewHealth(logger, "ffproxy_saas_stream_health", cache.NewKeyValCache(redisClient), readReplica), promReg)
+		sHealth          = stream.NewHealth(logger, "ffproxy_saas_stream_health", cache.NewKeyValCache(redisClient), readReplica)
+		streamHealth     = stream.NewStreamHealthMetrics(sHealth, promReg)
 		connectedStreams = domain.NewSafeMap()
 
 		getConnectedStreams = func() map[string]interface{} {
@@ -347,11 +348,11 @@ func main() {
 	// If we're running as replicas we kick off a routine to make sure the in memory status matches the
 	// cached status
 	if !readReplica {
-		if h, ok := streamHealth.(stream.PrimaryHealth); ok {
+		if h, ok := sHealth.(stream.PrimaryHealth); ok {
 			go h.VerifyStreamStatus(ctx, 60*time.Second)
 		}
 	} else {
-		if h, ok := streamHealth.(stream.ReplicaHealth); ok {
+		if h, ok := sHealth.(stream.ReplicaHealth); ok {
 			go h.GetStreamStatus(ctx)
 		}
 	}
