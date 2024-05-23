@@ -323,6 +323,10 @@ func main() {
 		os.Exit(1)
 	}
 
+	const (
+		streamHealthKey = "ffproxy_saas_stream_health"
+	)
+
 	var (
 		messageHandler domain.MessageHandler
 
@@ -331,7 +335,9 @@ func main() {
 				"control_uri": "http://localhost:5561",
 			},
 		})
-		sHealth          = stream.NewHealth(logger, "ffproxy_saas_stream_health", cache.NewKeyValCache(redisClient), readReplica)
+
+		keyvalCache      = cache.NewKeyValCache(redisClient)
+		sHealth          = stream.NewHealth(logger, streamHealthKey, keyvalCache, readReplica)
 		streamHealth     = stream.NewStreamHealthMetrics(sHealth, promReg)
 		connectedStreams = domain.NewSafeMap()
 
@@ -355,15 +361,8 @@ func main() {
 		} else {
 			go h.VerifyStreamStatus(ctx, 60*time.Second)
 		}
-
 	} else {
-		h, ok := sHealth.(stream.ReplicaHealth)
-		if !ok {
-			logger.Error("got unexpected type for streamHealth", "expected", "stream.ReplicaHealth", "got", fmt.Sprintf("%T", h))
-		} else {
-			go h.GetStreamStatus(ctx)
-		}
-
+		go getStreamStatusForReplica(ctx, keyvalCache, logger, streamHealth, streamHealthKey)
 	}
 
 	// Get the underlying type from the pushpinStream which is currently the
@@ -698,4 +697,47 @@ func runPrometheusServer(ctx context.Context, port int, promReg *prometheus.Regi
 			os.Exit(1)
 		}
 	}()
+}
+
+// getStreamStatus gets the StreamStatus from the cache. This is needed at startup for replicas to load
+// the correct stream status into memory but after startup the replicas in memory stream status will be
+// kept up to date by the CONNECT & DISCONNECT messages sent from the primary
+func getStreamStatusForReplica(ctx context.Context, c cache.Cache, log log.Logger, h stream.Health, key string) {
+	ticker := time.NewTicker(5 * time.Second)
+	defer ticker.Stop()
+
+	status := domain.StreamStatus{}
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			log.Info("getting cached stream status as a part of the startup flow")
+
+			if err := c.Get(ctx, key, &status); err != nil {
+				log.Error("failed to get stream status from cache, backing off and retrying in 5 seconds", "err", err)
+				continue
+			}
+
+			if status.State == domain.StreamStateInitializing {
+				log.Info("cached stream status is still initializing... backing off and fetching it again in 5 seconds")
+				continue
+			}
+
+			if status.State == domain.StreamStateConnected {
+				if err := h.SetHealthy(ctx); err != nil {
+					log.Error("failed to set healthy stream status in read replica", "err", err)
+				}
+				return
+			}
+
+			if status.State == domain.StreamStateDisconnected {
+				if err := h.SetUnhealthy(ctx); err != nil {
+					log.Error("failed to set unhealthy status in read replica", "err", err)
+				}
+				return
+			}
+		}
+	}
 }
