@@ -349,7 +349,7 @@ func main() {
 	// cached status
 	// nolint:nestif
 	if !readReplica {
-		h, ok := streamHealth.(stream.PrimaryHealth)
+		h, ok := sHealth.(stream.PrimaryHealth)
 		if !ok {
 			logger.Error("got unexpected type for streamHealth", "expected", "stream.PrimaryHealth", "got", fmt.Sprintf("%T", h))
 		} else {
@@ -357,7 +357,7 @@ func main() {
 		}
 
 	} else {
-		h, ok := streamHealth.(stream.ReplicaHealth)
+		h, ok := sHealth.(stream.ReplicaHealth)
 		if !ok {
 			logger.Error("got unexpected type for streamHealth", "expected", "stream.ReplicaHealth", "got", fmt.Sprintf("%T", h))
 		} else {
