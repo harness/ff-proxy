@@ -350,10 +350,14 @@ func main() {
 	if !readReplica {
 		if h, ok := sHealth.(stream.PrimaryHealth); ok {
 			go h.VerifyStreamStatus(ctx, 60*time.Second)
+		} else {
+			logger.Error("got unexpected type for streamHealth", "expected", "stream.PrimaryHealth", "got", fmt.Sprintf("%T", h))
 		}
 	} else {
 		if h, ok := sHealth.(stream.ReplicaHealth); ok {
 			go h.GetStreamStatus(ctx)
+		} else {
+			logger.Error("got unexpected type for streamHealth", "expected", "stream.ReplicaHealth", "got", fmt.Sprintf("%T", h))
 		}
 	}
 
