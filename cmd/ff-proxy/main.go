@@ -331,7 +331,8 @@ func main() {
 				"control_uri": "http://localhost:5561",
 			},
 		})
-		streamHealth     = stream.NewStreamHealthMetrics(stream.NewHealth(logger, "ffproxy_saas_stream_health", cache.NewKeyValCache(redisClient), readReplica), promReg)
+		sHealth          = stream.NewHealth(logger, "ffproxy_saas_stream_health", cache.NewKeyValCache(redisClient), readReplica)
+		streamHealth     = stream.NewStreamHealthMetrics(sHealth, promReg)
 		connectedStreams = domain.NewSafeMap()
 
 		getConnectedStreams = func() map[string]interface{} {
@@ -346,14 +347,23 @@ func main() {
 	// the in memory status.
 	// If we're running as replicas we kick off a routine to make sure the in memory status matches the
 	// cached status
+	// nolint:nestif
 	if !readReplica {
-		if h, ok := streamHealth.(stream.PrimaryHealth); ok {
+		h, ok := sHealth.(stream.PrimaryHealth)
+		if !ok {
+			logger.Error("got unexpected type for streamHealth", "expected", "stream.PrimaryHealth", "got", fmt.Sprintf("%T", h))
+		} else {
 			go h.VerifyStreamStatus(ctx, 60*time.Second)
 		}
+
 	} else {
-		if h, ok := streamHealth.(stream.ReplicaHealth); ok {
+		h, ok := sHealth.(stream.ReplicaHealth)
+		if !ok {
+			logger.Error("got unexpected type for streamHealth", "expected", "stream.ReplicaHealth", "got", fmt.Sprintf("%T", h))
+		} else {
 			go h.GetStreamStatus(ctx)
 		}
+
 	}
 
 	// Get the underlying type from the pushpinStream which is currently the
