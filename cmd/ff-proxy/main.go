@@ -347,20 +347,23 @@ func main() {
 	// the in memory status.
 	// If we're running as replicas we kick off a routine to make sure the in memory status matches the
 	// cached status
+	// nolint:nestif
 	if !readReplica {
-		h, ok := sHealth.(stream.PrimaryHealth)
+		h, ok := streamHealth.(stream.PrimaryHealth)
 		if !ok {
 			logger.Error("got unexpected type for streamHealth", "expected", "stream.PrimaryHealth", "got", fmt.Sprintf("%T", h))
+		} else {
+			go h.VerifyStreamStatus(ctx, 60*time.Second)
 		}
 
-		go h.VerifyStreamStatus(ctx, 60*time.Second)
 	} else {
-		h, ok := sHealth.(stream.ReplicaHealth)
+		h, ok := streamHealth.(stream.ReplicaHealth)
 		if !ok {
 			logger.Error("got unexpected type for streamHealth", "expected", "stream.ReplicaHealth", "got", fmt.Sprintf("%T", h))
+		} else {
+			go h.GetStreamStatus(ctx)
 		}
 
-		go h.GetStreamStatus(ctx)
 	}
 
 	// Get the underlying type from the pushpinStream which is currently the
