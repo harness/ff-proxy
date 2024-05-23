@@ -729,6 +729,7 @@ func getStreamStatusForReplica(ctx context.Context, c cache.Cache, log log.Logge
 				if err := h.SetHealthy(ctx); err != nil {
 					log.Error("failed to set healthy stream status in read replica", "err", err)
 				}
+				log.Info("successfully retrieved cached status and set it in memory", "state", status.State, "since", status.Since)
 				return
 			}
 
@@ -736,6 +737,7 @@ func getStreamStatusForReplica(ctx context.Context, c cache.Cache, log log.Logge
 				if err := h.SetUnhealthy(ctx); err != nil {
 					log.Error("failed to set unhealthy status in read replica", "err", err)
 				}
+				log.Info("successfully retrieved cached status and set it in memory", "state", status.State, "since", status.Since)
 				return
 			}
 		}
