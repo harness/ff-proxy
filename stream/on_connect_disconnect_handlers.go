@@ -14,12 +14,17 @@ type pollFn func() error
 // getConnectedStreamsFn defines the function that returns the names of open streams between the Proxy & SDKs
 type getConnectedStreamsFn func() map[string]interface{}
 
+type pollingStatus interface {
+	Polling()
+	NotPolling()
+}
+
 // SaasStreamOnDisconnect is called anytime we disconnect or fail to reconnect to the SaaS SSE stream and does the following
 // - Sets the status of the SaaS stream in the cache to unhealthy, this means any new /stream requests to writer or read proxy's will be rejects
 // - Polls saas for the latest config and refreshes the cache with any changes
 // - Closes any 'Write Replica' Proxy -> SDK streams
 // - Notifies 'read replica' proxy's that there's been a disconnection between the 'Write replica' and SaaS
-func SaasStreamOnDisconnect(l log.Logger, streamHealth Health, pp Pushpin, redisSSEStream Stream, streams getConnectedStreamsFn, pollFn pollFn) func() {
+func SaasStreamOnDisconnect(l log.Logger, streamHealth Health, pp Pushpin, redisSSEStream Stream, streams getConnectedStreamsFn, pollFn pollFn, pollingStatus pollingStatus) func() {
 	return func() {
 		l.Info("disconnected from Harness SaaS SSE Stream")
 
@@ -28,9 +33,11 @@ func SaasStreamOnDisconnect(l log.Logger, streamHealth Health, pp Pushpin, redis
 
 		// Set to false so the ProxyService will reject any /stream requests from SDKs until we've reconnected
 		_ = streamHealth.SetUnhealthy(ctx)
+		pollingStatus.Polling()
 
 		// Poll latest config from SaaS, this is to make sure we don't miss any changes that could have
 		// happened while the stream was disconnected
+		l.Info("polling Harness Saas for changes")
 		if err := pollFn(); err != nil {
 			l.Error("SSE stream disconnected, failed to poll for new config", "err", err)
 		} else {
@@ -48,14 +55,17 @@ func SaasStreamOnDisconnect(l log.Logger, streamHealth Health, pp Pushpin, redis
 
 		// Publish an event to the redis stream that the read replica proxy's are listening on to let them
 		// know we've disconnected from SaaS.
+		l.Info("publishing disconnect message for replicas")
 		if err := redisSSEStream.Publish(ctx, domain.SSEMessage{Event: "stream_action", Domain: "disconnect"}); err != nil {
 			l.Error("failed to publish stream disconnect message to redis", "err", err)
+		} else {
+			l.Info("successfully published disconnect message for replicas")
 		}
 	}
 }
 
 // SaasStreamOnConnect sets the status of the SaaS stream to healthy in the cache
-func SaasStreamOnConnect(l log.Logger, streamHealth Health, reloadConfig func() error, redisSSEStream Stream) func() {
+func SaasStreamOnConnect(l log.Logger, streamHealth Health, reloadConfig func() error, redisSSEStream Stream, pollingStatus pollingStatus) func() {
 	return func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 1*time.Minute)
 		defer cancel()
@@ -77,6 +87,7 @@ func SaasStreamOnConnect(l log.Logger, streamHealth Health, reloadConfig func() 
 		}
 
 		l.Info("connected to Harness SaaS SSE Stream")
+		pollingStatus.NotPolling()
 		if err := streamHealth.SetHealthy(ctx); err != nil {
 			l.Error("failed to update SaaS stream status in cache", "err", err)
 		}

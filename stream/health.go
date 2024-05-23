@@ -289,6 +289,8 @@ type streamHealthMetrics struct {
 	hostName string
 }
 
+// NewStreamHealthMetrics creates a new Health implementation 'middleware' that tracks the state
+// of streaming with a prometheus metric before calling the next Health implementation.
 func NewStreamHealthMetrics(next Health, r prometheus.Registerer) Health {
 	hostName, _ := os.Hostname()
 	if hostName == "" {
@@ -299,10 +301,11 @@ func NewStreamHealthMetrics(next Health, r prometheus.Registerer) Health {
 		next:     next,
 		hostName: hostName,
 		gauge: prometheus.NewGaugeVec(prometheus.GaugeOpts{
-			// Tracks the health of Proxy streaming i.e are we connected to Saas stream and
+			// Tracks the health of Proxy streaming i.e. are we connected to Saas stream and
 			// are SDKs connected to Replica streams. Or are we disconnected fromm Saas & polling
 			// in which case SDKs would also be disconnected from replicas and polling
 			Name: "ff_proxy_stream_health",
+			Help: "Tracks the health of Proxy streaming i.e. is the Proxy connected to the Saas stream & are sdks connected to the Replica streams",
 		},
 			[]string{"host"},
 		),
@@ -312,11 +315,13 @@ func NewStreamHealthMetrics(next Health, r prometheus.Registerer) Health {
 	return h
 }
 
+// SetHealthy sets the gauge value to connected (1) and calls the next Health implementation
 func (p streamHealthMetrics) SetHealthy(ctx context.Context) error {
 	p.gauge.WithLabelValues(p.hostName).Set(1)
 	return p.next.SetHealthy(ctx)
 }
 
+// SetUnhealthy sets the gauge value to disconnected (0) and calls the next Health implementation
 func (p streamHealthMetrics) SetUnhealthy(ctx context.Context) error {
 	p.gauge.WithLabelValues(p.hostName).Set(0)
 	return p.next.SetUnhealthy(ctx)
@@ -324,4 +329,41 @@ func (p streamHealthMetrics) SetUnhealthy(ctx context.Context) error {
 
 func (p streamHealthMetrics) Status(ctx context.Context) (domain.StreamStatus, error) {
 	return p.next.Status(ctx)
+}
+
+// PollingStatusMetric is a metric that tracks the state of polling in the Primary Proxy
+type PollingStatusMetric struct {
+	gauge    *prometheus.GaugeVec
+	hostName string
+}
+
+// NewPollingStatusMetric creates a new PollingStatusMetric
+func NewPollingStatusMetric(r prometheus.Registerer) PollingStatusMetric {
+	hostName, _ := os.Hostname()
+	if hostName == "" {
+		hostName = "unknown"
+	}
+
+	p := PollingStatusMetric{
+		hostName: hostName,
+		gauge: prometheus.NewGaugeVec(prometheus.GaugeOpts{
+			Name: "ff_proxy_polling_status",
+			Help: "Tracks whether or not the Primary Proxy is polling",
+		},
+			[]string{"host"},
+		),
+	}
+
+	r.MustRegister(p.gauge)
+	return p
+}
+
+// Polling sets the gauge to the value for when we're in polling mode
+func (p PollingStatusMetric) Polling() {
+	p.gauge.WithLabelValues(p.hostName).Set(1)
+}
+
+// NotPolling sets the gauge to the value for when we're not in polling mode
+func (p PollingStatusMetric) NotPolling() {
+	p.gauge.WithLabelValues(p.hostName).Set(0)
 }
