@@ -246,43 +246,6 @@ func (r ReplicaHealth) Status(_ context.Context) (domain.StreamStatus, error) {
 	return r.inMemStatus.Get(), nil
 }
 
-// GetStreamStatus gets the StreamStatus from the cache. This is needed at startup for replicas to load
-// the correct stream status into memory but after startup the replicas in memory stream status will be
-// kept up to date by the CONNECT & DISCONNECT messages sent from the primary
-func (r ReplicaHealth) GetStreamStatus(ctx context.Context) {
-	ticker := time.NewTicker(5 * time.Second)
-	defer ticker.Stop()
-
-	status := domain.StreamStatus{}
-
-	for {
-		select {
-		case <-ctx.Done():
-			return
-		case <-ticker.C:
-			r.log.Info("getting cached stream status as a part of the startup flow")
-
-			if err := r.c.Get(ctx, r.key, &status); err != nil {
-				r.log.Error("failed to get stream status from cache, backing off and retrying in 5 seconds", "err", err)
-				continue
-			}
-
-			if status.State == domain.StreamStateInitializing {
-				r.log.Info("cached stream status is still initializing... backing off and fetching it again in 5 seconds")
-				continue
-			}
-
-			// Once we've sucessfully fetched the status once from the cache at startup we're done
-			// and can rely on receiving events from the Primary to find out the stream status
-			if status.State == domain.StreamStateConnected || status.State == domain.StreamStateDisconnected {
-				r.inMemStatus.Set(status)
-				r.log.Info("successfully retreived cached status and set it in memory", "state", status.State, "since", status.Since)
-				return
-			}
-		}
-	}
-}
-
 type streamHealthMetrics struct {
 	next     Health
 	gauge    *prometheus.GaugeVec
