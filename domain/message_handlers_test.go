@@ -2,7 +2,6 @@ package domain
 
 import (
 	"context"
-	"io"
 	"sync"
 	"testing"
 
@@ -62,7 +61,7 @@ func TestReadReplicaMessageHandler_HandleMessage(t *testing.T) {
 			args: args{
 				msg: SSEMessage{
 					Event:  "stream_action",
-					Domain: "disconnect",
+					Domain: StreamStateDisconnected.String(),
 				},
 			},
 			mocks: mocks{
@@ -73,15 +72,15 @@ func TestReadReplicaMessageHandler_HandleMessage(t *testing.T) {
 			},
 			expected: expected{
 				health: false,
-				err:    io.EOF,
+				err:    nil,
 			},
-			shouldErr: true,
+			shouldErr: false,
 		},
 		"Given I have a unhealthy status and get a stream connect event": {
 			args: args{
 				msg: SSEMessage{
 					Event:  "stream_action",
-					Domain: "connect",
+					Domain: StreamStateConnected.String(),
 				},
 			},
 			mocks: mocks{
