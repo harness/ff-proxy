@@ -406,8 +406,8 @@ func main() {
 	)
 
 	if !readReplica {
-		f := stream.NewStreamStatusWorker(streamHealth, primaryToReplicaControlStream, logger)
-		go f.Start(ctx)
+		s := stream.NewStatusWorker(streamHealth, primaryToReplicaControlStream, logger)
+		go s.Start(ctx)
 	}
 
 	// Create repos
