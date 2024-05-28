@@ -3,6 +3,7 @@ package stream
 import (
 	"context"
 	"errors"
+	"fmt"
 	"os"
 	"time"
 
@@ -329,4 +330,45 @@ func (p PollingStatusMetric) Polling() {
 // NotPolling sets the gauge to the value for when we're not in polling mode
 func (p PollingStatusMetric) NotPolling() {
 	p.gauge.WithLabelValues(p.hostName).Set(0)
+}
+
+type StatusWorker struct {
+	health Health
+	pub    Stream
+	log    log.Logger
+}
+
+func NewStatusWorker(health Health, pub Stream, logger log.Logger) *StatusWorker {
+	l := logger.With("component", "StreamStatusWorker")
+	return &StatusWorker{
+		health: health,
+		pub:    pub,
+		log:    l,
+	}
+}
+
+func (s *StatusWorker) Start(ctx context.Context) {
+	ticker := time.NewTicker(20 * time.Second)
+
+	for {
+		select {
+		case <-ctx.Done():
+			s.log.Info("exiting StreamStatusWorker.Start", "reason", ctx.Err())
+			return
+		case <-ticker.C:
+
+			status, err := s.health.Status(ctx)
+			if err != nil {
+				s.log.Error("failed to retrieve health status", "err", err)
+				continue
+			}
+
+			s.log.Info(fmt.Sprintf("publishing %s message for replicas", status.State.String()))
+			if err := s.pub.Publish(ctx, domain.SSEMessage{Event: "stream_action", Domain: status.State.String()}); err != nil {
+				s.log.Error(fmt.Sprintf("failed to publish stream %s message to redis", status.State.String()), "err", err)
+				continue
+			}
+			s.log.Info(fmt.Sprintf("successfully published %s message for replicas", status.State.String()))
+		}
+	}
 }

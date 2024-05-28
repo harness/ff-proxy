@@ -55,12 +55,13 @@ func SaasStreamOnDisconnect(l log.Logger, streamHealth Health, pp Pushpin, redis
 
 		// Publish an event to the redis stream that the read replica proxy's are listening on to let them
 		// know we've disconnected from SaaS.
-		l.Info("publishing disconnect message for replicas")
-		if err := redisSSEStream.Publish(ctx, domain.SSEMessage{Event: "stream_action", Domain: "disconnect"}); err != nil {
-			l.Error("failed to publish stream disconnect message to redis", "err", err)
-		} else {
-			l.Info("successfully published disconnect message for replicas")
+		l.Info("publishing disconnected message for replicas")
+		if err := redisSSEStream.Publish(ctx, domain.SSEMessage{Event: "stream_action", Domain: domain.StreamStateDisconnected.String()}); err != nil {
+			l.Error("failed to publish stream disconnected message to redis", "err", err)
+			return
 		}
+
+		l.Info("successfully published disconnected message for replicas")
 	}
 }
 
@@ -94,9 +95,13 @@ func SaasStreamOnConnect(l log.Logger, streamHealth Health, reloadConfig func() 
 
 		// Publish an event to the redis stream that the read replica proxy's are listening on to let them
 		// know we've connected to SaaS.
-		if err := redisSSEStream.Publish(ctx, domain.SSEMessage{Event: "stream_action", Domain: "connect"}); err != nil {
+		l.Info("publishing stream connected message for replicas")
+		if err := redisSSEStream.Publish(ctx, domain.SSEMessage{Event: "stream_action", Domain: domain.StreamStateConnected.String()}); err != nil {
 			l.Error("failed to publish stream connect message to redis", "err", err)
+			return
 		}
+
+		l.Info("successfully published stream connected message for replicas")
 	}
 }
 

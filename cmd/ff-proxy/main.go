@@ -405,6 +405,11 @@ func main() {
 		stream.WithBackoff(backoff.NewConstantBackOff(1*time.Minute)),
 	)
 
+	if !readReplica {
+		s := stream.NewStatusWorker(streamHealth, primaryToReplicaControlStream, logger)
+		go s.Start(ctx)
+	}
+
 	// Create repos
 	targetRepo := repository.NewTargetRepo(sdkCache, logger)
 	flagRepo := repository.NewFeatureFlagRepo(hashCache)

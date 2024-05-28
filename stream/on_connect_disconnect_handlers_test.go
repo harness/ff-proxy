@@ -96,7 +96,7 @@ func TestSaasStreamOnDisconnect(t *testing.T) {
 			},
 			expected: expected{
 				events: []interface{}{
-					domain.SSEMessage{Event: "stream_action", Domain: "disconnect", Identifier: "", Version: 0, Environment: "", Environments: []string(nil), APIKey: ""},
+					domain.SSEMessage{Event: "stream_action", Domain: domain.StreamStateDisconnected.String(), Identifier: "", Version: 0, Environment: "", Environments: []string(nil), APIKey: ""},
 				},
 				streamHealth: false,
 			},
@@ -159,7 +159,7 @@ func TestSaasStreamOnConnect(t *testing.T) {
 			},
 			expected: expected{
 				events: []interface{}{
-					domain.SSEMessage{Event: "stream_action", Domain: "connect", Identifier: "", Version: 0, Environment: "", Environments: []string(nil), APIKey: ""},
+					domain.SSEMessage{Event: "stream_action", Domain: domain.StreamStateConnected.String(), Identifier: "", Version: 0, Environment: "", Environments: []string(nil), APIKey: ""},
 				},
 				streamHealth: true,
 			},
