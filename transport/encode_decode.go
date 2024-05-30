@@ -14,8 +14,9 @@ import (
 )
 
 var (
-	errBadRouting = errors.New("bad routing")
-	errBadRequest = errors.New("bad request")
+	errBadRouting   = errors.New("bad routing")
+	errBadRequest   = errors.New("bad request")
+	rulesQueryParam = "rules"
 )
 
 // encodeResponse is the common method to encode all the non error response types
@@ -147,9 +148,11 @@ func decodeGetTargetSegmentsRequest(c echo.Context) (interface{}, error) {
 	if envID == "" {
 		return nil, errBadRouting
 	}
+	rules := c.QueryParam(rulesQueryParam)
 
 	req := domain.TargetSegmentsRequest{
 		EnvironmentID: envID,
+		Rules:         rules,
 	}
 	return req, nil
 }
@@ -164,9 +167,12 @@ func decodeGetTargetSegmentsByIdentifierRequest(c echo.Context) (interface{}, er
 		return nil, errBadRouting
 	}
 
+	rules := c.QueryParam(rulesQueryParam)
+
 	req := domain.TargetSegmentsByIdentifierRequest{
 		EnvironmentID: envID,
 		Identifier:    identifier,
+		Rules:         rules,
 	}
 	return req, nil
 }

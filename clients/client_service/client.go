@@ -252,11 +252,11 @@ func (c Client) FetchFeatureConfigForEnvironment(ctx context.Context, authToken,
 }
 
 func (c Client) FetchSegmentConfigForEnvironment(ctx context.Context, authToken, cluster, envID string) ([]clientgen.Segment, error) {
-
+	rulesV2 := clientgen.SegmentRulesV2QueryParam("v2")
 	resp, err := c.client.GetAllSegmentsWithResponse(
 		ctx,
 		envID,
-		&clientgen.GetAllSegmentsParams{Cluster: &cluster},
+		&clientgen.GetAllSegmentsParams{Cluster: &cluster, Rules: &rulesV2},
 		addAuthToken(authToken),
 		domain.AddHarnessXHeaders(envID),
 	)

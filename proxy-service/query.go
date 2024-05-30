@@ -38,7 +38,7 @@ func (q QueryStore) GetFlagMap() (map[string]*rest.FeatureConfig, error) {
 }
 
 // GenerateQueryStore returns a QueryStore object which can be passed to the go sdk evaluator
-// nolint:cyclop
+// nolint:cyclop, gocognit
 func (s Service) GenerateQueryStore(ctx context.Context, environmentID string, segments map[string]*domain.Segment) QueryStore {
 	return QueryStore{
 		F: func(identifier string) (rest.FeatureConfig, error) {
@@ -61,7 +61,11 @@ func (s Service) GenerateQueryStore(ctx context.Context, environmentID string, s
 			// to hitting the repo
 			if segments != nil {
 				if seg, ok := segments[identifier]; ok {
-					return seg.ToSDKSegment(), nil
+					sdkSegment := seg.ToSDKSegment()
+					if !s.andRulesEnabled {
+						sdkSegment.ServingRules = nil
+					}
+					return sdkSegment, nil
 				}
 			}
 
@@ -73,8 +77,11 @@ func (s Service) GenerateQueryStore(ctx context.Context, environmentID string, s
 				}
 				s.logger.Debug(ctx, "segments not found in cache: ", "err", err.Error())
 			}
-
-			return segment.ToSDKSegment(), nil
+			sdkSegment := segment.ToSDKSegment()
+			if !s.andRulesEnabled {
+				sdkSegment.ServingRules = nil
+			}
+			return sdkSegment, nil
 		},
 		L: func() ([]rest.FeatureConfig, error) {
 			// fetch flags

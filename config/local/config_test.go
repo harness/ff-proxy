@@ -226,6 +226,21 @@ var (
 				Values:    []string{"2a00:23c5:b672:2401:158:f2a6:67a0:6a79"},
 			},
 		},
+		ServingRules: &[]clientgen.GroupServingRule{
+			{
+				Clauses: []clientgen.Clause{
+					{
+						Attribute: "ip",
+						Id:        domain.ToPtr("31c18ee7-8051-44cc-8507-b44580467ee5"),
+						Negate:    false,
+						Op:        "equal",
+						Values:    []string{"2a00:23c5:b672:2401:158:f2a6:67a0:6a79"},
+					},
+				},
+				Priority: 1,
+				RuleId:   "990a58a4-8ff8-4376-ae6e-a95d10387c4c",
+			},
+		},
 		Version:    domain.ToPtr(int64(1)),
 		CreatedAt:  domain.ToPtr(int64(123)),
 		ModifiedAt: domain.ToPtr(int64(456)),

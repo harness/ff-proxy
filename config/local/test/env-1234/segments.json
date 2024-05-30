@@ -20,6 +20,23 @@
             ]
           }
         ],
+       "servingRules": [
+         {
+           "clauses": [
+             {
+               "attribute": "ip",
+               "id": "31c18ee7-8051-44cc-8507-b44580467ee5",
+               "negate": false,
+               "op": "equal",
+               "values": [
+                 "2a00:23c5:b672:2401:158:f2a6:67a0:6a79"
+               ]
+             }
+           ],
+           "priority": 1,
+           "ruleId": "990a58a4-8ff8-4376-ae6e-a95d10387c4c"
+         }
+       ],
         "version": 1,
         "createdAt": 123,
         "modifiedAt": 456

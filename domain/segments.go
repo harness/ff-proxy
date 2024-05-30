@@ -36,22 +36,23 @@ func (s *Segment) UnmarshalBinary(b []byte) error {
 }
 
 func (s *Segment) ToSDKSegment() rest.Segment {
-
 	rules := toSDKClause(s.Rules)
+	servingRules := toGroupServingRules(s.ServingRules)
 	excluded := toSDKTarget(s.Excluded)
 	included := toSDKTarget(s.Included)
 
 	return rest.Segment{
-		CreatedAt:   s.CreatedAt,
-		Environment: s.Environment,
-		Excluded:    &excluded,
-		Identifier:  s.Identifier,
-		Included:    &included,
-		ModifiedAt:  s.ModifiedAt,
-		Name:        s.Name,
-		Rules:       &rules,
-		Tags:        nil,
-		Version:     s.Version,
+		CreatedAt:    s.CreatedAt,
+		Environment:  s.Environment,
+		Excluded:     &excluded,
+		Identifier:   s.Identifier,
+		Included:     &included,
+		ModifiedAt:   s.ModifiedAt,
+		Name:         s.Name,
+		Rules:        &rules,
+		ServingRules: &servingRules,
+		Tags:         nil,
+		Version:      s.Version,
 	}
 }
 
@@ -107,4 +108,16 @@ func toSDKSegments(segments *[]clientgen.Segment) []rest.Segment {
 	}
 
 	return results
+}
+
+func ConvertServingRulesToRules(servingRules []clientgen.GroupServingRule) []clientgen.Clause {
+	rules := make([]clientgen.Clause, 0, len(servingRules))
+
+	for _, s := range servingRules {
+		if len(s.Clauses) == 0 {
+			continue
+		}
+		rules = append(rules, s.Clauses[0])
+	}
+	return rules
 }

@@ -118,6 +118,18 @@ type FeatureConfigKind string
 // The state of a flag either off or on
 type FeatureState string
 
+// The rule used to determine what variation to serve to a target
+type GroupServingRule struct {
+	// A list of clauses to use in the rule
+	Clauses []Clause `json:"clauses"`
+
+	// The rules priority relative to other rules.  The rules are evaluated in order with 1 being the highest
+	Priority int `json:"priority"`
+
+	// The unique identifier for this rule
+	RuleId string `json:"ruleId"`
+}
+
 // KeyValue defines model for KeyValue.
 type KeyValue struct {
 	Key   string `json:"key"`
@@ -218,10 +230,11 @@ type Segment struct {
 	ModifiedAt *int64 `json:"modifiedAt,omitempty"`
 
 	// Name of the target group.
-	Name string `json:"name"`
+	Name  string    `json:"name"`
+	Rules *[]Clause `json:"rules,omitempty"`
 
 	// An array of rules that can cause a user to be included in this segment.
-	Rules *[]Clause `json:"rules,omitempty"`
+	ServingRules *[]GroupServingRule `json:"servingRules,omitempty"`
 
 	// Tags for this target group
 	Tags *[]Tag `json:"tags,omitempty"`
@@ -358,6 +371,9 @@ type PageNumber = int
 // PageSize defines model for pageSize.
 type PageSize = int
 
+// SegmentRulesV2QueryParam defines model for segmentRulesV2QueryParam.
+type SegmentRulesV2QueryParam = string
+
 // BadRequest defines model for BadRequest.
 type BadRequest = Error
 
@@ -395,12 +411,18 @@ type GetFeatureConfigByIdentifierParams struct {
 type GetAllSegmentsParams struct {
 	// Unique identifier for the cluster for the account
 	Cluster *ClusterQueryOptionalParam `form:"cluster,omitempty" json:"cluster,omitempty"`
+
+	// When set to rules=v2 will return AND rule compatible serving_rules field. When not set or set to any other value will return old rules field only compatible with OR rules.
+	Rules *SegmentRulesV2QueryParam `form:"rules,omitempty" json:"rules,omitempty"`
 }
 
 // GetSegmentByIdentifierParams defines parameters for GetSegmentByIdentifier.
 type GetSegmentByIdentifierParams struct {
 	// Unique identifier for the cluster for the account
 	Cluster *ClusterQueryOptionalParam `form:"cluster,omitempty" json:"cluster,omitempty"`
+
+	// When set to rules=v2 will return AND rule compatible serving_rules field. When not set or set to any other value will return old rules field only compatible with OR rules.
+	Rules *SegmentRulesV2QueryParam `form:"rules,omitempty" json:"rules,omitempty"`
 }
 
 // GetEvaluationsParams defines parameters for GetEvaluations.

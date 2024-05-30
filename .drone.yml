@@ -5,7 +5,7 @@ name: default
 
 steps:
 - name: dep
-  image: golang:1.18
+  image: golang:1.22
   environment:
     ACCESS_TOKEN:
       from_secret: GIT_ACCESS_TOKEN
@@ -20,7 +20,7 @@ steps:
   - name: gopath
     path: /go
 - name: check
-  image: golang:1.18
+  image: golang:1.22
   environment:
     ACCESS_TOKEN:
       from_secret: GIT_ACCESS_TOKEN
@@ -33,7 +33,7 @@ steps:
   - name: gopath
     path: /go
 - name: build
-  image: golang:1.18
+  image: golang:1.22
   commands:
   - export PATH=$PATH:$(go env GOPATH)/bin 
   - make build
