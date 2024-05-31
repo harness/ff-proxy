@@ -35,16 +35,20 @@ type healther interface {
 // The Replica can then use these events to forcibly disconnect SDKs and block new stream
 // requests until the Writer Proxy -> SaaS stream has been reestablished
 type ReadReplicaMessageHandler struct {
-	log          log.Logger
-	streamStatus healther
+	log              log.Logger
+	streamStatus     healther
+	connectedStreams func() map[string]interface{}
+	pushpin          Closer
 }
 
 // NewReadReplicaMessageHandler creates a ReadReplicaMessageHandler
-func NewReadReplicaMessageHandler(l log.Logger, s healther) ReadReplicaMessageHandler {
+func NewReadReplicaMessageHandler(l log.Logger, s healther, cs func() map[string]interface{}, pp Closer) ReadReplicaMessageHandler {
 	l = l.With("component", "ReadReplicaMessageHandler")
 	return ReadReplicaMessageHandler{
-		log:          l,
-		streamStatus: s,
+		log:              l,
+		streamStatus:     s,
+		connectedStreams: cs,
+		pushpin:          pp,
 	}
 }
 
@@ -71,6 +75,14 @@ func (r ReadReplicaMessageHandler) handleStreamAction(ctx context.Context, msg S
 			r.log.Error("failed to set unhealthy stream status", "err", err)
 		}
 
+		// Close any open stream between this Proxy and SDKs. This is to force SDKs to poll the Proxy for
+		// changes until we've a healthy SaaS -> Proxy stream to make sure they don't miss out on changes
+		// the Proxy may have pulled down while the Proxy -> Saas stream was down.
+		for streamID := range r.connectedStreams() {
+			if err := r.pushpin.Close(streamID); err != nil {
+				r.log.Error("failed to close Proxy->SDK stream", "streamID", streamID, "err", err)
+			}
+		}
 		return nil
 	}
 

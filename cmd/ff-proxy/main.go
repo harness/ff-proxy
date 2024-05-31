@@ -375,7 +375,8 @@ func main() {
 	}
 
 	const (
-		sseStreamTopic = "proxy:sse_events"
+		sseStreamTopic     = "proxy:sse_events"
+		controlEventsTopic = "proxy:primary_to_replica_control_events"
 	)
 
 	// Configure prometheus labels depending on if we're running as a replica or primary
@@ -392,16 +393,16 @@ func main() {
 		sseStreamTopic,
 		redisStream,
 		stream.NewForwarder(logger, pushpinStream, domain.NoOpMessageHandler{}),
-		stream.WithOnDisconnect(stream.ReadReplicaSSEStreamOnDisconnect(logger, pushpin, getConnectedStreams)),
+		stream.WithOnDisconnect(stream.ReadReplicaSSEStreamOnDisconnect(logger, sseStreamTopic)),
 		stream.WithBackoff(backoff.NewConstantBackOff(1*time.Minute)),
 	)
 
 	primaryToReplicaControlStream := stream.NewStream(
 		logger,
-		"proxy:primary_to_replica_control_events",
+		controlEventsTopic,
 		redisStream,
-		domain.NewReadReplicaMessageHandler(logger, streamHealth),
-		stream.WithOnDisconnect(stream.ReadReplicaSSEStreamOnDisconnect(logger, pushpin, getConnectedStreams)),
+		domain.NewReadReplicaMessageHandler(logger, streamHealth, getConnectedStreams, pushpin),
+		stream.WithOnDisconnect(stream.ReadReplicaSSEStreamOnDisconnect(logger, controlEventsTopic)),
 		stream.WithBackoff(backoff.NewConstantBackOff(1*time.Minute)),
 	)
 
