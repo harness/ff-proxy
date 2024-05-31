@@ -28,7 +28,7 @@ func SaasStreamOnDisconnect(l log.Logger, streamHealth Health, pp Pushpin, redis
 	return func() {
 		l.Info("disconnected from Harness SaaS SSE Stream")
 
-		ctx, cancel := context.WithTimeout(context.Background(), 1*time.Minute)
+		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 		defer cancel()
 
 		// Set to false so the ProxyService will reject any /stream requests from SDKs until we've reconnected
@@ -53,6 +53,10 @@ func SaasStreamOnDisconnect(l log.Logger, streamHealth Health, pp Pushpin, redis
 			}
 		}
 
+		// Reset context timeout for publishing to the redis stream
+		ctx, cancel = context.WithTimeout(context.Background(), 15*time.Second)
+		defer cancel()
+
 		// Publish an event to the redis stream that the read replica proxy's are listening on to let them
 		// know we've disconnected from SaaS.
 		l.Info("publishing disconnected message for replicas")
@@ -68,7 +72,7 @@ func SaasStreamOnDisconnect(l log.Logger, streamHealth Health, pp Pushpin, redis
 // SaasStreamOnConnect sets the status of the SaaS stream to healthy in the cache
 func SaasStreamOnConnect(l log.Logger, streamHealth Health, reloadConfig func() error, redisSSEStream Stream, pollingStatus pollingStatus) func() {
 	return func() {
-		ctx, cancel := context.WithTimeout(context.Background(), 1*time.Minute)
+		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 		defer cancel()
 
 		status, err := streamHealth.Status(ctx)
@@ -87,11 +91,19 @@ func SaasStreamOnConnect(l log.Logger, streamHealth Health, reloadConfig func() 
 			l.Info("SaasOnConnectHandler successfully polled for config changes")
 		}
 
+		// Reset context timeout for the SetHealthy call
+		ctx, cancel = context.WithTimeout(context.Background(), 15*time.Second)
+		defer cancel()
+
 		l.Info("connected to Harness SaaS SSE Stream")
 		pollingStatus.NotPolling()
 		if err := streamHealth.SetHealthy(ctx); err != nil {
 			l.Error("failed to update SaaS stream status in cache", "err", err)
 		}
+
+		// Reset context timeout for the publishing to the stream
+		ctx, cancel = context.WithTimeout(context.Background(), 15*time.Second)
+		defer cancel()
 
 		// Publish an event to the redis stream that the read replica proxy's are listening on to let them
 		// know we've connected to SaaS.
