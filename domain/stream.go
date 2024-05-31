@@ -21,5 +21,10 @@ type Subscriber interface {
 	Sub(ctx context.Context, channel string, id string, message HandleMessageFn) error
 }
 
+// Closer defines the interface for closing a stream
+type Closer interface {
+	Close(topic string) error
+}
+
 // HandleMessageFn is the function that gets called whenever a subscriber receives a message on a stream
 type HandleMessageFn func(id string, v interface{}) error

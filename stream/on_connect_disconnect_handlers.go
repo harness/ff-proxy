@@ -117,16 +117,9 @@ func SaasStreamOnConnect(l log.Logger, streamHealth Health, reloadConfig func() 
 	}
 }
 
-// ReadReplicaSSEStreamOnDisconnect closes any open 'Read Replica' Proxy -> SDK streams
-func ReadReplicaSSEStreamOnDisconnect(l log.Logger, pp Pushpin, streams getConnectedStreamsFn) func() {
+// ReadReplicaSSEStreamOnDisconnect is called whenever the read replica disconnects from a redis stream
+func ReadReplicaSSEStreamOnDisconnect(l log.Logger, topic string) func() {
 	return func() {
-		// Close any open stream between this Proxy and SDKs. This is to force SDKs to poll the Proxy for
-		// changes until we've a healthy SaaS -> Proxy stream to make sure they don't miss out on changes
-		// the Proxy may have pulled down while the Proxy -> Saas stream was down.
-		for streamID := range streams() {
-			if err := pp.Close(streamID); err != nil {
-				l.Error("failed to close Proxy->SDK stream", "streamID", streamID, "err", err)
-			}
-		}
+		l.Error("read replica disconnected from stream", "stream_name", topic)
 	}
 }
