@@ -121,7 +121,7 @@ func (s Stream) subscribe(ctx context.Context) {
 	}
 
 	backoffDuration := s.backoff.NextBackOff()
-	s.log.Warn("disconnected from stream, backing off and retrying", "backoff_duration", backoffDuration, "err", err)
+	s.log.Warn("disconnected from stream, backing off and retrying", "backoff_duration", backoffDuration, "err", err, "msgID", msgID)
 	time.Sleep(backoffDuration)
 }
 

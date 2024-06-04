@@ -3,6 +3,7 @@ package stream
 import (
 	"context"
 	"errors"
+	"fmt"
 	"os"
 	"time"
 
@@ -246,49 +247,14 @@ func (r ReplicaHealth) Status(_ context.Context) (domain.StreamStatus, error) {
 	return r.inMemStatus.Get(), nil
 }
 
-// GetStreamStatus gets the StreamStatus from the cache. This is needed at startup for replicas to load
-// the correct stream status into memory but after startup the replicas in memory stream status will be
-// kept up to date by the CONNECT & DISCONNECT messages sent from the primary
-func (r ReplicaHealth) GetStreamStatus(ctx context.Context) {
-	ticker := time.NewTicker(5 * time.Second)
-	defer ticker.Stop()
-
-	status := domain.StreamStatus{}
-
-	for {
-		select {
-		case <-ctx.Done():
-			return
-		case <-ticker.C:
-			r.log.Info("getting cached stream status as a part of the startup flow")
-
-			if err := r.c.Get(ctx, r.key, &status); err != nil {
-				r.log.Error("failed to get stream status from cache, backing off and retrying in 5 seconds", "err", err)
-				continue
-			}
-
-			if status.State == domain.StreamStateInitializing {
-				r.log.Info("cached stream status is still initializing... backing off and fetching it again in 5 seconds")
-				continue
-			}
-
-			// Once we've sucessfully fetched the status once from the cache at startup we're done
-			// and can rely on receiving events from the Primary to find out the stream status
-			if status.State == domain.StreamStateConnected || status.State == domain.StreamStateDisconnected {
-				r.inMemStatus.Set(status)
-				r.log.Info("successfully retreived cached status and set it in memory", "state", status.State, "since", status.Since)
-				return
-			}
-		}
-	}
-}
-
 type streamHealthMetrics struct {
 	next     Health
 	gauge    *prometheus.GaugeVec
 	hostName string
 }
 
+// NewStreamHealthMetrics creates a new Health implementation 'middleware' that tracks the state
+// of streaming with a prometheus metric before calling the next Health implementation.
 func NewStreamHealthMetrics(next Health, r prometheus.Registerer) Health {
 	hostName, _ := os.Hostname()
 	if hostName == "" {
@@ -299,10 +265,11 @@ func NewStreamHealthMetrics(next Health, r prometheus.Registerer) Health {
 		next:     next,
 		hostName: hostName,
 		gauge: prometheus.NewGaugeVec(prometheus.GaugeOpts{
-			// Tracks the health of Proxy streaming i.e are we connected to Saas stream and
+			// Tracks the health of Proxy streaming i.e. are we connected to Saas stream and
 			// are SDKs connected to Replica streams. Or are we disconnected fromm Saas & polling
 			// in which case SDKs would also be disconnected from replicas and polling
 			Name: "ff_proxy_stream_health",
+			Help: "Tracks the health of Proxy streaming i.e. is the Proxy connected to the Saas stream & are sdks connected to the Replica streams",
 		},
 			[]string{"host"},
 		),
@@ -312,11 +279,13 @@ func NewStreamHealthMetrics(next Health, r prometheus.Registerer) Health {
 	return h
 }
 
+// SetHealthy sets the gauge value to connected (1) and calls the next Health implementation
 func (p streamHealthMetrics) SetHealthy(ctx context.Context) error {
 	p.gauge.WithLabelValues(p.hostName).Set(1)
 	return p.next.SetHealthy(ctx)
 }
 
+// SetUnhealthy sets the gauge value to disconnected (0) and calls the next Health implementation
 func (p streamHealthMetrics) SetUnhealthy(ctx context.Context) error {
 	p.gauge.WithLabelValues(p.hostName).Set(0)
 	return p.next.SetUnhealthy(ctx)
@@ -324,4 +293,82 @@ func (p streamHealthMetrics) SetUnhealthy(ctx context.Context) error {
 
 func (p streamHealthMetrics) Status(ctx context.Context) (domain.StreamStatus, error) {
 	return p.next.Status(ctx)
+}
+
+// PollingStatusMetric is a metric that tracks the state of polling in the Primary Proxy
+type PollingStatusMetric struct {
+	gauge    *prometheus.GaugeVec
+	hostName string
+}
+
+// NewPollingStatusMetric creates a new PollingStatusMetric
+func NewPollingStatusMetric(r prometheus.Registerer) PollingStatusMetric {
+	hostName, _ := os.Hostname()
+	if hostName == "" {
+		hostName = "unknown"
+	}
+
+	p := PollingStatusMetric{
+		hostName: hostName,
+		gauge: prometheus.NewGaugeVec(prometheus.GaugeOpts{
+			Name: "ff_proxy_polling_status",
+			Help: "Tracks whether or not the Primary Proxy is polling",
+		},
+			[]string{"host"},
+		),
+	}
+
+	r.MustRegister(p.gauge)
+	return p
+}
+
+// Polling sets the gauge to the value for when we're in polling mode
+func (p PollingStatusMetric) Polling() {
+	p.gauge.WithLabelValues(p.hostName).Set(1)
+}
+
+// NotPolling sets the gauge to the value for when we're not in polling mode
+func (p PollingStatusMetric) NotPolling() {
+	p.gauge.WithLabelValues(p.hostName).Set(0)
+}
+
+type StatusWorker struct {
+	health Health
+	pub    Stream
+	log    log.Logger
+}
+
+func NewStatusWorker(health Health, pub Stream, logger log.Logger) *StatusWorker {
+	l := logger.With("component", "StreamStatusWorker")
+	return &StatusWorker{
+		health: health,
+		pub:    pub,
+		log:    l,
+	}
+}
+
+func (s *StatusWorker) Start(ctx context.Context) {
+	ticker := time.NewTicker(20 * time.Second)
+
+	for {
+		select {
+		case <-ctx.Done():
+			s.log.Info("exiting StreamStatusWorker.Start", "reason", ctx.Err())
+			return
+		case <-ticker.C:
+
+			status, err := s.health.Status(ctx)
+			if err != nil {
+				s.log.Error("failed to retrieve health status", "err", err)
+				continue
+			}
+
+			s.log.Info(fmt.Sprintf("publishing %s message for replicas", status.State.String()))
+			if err := s.pub.Publish(ctx, domain.SSEMessage{Event: "stream_action", Domain: status.State.String()}); err != nil {
+				s.log.Error(fmt.Sprintf("failed to publish stream %s message to redis", status.State.String()), "err", err)
+				continue
+			}
+			s.log.Info(fmt.Sprintf("successfully published %s message for replicas", status.State.String()))
+		}
+	}
 }

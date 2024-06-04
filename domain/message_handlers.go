@@ -35,16 +35,20 @@ type healther interface {
 // The Replica can then use these events to forcibly disconnect SDKs and block new stream
 // requests until the Writer Proxy -> SaaS stream has been reestablished
 type ReadReplicaMessageHandler struct {
-	log          log.Logger
-	streamStatus healther
+	log              log.Logger
+	streamStatus     healther
+	connectedStreams func() map[string]interface{}
+	pushpin          Closer
 }
 
 // NewReadReplicaMessageHandler creates a ReadReplicaMessageHandler
-func NewReadReplicaMessageHandler(l log.Logger, s healther) ReadReplicaMessageHandler {
+func NewReadReplicaMessageHandler(l log.Logger, s healther, cs func() map[string]interface{}, pp Closer) ReadReplicaMessageHandler {
 	l = l.With("component", "ReadReplicaMessageHandler")
 	return ReadReplicaMessageHandler{
-		log:          l,
-		streamStatus: s,
+		log:              l,
+		streamStatus:     s,
+		connectedStreams: cs,
+		pushpin:          pp,
 	}
 }
 
@@ -64,19 +68,26 @@ func (r ReadReplicaMessageHandler) HandleMessage(ctx context.Context, msg SSEMes
 
 // handleStreamAction sets the internal StreamHealth in the read replica based on the type of message we get
 func (r ReadReplicaMessageHandler) handleStreamAction(ctx context.Context, msg SSEMessage) error {
-	if msg.Domain == "disconnect" {
-		r.log.Info("received stream disconnect event from primary proxy")
+	if msg.Domain == StreamStateDisconnected.String() {
+		r.log.Info("received stream disconnected event from primary proxy")
 
 		if err := r.streamStatus.SetUnhealthy(ctx); err != nil {
 			r.log.Error("failed to set unhealthy stream status", "err", err)
 		}
 
-		// Return EOF to indicate the stream was closed
-		return io.EOF
+		// Close any open stream between this Proxy and SDKs. This is to force SDKs to poll the Proxy for
+		// changes until we've a healthy SaaS -> Proxy stream to make sure they don't miss out on changes
+		// the Proxy may have pulled down while the Proxy -> Saas stream was down.
+		for streamID := range r.connectedStreams() {
+			if err := r.pushpin.Close(streamID); err != nil {
+				r.log.Error("failed to close Proxy->SDK stream", "streamID", streamID, "err", err)
+			}
+		}
+		return nil
 	}
 
-	if msg.Domain == "connect" {
-		r.log.Info("received stream connect event from primary proxy")
+	if msg.Domain == StreamStateConnected.String() {
+		r.log.Info("received stream connected event from primary proxy")
 
 		if err := r.streamStatus.SetHealthy(ctx); err != nil {
 			r.log.Error("failed to set healthy stream status", "err", err)

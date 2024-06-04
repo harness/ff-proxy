@@ -336,6 +336,10 @@ func main() {
 		os.Exit(1)
 	}
 
+	const (
+		streamHealthKey = "ffproxy_saas_stream_health"
+	)
+
 	var (
 		messageHandler domain.MessageHandler
 
@@ -344,7 +348,10 @@ func main() {
 				"control_uri": "http://localhost:5561",
 			},
 		})
-		streamHealth     = stream.NewStreamHealthMetrics(stream.NewHealth(logger, "ffproxy_saas_stream_health", cache.NewKeyValCache(redisClient), readReplica), promReg)
+
+		keyvalCache      = cache.NewKeyValCache(redisClient)
+		sHealth          = stream.NewHealth(logger, streamHealthKey, keyvalCache, readReplica)
+		streamHealth     = stream.NewStreamHealthMetrics(sHealth, promReg)
 		connectedStreams = domain.NewSafeMap()
 
 		getConnectedStreams = func() map[string]interface{} {
@@ -359,14 +366,16 @@ func main() {
 	// the in memory status.
 	// If we're running as replicas we kick off a routine to make sure the in memory status matches the
 	// cached status
+	// nolint:nestif
 	if !readReplica {
-		if h, ok := streamHealth.(stream.PrimaryHealth); ok {
+		h, ok := sHealth.(stream.PrimaryHealth)
+		if !ok {
+			logger.Error("got unexpected type for streamHealth", "expected", "stream.PrimaryHealth", "got", fmt.Sprintf("%T", h))
+		} else {
 			go h.VerifyStreamStatus(ctx, 60*time.Second)
 		}
 	} else {
-		if h, ok := streamHealth.(stream.ReplicaHealth); ok {
-			go h.GetStreamStatus(ctx)
-		}
+		go getStreamStatusForReplica(ctx, keyvalCache, logger, streamHealth, streamHealthKey)
 	}
 
 	// Get the underlying type from the pushpinStream which is currently the
@@ -379,7 +388,8 @@ func main() {
 	}
 
 	const (
-		sseStreamTopic = "proxy:sse_events"
+		sseStreamTopic     = "proxy:sse_events"
+		controlEventsTopic = "proxy:primary_to_replica_control_events"
 	)
 
 	// Configure prometheus labels depending on if we're running as a replica or primary
@@ -396,18 +406,23 @@ func main() {
 		sseStreamTopic,
 		redisStream,
 		stream.NewForwarder(logger, pushpinStream, domain.NoOpMessageHandler{}),
-		stream.WithOnDisconnect(stream.ReadReplicaSSEStreamOnDisconnect(logger, pushpin, getConnectedStreams)),
+		stream.WithOnDisconnect(stream.ReadReplicaSSEStreamOnDisconnect(logger, sseStreamTopic)),
 		stream.WithBackoff(backoff.NewConstantBackOff(1*time.Minute)),
 	)
 
 	primaryToReplicaControlStream := stream.NewStream(
 		logger,
-		"proxy:primary_to_replica_control_events",
+		controlEventsTopic,
 		redisStream,
-		domain.NewReadReplicaMessageHandler(logger, streamHealth),
-		stream.WithOnDisconnect(stream.ReadReplicaSSEStreamOnDisconnect(logger, pushpin, getConnectedStreams)),
+		domain.NewReadReplicaMessageHandler(logger, streamHealth, getConnectedStreams, pushpin),
+		stream.WithOnDisconnect(stream.ReadReplicaSSEStreamOnDisconnect(logger, controlEventsTopic)),
 		stream.WithBackoff(backoff.NewConstantBackOff(1*time.Minute)),
 	)
+
+	if !readReplica {
+		s := stream.NewStatusWorker(streamHealth, primaryToReplicaControlStream, logger)
+		go s.Start(ctx)
+	}
 
 	// Create repos
 	targetRepo := repository.NewTargetRepo(sdkCache, logger)
@@ -466,6 +481,8 @@ func main() {
 		redisForwarder := stream.NewForwarder(logger, redisStream, cacheRefresher, stream.WithStreamName(sseStreamTopic))
 		messageHandler = stream.NewForwarder(logger, pushpinStream, redisForwarder)
 
+		pollingStatus := stream.NewPollingStatusMetric(promReg)
+
 		streamURL := fmt.Sprintf("%s/stream?cluster=%s", clientService, conf.ClusterIdentifier())
 		sseClient := stream.NewSSEClient(
 			logger,
@@ -473,8 +490,8 @@ func main() {
 			proxyKey,
 			conf.Token(),
 			conf.AccountID(),
-			stream.SaasStreamOnConnect(logger, streamHealth, reloadConfig, primaryToReplicaControlStream),
-			stream.SaasStreamOnDisconnect(logger, streamHealth, pushpin, primaryToReplicaControlStream, getConnectedStreams, reloadConfig),
+			stream.SaasStreamOnConnect(logger, streamHealth, reloadConfig, primaryToReplicaControlStream, pollingStatus),
+			stream.SaasStreamOnDisconnect(logger, streamHealth, pushpin, primaryToReplicaControlStream, getConnectedStreams, reloadConfig, pollingStatus),
 		)
 
 		saasStream := stream.NewStream(
@@ -700,4 +717,49 @@ func runPrometheusServer(ctx context.Context, port int, promReg *prometheus.Regi
 			os.Exit(1)
 		}
 	}()
+}
+
+// getStreamStatus gets the StreamStatus from the cache. This is needed at startup for replicas to load
+// the correct stream status into memory but after startup the replicas in memory stream status will be
+// kept up to date by the CONNECT & DISCONNECT messages sent from the primary
+func getStreamStatusForReplica(ctx context.Context, c cache.Cache, log log.Logger, h stream.Health, key string) {
+	ticker := time.NewTicker(5 * time.Second)
+	defer ticker.Stop()
+
+	status := domain.StreamStatus{}
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			log.Info("getting cached stream status as a part of the startup flow")
+
+			if err := c.Get(ctx, key, &status); err != nil {
+				log.Error("failed to get stream status from cache, backing off and retrying in 5 seconds", "err", err)
+				continue
+			}
+
+			if status.State == domain.StreamStateInitializing {
+				log.Info("cached stream status is still initializing... backing off and fetching it again in 5 seconds")
+				continue
+			}
+
+			if status.State == domain.StreamStateConnected {
+				if err := h.SetHealthy(ctx); err != nil {
+					log.Error("failed to set healthy stream status in read replica", "err", err)
+				}
+				log.Info("successfully retrieved cached status and set it in memory", "state", status.State, "since", status.Since)
+				return
+			}
+
+			if status.State == domain.StreamStateDisconnected {
+				if err := h.SetUnhealthy(ctx); err != nil {
+					log.Error("failed to set unhealthy status in read replica", "err", err)
+				}
+				log.Info("successfully retrieved cached status and set it in memory", "state", status.State, "since", status.Since)
+				return
+			}
+		}
+	}
 }
