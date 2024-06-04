@@ -99,7 +99,7 @@ func toSDKRules(rules *[]clientgen.ServingRule) []rest.ServingRule {
 		result = append(result, rest.ServingRule{
 			Clauses:  clauses,
 			Priority: r.Priority,
-			RuleId:   SafePtrDereference(r.RuleId),
+			RuleId:   r.RuleId,
 			Serve: rest.Serve{
 				Distribution: distribution,
 				Variation:    r.Serve.Variation,
@@ -132,13 +132,30 @@ func toSDKClause(clauses *[]clientgen.Clause) []rest.Clause {
 	for _, c := range *clauses {
 		results = append(results, rest.Clause{
 			Attribute: c.Attribute,
-			Id:        SafePtrDereference(c.Id),
+			Id:        c.Id,
 			Negate:    c.Negate,
 			Op:        c.Op,
 			Values:    c.Values,
 		})
 	}
 
+	return results
+}
+
+func toGroupServingRules(s *[]clientgen.GroupServingRule) []rest.GroupServingRule {
+	if s == nil {
+		return []rest.GroupServingRule{}
+	}
+
+	results := make([]rest.GroupServingRule, 0, len(*s))
+	for i := range *s {
+		v := (*s)[i]
+		results = append(results, rest.GroupServingRule{
+			Clauses:  toSDKClause(&v.Clauses),
+			Priority: v.Priority,
+			RuleId:   v.RuleId,
+		})
+	}
 	return results
 }
 
@@ -195,7 +212,7 @@ func toSDKVariationMap(variationMap *[]clientgen.VariationMap) []rest.VariationM
 			t := targetsCopy[i]
 
 			targetMap = append(targetMap, rest.TargetMap{
-				Identifier: &t.Identifier,
+				Identifier: t.Identifier,
 				Name:       t.Name,
 			})
 		}

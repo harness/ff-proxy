@@ -95,6 +95,9 @@ type ClientInterface interface {
 
 	CreateAIDAQuery(ctx context.Context, body CreateAIDAQueryJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// DismissAnomaly request
+	DismissAnomaly(ctx context.Context, identifier Identifier, params *DismissAnomalyParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// GetAllAPIKeys request
 	GetAllAPIKeys(ctx context.Context, params *GetAllAPIKeysParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
@@ -182,6 +185,11 @@ type ClientInterface interface {
 
 	PatchFeature(ctx context.Context, identifier Identifier, params *PatchFeatureParams, body PatchFeatureJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// PutFeatureFlag request with any body
+	PutFeatureFlagWithBody(ctx context.Context, identifier Identifier, params *PutFeatureFlagParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	PutFeatureFlag(ctx context.Context, identifier Identifier, params *PutFeatureFlagParams, body PutFeatureFlagJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// GetDependentFeatures request
 	GetDependentFeatures(ctx context.Context, identifier Identifier, params *GetDependentFeaturesParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
@@ -206,6 +214,9 @@ type ClientInterface interface {
 
 	// RestoreFeatureFlag request
 	RestoreFeatureFlag(ctx context.Context, identifier Identifier, params *RestoreFeatureFlagParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// GetFeatureStaleState request
+	GetFeatureStaleState(ctx context.Context, identifier Identifier, params *GetFeatureStaleStateParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// GetJiraIssues request
 	GetJiraIssues(ctx context.Context, params *GetJiraIssuesParams, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -256,6 +267,27 @@ type ClientInterface interface {
 	CreateGitRepoWithBody(ctx context.Context, identifier Identifier, params *CreateGitRepoParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	CreateGitRepo(ctx context.Context, identifier Identifier, params *CreateGitRepoParams, body CreateGitRepoJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// ManualGitSync request with any body
+	ManualGitSyncWithBody(ctx context.Context, identifier Identifier, params *ManualGitSyncParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	ManualGitSync(ctx context.Context, identifier Identifier, params *ManualGitSyncParams, body ManualGitSyncJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// GetSampleStaleFlagState request
+	GetSampleStaleFlagState(ctx context.Context, identifier Identifier, params *GetSampleStaleFlagStateParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// GetProjectStaleFlagRego request
+	GetProjectStaleFlagRego(ctx context.Context, identifier Identifier, params *GetProjectStaleFlagRegoParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// SaveProjectStaleFlagRego request with any body
+	SaveProjectStaleFlagRegoWithBody(ctx context.Context, identifier Identifier, params *SaveProjectStaleFlagRegoParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	SaveProjectStaleFlagRego(ctx context.Context, identifier Identifier, params *SaveProjectStaleFlagRegoParams, body SaveProjectStaleFlagRegoJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// ValidateProjectStaleFlagRego request with any body
+	ValidateProjectStaleFlagRegoWithBody(ctx context.Context, identifier Identifier, params *ValidateProjectStaleFlagRegoParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	ValidateProjectStaleFlagRego(ctx context.Context, identifier Identifier, params *ValidateProjectStaleFlagRegoParams, body ValidateProjectStaleFlagRegoJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// GetProxyKeys request
 	GetProxyKeys(ctx context.Context, params *GetProxyKeysParams, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -356,6 +388,9 @@ type ClientInterface interface {
 
 	// GetTargetSegments request
 	GetTargetSegments(ctx context.Context, identifier Identifier, params *GetTargetSegmentsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// TriggerCcmJobs request
+	TriggerCcmJobs(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
 }
 
 func (c *Client) CreateAIDAQueryWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
@@ -372,6 +407,18 @@ func (c *Client) CreateAIDAQueryWithBody(ctx context.Context, contentType string
 
 func (c *Client) CreateAIDAQuery(ctx context.Context, body CreateAIDAQueryJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewCreateAIDAQueryRequest(c.Server, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) DismissAnomaly(ctx context.Context, identifier Identifier, params *DismissAnomalyParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewDismissAnomalyRequest(c.Server, identifier, params)
 	if err != nil {
 		return nil, err
 	}
@@ -766,6 +813,30 @@ func (c *Client) PatchFeature(ctx context.Context, identifier Identifier, params
 	return c.Client.Do(req)
 }
 
+func (c *Client) PutFeatureFlagWithBody(ctx context.Context, identifier Identifier, params *PutFeatureFlagParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewPutFeatureFlagRequestWithBody(c.Server, identifier, params, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) PutFeatureFlag(ctx context.Context, identifier Identifier, params *PutFeatureFlagParams, body PutFeatureFlagJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewPutFeatureFlagRequest(c.Server, identifier, params, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
 func (c *Client) GetDependentFeatures(ctx context.Context, identifier Identifier, params *GetDependentFeaturesParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewGetDependentFeaturesRequest(c.Server, identifier, params)
 	if err != nil {
@@ -864,6 +935,18 @@ func (c *Client) CreateFlagPipeline(ctx context.Context, identifier Identifier, 
 
 func (c *Client) RestoreFeatureFlag(ctx context.Context, identifier Identifier, params *RestoreFeatureFlagParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewRestoreFeatureFlagRequest(c.Server, identifier, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) GetFeatureStaleState(ctx context.Context, identifier Identifier, params *GetFeatureStaleStateParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetFeatureStaleStateRequest(c.Server, identifier, params)
 	if err != nil {
 		return nil, err
 	}
@@ -1080,6 +1163,102 @@ func (c *Client) CreateGitRepoWithBody(ctx context.Context, identifier Identifie
 
 func (c *Client) CreateGitRepo(ctx context.Context, identifier Identifier, params *CreateGitRepoParams, body CreateGitRepoJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewCreateGitRepoRequest(c.Server, identifier, params, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) ManualGitSyncWithBody(ctx context.Context, identifier Identifier, params *ManualGitSyncParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewManualGitSyncRequestWithBody(c.Server, identifier, params, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) ManualGitSync(ctx context.Context, identifier Identifier, params *ManualGitSyncParams, body ManualGitSyncJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewManualGitSyncRequest(c.Server, identifier, params, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) GetSampleStaleFlagState(ctx context.Context, identifier Identifier, params *GetSampleStaleFlagStateParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetSampleStaleFlagStateRequest(c.Server, identifier, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) GetProjectStaleFlagRego(ctx context.Context, identifier Identifier, params *GetProjectStaleFlagRegoParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetProjectStaleFlagRegoRequest(c.Server, identifier, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) SaveProjectStaleFlagRegoWithBody(ctx context.Context, identifier Identifier, params *SaveProjectStaleFlagRegoParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewSaveProjectStaleFlagRegoRequestWithBody(c.Server, identifier, params, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) SaveProjectStaleFlagRego(ctx context.Context, identifier Identifier, params *SaveProjectStaleFlagRegoParams, body SaveProjectStaleFlagRegoJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewSaveProjectStaleFlagRegoRequest(c.Server, identifier, params, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) ValidateProjectStaleFlagRegoWithBody(ctx context.Context, identifier Identifier, params *ValidateProjectStaleFlagRegoParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewValidateProjectStaleFlagRegoRequestWithBody(c.Server, identifier, params, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) ValidateProjectStaleFlagRego(ctx context.Context, identifier Identifier, params *ValidateProjectStaleFlagRegoParams, body ValidateProjectStaleFlagRegoJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewValidateProjectStaleFlagRegoRequest(c.Server, identifier, params, body)
 	if err != nil {
 		return nil, err
 	}
@@ -1522,6 +1701,18 @@ func (c *Client) GetTargetSegments(ctx context.Context, identifier Identifier, p
 	return c.Client.Do(req)
 }
 
+func (c *Client) TriggerCcmJobs(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewTriggerCcmJobsRequest(c.Server)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
 // NewCreateAIDAQueryRequest calls the generic CreateAIDAQuery builder with application/json body
 func NewCreateAIDAQueryRequest(server string, body CreateAIDAQueryJSONRequestBody) (*http.Request, error) {
 	var bodyReader io.Reader
@@ -1558,6 +1749,92 @@ func NewCreateAIDAQueryRequestWithBody(server string, contentType string, body i
 	}
 
 	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewDismissAnomalyRequest generates requests for DismissAnomaly
+func NewDismissAnomalyRequest(server string, identifier Identifier, params *DismissAnomalyParams) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "identifier", runtime.ParamLocationPath, identifier)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/admin/anomalies/%s/dismiss", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	queryValues := queryURL.Query()
+
+	if queryFrag, err := runtime.StyleParamWithLocation("form", true, "accountIdentifier", runtime.ParamLocationQuery, params.AccountIdentifier); err != nil {
+		return nil, err
+	} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+		return nil, err
+	} else {
+		for k, v := range parsed {
+			for _, v2 := range v {
+				queryValues.Add(k, v2)
+			}
+		}
+	}
+
+	if queryFrag, err := runtime.StyleParamWithLocation("form", true, "orgIdentifier", runtime.ParamLocationQuery, params.OrgIdentifier); err != nil {
+		return nil, err
+	} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+		return nil, err
+	} else {
+		for k, v := range parsed {
+			for _, v2 := range v {
+				queryValues.Add(k, v2)
+			}
+		}
+	}
+
+	if queryFrag, err := runtime.StyleParamWithLocation("form", true, "projectIdentifier", runtime.ParamLocationQuery, params.ProjectIdentifier); err != nil {
+		return nil, err
+	} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+		return nil, err
+	} else {
+		for k, v := range parsed {
+			for _, v2 := range v {
+				queryValues.Add(k, v2)
+			}
+		}
+	}
+
+	if queryFrag, err := runtime.StyleParamWithLocation("form", true, "environmentIdentifier", runtime.ParamLocationQuery, params.EnvironmentIdentifier); err != nil {
+		return nil, err
+	} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+		return nil, err
+	} else {
+		for k, v := range parsed {
+			for _, v2 := range v {
+				queryValues.Add(k, v2)
+			}
+		}
+	}
+
+	queryURL.RawQuery = queryValues.Encode()
+
+	req, err := http.NewRequest("PUT", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
 
 	return req, nil
 }
@@ -4299,6 +4576,93 @@ func NewPatchFeatureRequestWithBody(server string, identifier Identifier, params
 	return req, nil
 }
 
+// NewPutFeatureFlagRequest calls the generic PutFeatureFlag builder with application/json body
+func NewPutFeatureFlagRequest(server string, identifier Identifier, params *PutFeatureFlagParams, body PutFeatureFlagJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewPutFeatureFlagRequestWithBody(server, identifier, params, "application/json", bodyReader)
+}
+
+// NewPutFeatureFlagRequestWithBody generates requests for PutFeatureFlag with any type of body
+func NewPutFeatureFlagRequestWithBody(server string, identifier Identifier, params *PutFeatureFlagParams, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "identifier", runtime.ParamLocationPath, identifier)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/admin/features/%s", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	queryValues := queryURL.Query()
+
+	if queryFrag, err := runtime.StyleParamWithLocation("form", true, "accountIdentifier", runtime.ParamLocationQuery, params.AccountIdentifier); err != nil {
+		return nil, err
+	} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+		return nil, err
+	} else {
+		for k, v := range parsed {
+			for _, v2 := range v {
+				queryValues.Add(k, v2)
+			}
+		}
+	}
+
+	if queryFrag, err := runtime.StyleParamWithLocation("form", true, "orgIdentifier", runtime.ParamLocationQuery, params.OrgIdentifier); err != nil {
+		return nil, err
+	} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+		return nil, err
+	} else {
+		for k, v := range parsed {
+			for _, v2 := range v {
+				queryValues.Add(k, v2)
+			}
+		}
+	}
+
+	if queryFrag, err := runtime.StyleParamWithLocation("form", true, "projectIdentifier", runtime.ParamLocationQuery, params.ProjectIdentifier); err != nil {
+		return nil, err
+	} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+		return nil, err
+	} else {
+		for k, v := range parsed {
+			for _, v2 := range v {
+				queryValues.Add(k, v2)
+			}
+		}
+	}
+
+	queryURL.RawQuery = queryValues.Encode()
+
+	req, err := http.NewRequest("PUT", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
 // NewGetDependentFeaturesRequest generates requests for GetDependentFeatures
 func NewGetDependentFeaturesRequest(server string, identifier Identifier, params *GetDependentFeaturesParams) (*http.Request, error) {
 	var err error
@@ -5259,6 +5623,80 @@ func NewRestoreFeatureFlagRequest(server string, identifier Identifier, params *
 	return req, nil
 }
 
+// NewGetFeatureStaleStateRequest generates requests for GetFeatureStaleState
+func NewGetFeatureStaleStateRequest(server string, identifier Identifier, params *GetFeatureStaleStateParams) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "identifier", runtime.ParamLocationPath, identifier)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/admin/features/%s/stale_state", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	queryValues := queryURL.Query()
+
+	if queryFrag, err := runtime.StyleParamWithLocation("form", true, "accountIdentifier", runtime.ParamLocationQuery, params.AccountIdentifier); err != nil {
+		return nil, err
+	} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+		return nil, err
+	} else {
+		for k, v := range parsed {
+			for _, v2 := range v {
+				queryValues.Add(k, v2)
+			}
+		}
+	}
+
+	if queryFrag, err := runtime.StyleParamWithLocation("form", true, "orgIdentifier", runtime.ParamLocationQuery, params.OrgIdentifier); err != nil {
+		return nil, err
+	} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+		return nil, err
+	} else {
+		for k, v := range parsed {
+			for _, v2 := range v {
+				queryValues.Add(k, v2)
+			}
+		}
+	}
+
+	if queryFrag, err := runtime.StyleParamWithLocation("form", true, "projectIdentifier", runtime.ParamLocationQuery, params.ProjectIdentifier); err != nil {
+		return nil, err
+	} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+		return nil, err
+	} else {
+		for k, v := range parsed {
+			for _, v2 := range v {
+				queryValues.Add(k, v2)
+			}
+		}
+	}
+
+	queryURL.RawQuery = queryValues.Encode()
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
 // NewGetJiraIssuesRequest generates requests for GetJiraIssues
 func NewGetJiraIssuesRequest(server string, params *GetJiraIssuesParams) (*http.Request, error) {
 	var err error
@@ -6188,6 +6626,387 @@ func NewCreateGitRepoRequestWithBody(server string, identifier Identifier, param
 	return req, nil
 }
 
+// NewManualGitSyncRequest calls the generic ManualGitSync builder with application/json body
+func NewManualGitSyncRequest(server string, identifier Identifier, params *ManualGitSyncParams, body ManualGitSyncJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewManualGitSyncRequestWithBody(server, identifier, params, "application/json", bodyReader)
+}
+
+// NewManualGitSyncRequestWithBody generates requests for ManualGitSync with any type of body
+func NewManualGitSyncRequestWithBody(server string, identifier Identifier, params *ManualGitSyncParams, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "identifier", runtime.ParamLocationPath, identifier)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/admin/projects/%s/git_repo/sync", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	queryValues := queryURL.Query()
+
+	if queryFrag, err := runtime.StyleParamWithLocation("form", true, "accountIdentifier", runtime.ParamLocationQuery, params.AccountIdentifier); err != nil {
+		return nil, err
+	} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+		return nil, err
+	} else {
+		for k, v := range parsed {
+			for _, v2 := range v {
+				queryValues.Add(k, v2)
+			}
+		}
+	}
+
+	if queryFrag, err := runtime.StyleParamWithLocation("form", true, "orgIdentifier", runtime.ParamLocationQuery, params.OrgIdentifier); err != nil {
+		return nil, err
+	} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+		return nil, err
+	} else {
+		for k, v := range parsed {
+			for _, v2 := range v {
+				queryValues.Add(k, v2)
+			}
+		}
+	}
+
+	queryURL.RawQuery = queryValues.Encode()
+
+	req, err := http.NewRequest("POST", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewGetSampleStaleFlagStateRequest generates requests for GetSampleStaleFlagState
+func NewGetSampleStaleFlagStateRequest(server string, identifier Identifier, params *GetSampleStaleFlagStateParams) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "identifier", runtime.ParamLocationPath, identifier)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/admin/projects/%s/sample_stale_flag_state", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	queryValues := queryURL.Query()
+
+	if queryFrag, err := runtime.StyleParamWithLocation("form", true, "accountIdentifier", runtime.ParamLocationQuery, params.AccountIdentifier); err != nil {
+		return nil, err
+	} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+		return nil, err
+	} else {
+		for k, v := range parsed {
+			for _, v2 := range v {
+				queryValues.Add(k, v2)
+			}
+		}
+	}
+
+	if queryFrag, err := runtime.StyleParamWithLocation("form", true, "orgIdentifier", runtime.ParamLocationQuery, params.OrgIdentifier); err != nil {
+		return nil, err
+	} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+		return nil, err
+	} else {
+		for k, v := range parsed {
+			for _, v2 := range v {
+				queryValues.Add(k, v2)
+			}
+		}
+	}
+
+	if params.FeatureIdentifier != nil {
+
+		if queryFrag, err := runtime.StyleParamWithLocation("form", true, "featureIdentifier", runtime.ParamLocationQuery, *params.FeatureIdentifier); err != nil {
+			return nil, err
+		} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+			return nil, err
+		} else {
+			for k, v := range parsed {
+				for _, v2 := range v {
+					queryValues.Add(k, v2)
+				}
+			}
+		}
+
+	}
+
+	queryURL.RawQuery = queryValues.Encode()
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewGetProjectStaleFlagRegoRequest generates requests for GetProjectStaleFlagRego
+func NewGetProjectStaleFlagRegoRequest(server string, identifier Identifier, params *GetProjectStaleFlagRegoParams) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "identifier", runtime.ParamLocationPath, identifier)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/admin/projects/%s/stale_config", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	queryValues := queryURL.Query()
+
+	if queryFrag, err := runtime.StyleParamWithLocation("form", true, "accountIdentifier", runtime.ParamLocationQuery, params.AccountIdentifier); err != nil {
+		return nil, err
+	} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+		return nil, err
+	} else {
+		for k, v := range parsed {
+			for _, v2 := range v {
+				queryValues.Add(k, v2)
+			}
+		}
+	}
+
+	if queryFrag, err := runtime.StyleParamWithLocation("form", true, "orgIdentifier", runtime.ParamLocationQuery, params.OrgIdentifier); err != nil {
+		return nil, err
+	} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+		return nil, err
+	} else {
+		for k, v := range parsed {
+			for _, v2 := range v {
+				queryValues.Add(k, v2)
+			}
+		}
+	}
+
+	if params.Name != nil {
+
+		if queryFrag, err := runtime.StyleParamWithLocation("form", true, "name", runtime.ParamLocationQuery, *params.Name); err != nil {
+			return nil, err
+		} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+			return nil, err
+		} else {
+			for k, v := range parsed {
+				for _, v2 := range v {
+					queryValues.Add(k, v2)
+				}
+			}
+		}
+
+	}
+
+	queryURL.RawQuery = queryValues.Encode()
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewSaveProjectStaleFlagRegoRequest calls the generic SaveProjectStaleFlagRego builder with application/json body
+func NewSaveProjectStaleFlagRegoRequest(server string, identifier Identifier, params *SaveProjectStaleFlagRegoParams, body SaveProjectStaleFlagRegoJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewSaveProjectStaleFlagRegoRequestWithBody(server, identifier, params, "application/json", bodyReader)
+}
+
+// NewSaveProjectStaleFlagRegoRequestWithBody generates requests for SaveProjectStaleFlagRego with any type of body
+func NewSaveProjectStaleFlagRegoRequestWithBody(server string, identifier Identifier, params *SaveProjectStaleFlagRegoParams, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "identifier", runtime.ParamLocationPath, identifier)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/admin/projects/%s/stale_config", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	queryValues := queryURL.Query()
+
+	if queryFrag, err := runtime.StyleParamWithLocation("form", true, "accountIdentifier", runtime.ParamLocationQuery, params.AccountIdentifier); err != nil {
+		return nil, err
+	} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+		return nil, err
+	} else {
+		for k, v := range parsed {
+			for _, v2 := range v {
+				queryValues.Add(k, v2)
+			}
+		}
+	}
+
+	if queryFrag, err := runtime.StyleParamWithLocation("form", true, "orgIdentifier", runtime.ParamLocationQuery, params.OrgIdentifier); err != nil {
+		return nil, err
+	} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+		return nil, err
+	} else {
+		for k, v := range parsed {
+			for _, v2 := range v {
+				queryValues.Add(k, v2)
+			}
+		}
+	}
+
+	queryURL.RawQuery = queryValues.Encode()
+
+	req, err := http.NewRequest("POST", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewValidateProjectStaleFlagRegoRequest calls the generic ValidateProjectStaleFlagRego builder with application/json body
+func NewValidateProjectStaleFlagRegoRequest(server string, identifier Identifier, params *ValidateProjectStaleFlagRegoParams, body ValidateProjectStaleFlagRegoJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewValidateProjectStaleFlagRegoRequestWithBody(server, identifier, params, "application/json", bodyReader)
+}
+
+// NewValidateProjectStaleFlagRegoRequestWithBody generates requests for ValidateProjectStaleFlagRego with any type of body
+func NewValidateProjectStaleFlagRegoRequestWithBody(server string, identifier Identifier, params *ValidateProjectStaleFlagRegoParams, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "identifier", runtime.ParamLocationPath, identifier)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/admin/projects/%s/validate_stale_config", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	queryValues := queryURL.Query()
+
+	if queryFrag, err := runtime.StyleParamWithLocation("form", true, "accountIdentifier", runtime.ParamLocationQuery, params.AccountIdentifier); err != nil {
+		return nil, err
+	} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+		return nil, err
+	} else {
+		for k, v := range parsed {
+			for _, v2 := range v {
+				queryValues.Add(k, v2)
+			}
+		}
+	}
+
+	if queryFrag, err := runtime.StyleParamWithLocation("form", true, "orgIdentifier", runtime.ParamLocationQuery, params.OrgIdentifier); err != nil {
+		return nil, err
+	} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+		return nil, err
+	} else {
+		for k, v := range parsed {
+			for _, v2 := range v {
+				queryValues.Add(k, v2)
+			}
+		}
+	}
+
+	queryURL.RawQuery = queryValues.Encode()
+
+	req, err := http.NewRequest("POST", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
 // NewGetProxyKeysRequest generates requests for GetProxyKeys
 func NewGetProxyKeysRequest(server string, params *GetProxyKeysParams) (*http.Request, error) {
 	var err error
@@ -6695,6 +7514,22 @@ func NewGetAllSegmentsRequest(server string, params *GetAllSegmentsParams) (*htt
 
 	}
 
+	if params.Rules != nil {
+
+		if queryFrag, err := runtime.StyleParamWithLocation("form", true, "rules", runtime.ParamLocationQuery, *params.Rules); err != nil {
+			return nil, err
+		} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+			return nil, err
+		} else {
+			for k, v := range parsed {
+				for _, v2 := range v {
+					queryValues.Add(k, v2)
+				}
+			}
+		}
+
+	}
+
 	queryURL.RawQuery = queryValues.Encode()
 
 	req, err := http.NewRequest("GET", queryURL.String(), nil)
@@ -6933,6 +7768,22 @@ func NewGetSegmentRequest(server string, identifier Identifier, params *GetSegme
 				queryValues.Add(k, v2)
 			}
 		}
+	}
+
+	if params.Rules != nil {
+
+		if queryFrag, err := runtime.StyleParamWithLocation("form", true, "rules", runtime.ParamLocationQuery, *params.Rules); err != nil {
+			return nil, err
+		} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+			return nil, err
+		} else {
+			for k, v := range parsed {
+				for _, v2 := range v {
+					queryValues.Add(k, v2)
+				}
+			}
+		}
+
 	}
 
 	queryURL.RawQuery = queryValues.Encode()
@@ -9074,6 +9925,33 @@ func NewGetTargetSegmentsRequest(server string, identifier Identifier, params *G
 	return req, nil
 }
 
+// NewTriggerCcmJobsRequest generates requests for TriggerCcmJobs
+func NewTriggerCcmJobsRequest(server string) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/admin/triggers/ccm")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("POST", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
 func (c *Client) applyEditors(ctx context.Context, req *http.Request, additionalEditors []RequestEditorFn) error {
 	for _, r := range c.RequestEditors {
 		if err := r(ctx, req); err != nil {
@@ -9121,6 +9999,9 @@ type ClientWithResponsesInterface interface {
 	CreateAIDAQueryWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateAIDAQueryResponse, error)
 
 	CreateAIDAQueryWithResponse(ctx context.Context, body CreateAIDAQueryJSONRequestBody, reqEditors ...RequestEditorFn) (*CreateAIDAQueryResponse, error)
+
+	// DismissAnomaly request
+	DismissAnomalyWithResponse(ctx context.Context, identifier Identifier, params *DismissAnomalyParams, reqEditors ...RequestEditorFn) (*DismissAnomalyResponse, error)
 
 	// GetAllAPIKeys request
 	GetAllAPIKeysWithResponse(ctx context.Context, params *GetAllAPIKeysParams, reqEditors ...RequestEditorFn) (*GetAllAPIKeysResponse, error)
@@ -9209,6 +10090,11 @@ type ClientWithResponsesInterface interface {
 
 	PatchFeatureWithResponse(ctx context.Context, identifier Identifier, params *PatchFeatureParams, body PatchFeatureJSONRequestBody, reqEditors ...RequestEditorFn) (*PatchFeatureResponse, error)
 
+	// PutFeatureFlag request with any body
+	PutFeatureFlagWithBodyWithResponse(ctx context.Context, identifier Identifier, params *PutFeatureFlagParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PutFeatureFlagResponse, error)
+
+	PutFeatureFlagWithResponse(ctx context.Context, identifier Identifier, params *PutFeatureFlagParams, body PutFeatureFlagJSONRequestBody, reqEditors ...RequestEditorFn) (*PutFeatureFlagResponse, error)
+
 	// GetDependentFeatures request
 	GetDependentFeaturesWithResponse(ctx context.Context, identifier Identifier, params *GetDependentFeaturesParams, reqEditors ...RequestEditorFn) (*GetDependentFeaturesResponse, error)
 
@@ -9233,6 +10119,9 @@ type ClientWithResponsesInterface interface {
 
 	// RestoreFeatureFlag request
 	RestoreFeatureFlagWithResponse(ctx context.Context, identifier Identifier, params *RestoreFeatureFlagParams, reqEditors ...RequestEditorFn) (*RestoreFeatureFlagResponse, error)
+
+	// GetFeatureStaleState request
+	GetFeatureStaleStateWithResponse(ctx context.Context, identifier Identifier, params *GetFeatureStaleStateParams, reqEditors ...RequestEditorFn) (*GetFeatureStaleStateResponse, error)
 
 	// GetJiraIssues request
 	GetJiraIssuesWithResponse(ctx context.Context, params *GetJiraIssuesParams, reqEditors ...RequestEditorFn) (*GetJiraIssuesResponse, error)
@@ -9283,6 +10172,27 @@ type ClientWithResponsesInterface interface {
 	CreateGitRepoWithBodyWithResponse(ctx context.Context, identifier Identifier, params *CreateGitRepoParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateGitRepoResponse, error)
 
 	CreateGitRepoWithResponse(ctx context.Context, identifier Identifier, params *CreateGitRepoParams, body CreateGitRepoJSONRequestBody, reqEditors ...RequestEditorFn) (*CreateGitRepoResponse, error)
+
+	// ManualGitSync request with any body
+	ManualGitSyncWithBodyWithResponse(ctx context.Context, identifier Identifier, params *ManualGitSyncParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*ManualGitSyncResponse, error)
+
+	ManualGitSyncWithResponse(ctx context.Context, identifier Identifier, params *ManualGitSyncParams, body ManualGitSyncJSONRequestBody, reqEditors ...RequestEditorFn) (*ManualGitSyncResponse, error)
+
+	// GetSampleStaleFlagState request
+	GetSampleStaleFlagStateWithResponse(ctx context.Context, identifier Identifier, params *GetSampleStaleFlagStateParams, reqEditors ...RequestEditorFn) (*GetSampleStaleFlagStateResponse, error)
+
+	// GetProjectStaleFlagRego request
+	GetProjectStaleFlagRegoWithResponse(ctx context.Context, identifier Identifier, params *GetProjectStaleFlagRegoParams, reqEditors ...RequestEditorFn) (*GetProjectStaleFlagRegoResponse, error)
+
+	// SaveProjectStaleFlagRego request with any body
+	SaveProjectStaleFlagRegoWithBodyWithResponse(ctx context.Context, identifier Identifier, params *SaveProjectStaleFlagRegoParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*SaveProjectStaleFlagRegoResponse, error)
+
+	SaveProjectStaleFlagRegoWithResponse(ctx context.Context, identifier Identifier, params *SaveProjectStaleFlagRegoParams, body SaveProjectStaleFlagRegoJSONRequestBody, reqEditors ...RequestEditorFn) (*SaveProjectStaleFlagRegoResponse, error)
+
+	// ValidateProjectStaleFlagRego request with any body
+	ValidateProjectStaleFlagRegoWithBodyWithResponse(ctx context.Context, identifier Identifier, params *ValidateProjectStaleFlagRegoParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*ValidateProjectStaleFlagRegoResponse, error)
+
+	ValidateProjectStaleFlagRegoWithResponse(ctx context.Context, identifier Identifier, params *ValidateProjectStaleFlagRegoParams, body ValidateProjectStaleFlagRegoJSONRequestBody, reqEditors ...RequestEditorFn) (*ValidateProjectStaleFlagRegoResponse, error)
 
 	// GetProxyKeys request
 	GetProxyKeysWithResponse(ctx context.Context, params *GetProxyKeysParams, reqEditors ...RequestEditorFn) (*GetProxyKeysResponse, error)
@@ -9383,6 +10293,9 @@ type ClientWithResponsesInterface interface {
 
 	// GetTargetSegments request
 	GetTargetSegmentsWithResponse(ctx context.Context, identifier Identifier, params *GetTargetSegmentsParams, reqEditors ...RequestEditorFn) (*GetTargetSegmentsResponse, error)
+
+	// TriggerCcmJobs request
+	TriggerCcmJobsWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*TriggerCcmJobsResponse, error)
 }
 
 type CreateAIDAQueryResponse struct {
@@ -9405,6 +10318,32 @@ func (r CreateAIDAQueryResponse) Status() string {
 
 // StatusCode returns HTTPResponse.StatusCode
 func (r CreateAIDAQueryResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type DismissAnomalyResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON400      *Error
+	JSON401      *Error
+	JSON403      *Error
+	JSON404      *Error
+	JSON500      *Error
+}
+
+// Status returns HTTPResponse.Status
+func (r DismissAnomalyResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r DismissAnomalyResponse) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
@@ -10041,6 +10980,35 @@ func (r PatchFeatureResponse) StatusCode() int {
 	return 0
 }
 
+type PutFeatureFlagResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *FeatureResponseMetadata
+	JSON400      *Error
+	JSON401      *Error
+	JSON403      *Error
+	JSON404      *Error
+	JSON409      *Error
+	JSON424      *Error
+	JSON500      *Error
+}
+
+// Status returns HTTPResponse.Status
+func (r PutFeatureFlagResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r PutFeatureFlagResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
 type GetDependentFeaturesResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -10218,6 +11186,32 @@ func (r RestoreFeatureFlagResponse) Status() string {
 
 // StatusCode returns HTTPResponse.StatusCode
 func (r RestoreFeatureFlagResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type GetFeatureStaleStateResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *StaleFlagState
+	JSON401      *Error
+	JSON403      *Error
+	JSON404      *Error
+	JSON500      *Error
+}
+
+// Status returns HTTPResponse.Status
+func (r GetFeatureStaleStateResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetFeatureStaleStateResponse) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
@@ -10608,6 +11602,136 @@ func (r CreateGitRepoResponse) Status() string {
 
 // StatusCode returns HTTPResponse.StatusCode
 func (r CreateGitRepoResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type ManualGitSyncResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON400      *Error
+	JSON401      *Error
+	JSON403      *Error
+	JSON424      *Error
+	JSON500      *Error
+}
+
+// Status returns HTTPResponse.Status
+func (r ManualGitSyncResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r ManualGitSyncResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type GetSampleStaleFlagStateResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *StaleFlagState
+	JSON401      *Error
+	JSON403      *Error
+	JSON404      *Error
+	JSON500      *Error
+}
+
+// Status returns HTTPResponse.Status
+func (r GetSampleStaleFlagStateResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetSampleStaleFlagStateResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type GetProjectStaleFlagRegoResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *ProjectStaleFlagsRego
+	JSON401      *Error
+	JSON403      *Error
+	JSON404      *Error
+	JSON500      *Error
+}
+
+// Status returns HTTPResponse.Status
+func (r GetProjectStaleFlagRegoResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetProjectStaleFlagRegoResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type SaveProjectStaleFlagRegoResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *StoreStaleFlagsRego
+	JSON401      *Error
+	JSON403      *Error
+	JSON404      *Error
+	JSON500      *Error
+}
+
+// Status returns HTTPResponse.Status
+func (r SaveProjectStaleFlagRegoResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r SaveProjectStaleFlagRegoResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type ValidateProjectStaleFlagRegoResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *ValidatedStaleFlagsRego
+	JSON401      *Error
+	JSON403      *Error
+	JSON404      *Error
+	JSON500      *Error
+}
+
+// Status returns HTTPResponse.Status
+func (r ValidateProjectStaleFlagRegoResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r ValidateProjectStaleFlagRegoResponse) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
@@ -11380,6 +12504,28 @@ func (r GetTargetSegmentsResponse) StatusCode() int {
 	return 0
 }
 
+type TriggerCcmJobsResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON500      *Error
+}
+
+// Status returns HTTPResponse.Status
+func (r TriggerCcmJobsResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r TriggerCcmJobsResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
 // CreateAIDAQueryWithBodyWithResponse request with arbitrary body returning *CreateAIDAQueryResponse
 func (c *ClientWithResponses) CreateAIDAQueryWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateAIDAQueryResponse, error) {
 	rsp, err := c.CreateAIDAQueryWithBody(ctx, contentType, body, reqEditors...)
@@ -11395,6 +12541,15 @@ func (c *ClientWithResponses) CreateAIDAQueryWithResponse(ctx context.Context, b
 		return nil, err
 	}
 	return ParseCreateAIDAQueryResponse(rsp)
+}
+
+// DismissAnomalyWithResponse request returning *DismissAnomalyResponse
+func (c *ClientWithResponses) DismissAnomalyWithResponse(ctx context.Context, identifier Identifier, params *DismissAnomalyParams, reqEditors ...RequestEditorFn) (*DismissAnomalyResponse, error) {
+	rsp, err := c.DismissAnomaly(ctx, identifier, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseDismissAnomalyResponse(rsp)
 }
 
 // GetAllAPIKeysWithResponse request returning *GetAllAPIKeysResponse
@@ -11676,6 +12831,23 @@ func (c *ClientWithResponses) PatchFeatureWithResponse(ctx context.Context, iden
 	return ParsePatchFeatureResponse(rsp)
 }
 
+// PutFeatureFlagWithBodyWithResponse request with arbitrary body returning *PutFeatureFlagResponse
+func (c *ClientWithResponses) PutFeatureFlagWithBodyWithResponse(ctx context.Context, identifier Identifier, params *PutFeatureFlagParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PutFeatureFlagResponse, error) {
+	rsp, err := c.PutFeatureFlagWithBody(ctx, identifier, params, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParsePutFeatureFlagResponse(rsp)
+}
+
+func (c *ClientWithResponses) PutFeatureFlagWithResponse(ctx context.Context, identifier Identifier, params *PutFeatureFlagParams, body PutFeatureFlagJSONRequestBody, reqEditors ...RequestEditorFn) (*PutFeatureFlagResponse, error) {
+	rsp, err := c.PutFeatureFlag(ctx, identifier, params, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParsePutFeatureFlagResponse(rsp)
+}
+
 // GetDependentFeaturesWithResponse request returning *GetDependentFeaturesResponse
 func (c *ClientWithResponses) GetDependentFeaturesWithResponse(ctx context.Context, identifier Identifier, params *GetDependentFeaturesParams, reqEditors ...RequestEditorFn) (*GetDependentFeaturesResponse, error) {
 	rsp, err := c.GetDependentFeatures(ctx, identifier, params, reqEditors...)
@@ -11753,6 +12925,15 @@ func (c *ClientWithResponses) RestoreFeatureFlagWithResponse(ctx context.Context
 		return nil, err
 	}
 	return ParseRestoreFeatureFlagResponse(rsp)
+}
+
+// GetFeatureStaleStateWithResponse request returning *GetFeatureStaleStateResponse
+func (c *ClientWithResponses) GetFeatureStaleStateWithResponse(ctx context.Context, identifier Identifier, params *GetFeatureStaleStateParams, reqEditors ...RequestEditorFn) (*GetFeatureStaleStateResponse, error) {
+	rsp, err := c.GetFeatureStaleState(ctx, identifier, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetFeatureStaleStateResponse(rsp)
 }
 
 // GetJiraIssuesWithResponse request returning *GetJiraIssuesResponse
@@ -11911,6 +13092,75 @@ func (c *ClientWithResponses) CreateGitRepoWithResponse(ctx context.Context, ide
 		return nil, err
 	}
 	return ParseCreateGitRepoResponse(rsp)
+}
+
+// ManualGitSyncWithBodyWithResponse request with arbitrary body returning *ManualGitSyncResponse
+func (c *ClientWithResponses) ManualGitSyncWithBodyWithResponse(ctx context.Context, identifier Identifier, params *ManualGitSyncParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*ManualGitSyncResponse, error) {
+	rsp, err := c.ManualGitSyncWithBody(ctx, identifier, params, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseManualGitSyncResponse(rsp)
+}
+
+func (c *ClientWithResponses) ManualGitSyncWithResponse(ctx context.Context, identifier Identifier, params *ManualGitSyncParams, body ManualGitSyncJSONRequestBody, reqEditors ...RequestEditorFn) (*ManualGitSyncResponse, error) {
+	rsp, err := c.ManualGitSync(ctx, identifier, params, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseManualGitSyncResponse(rsp)
+}
+
+// GetSampleStaleFlagStateWithResponse request returning *GetSampleStaleFlagStateResponse
+func (c *ClientWithResponses) GetSampleStaleFlagStateWithResponse(ctx context.Context, identifier Identifier, params *GetSampleStaleFlagStateParams, reqEditors ...RequestEditorFn) (*GetSampleStaleFlagStateResponse, error) {
+	rsp, err := c.GetSampleStaleFlagState(ctx, identifier, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetSampleStaleFlagStateResponse(rsp)
+}
+
+// GetProjectStaleFlagRegoWithResponse request returning *GetProjectStaleFlagRegoResponse
+func (c *ClientWithResponses) GetProjectStaleFlagRegoWithResponse(ctx context.Context, identifier Identifier, params *GetProjectStaleFlagRegoParams, reqEditors ...RequestEditorFn) (*GetProjectStaleFlagRegoResponse, error) {
+	rsp, err := c.GetProjectStaleFlagRego(ctx, identifier, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetProjectStaleFlagRegoResponse(rsp)
+}
+
+// SaveProjectStaleFlagRegoWithBodyWithResponse request with arbitrary body returning *SaveProjectStaleFlagRegoResponse
+func (c *ClientWithResponses) SaveProjectStaleFlagRegoWithBodyWithResponse(ctx context.Context, identifier Identifier, params *SaveProjectStaleFlagRegoParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*SaveProjectStaleFlagRegoResponse, error) {
+	rsp, err := c.SaveProjectStaleFlagRegoWithBody(ctx, identifier, params, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseSaveProjectStaleFlagRegoResponse(rsp)
+}
+
+func (c *ClientWithResponses) SaveProjectStaleFlagRegoWithResponse(ctx context.Context, identifier Identifier, params *SaveProjectStaleFlagRegoParams, body SaveProjectStaleFlagRegoJSONRequestBody, reqEditors ...RequestEditorFn) (*SaveProjectStaleFlagRegoResponse, error) {
+	rsp, err := c.SaveProjectStaleFlagRego(ctx, identifier, params, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseSaveProjectStaleFlagRegoResponse(rsp)
+}
+
+// ValidateProjectStaleFlagRegoWithBodyWithResponse request with arbitrary body returning *ValidateProjectStaleFlagRegoResponse
+func (c *ClientWithResponses) ValidateProjectStaleFlagRegoWithBodyWithResponse(ctx context.Context, identifier Identifier, params *ValidateProjectStaleFlagRegoParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*ValidateProjectStaleFlagRegoResponse, error) {
+	rsp, err := c.ValidateProjectStaleFlagRegoWithBody(ctx, identifier, params, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseValidateProjectStaleFlagRegoResponse(rsp)
+}
+
+func (c *ClientWithResponses) ValidateProjectStaleFlagRegoWithResponse(ctx context.Context, identifier Identifier, params *ValidateProjectStaleFlagRegoParams, body ValidateProjectStaleFlagRegoJSONRequestBody, reqEditors ...RequestEditorFn) (*ValidateProjectStaleFlagRegoResponse, error) {
+	rsp, err := c.ValidateProjectStaleFlagRego(ctx, identifier, params, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseValidateProjectStaleFlagRegoResponse(rsp)
 }
 
 // GetProxyKeysWithResponse request returning *GetProxyKeysResponse
@@ -12229,6 +13479,15 @@ func (c *ClientWithResponses) GetTargetSegmentsWithResponse(ctx context.Context,
 	return ParseGetTargetSegmentsResponse(rsp)
 }
 
+// TriggerCcmJobsWithResponse request returning *TriggerCcmJobsResponse
+func (c *ClientWithResponses) TriggerCcmJobsWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*TriggerCcmJobsResponse, error) {
+	rsp, err := c.TriggerCcmJobs(ctx, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseTriggerCcmJobsResponse(rsp)
+}
+
 // ParseCreateAIDAQueryResponse parses an HTTP response from a CreateAIDAQueryWithResponse call
 func ParseCreateAIDAQueryResponse(rsp *http.Response) (*CreateAIDAQueryResponse, error) {
 	bodyBytes, err := ioutil.ReadAll(rsp.Body)
@@ -12270,6 +13529,60 @@ func ParseCreateAIDAQueryResponse(rsp *http.Response) (*CreateAIDAQueryResponse,
 			return nil, err
 		}
 		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseDismissAnomalyResponse parses an HTTP response from a DismissAnomalyWithResponse call
+func ParseDismissAnomalyResponse(rsp *http.Response) (*DismissAnomalyResponse, error) {
+	bodyBytes, err := ioutil.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &DismissAnomalyResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
 		var dest Error
@@ -13587,6 +14900,81 @@ func ParsePatchFeatureResponse(rsp *http.Response) (*PatchFeatureResponse, error
 	return response, nil
 }
 
+// ParsePutFeatureFlagResponse parses an HTTP response from a PutFeatureFlagWithResponse call
+func ParsePutFeatureFlagResponse(rsp *http.Response) (*PutFeatureFlagResponse, error) {
+	bodyBytes, err := ioutil.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &PutFeatureFlagResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest FeatureResponseMetadata
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 424:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON424 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
 // ParseGetDependentFeaturesResponse parses an HTTP response from a GetDependentFeaturesWithResponse call
 func ParseGetDependentFeaturesResponse(rsp *http.Response) (*GetDependentFeaturesResponse, error) {
 	bodyBytes, err := ioutil.ReadAll(rsp.Body)
@@ -13959,6 +15347,60 @@ func ParseRestoreFeatureFlagResponse(rsp *http.Response) (*RestoreFeatureFlagRes
 			return nil, err
 		}
 		response.JSON424 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseGetFeatureStaleStateResponse parses an HTTP response from a GetFeatureStaleStateWithResponse call
+func ParseGetFeatureStaleStateResponse(rsp *http.Response) (*GetFeatureStaleStateResponse, error) {
+	bodyBytes, err := ioutil.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetFeatureStaleStateResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest StaleFlagState
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
 		var dest Error
@@ -14735,6 +16177,276 @@ func ParseCreateGitRepoResponse(rsp *http.Response) (*CreateGitRepoResponse, err
 			return nil, err
 		}
 		response.JSON409 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseManualGitSyncResponse parses an HTTP response from a ManualGitSyncWithResponse call
+func ParseManualGitSyncResponse(rsp *http.Response) (*ManualGitSyncResponse, error) {
+	bodyBytes, err := ioutil.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &ManualGitSyncResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 424:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON424 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseGetSampleStaleFlagStateResponse parses an HTTP response from a GetSampleStaleFlagStateWithResponse call
+func ParseGetSampleStaleFlagStateResponse(rsp *http.Response) (*GetSampleStaleFlagStateResponse, error) {
+	bodyBytes, err := ioutil.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetSampleStaleFlagStateResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest StaleFlagState
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseGetProjectStaleFlagRegoResponse parses an HTTP response from a GetProjectStaleFlagRegoWithResponse call
+func ParseGetProjectStaleFlagRegoResponse(rsp *http.Response) (*GetProjectStaleFlagRegoResponse, error) {
+	bodyBytes, err := ioutil.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetProjectStaleFlagRegoResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest ProjectStaleFlagsRego
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseSaveProjectStaleFlagRegoResponse parses an HTTP response from a SaveProjectStaleFlagRegoWithResponse call
+func ParseSaveProjectStaleFlagRegoResponse(rsp *http.Response) (*SaveProjectStaleFlagRegoResponse, error) {
+	bodyBytes, err := ioutil.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &SaveProjectStaleFlagRegoResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest StoreStaleFlagsRego
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseValidateProjectStaleFlagRegoResponse parses an HTTP response from a ValidateProjectStaleFlagRegoWithResponse call
+func ParseValidateProjectStaleFlagRegoResponse(rsp *http.Response) (*ValidateProjectStaleFlagRegoResponse, error) {
+	bodyBytes, err := ioutil.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &ValidateProjectStaleFlagRegoResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest ValidatedStaleFlagsRego
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
 		var dest Error
@@ -16358,6 +18070,32 @@ func ParseGetTargetSegmentsResponse(rsp *http.Response) (*GetTargetSegmentsRespo
 		}
 		response.JSON404 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseTriggerCcmJobsResponse parses an HTTP response from a TriggerCcmJobsWithResponse call
+func ParseTriggerCcmJobsResponse(rsp *http.Response) (*TriggerCcmJobsResponse, error) {
+	bodyBytes, err := ioutil.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &TriggerCcmJobsResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
 		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {

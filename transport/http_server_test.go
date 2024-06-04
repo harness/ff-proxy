@@ -104,6 +104,8 @@ type setupConfig struct {
 	sdkClients        *mockSDKClient
 	healthFn          func(ctx context.Context) domain.HealthResponse
 	healthySaasStream func() bool
+	andRulesEnabled   bool
+	port              int
 }
 
 type setupOpts func(s *setupConfig)
@@ -159,6 +161,18 @@ func setupWithCache(c cache.Cache) setupOpts {
 func setupWithHealthySaasStream(fn func() bool) setupOpts {
 	return func(s *setupConfig) {
 		s.healthySaasStream = fn
+	}
+}
+
+func setupWithAndRulesEnabled(enabled bool) setupOpts {
+	return func(s *setupConfig) {
+		s.andRulesEnabled = enabled
+	}
+}
+
+func setupWithPort(port int) setupOpts {
+	return func(s *setupConfig) {
+		s.port = port
 	}
 }
 
@@ -248,6 +262,10 @@ func setupHTTPServer(t *testing.T, bypassAuth bool, opts ...setupOpts) *HTTPServ
 		setupConfig.healthySaasStream = func() bool { return true }
 	}
 
+	if setupConfig.port == 0 {
+		setupConfig.port = 8000
+	}
+
 	logger := log.NoOpLogger{}
 
 	tokenSource := token.NewSource(logger, setupConfig.authRepo, hash.NewSha256(), []byte(`secret`))
@@ -269,6 +287,7 @@ func setupHTTPServer(t *testing.T, bypassAuth bool, opts ...setupOpts) *HTTPServ
 		Offline:            false,
 		Hasher:             hash.NewSha256(),
 		HealthySaasStream:  setupConfig.healthySaasStream,
+		AndRulesEnabled:    setupConfig.andRulesEnabled,
 		SDKStreamConnected: func(envID string) {},
 		ForwardTargets:     true,
 	})
@@ -280,7 +299,7 @@ func setupHTTPServer(t *testing.T, bypassAuth bool, opts ...setupOpts) *HTTPServ
 		},
 	}
 
-	server := NewHTTPServer(8000, endpoints, logger, false, "", "")
+	server := NewHTTPServer(setupConfig.port, endpoints, logger, false, "", "")
 	server.Use(
 		middleware.NewCorsMiddleware(),
 		middleware.AllowQuerySemicolons(),
@@ -462,6 +481,10 @@ func TestHTTPServer_GetFeatureConfigByIdentifier(t *testing.T) {
 var targetSegments = []byte(`[{"createdAt":123,"environment":"featureflagsqa","excluded":[],"identifier":"flagsTeam","included":[],"modifiedAt":456,"name":"flagsTeam","rules":[{"attribute":"ip","id":"31c18ee7-8051-44cc-8507-b44580467ee5","negate":false,"op":"equal","values":["2a00:23c5:b672:2401:158:f2a6:67a0:6a79"]}],"version":1}]
 `)
 
+// targetSegments is the expected response body for a TargetSegments request with rules=v2 param - the newline at the end is intentional
+var targetSegmentsWithServingRules = []byte(`[{"createdAt":123,"environment":"featureflagsqa","excluded":[],"identifier":"flagsTeam","included":[],"modifiedAt":456,"name":"flagsTeam","servingRules":[{"clauses":[{"attribute":"ip","id":"31c18ee7-8051-44cc-8507-b44580467ee5","negate":false,"op":"equal","values":["2a00:23c5:b672:2401:158:f2a6:67a0:6a79"]}],"priority":1,"ruleId":"990a58a4-8ff8-4376-ae6e-a95d10387c4c"}],"version":1}]
+`)
+
 // TestHTTPServer_GetTargetSegments sets up a service with repositories
 // populated from config/test, injects it into the HTTPServer and makes HTTP
 // requests to the /client/env/{environmentUUID}/target-segments endpoint
@@ -470,6 +493,11 @@ func TestHTTPServer_GetTargetSegments(t *testing.T) {
 	server := setupHTTPServer(t, true)
 	testServer := httptest.NewServer(server)
 	defer testServer.Close()
+
+	// setup HTTPServer & service with auth bypassed and AND rules enabled
+	andRulesServer := setupHTTPServer(t, true, setupWithAndRulesEnabled(true), setupWithPort(8001))
+	andRulesTestServer := httptest.NewServer(andRulesServer)
+	defer andRulesTestServer.Close()
 
 	testCases := map[string]struct {
 		method               string
@@ -490,11 +518,29 @@ func TestHTTPServer_GetTargetSegments(t *testing.T) {
 			// if we return not found server SDK's won't be able to initialise unless they have at least one target group for each environment
 			expectedStatusCode: http.StatusOK,
 		},
-		"Given I make GET request for an environment and identifier that exist": {
+		"Given I make GET request for an environment and identifier that exist with andRulesEnabled false without rules=v2 param only returns rules": {
 			method:               http.MethodGet,
 			url:                  fmt.Sprintf("%s/client/env/1234/target-segments", testServer.URL),
 			expectedStatusCode:   http.StatusOK,
 			expectedResponseBody: targetSegments,
+		},
+		"Given I make GET request for an environment and identifier that exist with andRulesEnabled false and rules=v2 only returns rules": {
+			method:               http.MethodGet,
+			url:                  fmt.Sprintf("%s/client/env/1234/target-segments?rules=v2", testServer.URL),
+			expectedStatusCode:   http.StatusOK,
+			expectedResponseBody: targetSegments,
+		},
+		"Given I make GET request for an environment and identifier that exist with andRulesEnabled true without rules=v2 param only returns rules": {
+			method:               http.MethodGet,
+			url:                  fmt.Sprintf("%s/client/env/1234/target-segments", andRulesTestServer.URL),
+			expectedStatusCode:   http.StatusOK,
+			expectedResponseBody: targetSegments,
+		},
+		"Given I make GET request for an environment and identifier that exist with with andRulesEnabled true and rules=v2 only returns serving rules": {
+			method:               http.MethodGet,
+			url:                  fmt.Sprintf("%s/client/env/1234/target-segments?rules=v2", andRulesTestServer.URL),
+			expectedStatusCode:   http.StatusOK,
+			expectedResponseBody: targetSegmentsWithServingRules,
 		},
 	}
 	for desc, tc := range testCases {
@@ -542,6 +588,10 @@ func TestHTTPServer_GetTargetSegments(t *testing.T) {
 var segmentFlagsTeam = []byte(`{"createdAt":123,"environment":"featureflagsqa","excluded":[],"identifier":"flagsTeam","included":[],"modifiedAt":456,"name":"flagsTeam","rules":[{"attribute":"ip","id":"31c18ee7-8051-44cc-8507-b44580467ee5","negate":false,"op":"equal","values":["2a00:23c5:b672:2401:158:f2a6:67a0:6a79"]}],"version":1}
 `)
 
+// segmentFlagsTeamWithServingRules is the expected response body for a TargetSegmentsByIdentfier request where identifer='flagsTeam' and rules=v2 - the newline at the end is intentional
+var segmentFlagsTeamWithServingRules = []byte(`{"createdAt":123,"environment":"featureflagsqa","excluded":[],"identifier":"flagsTeam","included":[],"modifiedAt":456,"name":"flagsTeam","servingRules":[{"clauses":[{"attribute":"ip","id":"31c18ee7-8051-44cc-8507-b44580467ee5","negate":false,"op":"equal","values":["2a00:23c5:b672:2401:158:f2a6:67a0:6a79"]}],"priority":1,"ruleId":"990a58a4-8ff8-4376-ae6e-a95d10387c4c"}],"version":1}
+`)
+
 // TestHTTPServer_GetTargetSegmentsByIdentifier sets up a service with repositories
 // populated from config/test, injects it into the HTTPServer and makes HTTP
 // requests to the /client/env/{environmentUUID}/target-segments/{identifier} endpoint
@@ -550,6 +600,11 @@ func TestHTTPServer_GetTargetSegmentsByIdentifier(t *testing.T) {
 	server := setupHTTPServer(t, true)
 	testServer := httptest.NewServer(server)
 	defer testServer.Close()
+
+	// setup HTTPServer & service with auth bypassed and AND rules enabled
+	andRulesServer := setupHTTPServer(t, true, setupWithAndRulesEnabled(true), setupWithPort(8001))
+	andRulesTestServer := httptest.NewServer(andRulesServer)
+	defer andRulesTestServer.Close()
 
 	testCases := map[string]struct {
 		method               string
@@ -572,11 +627,29 @@ func TestHTTPServer_GetTargetSegmentsByIdentifier(t *testing.T) {
 			url:                fmt.Sprintf("%s/client/env/noexist/target-segments/james", testServer.URL),
 			expectedStatusCode: http.StatusNotFound,
 		},
-		"Given I make GET request for an environment and identifier that exist": {
+		"Given I make GET request for an environment and identifier that exist with andRulesEnabled false without rules=v2 param only returns rules": {
 			method:               http.MethodGet,
 			url:                  fmt.Sprintf("%s/client/env/1234/target-segments/flagsTeam", testServer.URL),
 			expectedStatusCode:   http.StatusOK,
 			expectedResponseBody: segmentFlagsTeam,
+		},
+		"Given I make GET request for an environment and identifier that exist with andRulesEnabled false and rules=v2 only returns rules": {
+			method:               http.MethodGet,
+			url:                  fmt.Sprintf("%s/client/env/1234/target-segments/flagsTeam?rules=v2", testServer.URL),
+			expectedStatusCode:   http.StatusOK,
+			expectedResponseBody: segmentFlagsTeam,
+		},
+		"Given I make GET request for an environment and identifier that exist with andRulesEnabled true without rules=v2 param only returns rules": {
+			method:               http.MethodGet,
+			url:                  fmt.Sprintf("%s/client/env/1234/target-segments/flagsTeam", andRulesTestServer.URL),
+			expectedStatusCode:   http.StatusOK,
+			expectedResponseBody: segmentFlagsTeam,
+		},
+		"Given I make GET request for an environment and identifier that exist with andRulesEnabled true and rules=v2 only returns rules": {
+			method:               http.MethodGet,
+			url:                  fmt.Sprintf("%s/client/env/1234/target-segments/flagsTeam?rules=v2", andRulesTestServer.URL),
+			expectedStatusCode:   http.StatusOK,
+			expectedResponseBody: segmentFlagsTeamWithServingRules,
 		},
 	}
 	for desc, tc := range testCases {

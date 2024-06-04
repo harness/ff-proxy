@@ -82,6 +82,9 @@ var (
 	// RedisStreams
 	metricsStreamMaxLen          int64
 	metricsStreamReadConcurrency int
+
+	// Beta features - will be short-lived and then become default behaviour in future releases
+	andRules bool
 )
 
 // Environment Variables
@@ -121,6 +124,9 @@ const (
 	// RedisStreams
 	metricsStreamMaxLenEnv          = "METRICS_STREAM_MAX_LEN"
 	metricsStreamReadConcurrencyEnv = "METRIC_STREAM_READ_CONCURRENCY"
+
+	// Beta features - will be short-lived and then become default behaviour in future releases
+	andRulesEnv = "AND_RULES"
 )
 
 // Flags
@@ -160,6 +166,9 @@ const (
 	// RedisStreams
 	metricsStreamMaxLenFlag         = "metrics-stream-max-len"
 	metricStreamReadConcurrencyFlag = "metrics-stream-read-concurrency"
+
+	// Beta features - will be short-lived and then become default behaviour in future releases
+	andRulesFlag = "and-rules"
 )
 
 // nolint:gochecknoinits
@@ -200,6 +209,9 @@ func init() {
 	flag.Int64Var(&metricsStreamMaxLen, metricsStreamMaxLenFlag, 1000, "Sets the max length of the redis stream that replicas use to send metrics to the Primary")
 	flag.IntVar(&metricsStreamReadConcurrency, metricStreamReadConcurrencyFlag, 10, "Controls the number of threads running in the Primary that listen for metrics data being sent by replicas")
 
+	// Beta features - will be short-lived and then become default behaviour in future releases
+	flag.BoolVar(&andRules, andRulesFlag, false, "if true the proxy will enable the AND rule functionality for target groups")
+
 	loadFlagsFromEnv(map[string]string{
 		bypassAuthEnv:                   bypassAuthFlag,
 		logLevelEnv:                     logLevelFlag,
@@ -218,6 +230,7 @@ func init() {
 		configDirEnv:                    configDirFlag,
 		portEnv:                         portFlag,
 		tlsEnabledEnv:                   tlsEnabledFlag,
+		andRulesEnv:                     andRulesFlag,
 		tlsCertEnv:                      tlsCertFlag,
 		tlsKeyEnv:                       tlsKeyFlag,
 		prometheusPortEnv:               prometheusPortFlag,
@@ -289,7 +302,7 @@ func main() {
 	promReg := prometheus.NewRegistry()
 	promReg.MustRegister(collectors.NewGoCollector())
 
-	logger.Info("service config", "version", build.Version, "pprof", pprofEnabled, "log-level", logLevel, "bypass-auth", bypassAuth, "offline", offline, "port", port, "redis-addr", redisAddress, "redis-db", redisDB, "heartbeat-interval", fmt.Sprintf("%ds", heartbeatInterval), "config-dir", configDir, "tls-enabled", tlsEnabled, "tls-cert", tlsCert, "tls-key", tlsKey, "read-replica", readReplica, "client-service", clientService, "metrics-service", metricService, "prometheus-port", prometheusPort)
+	logger.Info("service config", "version", build.Version, "pprof", pprofEnabled, "log-level", logLevel, "bypass-auth", bypassAuth, "offline", offline, "port", port, "redis-addr", redisAddress, "redis-db", redisDB, "heartbeat-interval", fmt.Sprintf("%ds", heartbeatInterval), "config-dir", configDir, "tls-enabled", tlsEnabled, "tls-cert", tlsCert, "tls-key", tlsKey, "read-replica", readReplica, "client-service", clientService, "metrics-service", metricService, "prometheus-port", prometheusPort, "and-rules", andRules)
 
 	// Create cache
 	// if we're just generating the offline config we should only use in memory mode for now
@@ -538,7 +551,8 @@ func main() {
 		SDKStreamConnected: func(envID string) {
 			connectedStreams.Set(envID, "")
 		},
-		ForwardTargets: forwardTargets,
+		ForwardTargets:  forwardTargets,
+		AndRulesEnabled: andRules,
 	})
 
 	// Configure endpoints and server

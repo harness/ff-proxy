@@ -113,7 +113,8 @@ type Config struct {
 
 	Health func(ctx context.Context) domain.HealthResponse
 
-	ForwardTargets bool
+	ForwardTargets  bool
+	AndRulesEnabled bool
 }
 
 type segmentRepo interface {
@@ -138,7 +139,8 @@ type Service struct {
 
 	health func(ctx context.Context) domain.HealthResponse
 
-	forwardTargets bool
+	forwardTargets  bool
+	andRulesEnabled bool
 }
 
 // NewService creates and returns a ProxyService
@@ -159,6 +161,7 @@ func NewService(c Config) Service {
 		sdkStreamConnected: c.SDKStreamConnected,
 		health:             c.Health,
 		forwardTargets:     c.ForwardTargets,
+		andRulesEnabled:    c.AndRulesEnabled,
 	}
 }
 
@@ -271,7 +274,22 @@ func (s Service) TargetSegments(ctx context.Context, req domain.TargetSegmentsRe
 		s.logger.Debug(ctx, "target segments not found in cache: ", "err", err.Error())
 	}
 
-	return segments, nil
+	// return servingRules if rules query param is set to v2, otherwise return rules - have to copy the groups to avoid modifying the original slice in the cache
+	newGroups := make([]domain.Segment, 0, len(segments))
+	newGroups = append(newGroups, segments...)
+
+	// if and rules flag enabled and rules=v2 param passed, return serving_rules, otherwise return rules
+	if s.andRulesEnabled && req.Rules == "v2" {
+		for i := range newGroups {
+			newGroups[i].Rules = nil
+		}
+	} else {
+		for i := range newGroups {
+			newGroups[i].ServingRules = nil
+		}
+	}
+
+	return newGroups, nil
 }
 
 // TargetSegmentsByIdentifier get a TargetSegments from an environment by its identifier
@@ -285,6 +303,12 @@ func (s Service) TargetSegmentsByIdentifier(ctx context.Context, req domain.Targ
 		return domain.Segment{}, fmt.Errorf("%w: %s", ErrInternal, err)
 	}
 
+	// if and rules flag enabled and rules=v2 param passed, return serving_rules, otherwise return rules
+	if s.andRulesEnabled && req.Rules == "v2" {
+		segment.Rules = nil
+	} else {
+		segment.ServingRules = nil
+	}
 	return segment, nil
 }
 
@@ -310,6 +334,12 @@ func (s Service) Evaluations(ctx context.Context, req domain.EvaluationsRequest)
 	// a lot of rules but for users that do have lots of rules it saves the query
 	// store from making a ton of individual segment calls to the cache.
 	segmentMap := s.makeSegmentMap(ctx, req.EnvironmentID)
+	if !s.andRulesEnabled {
+		// loop through segment map and strip serving rules
+		for i := range segmentMap {
+			segmentMap[i].ServingRules = nil
+		}
+	}
 
 	query := s.GenerateQueryStore(ctx, req.EnvironmentID, segmentMap)
 	sdkEvaluator, _ := evaluation.NewEvaluator(query, nil, logger.NewNoOpLogger())

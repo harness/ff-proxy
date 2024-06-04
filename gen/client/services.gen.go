@@ -497,6 +497,22 @@ func NewGetAllSegmentsRequest(server string, environmentUUID string, params *Get
 
 	}
 
+	if params.Rules != nil {
+
+		if queryFrag, err := runtime.StyleParamWithLocation("form", true, "rules", runtime.ParamLocationQuery, *params.Rules); err != nil {
+			return nil, err
+		} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+			return nil, err
+		} else {
+			for k, v := range parsed {
+				for _, v2 := range v {
+					queryValues.Add(k, v2)
+				}
+			}
+		}
+
+	}
+
 	queryURL.RawQuery = queryValues.Encode()
 
 	req, err := http.NewRequest("GET", queryURL.String(), nil)
@@ -545,6 +561,22 @@ func NewGetSegmentByIdentifierRequest(server string, environmentUUID string, ide
 	if params.Cluster != nil {
 
 		if queryFrag, err := runtime.StyleParamWithLocation("form", true, "cluster", runtime.ParamLocationQuery, *params.Cluster); err != nil {
+			return nil, err
+		} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+			return nil, err
+		} else {
+			for k, v := range parsed {
+				for _, v2 := range v {
+					queryValues.Add(k, v2)
+				}
+			}
+		}
+
+	}
+
+	if params.Rules != nil {
+
+		if queryFrag, err := runtime.StyleParamWithLocation("form", true, "rules", runtime.ParamLocationQuery, *params.Rules); err != nil {
 			return nil, err
 		} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
 			return nil, err

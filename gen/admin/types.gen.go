@@ -192,6 +192,22 @@ const (
 	DESC TsSortOrder = "DESC"
 )
 
+// An object used to specify updates for flag activation updates
+type ActivationUpdate struct {
+	// The default variation to serve when the flag is disabled in this environment
+	DefaultOffVariation *string `json:"defaultOffVariation,omitempty"`
+
+	// The default variation to serve when the flag is enabled in this environment
+	DefaultOnVariation *string `json:"defaultOnVariation,omitempty"`
+
+	// The name of the environment
+	Identifier string               `json:"identifier"`
+	Rules      *[]TargetRulesUpdate `json:"rules,omitempty"`
+
+	// The state of the flag in this environment i.e. "on" or "off"
+	State *string `json:"state,omitempty"`
+}
+
 // An AIDA Response
 type Aida struct {
 	// The Response from AIDA
@@ -273,6 +289,35 @@ type AuditTrails struct {
 	AuditTrails *[]AuditTrail `json:"auditTrails,omitempty"`
 }
 
+// CCM Details for environment
+type CCM struct {
+	// List of anomalies detected
+	Anomalies *[]struct {
+		// The timestamp when the anomaly was acknowledged
+		AcknowledgedAt *int `json:"acknowledgedAt,omitempty"`
+
+		// The Id of the anomaly
+		AnomalyId string `json:"anomalyId"`
+
+		// The difference value for the anomaly
+		CostDifference *int `json:"costDifference,omitempty"`
+
+		// The creation timestamp of the anomaly record
+		CreatedAt int `json:"createdAt"`
+
+		// The timestamp when the anomaly was found
+		FoundAt *int `json:"foundAt,omitempty"`
+
+		// Flag to indicate if the anomaly is acknowledged
+		IsAcknowledged bool `json:"isAcknowledged"`
+
+		// The current status of the anomaly
+		Status string `json:"status"`
+	} `json:"anomalies,omitempty"`
+	PerspectiveIdentifier string `json:"perspectiveIdentifier"`
+	PerspectiveName       string `json:"perspectiveName"`
+}
+
 // A clause describes what conditions are used to evaluate a flag
 type Clause struct {
 	// The attribute to use in the clause.  This can be any target attribute
@@ -306,7 +351,8 @@ type Environment struct {
 	ApiKeys ApiKeys `json:"apiKeys"`
 
 	// A description for this Environment
-	Description *string `json:"description,omitempty"`
+	Description            *string                 `json:"description,omitempty"`
+	EnvironmentPerspective *EnvironmentPerspective `json:"environmentPerspective,omitempty"`
 
 	// The Environment internal ID
 	Id *string `json:"id,omitempty"`
@@ -376,6 +422,9 @@ type Feature struct {
 
 	// The Feature Flag rules for a given environment
 	EnvProperties *struct {
+		// CCM Details for environment
+		Ccm *CCM `json:"ccm,omitempty"`
+
 		// Describe the distribution rule and the variation that should be served to the target
 		DefaultServe Serve `json:"defaultServe"`
 
@@ -496,6 +545,9 @@ type FeatureAvailablePipelines struct {
 type FeatureCounts struct {
 	// The total number of flags with a active status in a project/environment
 	TotalActive *int `json:"totalActive,omitempty"`
+
+	// The total number of flags with an unacknowledged anomaly status in the project/environment
+	TotalAnomaly *int `json:"totalAnomaly,omitempty"`
 
 	// The total number of archived flags in the project/environment
 	TotalArchived *int `json:"totalArchived,omitempty"`
@@ -756,6 +808,9 @@ type GitRepo struct {
 	// The branch where feature flag commits will be pushed
 	Branch string `json:"branch"`
 
+	// The commitId
+	CommitId *string `json:"commitId,omitempty"`
+
 	// Connector reference is a connector id, used to make a request through gitEx.
 	ConnectorReference *string `json:"connectorReference,omitempty"`
 
@@ -765,8 +820,14 @@ type GitRepo struct {
 	// The path within the rootFolder to store the flags
 	FilePath string `json:"filePath"`
 
-	// The last date and time that the feature flags were synced to git in milliseconds
+	// The last date and time that the feature flags were synced to/from git in milliseconds
+	LastSuccessfulSync *int64 `json:"lastSuccessfulSync,omitempty"`
+
+	// The last date and time that the feature flags attempted to synced to git in milliseconds
 	LastSync *int64 `json:"lastSync,omitempty"`
+
+	// The last date and time that the feature flags were synced to/from git in milliseconds
+	NextAttemptedSync *int64 `json:"nextAttemptedSync,omitempty"`
 
 	// The objectId
 	ObjectId string `json:"objectId"`
@@ -779,6 +840,9 @@ type GitRepo struct {
 
 	// The root folder in the repository where the feature flag yaml will be written
 	RootFolder string `json:"rootFolder"`
+
+	// String error for debugging
+	SyncError *string `json:"syncError,omitempty"`
 
 	// An error message describing any problems with the generated yaml
 	YamlError *string `json:"yamlError,omitempty"`
@@ -817,6 +881,18 @@ type GitSyncPatchOperation struct {
 
 	// A list of Patch Instructions
 	Instructions PatchInstruction `json:"instructions"`
+}
+
+// The rule used to determine what variation to serve to a target
+type GroupServingRule struct {
+	// A list of clauses to use in the rule
+	Clauses []Clause `json:"clauses"`
+
+	// The rules priority relative to other rules.  The rules are evaluated in order with 1 being the highest
+	Priority int `json:"priority"`
+
+	// The unique identifier for this rule
+	RuleId string `json:"ruleId"`
 }
 
 // A Jira Issue
@@ -980,6 +1056,12 @@ type ProjectFlags_Environments struct {
 	AdditionalProperties map[string]FlagEnvironment `json:"-"`
 }
 
+// Returns all the flags in a project and their state in each environment
+type ProjectStaleFlagsRego struct {
+	Custom   []StaleFlagsRego `json:"custom"`
+	Defaults []StaleFlagsRego `json:"defaults"`
+}
+
 // A list of projects
 type Projects struct {
 	// The total number of items
@@ -1085,10 +1167,11 @@ type Segment struct {
 	ModifiedAt *int64 `json:"modifiedAt,omitempty"`
 
 	// Name of the target group.
-	Name string `json:"name"`
+	Name  string    `json:"name"`
+	Rules *[]Clause `json:"rules,omitempty"`
 
 	// An array of rules that can cause a user to be included in this segment.
-	Rules *[]Clause `json:"rules,omitempty"`
+	ServingRules *[]GroupServingRule `json:"servingRules,omitempty"`
 
 	// Tags for this target group
 	Tags *[]Tag `json:"tags,omitempty"`
@@ -1166,8 +1249,59 @@ type ServingRule struct {
 	Serve Serve `json:"serve"`
 }
 
+// Returns the flag state data in json form
+type StaleFlagState struct {
+	// Flag state json data
+	Data string `json:"data"`
+}
+
+// The Rego for stale flag checks
+type StaleFlagsRego struct {
+	// The rego description
+	Description string `json:"description"`
+
+	// The id of the rego
+	Id string `json:"id"`
+
+	// The rego criteria name
+	Name string `json:"name"`
+
+	// The rego used to evaluate
+	Rego string `json:"rego"`
+
+	// A boolean to determine if this is the criteria used by the project
+	Selected bool `json:"selected"`
+}
+
 // Indicates if the request was successful or not
 type Status string
+
+// Returns the validation info for stale flags rego
+type StoreStaleFlagsRego struct {
+	// Validation details
+	Details *struct {
+		// How many flags were evaluated against the rego and were determined to not be stale
+		NotStaleFlags int `json:"not_stale_flags"`
+
+		// How many flags were evaluated against the rego and were determined to be stale
+		StaleFlags int `json:"stale_flags"`
+	} `json:"details,omitempty"`
+
+	// details of any errors if validation failed
+	Error *struct {
+		// the line the error occured on
+		Line int `json:"line"`
+
+		// The error message
+		Message string `json:"message"`
+	} `json:"error,omitempty"`
+
+	// If the supplied rego was successfully stored
+	Success bool `json:"success"`
+
+	// If the supplied rego was valid
+	Valid bool `json:"valid"`
+}
 
 // A Tag object used to tag feature flags - consists of name and identifier
 type Tag struct {
@@ -1276,6 +1410,15 @@ type TargetMap struct {
 	Name string `json:"name"`
 }
 
+// An object used to specify updates for flag activation updates
+type TargetRulesUpdate struct {
+	// The target rules that should be set for this variation
+	Targets *[]string `json:"targets,omitempty"`
+
+	// The name of the variation these rules apply to
+	Variation string `json:"variation"`
+}
+
 // Targets defines model for Targets.
 type Targets struct {
 	// Embedded struct due to allOf(#/components/schemas/Pagination)
@@ -1302,6 +1445,35 @@ type TargetsAndSegmentsInfo struct {
 type UserFlagOverview struct {
 	Enabled int `json:"enabled"`
 	Total   int `json:"total"`
+}
+
+// Returns the validation info for stale flags rego
+type ValidatedStaleFlagsRego struct {
+	// Validation details
+	Details *struct {
+		FlagNames *struct {
+			NotStaleFlags []string `json:"not_stale_flags"`
+			StaleFlags    []string `json:"stale_flags"`
+		} `json:"flag_names,omitempty"`
+
+		// How many flags were evaluated against the rego and were determined to not be stale
+		NotStaleFlags int `json:"not_stale_flags"`
+
+		// How many flags were evaluated against the rego and were determined to be stale
+		StaleFlags int `json:"stale_flags"`
+	} `json:"details,omitempty"`
+
+	// details of any errors if validation failed
+	Error *struct {
+		// the line the error occured on
+		Line int `json:"line"`
+
+		// The error message
+		Message string `json:"message"`
+	} `json:"error,omitempty"`
+
+	// If the supplied rego is valid or not
+	Valid bool `json:"valid"`
 }
 
 // A variation of a flag that can be returned to a target
@@ -1375,6 +1547,9 @@ type ExcludedFeaturesOptionalParam string
 
 // FeatureIDs defines model for featureIDs.
 type FeatureIDs []string
+
+// FeatureOptionalParam defines model for featureOptionalParam.
+type FeatureOptionalParam string
 
 // FeaturesOptionalParam defines model for featuresOptionalParam.
 type FeaturesOptionalParam string
@@ -1459,6 +1634,9 @@ type SafSortOrder string
 
 // SegmentNameQueryParam defines model for segmentNameQueryParam.
 type SegmentNameQueryParam string
+
+// SegmentRulesV2QueryParam defines model for segmentRulesV2QueryParam.
+type SegmentRulesV2QueryParam string
 
 // SortByField defines model for sortByField.
 type SortByField string
@@ -1643,6 +1821,9 @@ type ProjectResponse struct {
 	Status *Status `json:"status,omitempty"`
 }
 
+// Returns all the flags in a project and their state in each environment
+type ProjectStaleFlagsRegoResponse ProjectStaleFlagsRego
+
 // ProjectsResponse defines model for ProjectsResponse.
 type ProjectsResponse struct {
 	CorrelationId *string `json:"correlationId,omitempty"`
@@ -1697,6 +1878,9 @@ type SegmentResponse Segment
 // A list of Target Groups (Segments)
 type SegmentsResponse Segments
 
+// Returns the validation info for stale flags rego
+type StoreStaleFlagsRegoResponse StoreStaleFlagsRego
+
 // TagEditResponse defines model for TagEditResponse.
 type TagEditResponse TagResponseMetadata
 
@@ -1729,6 +1913,9 @@ type Unauthorized Error
 
 // Returns counts of Enabled (Where flag state is on in 1+ environments) and Total Flags
 type UserFlagOverviewResponse UserFlagOverview
+
+// Returns the validation info for stale flags rego
+type ValidatedStaleFlagsRegoResponse ValidatedStaleFlagsRego
 
 // AIDARequest defines model for AIDARequest.
 type AIDARequest struct {
@@ -1775,6 +1962,21 @@ type EnvironmentRequest struct {
 	Name        string  `json:"name"`
 	Project     string  `json:"project"`
 	Tags        *[]Tag  `json:"tags,omitempty"`
+}
+
+// FeatureFlagPutRequest defines model for FeatureFlagPutRequest.
+type FeatureFlagPutRequest struct {
+	DefaultOffVariation *string             `json:"defaultOffVariation,omitempty"`
+	DefaultOnVariation  *string             `json:"defaultOnVariation,omitempty"`
+	Description         *string             `json:"description,omitempty"`
+	Environments        *[]ActivationUpdate `json:"environments,omitempty"`
+
+	// The commit message to use as part of a gitsync operation
+	GitDetails *GitDetails  `json:"gitDetails,omitempty"`
+	Name       *string      `json:"name,omitempty"`
+	Permanent  *bool        `json:"permanent,omitempty"`
+	Tags       *[]Tag       `json:"tags,omitempty"`
+	Variations *[]Variation `json:"variations,omitempty"`
 }
 
 // FeatureFlagRequest defines model for FeatureFlagRequest.
@@ -1863,7 +2065,18 @@ type SegmentRequest struct {
 
 	// An array of rules that can cause a user to be included in this segment.
 	Rules *[]Clause `json:"rules,omitempty"`
-	Tags  *[]Tag    `json:"tags,omitempty"`
+
+	// An array of rules that can cause a user to be included in this segment.
+	ServingRules *[]GroupServingRule `json:"servingRules,omitempty"`
+	Tags         *[]Tag              `json:"tags,omitempty"`
+}
+
+// StoreStaleFlagRegoRequest defines model for StoreStaleFlagRegoRequest.
+type StoreStaleFlagRegoRequest struct {
+	Description string `json:"description"`
+	Id          string `json:"id"`
+	Name        string `json:"name"`
+	Rego        string `json:"rego"`
 }
 
 // A Tag object used to tag feature flags - consists of name and identifier
@@ -1874,6 +2087,27 @@ type TargetPatchRequest GitSyncPatchOperation
 
 // A Target object
 type TargetRequest Target
+
+// ValidateStaleFlagRegoRequest defines model for ValidateStaleFlagRegoRequest.
+type ValidateStaleFlagRegoRequest struct {
+	IncludeFLagNames *bool  `json:"includeFLagNames,omitempty"`
+	Rego             string `json:"rego"`
+}
+
+// DismissAnomalyParams defines parameters for DismissAnomaly.
+type DismissAnomalyParams struct {
+	// Account Identifier
+	AccountIdentifier AccountQueryParam `form:"accountIdentifier" json:"accountIdentifier"`
+
+	// Organization Identifier
+	OrgIdentifier OrgQueryParam `form:"orgIdentifier" json:"orgIdentifier"`
+
+	// The Project identifier
+	ProjectIdentifier ProjectQueryParam `form:"projectIdentifier" json:"projectIdentifier"`
+
+	// Environment Identifier
+	EnvironmentIdentifier EnvironmentQueryParam `form:"environmentIdentifier" json:"environmentIdentifier"`
+}
 
 // GetAllAPIKeysParams defines parameters for GetAllAPIKeys.
 type GetAllAPIKeysParams struct {
@@ -2379,6 +2613,18 @@ type PatchFeatureParams struct {
 	EnvironmentIdentifier *EnvironmentOptionalQueryParam `form:"environmentIdentifier,omitempty" json:"environmentIdentifier,omitempty"`
 }
 
+// PutFeatureFlagParams defines parameters for PutFeatureFlag.
+type PutFeatureFlagParams struct {
+	// Account Identifier
+	AccountIdentifier AccountQueryParam `form:"accountIdentifier" json:"accountIdentifier"`
+
+	// Organization Identifier
+	OrgIdentifier OrgQueryParam `form:"orgIdentifier" json:"orgIdentifier"`
+
+	// The Project identifier
+	ProjectIdentifier ProjectQueryParam `form:"projectIdentifier" json:"projectIdentifier"`
+}
+
 // GetDependentFeaturesParams defines parameters for GetDependentFeatures.
 type GetDependentFeaturesParams struct {
 	// Account Identifier
@@ -2553,6 +2799,18 @@ type RestoreFeatureFlagParams struct {
 	CommitMsg *CommitMsgQueryParam `form:"commitMsg,omitempty" json:"commitMsg,omitempty"`
 }
 
+// GetFeatureStaleStateParams defines parameters for GetFeatureStaleState.
+type GetFeatureStaleStateParams struct {
+	// Account Identifier
+	AccountIdentifier AccountQueryParam `form:"accountIdentifier" json:"accountIdentifier"`
+
+	// Organization Identifier
+	OrgIdentifier OrgQueryParam `form:"orgIdentifier" json:"orgIdentifier"`
+
+	// The Project identifier
+	ProjectIdentifier ProjectQueryParam `form:"projectIdentifier" json:"projectIdentifier"`
+}
+
 // GetJiraIssuesParams defines parameters for GetJiraIssues.
 type GetJiraIssuesParams struct {
 	// Account Identifier
@@ -2685,6 +2943,57 @@ type CreateGitRepoParams struct {
 	OrgIdentifier OrgQueryParam `form:"orgIdentifier" json:"orgIdentifier"`
 }
 
+// ManualGitSyncParams defines parameters for ManualGitSync.
+type ManualGitSyncParams struct {
+	// Account Identifier
+	AccountIdentifier AccountQueryParam `form:"accountIdentifier" json:"accountIdentifier"`
+
+	// Organization Identifier
+	OrgIdentifier OrgQueryParam `form:"orgIdentifier" json:"orgIdentifier"`
+}
+
+// GetSampleStaleFlagStateParams defines parameters for GetSampleStaleFlagState.
+type GetSampleStaleFlagStateParams struct {
+	// Account Identifier
+	AccountIdentifier AccountQueryParam `form:"accountIdentifier" json:"accountIdentifier"`
+
+	// Organization Identifier
+	OrgIdentifier OrgQueryParam `form:"orgIdentifier" json:"orgIdentifier"`
+
+	// The optional parameter for a feature identifier
+	FeatureIdentifier *FeatureOptionalParam `form:"featureIdentifier,omitempty" json:"featureIdentifier,omitempty"`
+}
+
+// GetProjectStaleFlagRegoParams defines parameters for GetProjectStaleFlagRego.
+type GetProjectStaleFlagRegoParams struct {
+	// Account Identifier
+	AccountIdentifier AccountQueryParam `form:"accountIdentifier" json:"accountIdentifier"`
+
+	// Organization Identifier
+	OrgIdentifier OrgQueryParam `form:"orgIdentifier" json:"orgIdentifier"`
+
+	// Name of the field
+	Name *NameQueryParam `form:"name,omitempty" json:"name,omitempty"`
+}
+
+// SaveProjectStaleFlagRegoParams defines parameters for SaveProjectStaleFlagRego.
+type SaveProjectStaleFlagRegoParams struct {
+	// Account Identifier
+	AccountIdentifier AccountQueryParam `form:"accountIdentifier" json:"accountIdentifier"`
+
+	// Organization Identifier
+	OrgIdentifier OrgQueryParam `form:"orgIdentifier" json:"orgIdentifier"`
+}
+
+// ValidateProjectStaleFlagRegoParams defines parameters for ValidateProjectStaleFlagRego.
+type ValidateProjectStaleFlagRegoParams struct {
+	// Account Identifier
+	AccountIdentifier AccountQueryParam `form:"accountIdentifier" json:"accountIdentifier"`
+
+	// Organization Identifier
+	OrgIdentifier OrgQueryParam `form:"orgIdentifier" json:"orgIdentifier"`
+}
+
 // GetProxyKeysParams defines parameters for GetProxyKeys.
 type GetProxyKeysParams struct {
 	// Account Identifier
@@ -2767,6 +3076,9 @@ type GetAllSegmentsParams struct {
 
 	// Identifier of the field
 	Identifier *IdentifierQueryParam `form:"identifier,omitempty" json:"identifier,omitempty"`
+
+	// When set to rules=v2 will return AND rule compatible serving_rules field. When not set or set to any other value will return old rules field only compatible with OR rules.
+	Rules *SegmentRulesV2QueryParam `form:"rules,omitempty" json:"rules,omitempty"`
 }
 
 // GetAllSegmentsParamsSortOrder defines parameters for GetAllSegments.
@@ -2812,6 +3124,9 @@ type GetSegmentParams struct {
 
 	// Environment Identifier
 	EnvironmentIdentifier EnvironmentQueryParam `form:"environmentIdentifier" json:"environmentIdentifier"`
+
+	// When set to rules=v2 will return AND rule compatible serving_rules field. When not set or set to any other value will return old rules field only compatible with OR rules.
+	Rules *SegmentRulesV2QueryParam `form:"rules,omitempty" json:"rules,omitempty"`
 }
 
 // PatchSegmentParams defines parameters for PatchSegment.
@@ -3246,6 +3561,9 @@ type UpdateFlagsYamlJSONRequestBody FeatureYamlRequest
 // PatchFeatureJSONRequestBody defines body for PatchFeature for application/json ContentType.
 type PatchFeatureJSONRequestBody FeaturePatchRequest
 
+// PutFeatureFlagJSONRequestBody defines body for PutFeatureFlag for application/json ContentType.
+type PutFeatureFlagJSONRequestBody FeatureFlagPutRequest
+
 // PatchFeaturePipelineJSONRequestBody defines body for PatchFeaturePipeline for application/json ContentType.
 type PatchFeaturePipelineJSONRequestBody FeaturePipelineRequest
 
@@ -3263,6 +3581,15 @@ type PatchGitRepoJSONRequestBody GitRepoPatchRequest
 
 // CreateGitRepoJSONRequestBody defines body for CreateGitRepo for application/json ContentType.
 type CreateGitRepoJSONRequestBody GitRepoRequest
+
+// ManualGitSyncJSONRequestBody defines body for ManualGitSync for application/json ContentType.
+type ManualGitSyncJSONRequestBody GitRepoRequest
+
+// SaveProjectStaleFlagRegoJSONRequestBody defines body for SaveProjectStaleFlagRego for application/json ContentType.
+type SaveProjectStaleFlagRegoJSONRequestBody StoreStaleFlagRegoRequest
+
+// ValidateProjectStaleFlagRegoJSONRequestBody defines body for ValidateProjectStaleFlagRego for application/json ContentType.
+type ValidateProjectStaleFlagRegoJSONRequestBody ValidateStaleFlagRegoRequest
 
 // CreateProxyKeyJSONRequestBody defines body for CreateProxyKey for application/json ContentType.
 type CreateProxyKeyJSONRequestBody ProxyKeysPostRequest

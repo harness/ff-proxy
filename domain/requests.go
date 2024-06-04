@@ -36,12 +36,14 @@ type FeatureConfigByIdentifierRequest struct {
 // TargetSegmentsRequest contains the fields sent in a GET /client/env/{environmentUUID}/target-segments
 type TargetSegmentsRequest struct {
 	EnvironmentID string
+	Rules         string
 }
 
 // TargetSegmentsByIdentifierRequest contains the fields sent in a GET /client/env/{environmentUUID}/target-segments/{identifier}
 type TargetSegmentsByIdentifierRequest struct {
 	EnvironmentID string
 	Identifier    string
+	Rules         string
 }
 
 // EvaluationsRequest contains the fields sent in a GET /client/env/{environmentUUID}/target/{target}/evaluations

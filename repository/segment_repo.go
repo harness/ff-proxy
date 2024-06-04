@@ -45,11 +45,21 @@ func (s SegmentRepo) GetByIdentifier(ctx context.Context, envID string, identifi
 }
 
 // Add stores SegmentConfig in the cache
+//
+//nolint:gocognit,cyclop,maintidx,gocyclo
 func (s SegmentRepo) Add(ctx context.Context, config ...domain.SegmentConfig) error {
 	errs := []error{}
 
 	for _, cfg := range config {
 		k := domain.NewSegmentsKey(cfg.EnvironmentID)
+
+		for i, seg := range cfg.Segments {
+			// if segment.serving rules populated and segment.rules is not then convert serving rules to rules
+			if (seg.ServingRules != nil && len(*seg.ServingRules) > 0) && (seg.Rules == nil || len(*seg.Rules) == 0) {
+				rules := domain.ConvertServingRulesToRules(*seg.ServingRules)
+				cfg.Segments[i].Rules = &rules
+			}
+		}
 
 		if err := s.cache.Set(ctx, string(k), cfg.Segments); err != nil {
 			errs = append(errs, addError{
