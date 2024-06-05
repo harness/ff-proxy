@@ -665,20 +665,28 @@ func newMetricStore(ctx context.Context, logger log.Logger, readReplica bool, re
 	return metricsservice.NewQueue(ctx, logger, time.Duration(metricPostDuration)*time.Second)
 }
 
+func removeRedisScheme(addr string) string {
+	return strings.TrimPrefix(strings.TrimPrefix(addr, "redis://"), "rediss://")
+}
+
 func newRedisClient(addr string, logger log.Logger) redis.UniversalClient {
 	splitAddr := strings.Split(addr, ",")
 
 	// if address does not start with redis:// or rediss:// then default to redis://
 	// if the connection string starts with rediss:// it means we'll connect with TLS enabled
 	redisConnectionString := addr
-	if !strings.HasPrefix(redisAddress, "redis://") && !strings.HasPrefix(redisAddress, "rediss://") {
-		redisConnectionString = fmt.Sprintf("redis://%s", redisAddress)
+	if !strings.HasPrefix(addr, "redis://") && !strings.HasPrefix(addr, "rediss://") {
+		redisConnectionString = fmt.Sprintf("redis://%s", addr)
 	}
 
 	parsed, err := redis.ParseURL(redisConnectionString)
 	if err != nil {
 		logger.Error("failed to parse redis address url", "connection string", redisConnectionString, "err", err)
 		os.Exit(1)
+	}
+
+	for i, split := range splitAddr {
+		splitAddr[i] = removeRedisScheme(split)
 	}
 
 	opts := redis.UniversalOptions{
