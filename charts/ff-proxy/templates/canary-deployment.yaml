@@ -1,0 +1,62 @@
+{{- if .Values.canary.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "ff-proxy.name" . }}-canary
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "ff-proxy.labels" . | nindent 4 }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: canary
+  template:
+    metadata:
+      {{- with .Values.canary.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      labels:
+        app.kubernetes.io/name: canary
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      serviceAccountName: {{ include "ff-proxy.serviceAccountName" . }}
+      securityContext:
+        {{- toYaml .Values.canary.podSecurityContext | nindent 8 }}
+      containers:
+      - image: "{{ .Values.canary.image.repository }}:{{ .Values.canary.image.tag }}"
+        name: canary
+        ports:
+          - name: http
+            containerPort: 8080
+            protocol: TCP
+        resources:
+          {{- toYaml .Values.canary.resources | nindent 12 }}
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: http
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: http
+        env:
+          - name: RELAY_PROXY_ADDRESS
+            {{- if .Values.canary.connectionAddress }}
+            value: {{ .Values.canary.connectionAddress }}
+            {{- else if .Values.readReplica.enabled }}
+            value: http://{{ include "ff-proxy.readReplica.name" . }}.{{ .Release.Namespace }}.svc.cluster.local:7000
+            {{- else if .Values.writer.service.enabled }}
+            value: http://{{ include "ff-proxy.writer.name" . }}.{{ .Release.Namespace }}.svc.cluster.local:7000
+            {{- end }}
+          - name: FF_SDK_KEY
+            value: {{ .Values.canary.sdkKey }}
+          {{- if .Values.canary.flagId }}
+          - name: FF_ID
+            value: {{ .Values.canary.flagId }}
+          {{- end }}
+{{- end }}

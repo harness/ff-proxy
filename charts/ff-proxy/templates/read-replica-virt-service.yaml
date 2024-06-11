@@ -1,0 +1,39 @@
+{{- if .Values.readReplica.istio.enabled }}
+apiVersion: networking.istio.io/v1beta1
+kind: VirtualService
+metadata:
+  name: {{ include "ff-proxy.readReplica.name" . }}
+  namespace: {{ .Release.Namespace }}
+spec:
+  gateways:
+  {{- range .Values.readReplica.istio.gateways }}
+  - {{ . }}
+  {{- end }}
+  hosts:
+  {{- range .Values.readReplica.istio.hosts }}
+      - {{ . }}
+      {{- end }}
+  http:
+  - match:
+    - uri:
+        prefix: /
+    route:
+    - destination:
+        host: {{ include "ff-proxy.readReplica.name" . }}.{{ .Release.Namespace }}.svc.cluster.local
+        port:
+          number: {{ .Values.readReplica.service.port }}
+  {{- if .Values.readReplica.istio.tls.enabled }}
+  tls:
+  - match:
+    - port: {{ .Values.readReplica.istio.tls.port }}
+      sniHosts:
+      {{- range .Values.readReplica.istio.hosts }}
+      - {{ . }}
+      {{- end }}
+    route:
+    - destination:
+        host: {{ include "ff-proxy.readReplica.name" . }}.{{ .Release.Namespace }}.svc.cluster.local
+        port:
+          number: {{ .Values.readReplica.service.port }}
+  {{- end }}
+{{- end }}

@@ -1,3 +1,4 @@
+{{- if .Values.writer.enabled }}
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -44,3 +45,4 @@ data:
   {{- if .Values.metricsStreamMaxLen }}
   METRICS_STREAM_MAX_LEN: {{ .Values.metricsStreamMaxLen }}
   {{- end }}
+{{- end }}

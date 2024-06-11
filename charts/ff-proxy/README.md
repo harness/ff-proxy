@@ -15,6 +15,12 @@ helm repo update feature-flag-relay-proxy
 ```
 
 Install the v2 proxy:
+
+The minimum configuration needed is:
+- A [proxy key](https://developer.harness.io/docs/feature-flags/relay-proxy/relay_proxy_v2/#creating-a-proxy-key)
+- An auth secret (a random string, used to encrypt connection between your SDK (applications) and the proxy)
+- The address of a redis server
+
 ```
 helm upgrade -i ff-proxy --namespace ff-proxy --create-namespace \
   feature-flag-relay-proxy/ff-proxy \
@@ -24,6 +30,10 @@ helm upgrade -i ff-proxy --namespace ff-proxy --create-namespace \
 ```
 
 After install/upgrade the helm notes will display information on how to retrieve the proxy URL for your configuration for use with the SDK.
+
+```
+Use http://127.0.0.1:8080 as your relay proxy URL
+```
 
 ## Uninstall
 
