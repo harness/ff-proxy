@@ -3,14 +3,14 @@
 # Declare variables to be passed into your templates.
 
 # The ProxyKey you want to configure your Proxy to use
-proxyKey: ""
+proxyKey: "9ff7bf2d-7761-4076-9ea5-f6a7d96be12d"
 
 # Use existing Secret which stores PROXY_KEY key instead of creating a new one. The value should be set with the `PROXY_KEY` key inside the secret.
 ## If set, this parameter takes precedence over "proxyKey".
 existingProxyKey:
 
 # Used by the Proxy to sign the JWT tokens it creates and returns to SDKs when they authenticate with the Proxy. The Proxy then checks that the token provided in any subsequent reqeusts by SDKs has been signed with this secret to ensure auth tokens can't be spoofed.
-authSecret: ""
+authSecret: "dfwfrdfa"
 
 # Use existing Secret which stores AUTH_SECRET key instead of creating a new one. The value should be set with the `AUTH_SECRET` key inside the secret.
 ## If set, this parameter takes precedence over "authSecret".
@@ -29,7 +29,8 @@ image:
   repository: harness/ff-proxy
   pullPolicy: IfNotPresent
   # Overrides the image tag whose default is the chart appVersion.
-  tag: ""
+  tag: "latest"
+  registry: docker.io
 
 imagePullSecrets: []
 nameOverride: ""
@@ -57,7 +58,7 @@ writer:
     requests:
       cpu: 2
       memory: 1Gi
-  
+
   ingress:
     enabled: false
     className: ""
@@ -86,7 +87,7 @@ writer:
     # readOnlyRootFilesystem: true
     # runAsNonRoot: true
     # runAsUser: 1000
-  
+
   nodeSelector: {}
 
   tolerations: []
@@ -114,7 +115,7 @@ readReplica:
 
   # disable the read replica to run in single pod mode, not advised for production
   enabled: true
-  
+
   service:
     type: ClusterIP
     port: 7000
@@ -163,7 +164,7 @@ readReplica:
     # readOnlyRootFilesystem: true
     # runAsNonRoot: true
     # runAsUser: 1000
-  
+
   nodeSelector: {}
 
   tolerations: []

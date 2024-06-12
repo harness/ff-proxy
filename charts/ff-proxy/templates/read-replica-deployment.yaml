@@ -31,7 +31,7 @@ spec:
         - name: {{ include "ff-proxy.readReplica.name" . }}
           securityContext:
             {{- toYaml .Values.readReplica.securityContext | nindent 12 }}
-          image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+          image: {{ include "common.images.image" (dict "imageRoot" .Values.image "global" .Values.global) }}
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           ports:
             - name: sdk
