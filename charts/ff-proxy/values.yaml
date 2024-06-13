@@ -3,7 +3,7 @@
 # Declare variables to be passed into your templates.
 
 # The ProxyKey you want to configure your Proxy to use
-proxyKey: "9ff7bf2d-7761-4076-9ea5-f6a7d96be12d"
+proxyKey: "-----"
 
 # Use existing Secret which stores PROXY_KEY key instead of creating a new one. The value should be set with the `PROXY_KEY` key inside the secret.
 ## If set, this parameter takes precedence over "proxyKey".
