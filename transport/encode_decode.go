@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"regexp"
 
 	"github.com/harness/ff-proxy/v2/domain"
 	proxyservice "github.com/harness/ff-proxy/v2/proxy-service"
@@ -102,6 +103,15 @@ func decodeAuthRequest(c echo.Context) (interface{}, error) {
 	if req.Target.Name == "" {
 		req.Target.Name = req.Target.Identifier
 	}
+
+	if req.Target.Identifier != "" && !isIdentifierValid(req.Target.Identifier) {
+		return nil, fmt.Errorf("%w: target identifier is invalid", errBadRequest)
+	}
+
+	if req.Target.Name != "" && !isNameValid(req.Target.Name) {
+		return nil, fmt.Errorf("%w: target name is invalid", errBadRequest)
+	}
+
 	return req, nil
 }
 
@@ -245,4 +255,27 @@ func decodeMetricsRequest(c echo.Context) (interface{}, error) {
 	}
 
 	return req, nil
+}
+
+var (
+	identifierRegex = regexp.MustCompile("^[A-Za-z0-9.@_-]*$")
+	nameRegex       = regexp.MustCompile("^[\\p{L}\\d .@_-]*$")
+)
+
+// IsIdentifierValid determine is an identifier confirms to the required format
+// returns true if the identifier is valid, otherwise this will return false
+func isIdentifierValid(identifier string) bool {
+	if identifier == "" {
+		return false
+	}
+	return identifierRegex.MatchString(identifier)
+}
+
+// IsNameValid determine if the name confirms to the required format
+// returns true if the name is valid, otherwise will return false
+func isNameValid(name string) bool {
+	if name == "" {
+		return false
+	}
+	return nameRegex.MatchString(name)
 }

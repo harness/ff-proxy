@@ -16,6 +16,7 @@ import (
 	"github.com/alicebob/miniredis/v2"
 	"github.com/harness-community/sse/v3"
 	sdkstream "github.com/harness/ff-golang-server-sdk/stream"
+	clientgen "github.com/harness/ff-proxy/v2/gen/client"
 	"github.com/labstack/echo/v4"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/redis/go-redis/v9"
@@ -24,7 +25,6 @@ import (
 	"github.com/harness/ff-proxy/v2/cache"
 	"github.com/harness/ff-proxy/v2/config/local"
 	"github.com/harness/ff-proxy/v2/domain"
-	clientgen "github.com/harness/ff-proxy/v2/gen/client"
 	"github.com/harness/ff-proxy/v2/hash"
 	"github.com/harness/ff-proxy/v2/log"
 	"github.com/harness/ff-proxy/v2/middleware"
@@ -1040,6 +1040,16 @@ func TestHTTPServer_PostAuthentication(t *testing.T) {
 			expectedStatusCode:           http.StatusOK,
 			expectedCacheTargets:         targets,
 			expectedClientServiceTargets: []domain.Target{},
+		},
+		"Given I make an auth request with an invalid Target Identifier": {
+			method:             http.MethodPost,
+			body:               []byte(fmt.Sprintf(`{"apiKey": "%s", "target": {"identifier": "hello world"}}`, apiKey1)),
+			expectedStatusCode: http.StatusBadRequest,
+		},
+		"Given I make an auth request with an invalid Target Name": {
+			method:             http.MethodPost,
+			body:               []byte(fmt.Sprintf(`{"apiKey": "%s", "target": {"identifier": "helloworld", "name": "Hello/World"}}`, apiKey1)),
+			expectedStatusCode: http.StatusBadRequest,
 		},
 	}
 
