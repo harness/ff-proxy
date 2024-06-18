@@ -666,28 +666,26 @@ func newMetricStore(ctx context.Context, logger log.Logger, readReplica bool, re
 }
 
 func newRedisClient(addr string, logger log.Logger) redis.UniversalClient {
-	splitAddr := strings.Split(addr, ",")
 
-	// if address does not start with redis:// or rediss:// then default to redis://
-	// if the connection string starts with rediss:// it means we'll connect with TLS enabled
-	redisConnectionString := addr
-	if !strings.HasPrefix(redisAddress, "redis://") && !strings.HasPrefix(redisAddress, "rediss://") {
-		redisConnectionString = fmt.Sprintf("redis://%s", redisAddress)
-	}
-
-	parsed, err := redis.ParseURL(redisConnectionString)
+	addresses, err := getAddresses(addr)
 	if err != nil {
-		logger.Error("failed to parse redis address url", "connection string", redisConnectionString, "err", err)
+		logger.Error("failed to parse redis address url", "connection string", addr, "err", err)
 		os.Exit(1)
+	}
+	redisOptions, err := getRedisOptionsFromURL(addresses[0])
+	if err != nil {
+		logger.Error("failed to parse redis address url", "connection string", addr, "err", err)
+		os.Exit(1)
+
 	}
 
 	opts := redis.UniversalOptions{
-		Addrs:     splitAddr,
-		DB:        parsed.DB,
-		Username:  parsed.Username,
-		Password:  parsed.Password,
+		Addrs:     addresses,
+		DB:        redisOptions.DB,
+		Username:  redisOptions.Username,
+		Password:  redisOptions.Password,
 		PoolSize:  redisPoolSize * runtime.NumCPU(),
-		TLSConfig: parsed.TLSConfig,
+		TLSConfig: redisOptions.TLSConfig,
 	}
 
 	if redisPassword != "" {
@@ -696,6 +694,34 @@ func newRedisClient(addr string, logger log.Logger) redis.UniversalClient {
 
 	logger.Info("connecting to redis", "address", redisAddress, "poolSize", opts.PoolSize)
 	return redis.NewUniversalClient(&opts)
+}
+
+func getRedisOptionsFromURL(addr string) (*redis.Options, error) {
+
+}
+
+func getAddresses(connectionStr string) ([]string, error) {
+	addresses := strings.Split(connectionStr, ",")
+	if len(addresses) == 0 {
+		return nil, fmt.Errorf("no addresses provided")
+	}
+
+	for i, addr := range addresses {
+		// if address does not start with redis:// or rediss:// then default to redis://
+		// if the connection string starts with rediss:// it means we'll connect with TLS enabled
+		redisConnectionString := addr
+		if !strings.HasPrefix(redisConnectionString, "redis://") && !strings.HasPrefix(redisConnectionString, "rediss://") {
+			redisConnectionString = fmt.Sprintf("redis://%s", redisConnectionString)
+		}
+
+		parsed, err := redis.ParseURL(redisConnectionString)
+		if err != nil {
+			return addresses, err
+		}
+		addresses[i] = parsed.Addr
+	}
+
+	return addresses, nil
 }
 
 func runPrometheusServer(ctx context.Context, port int, promReg *prometheus.Registry, logger log.Logger) {
