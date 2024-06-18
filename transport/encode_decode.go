@@ -259,7 +259,7 @@ func decodeMetricsRequest(c echo.Context) (interface{}, error) {
 
 var (
 	identifierRegex = regexp.MustCompile("^[A-Za-z0-9.@_-]*$")
-	nameRegex       = regexp.MustCompile("^[\\p{L}\\d .@_-]*$")
+	nameRegex       = regexp.MustCompile(`^[\p{L}\d .@_-]*$`)
 )
 
 // IsIdentifierValid determine is an identifier confirms to the required format
