@@ -118,10 +118,12 @@ func (s *safeMetricsRequestMap) get() map[string]domain.MetricsRequest {
 	return result
 }
 
+// nolint:cyclop
 func makeKey(envID string, attributes []clientgen.KeyValue) string {
 	var (
 		variationIdentifier string
 		flagIdentifier      string
+		flagName            string
 		sdkLanguage         string
 		sdkVersion          string
 
@@ -160,7 +162,22 @@ func makeKey(envID string, attributes []clientgen.KeyValue) string {
 			gotSDKVersion = true
 			continue
 		}
+
+		// If the flagIdentifier is already populated we don't need to bother
+		// fetching the flagName
+		if attr.Key == "featureName" && flagIdentifier == "" {
+			flagName = attr.Value
+			continue
+		}
 	}
 
-	return fmt.Sprintf("%s-%s-%s-%s-%s", envID, flagIdentifier, variationIdentifier, sdkLanguage, sdkVersion)
+	// Some SDKs send us a featureIdentifier attribute in the metrics but some
+	// only send a featureName (but use the identifier as the value). So if we
+	// don't find a featureIdentifier in the attributes we should use the name instead
+	flagIdent := flagIdentifier
+	if flagIdent == "" {
+		flagIdent = flagName
+	}
+
+	return fmt.Sprintf("%s-%s-%s-%s-%s", envID, flagIdent, variationIdentifier, sdkLanguage, sdkVersion)
 }
