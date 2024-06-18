@@ -118,6 +118,7 @@ func (s *safeMetricsRequestMap) get() map[string]domain.MetricsRequest {
 	return result
 }
 
+// nolint:cyclop
 func makeKey(envID string, attributes []clientgen.KeyValue) string {
 	var (
 		variationIdentifier string
