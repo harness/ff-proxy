@@ -2,6 +2,7 @@ package transport
 
 import (
 	"context"
+	"encoding/base64"
 	"errors"
 	"fmt"
 	"io"
@@ -12,6 +13,10 @@ import (
 	proxyservice "github.com/harness/ff-proxy/v2/proxy-service"
 	jsoniter "github.com/json-iterator/go"
 	"github.com/labstack/echo/v4"
+)
+
+const (
+	targetHeader = "Harness-Target"
 )
 
 var (
@@ -187,19 +192,36 @@ func decodeGetTargetSegmentsByIdentifierRequest(c echo.Context) (interface{}, er
 	return req, nil
 }
 
+func decodeBase64String(data string, value interface{}) error {
+	dst := make([]byte, len(data))
+
+	_, err := base64.StdEncoding.Decode(dst, []byte(data))
+	if err != nil {
+		return err
+	}
+
+	return jsoniter.Unmarshal(dst, value)
+}
+
 // decodeGetEvaluationsRequest decodes GET /client/env/{environmentUUID}/target/{target}/evaluations
 // requests into a domain.EvaluationsRequest that can be passed to the ProxyService
 func decodeGetEvaluationsRequest(c echo.Context) (interface{}, error) {
 	envID := c.Param("environment_uuid")
-	target := c.Param("target")
+	targetIdentifier := c.Param("target")
 
-	if envID == "" || target == "" {
+	if envID == "" || targetIdentifier == "" {
 		return nil, errBadRouting
+	}
+
+	target, err := extractTarget(c)
+	if err != nil {
+		return nil, errBadRequest
 	}
 
 	req := domain.EvaluationsRequest{
 		EnvironmentID:    envID,
-		TargetIdentifier: target,
+		TargetIdentifier: targetIdentifier,
+		Target:           target,
 	}
 	return req, nil
 }
@@ -208,13 +230,19 @@ func decodeGetEvaluationsRequest(c echo.Context) (interface{}, error) {
 // requests into a domain.EvaluationsByFeatureRequest that can be passed to the ProxyService
 func decodeGetEvaluationsByFeatureRequest(c echo.Context) (interface{}, error) {
 	envID := c.Param("environment_uuid")
-	target := c.Param("target")
+	targetIdentifier := c.Param("target")
 	feature := c.Param("feature")
+
+	target, err := extractTarget(c)
+	if err != nil {
+		return nil, errBadRequest
+	}
 
 	req := domain.EvaluationsByFeatureRequest{
 		EnvironmentID:     envID,
-		TargetIdentifier:  target,
+		TargetIdentifier:  targetIdentifier,
 		FeatureIdentifier: feature,
+		Target:            target,
 	}
 	return req, nil
 }
@@ -278,4 +306,19 @@ func isNameValid(name string) bool {
 		return false
 	}
 	return nameRegex.MatchString(name)
+}
+
+func extractTarget(c echo.Context) (*domain.Target, error) {
+	var target *domain.Target
+	encodedTarget := c.Request().Header.Get(targetHeader)
+
+	if encodedTarget == "" {
+		return target, nil
+	}
+
+	if err := decodeBase64String(encodedTarget, &target); err != nil {
+		return nil, fmt.Errorf("failed to decode target from header: %w", err)
+	}
+
+	return target, nil
 }

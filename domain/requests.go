@@ -50,6 +50,9 @@ type TargetSegmentsByIdentifierRequest struct {
 type EvaluationsRequest struct {
 	EnvironmentID    string
 	TargetIdentifier string
+
+	// Target is an optional field that will be populated if the client provides a 'Harness-Target' header in the request
+	Target *Target
 }
 
 // EvaluationsByFeatureRequest contains the fields sent in a GET /client/env/{environmentUUID}/target/{target}/evaluations/{feature} request
@@ -57,6 +60,9 @@ type EvaluationsByFeatureRequest struct {
 	EnvironmentID     string
 	TargetIdentifier  string
 	FeatureIdentifier string
+
+	// Target is an optional field that will be populated if the client provides a 'Harness-Target' header in the request
+	Target *Target
 }
 
 // StreamRequest contains the fields sent in a GET /stream request
