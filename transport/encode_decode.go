@@ -215,7 +215,7 @@ func decodeGetEvaluationsRequest(c echo.Context) (interface{}, error) {
 
 	target, err := extractTarget(c)
 	if err != nil {
-		return nil, errBadRequest
+		return nil, fmt.Errorf("%w: %s", errBadRequest, err)
 	}
 
 	req := domain.EvaluationsRequest{
@@ -317,7 +317,7 @@ func extractTarget(c echo.Context) (*domain.Target, error) {
 	}
 
 	if err := decodeBase64String(encodedTarget, &target); err != nil {
-		return nil, fmt.Errorf("failed to decode target from header: %w", err)
+		return nil, errors.New("failed to decode target from header - check target encoding is valid")
 	}
 
 	return target, nil
