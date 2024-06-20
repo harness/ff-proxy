@@ -92,6 +92,10 @@ func (c Client) PostMetrics(ctx context.Context, envID string, metric domain.Met
 	},
 		addAuthToken(c.token()),
 		domain.AddHarnessXHeaders(envID),
+		func(ctx context.Context, req *http.Request) error {
+			req.Header.Add("Connection", "close")
+			return nil
+		},
 	)
 	if err != nil {
 		return err
