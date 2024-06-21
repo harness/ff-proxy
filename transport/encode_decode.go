@@ -2,6 +2,7 @@ package transport
 
 import (
 	"context"
+	"encoding/base64"
 	"errors"
 	"fmt"
 	"io"
@@ -9,9 +10,14 @@ import (
 	"regexp"
 
 	"github.com/harness/ff-proxy/v2/domain"
+	"github.com/harness/ff-proxy/v2/log"
 	proxyservice "github.com/harness/ff-proxy/v2/proxy-service"
 	jsoniter "github.com/json-iterator/go"
 	"github.com/labstack/echo/v4"
+)
+
+const (
+	targetHeader = "Harness-Target"
 )
 
 var (
@@ -76,25 +82,29 @@ func codeFrom(err error) int {
 // decodeAuthRequest decodes POST /client/auth requests into a domain.AuthRequest
 // that can be passed to the service. It returns a wrapped bad request error if
 // the request body is empty or if the apiKey is empty
-func decodeAuthRequest(c echo.Context) (interface{}, error) {
+func decodeAuthRequest(c echo.Context, l log.Logger) (interface{}, error) {
 	//#nosec G307
 	defer c.Request().Body.Close()
 
 	req := domain.AuthRequest{}
 	b, err := io.ReadAll(c.Request().Body)
 	if err != nil {
+		l.Error("failed to read auth request body", "err", err)
 		return nil, err
 	}
 
 	if len(b) == 0 {
+		l.Info("invalid AuthRequest, request body is empty")
 		return nil, fmt.Errorf("%w: request body cannot be empty", errBadRequest)
 	}
 
 	if err := jsoniter.Unmarshal(b, &req); err != nil {
+		l.Error("failed to decode auth request", "err", err)
 		return nil, err
 	}
 
 	if req.APIKey == "" {
+		l.Info("invalid AuthRequest, apiKey cannot be empty", "apiKey", req.APIKey)
 		return nil, fmt.Errorf("%w: apiKey cannot be empty", errBadRequest)
 	}
 
@@ -105,10 +115,12 @@ func decodeAuthRequest(c echo.Context) (interface{}, error) {
 	}
 
 	if req.Target.Identifier != "" && !isIdentifierValid(req.Target.Identifier) {
+		l.Warn("invalid AuthRequest, target identifier is invalid", "targetIdentifier", req.Target.Identifier)
 		return nil, fmt.Errorf("%w: target identifier is invalid", errBadRequest)
 	}
 
 	if req.Target.Name != "" && !isNameValid(req.Target.Name) {
+		l.Warn("invalid AuthRequest, target name is invalid", "targetName", req.Target.Name)
 		return nil, fmt.Errorf("%w: target name is invalid", errBadRequest)
 	}
 
@@ -116,15 +128,16 @@ func decodeAuthRequest(c echo.Context) (interface{}, error) {
 }
 
 // decodeHealthRequest returns an empty interface
-func decodeHealthRequest(_ echo.Context) (interface{}, error) {
+func decodeHealthRequest(_ echo.Context, _ log.Logger) (interface{}, error) {
 	return nil, nil
 }
 
 // decodeGetFeatureConfigisRequest decodes GET /client/env/{environmentUUID}/feature-configs requests
 // into a domain.FeatureConfigRequest that can be passed to the ProxyService
-func decodeGetFeatureConfigsRequest(c echo.Context) (interface{}, error) {
+func decodeGetFeatureConfigsRequest(c echo.Context, l log.Logger) (interface{}, error) {
 	envID := c.Param("environment_uuid")
 	if envID == "" {
+		l.Info("invalid FeatureConfigs request, envID cannot be empty", "envID", envID)
 		return nil, errBadRouting
 	}
 
@@ -136,11 +149,12 @@ func decodeGetFeatureConfigsRequest(c echo.Context) (interface{}, error) {
 
 // decodeGetFeatureConfigsByIdentifierRequest decodes GET /client/env/{environmentUUID}/feature-configs/{identifier} requests
 // into a domain.FeatureConfigsByIdentifierRequest that can be passed to the ProxyService
-func decodeGetFeatureConfigsByIdentifierRequest(c echo.Context) (interface{}, error) {
+func decodeGetFeatureConfigsByIdentifierRequest(c echo.Context, l log.Logger) (interface{}, error) {
 	envID := c.Param("environment_uuid")
 	identifier := c.Param("identifier")
 
 	if envID == "" || identifier == "" {
+		l.Info("invalid FeatureConfigsByIdentifier request, envID and identifier cannot be empty", "envID", envID, "identifier", identifier)
 		return nil, errBadRouting
 	}
 
@@ -153,9 +167,10 @@ func decodeGetFeatureConfigsByIdentifierRequest(c echo.Context) (interface{}, er
 
 // decodeGetTargetSegmentsRequest decodes GET /client/env/{environmentUUID}/target-segments requests
 // into a domain.TargetSegmentsRequest that can be passed to the ProxyService
-func decodeGetTargetSegmentsRequest(c echo.Context) (interface{}, error) {
+func decodeGetTargetSegmentsRequest(c echo.Context, l log.Logger) (interface{}, error) {
 	envID := c.Param("environment_uuid")
 	if envID == "" {
+		l.Info("invalid TargetSegments request, envID cannot be empty", "envID", envID)
 		return nil, errBadRouting
 	}
 	rules := c.QueryParam(rulesQueryParam)
@@ -169,11 +184,12 @@ func decodeGetTargetSegmentsRequest(c echo.Context) (interface{}, error) {
 
 // decodeGetTargetSegmentsByIdentifierRequest decodes GET /client/env/{environmentUUID}/target-segments/{identifier}
 // requests into a domain.TargetSegmentsByIdentifierRequest that can be passed to the ProxyService
-func decodeGetTargetSegmentsByIdentifierRequest(c echo.Context) (interface{}, error) {
+func decodeGetTargetSegmentsByIdentifierRequest(c echo.Context, l log.Logger) (interface{}, error) {
 	envID := c.Param("environment_uuid")
 	identifier := c.Param("identifier")
 
 	if envID == "" || identifier == "" {
+		l.Info("invalid TargetSegmentsByIdentifier request, envID and identifier cannot be empty", "envID", envID, "identifier", identifier)
 		return nil, errBadRouting
 	}
 
@@ -187,41 +203,65 @@ func decodeGetTargetSegmentsByIdentifierRequest(c echo.Context) (interface{}, er
 	return req, nil
 }
 
+func decodeBase64String(data string, value interface{}) error {
+	dst := make([]byte, len(data))
+
+	_, err := base64.StdEncoding.Decode(dst, []byte(data))
+	if err != nil {
+		return err
+	}
+
+	return jsoniter.Unmarshal(dst, value)
+}
+
 // decodeGetEvaluationsRequest decodes GET /client/env/{environmentUUID}/target/{target}/evaluations
 // requests into a domain.EvaluationsRequest that can be passed to the ProxyService
-func decodeGetEvaluationsRequest(c echo.Context) (interface{}, error) {
+func decodeGetEvaluationsRequest(c echo.Context, l log.Logger) (interface{}, error) {
 	envID := c.Param("environment_uuid")
-	target := c.Param("target")
+	targetIdentifier := c.Param("target")
 
-	if envID == "" || target == "" {
+	if envID == "" || targetIdentifier == "" {
+		l.Info("invalid EvaluationsRequest request, envID and targetIdentifier cannot be empty", "envID", envID, "targetIdentifier", targetIdentifier)
 		return nil, errBadRouting
+	}
+
+	target, err := extractTarget(c)
+	if err != nil {
+		l.Warn("failed to extract target from header", "err", err)
 	}
 
 	req := domain.EvaluationsRequest{
 		EnvironmentID:    envID,
-		TargetIdentifier: target,
+		TargetIdentifier: targetIdentifier,
+		Target:           target,
 	}
 	return req, nil
 }
 
 // decodeGetEvaluationsByFeatureRequest decodes GET /client/env/{environmentUUID}/target/{target}/evaluations/{feature}
 // requests into a domain.EvaluationsByFeatureRequest that can be passed to the ProxyService
-func decodeGetEvaluationsByFeatureRequest(c echo.Context) (interface{}, error) {
+func decodeGetEvaluationsByFeatureRequest(c echo.Context, l log.Logger) (interface{}, error) {
 	envID := c.Param("environment_uuid")
-	target := c.Param("target")
+	targetIdentifier := c.Param("target")
 	feature := c.Param("feature")
+
+	target, err := extractTarget(c)
+	if err != nil {
+		l.Warn("failed to extract target from header", "err", err)
+	}
 
 	req := domain.EvaluationsByFeatureRequest{
 		EnvironmentID:     envID,
-		TargetIdentifier:  target,
+		TargetIdentifier:  targetIdentifier,
 		FeatureIdentifier: feature,
+		Target:            target,
 	}
 	return req, nil
 }
 
 // decodeGetStreamRequest decodes GET /stream requests into a domain.StreamRequest that
 // can be passed to the ProxyService
-func decodeGetStreamRequest(c echo.Context) (interface{}, error) {
+func decodeGetStreamRequest(c echo.Context, l log.Logger) (interface{}, error) {
 	apiKey := c.Request().Header.Get("API-Key")
 
 	req := domain.StreamRequest{
@@ -229,13 +269,14 @@ func decodeGetStreamRequest(c echo.Context) (interface{}, error) {
 	}
 
 	if req.APIKey == "" {
+		l.Info("invalid Stream request, API Key is empty", "apiKey", req.APIKey)
 		return nil, fmt.Errorf("%w: API-Key can't be empty", errBadRequest)
 	}
 	return req, nil
 }
 
 // decodeMetricsRequest decodes POST /metrics/{environment} requests into domain.Metrics
-func decodeMetricsRequest(c echo.Context) (interface{}, error) {
+func decodeMetricsRequest(c echo.Context, l log.Logger) (interface{}, error) {
 	//#nosec G307
 	defer c.Request().Body.Close()
 
@@ -251,6 +292,7 @@ func decodeMetricsRequest(c echo.Context) (interface{}, error) {
 
 	req.EnvironmentID = c.Param("environment_uuid")
 	if req.EnvironmentID == "" {
+		l.Info("invalid Metrics request, environmentID cannot be empty", "envID", req.EnvironmentID)
 		return nil, errBadRouting
 	}
 
@@ -278,4 +320,19 @@ func isNameValid(name string) bool {
 		return false
 	}
 	return nameRegex.MatchString(name)
+}
+
+func extractTarget(c echo.Context) (*domain.Target, error) {
+	var target *domain.Target
+	encodedTarget := c.Request().Header.Get(targetHeader)
+
+	if encodedTarget == "" {
+		return target, nil
+	}
+
+	if err := decodeBase64String(encodedTarget, &target); err != nil {
+		return nil, fmt.Errorf("failed to decode target from header: %s", err)
+	}
+
+	return target, nil
 }

@@ -316,18 +316,16 @@ func (s Service) TargetSegmentsByIdentifier(ctx context.Context, req domain.Targ
 func (s Service) Evaluations(ctx context.Context, req domain.EvaluationsRequest) ([]clientgen.Evaluation, error) {
 	evaluations := []clientgen.Evaluation{}
 
-	// fetch target
-	t, err := s.targetRepo.GetByIdentifier(ctx, req.EnvironmentID, req.TargetIdentifier)
+	target, err := s.findTarget(ctx, req.EnvironmentID, req.Target, req.TargetIdentifier)
 	if err != nil {
 		if errors.Is(err, domain.ErrCacheNotFound) {
 			s.logger.Warn(ctx, "target not found in cache, serving request using only identifier attribute: ", "err", err.Error())
-			t = domain.Target{Target: clientgen.Target{Identifier: req.TargetIdentifier}}
+			target = domain.ConvertTarget(domain.Target{Target: clientgen.Target{Identifier: req.TargetIdentifier}})
 		} else {
 			s.logger.Error(ctx, "error fetching target: ", "err", err.Error())
 			return []clientgen.Evaluation{}, fmt.Errorf("%w: %s", ErrInternal, err)
 		}
 	}
-	target := domain.ConvertTarget(t)
 
 	// We fetch all the segments ahead of time and build up a map that we can
 	// pass to the QueryStore. This might be overkill for users that don't have
@@ -367,19 +365,16 @@ func (s Service) Evaluations(ctx context.Context, req domain.EvaluationsRequest)
 
 // EvaluationsByFeature gets all the evaluations in an environment for a target for a particular feature
 func (s Service) EvaluationsByFeature(ctx context.Context, req domain.EvaluationsByFeatureRequest) (clientgen.Evaluation, error) {
-
-	// fetch target
-	t, err := s.targetRepo.GetByIdentifier(ctx, req.EnvironmentID, req.TargetIdentifier)
+	target, err := s.findTarget(ctx, req.EnvironmentID, req.Target, req.TargetIdentifier)
 	if err != nil {
 		if errors.Is(err, domain.ErrCacheNotFound) {
 			s.logger.Warn(ctx, "target not found in cache, serving request using only identifier attribute: ", "err", err.Error())
-			t = domain.Target{Target: clientgen.Target{Identifier: req.TargetIdentifier}}
+			target = domain.ConvertTarget(domain.Target{Target: clientgen.Target{Identifier: req.TargetIdentifier}})
 		} else {
 			s.logger.Error(ctx, "error fetching target: ", "err", err.Error())
 			return clientgen.Evaluation{}, fmt.Errorf("%w: %s", ErrInternal, err)
 		}
 	}
-	target := domain.ConvertTarget(t)
 
 	query := s.GenerateQueryStore(ctx, req.EnvironmentID, nil)
 
@@ -475,4 +470,19 @@ func (s Service) makeSegmentMap(ctx context.Context, envID string) map[string]*d
 	}
 
 	return segmentMap
+}
+
+func (s Service) findTarget(ctx context.Context, envID string, target *domain.Target, targetIdentifier string) (evaluation.Target, error) {
+	// If we've been given a target we can just convert and return it
+	if target != nil {
+		return domain.ConvertTarget(*target), nil
+	}
+
+	// otherwise we'll need to fetch the Target from the cache
+	t, err := s.targetRepo.GetByIdentifier(ctx, envID, targetIdentifier)
+	if err != nil {
+		return evaluation.Target{}, err
+	}
+
+	return domain.ConvertTarget(t), nil
 }

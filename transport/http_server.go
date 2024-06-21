@@ -114,6 +114,7 @@ func (h *HTTPServer) registerEndpoints(e *Endpoints) {
 		decodeAuthRequest,
 		encodeResponse,
 		encodeEchoError,
+		h.log,
 	))
 
 	h.router.GET(healthRoute, NewUnaryHandler(
@@ -121,6 +122,7 @@ func (h *HTTPServer) registerEndpoints(e *Endpoints) {
 		decodeHealthRequest,
 		encodeResponse,
 		encodeEchoError,
+		h.log,
 	))
 
 	h.router.GET(featureConfigsRoute, NewUnaryHandler(
@@ -128,6 +130,7 @@ func (h *HTTPServer) registerEndpoints(e *Endpoints) {
 		decodeGetFeatureConfigsRequest,
 		encodeResponse,
 		encodeEchoError,
+		h.log,
 	))
 
 	h.router.GET(featureConfigsIdentifierRoute, NewUnaryHandler(
@@ -135,6 +138,7 @@ func (h *HTTPServer) registerEndpoints(e *Endpoints) {
 		decodeGetFeatureConfigsByIdentifierRequest,
 		encodeResponse,
 		encodeEchoError,
+		h.log,
 	))
 
 	h.router.GET(segmentsRoute, NewUnaryHandler(
@@ -142,6 +146,7 @@ func (h *HTTPServer) registerEndpoints(e *Endpoints) {
 		decodeGetTargetSegmentsRequest,
 		encodeResponse,
 		encodeEchoError,
+		h.log,
 	))
 
 	h.router.GET(segmentsIdentifierRoute, NewUnaryHandler(
@@ -149,6 +154,7 @@ func (h *HTTPServer) registerEndpoints(e *Endpoints) {
 		decodeGetTargetSegmentsByIdentifierRequest,
 		encodeResponse,
 		encodeEchoError,
+		h.log,
 	))
 
 	h.router.GET(evaluationsRoute, NewUnaryHandler(
@@ -156,6 +162,7 @@ func (h *HTTPServer) registerEndpoints(e *Endpoints) {
 		decodeGetEvaluationsRequest,
 		encodeResponse,
 		encodeEchoError,
+		h.log,
 	))
 
 	h.router.GET(evaluationsFlagRoute, NewUnaryHandler(
@@ -163,6 +170,7 @@ func (h *HTTPServer) registerEndpoints(e *Endpoints) {
 		decodeGetEvaluationsByFeatureRequest,
 		encodeResponse,
 		encodeEchoError,
+		h.log,
 	))
 
 	h.router.GET(streamRoute, NewUnaryHandler(
@@ -170,6 +178,7 @@ func (h *HTTPServer) registerEndpoints(e *Endpoints) {
 		decodeGetStreamRequest,
 		encodeStreamResponse,
 		encodeEchoError,
+		h.log,
 	))
 
 	h.router.POST(metricsRoute, NewUnaryHandler(
@@ -177,6 +186,7 @@ func (h *HTTPServer) registerEndpoints(e *Endpoints) {
 		decodeMetricsRequest,
 		encodeResponse,
 		encodeEchoError,
+		h.log,
 	))
 }
 
