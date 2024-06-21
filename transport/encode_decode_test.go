@@ -8,6 +8,7 @@ import (
 
 	"github.com/harness/ff-proxy/v2/domain"
 	clientgen "github.com/harness/ff-proxy/v2/gen/client"
+	"github.com/harness/ff-proxy/v2/log"
 	jsoniter "github.com/json-iterator/go"
 	"github.com/labstack/echo/v4"
 	"github.com/stretchr/testify/assert"
@@ -245,7 +246,7 @@ func Test_decodeGetEvaluationsRequest(t *testing.T) {
 			c.SetParamNames("environment_uuid", "target")
 			c.SetParamValues(tc.args.envID, tc.args.target)
 
-			actual, err := decodeGetEvaluationsRequest(c)
+			actual, err := decodeGetEvaluationsRequest(c, log.NoOpLogger{})
 			if tc.shouldErr {
 				assert.NotNil(t, err)
 			} else {
@@ -289,7 +290,7 @@ func Test_decodeGetEvaluationsByFeatureRequest(t *testing.T) {
 		expected  expected
 		shouldErr bool
 	}{
-		"Given I make a evaluations request and include a target header": {
+		"Given I make a evaluations by feature request and include a target header": {
 			args: args{
 				envID:   "123",
 				target:  "foo",
@@ -306,7 +307,7 @@ func Test_decodeGetEvaluationsByFeatureRequest(t *testing.T) {
 				},
 			},
 		},
-		"Given I make a evaluations request and don't include a target header": {
+		"Given I make a evaluations by feature request and don't include a target header": {
 			args: args{
 				envID:   "123",
 				target:  "foo",
@@ -342,7 +343,7 @@ func Test_decodeGetEvaluationsByFeatureRequest(t *testing.T) {
 			c.SetParamNames("environment_uuid", "target", "feature")
 			c.SetParamValues(tc.args.envID, tc.args.target, tc.args.feature)
 
-			actual, err := decodeGetEvaluationsByFeatureRequest(c)
+			actual, err := decodeGetEvaluationsByFeatureRequest(c, log.NoOpLogger{})
 			if tc.shouldErr {
 				assert.NotNil(t, err)
 			} else {

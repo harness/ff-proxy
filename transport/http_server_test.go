@@ -782,13 +782,12 @@ func TestHTTPServer_GetEvaluations(t *testing.T) {
 			expectedStatusCode:   http.StatusOK,
 			expectedResponseBody: targetDavejEvaluations,
 		},
-		"Given I make a GET request with an invalid Target in the Harness-Target": {
-			method:             http.MethodGet,
-			url:                fmt.Sprintf("%s/client/env/1234/target/foo/evaluations", testServer.URL),
-			headers:            map[string]string{targetHeader: badlyEncodedTarget},
-			expectedStatusCode: http.StatusBadRequest,
-			expectedResponseBody: []byte(`{"error":"bad request: failed to decode target from header - check target encoding is valid"}
-`),
+		"Given I make a GET request with an invalid Target in the Harness-Target, then the target from the path will be used": {
+			method:               http.MethodGet,
+			url:                  fmt.Sprintf("%s/client/env/1234/target/foo/evaluations", testServer.URL),
+			headers:              map[string]string{targetHeader: badlyEncodedTarget},
+			expectedStatusCode:   http.StatusOK,
+			expectedResponseBody: targetFooEvaluations,
 		},
 	}
 	for desc, tc := range testCases {
@@ -921,13 +920,12 @@ func TestHTTPServer_GetEvaluationsByFeature(t *testing.T) {
 			expectedStatusCode:   http.StatusOK,
 			expectedResponseBody: targetDavejDarkModeEvaluation,
 		},
-		"Given I make a GET request with an invalid Target in the Harness-Target": {
-			method:             http.MethodGet,
-			url:                fmt.Sprintf("%s/client/env/1234/target/foo/evaluations", testServer.URL),
-			headers:            map[string]string{targetHeader: badlyEncodedTarget},
-			expectedStatusCode: http.StatusBadRequest,
-			expectedResponseBody: []byte(`{"error":"bad request: failed to decode target from header - check target encoding is valid"}
-`),
+		"Given I make a GET request with an invalid Target in the Harness-Target, then the target from the path will be used": {
+			method:               http.MethodGet,
+			url:                  fmt.Sprintf("%s/client/env/1234/target/foo/evaluations/harnessappdemodarkmode", testServer.URL),
+			headers:              map[string]string{targetHeader: badlyEncodedTarget},
+			expectedStatusCode:   http.StatusOK,
+			expectedResponseBody: darkModeEvaluationTrue,
 		},
 	}
 
