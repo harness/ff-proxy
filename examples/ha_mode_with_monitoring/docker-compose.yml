@@ -17,9 +17,9 @@ services:
     image: "harness/ff-proxy:2.0.1"
     environment:
       - LOG_LEVEL=INFO
-      - REDIS_ADDRESS=redis:67379
+      - REDIS_ADDRESS=redis:6379
       - READ_REPLICA=true
-      - AUTH_SECRET=
+      - AUTH_SECRET=foobar
     ports:
       - "7002:7000"
     depends_on:
