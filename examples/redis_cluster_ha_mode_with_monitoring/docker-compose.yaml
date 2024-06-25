@@ -4,7 +4,7 @@ networks:
     driver: bridge
 services:
   primary:
-    image: "harness/ff-proxy:2.0.0-rc.20"
+    image: "harness/ff-proxy:2.0.1"
     container_name: primary-proxy
     environment:
       - LOG_LEVEL=INFO
@@ -18,7 +18,7 @@ services:
       - redis-net
       
   replica:
-    image: "harness/ff-proxy:2.0.0-rc.20"
+    image: "harness/ff-proxy:2.0.1"
     container_name: replica-proxy
     environment:
       - LOG_LEVEL=INFO

@@ -281,12 +281,12 @@ func main() {
 		}
 	}
 
-	// we currently don't require any config to run in offline mode
-	requiredFlags := map[string]interface{}{}
-	if !offline && !readReplica {
-		requiredFlags = map[string]interface{}{
-			proxyKeyEnv: proxyKey,
-		}
+	requiredFlags := map[string]interface{}{
+		redisAddrEnv:  redisAddress,
+		authSecretEnv: authSecret,
+	}
+	if !readReplica {
+		requiredFlags[proxyKeyEnv] = proxyKey
 	}
 	validateFlags(requiredFlags)
 
