@@ -91,8 +91,12 @@ func (t TargetRepo) DeltaAdd(ctx context.Context, envID string, targets ...domai
 	// then we'll want to remove them.
 	for identifier := range existingTargets {
 		if _, ok := newTargets[identifier]; !ok {
-			if err := t.cache.Delete(ctx, string(key)); err != nil {
-				t.log.Error("failed to flush stale target from cache during DeltaAdd", "err", err)
+			if err2 := t.cache.Delete(ctx, string(key)); err != nil {
+
+				// We don't want to log context cancelled errors
+				if !errors.Is(err2, context.Canceled) {
+					t.log.Error("failed to flush stale target from cache during DeltaAdd", "err", err)
+				}
 			}
 		}
 	}
