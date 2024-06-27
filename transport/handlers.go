@@ -84,7 +84,7 @@ func (l *loggingResponseWriter) Write(bytes []byte) (int, error) {
 		l.log.Error("more than one write header call", "url", l.req.URL.String(), "resp_body", fmt.Sprintf("%s", bytes), "write_counts", l.writeCounts)
 	}
 
-	return l.Write(bytes)
+	return l.writer.Write(bytes)
 }
 
 func (l *loggingResponseWriter) WriteHeader(statusCode int) {
