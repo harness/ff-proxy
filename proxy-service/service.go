@@ -344,7 +344,11 @@ func (s Service) Evaluations(ctx context.Context, req domain.EvaluationsRequest)
 
 	flagVariations, err := sdkEvaluator.EvaluateAll(&target)
 	if err != nil {
-		s.logger.Error(ctx, "ClientAPI.GetEvaluationByIdentifier() failed to perform evaluation", "environment", req.EnvironmentID, "target", target.Identifier, "err", err)
+		if !errors.Is(err, context.Canceled) {
+			s.logger.Info(ctx, "unable to complete Evaluations request, client cancelled the request", "err", err)
+			return nil, err
+		}
+		s.logger.Error(ctx, "GetEvaluationByIdentifier() failed to perform evaluation", "environment", req.EnvironmentID, "target", target.Identifier, "err", err)
 		return nil, err
 	}
 	//package all into the evaluations
@@ -456,6 +460,10 @@ func (s Service) makeSegmentMap(ctx context.Context, envID string) map[string]*d
 
 	segments, err := s.segmentRepo.Get(ctx, envID)
 	if err != nil {
+		if errors.Is(err, context.Canceled) {
+			s.logger.Info(ctx, "makeSegmentMap can't get segments from the cache, context was cancelled by the client", "err", err)
+			return segmentMap
+		}
 		// Not much else we can really do here other than log the error
 		s.logger.Error(ctx, "makeSegmentMap failed to get segments from cache: ", "err", err)
 		return segmentMap
