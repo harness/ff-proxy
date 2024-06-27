@@ -57,6 +57,7 @@ func (t TargetRepo) GetByIdentifier(ctx context.Context, envID string, identifie
 // an error to avoid wiping all of the Targets from the cache. If we want to remove
 // all of the Targets for a given key then we should add an explicit Remove method
 // that calls cache.Remove.
+// nolint:cyclop
 func (t TargetRepo) DeltaAdd(ctx context.Context, envID string, targets ...domain.Target) error {
 	if len(targets) == 0 {
 		return fmt.Errorf("can't perform DeltaAdd with zero targets for environment %s", envID)
