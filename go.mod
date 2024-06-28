@@ -15,7 +15,7 @@ require (
 	github.com/golang-jwt/jwt/v4 v4.4.3
 	github.com/google/uuid v1.5.0
 	github.com/harness-community/sse/v3 v3.1.0
-	github.com/harness/ff-golang-server-sdk v0.1.23
+	github.com/harness/ff-golang-server-sdk v0.1.24
 	github.com/hashicorp/go-multierror v1.1.1
 	github.com/joho/godotenv v1.4.0
 	github.com/json-iterator/go v1.1.12
@@ -57,7 +57,7 @@ require (
 	github.com/googleapis/gax-go/v2 v2.12.0 // indirect
 	github.com/hashicorp/errwrap v1.0.0 // indirect
 	github.com/hashicorp/go-cleanhttp v0.5.2 // indirect
-	github.com/hashicorp/go-retryablehttp v0.7.4 // indirect
+	github.com/hashicorp/go-retryablehttp v0.7.7 // indirect
 	github.com/hashicorp/golang-lru v0.5.4 // indirect
 	github.com/invopop/yaml v0.2.0 // indirect
 	github.com/josharian/intern v1.0.0 // indirect
