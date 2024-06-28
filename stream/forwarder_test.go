@@ -180,6 +180,28 @@ func TestForwarder_HandleMesssage(t *testing.T) {
 			},
 			shouldErr: false,
 		},
+		"Given we handle the message ok but fail to forward the message on'": {
+			args: args{
+				message: domain.SSEMessage{
+					Domain: domain.MsgDomainSegment,
+				},
+			},
+			mocks: mocks{
+				publisher: &mockPublisher{
+					Mutex: &sync.Mutex{},
+					pub: func() error {
+						return errors.New("failed to forward message on")
+					},
+				},
+				messageHandler: mockMessageHandler{handleMessage: func() error {
+					return nil
+				}},
+			},
+			expected: expected{
+				eventsForwarded: 0,
+			},
+			shouldErr: true,
+		},
 	}
 
 	for desc, tc := range testCases {
