@@ -66,8 +66,8 @@ func (s Forwarder) HandleMessage(ctx context.Context, msg domain.SSEMessage) (er
 			return
 		}
 
-		if err := s.stream.Pub(ctx, topic, msg); err != nil {
-			s.log.Error("failed to forward SSEEvent to channel=%s: %s", "", err)
+		if err = s.stream.Pub(ctx, topic, msg); err != nil {
+			s.log.Error("failed to forward event to channel=%s: %s", "", err)
 		}
 	}()
 

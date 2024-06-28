@@ -114,7 +114,7 @@ func TestForwarder_HandleMesssage(t *testing.T) {
 			},
 			shouldErr: false,
 		},
-		"Given I have an SSEMessage with the domain 'flag' but the stream fails to publish": {
+		"Given I have an SSEMessage with the domain 'flag' but the stream fails to forward the message on": {
 			args: args{
 				message: domain.SSEMessage{
 					Domain: domain.MsgDomainFeature,
@@ -134,7 +134,7 @@ func TestForwarder_HandleMesssage(t *testing.T) {
 			expected: expected{
 				eventsForwarded: 0,
 			},
-			shouldErr: false,
+			shouldErr: true,
 		},
 		"Given I have an SSEMessage with the domain 'flag'": {
 			args: args{
@@ -180,6 +180,28 @@ func TestForwarder_HandleMesssage(t *testing.T) {
 			},
 			shouldErr: false,
 		},
+		"Given we handle the message ok but fail to forward the message on'": {
+			args: args{
+				message: domain.SSEMessage{
+					Domain: domain.MsgDomainSegment,
+				},
+			},
+			mocks: mocks{
+				publisher: &mockPublisher{
+					Mutex: &sync.Mutex{},
+					pub: func() error {
+						return errors.New("failed to forward message on")
+					},
+				},
+				messageHandler: mockMessageHandler{handleMessage: func() error {
+					return nil
+				}},
+			},
+			expected: expected{
+				eventsForwarded: 0,
+			},
+			shouldErr: true,
+		},
 	}
 
 	for desc, tc := range testCases {
@@ -208,14 +230,14 @@ func TestMultipleForwarders(t *testing.T) {
 	}
 
 	type mocks struct {
-		pushpinStream  *mockPublisher
-		redisStream    *mockPublisher
-		messageHandler mockMessageHandler
+		forwardedStream *mockPublisher
+		firstStream     *mockPublisher
+		messageHandler  mockMessageHandler
 	}
 
 	type expected struct {
-		redisEventsForwarded   int
-		pushpinEventsForwarded int
+		firstStream     int
+		forwardedStream int
 	}
 
 	testCases := map[string]struct {
@@ -224,20 +246,20 @@ func TestMultipleForwarders(t *testing.T) {
 		expected  expected
 		shouldErr bool
 	}{
-		"Given the RedisStreamForwarder fails we should still forward an event to Pushpin": {
+		"Given the we fail to publish to the first stream, then we shouldn't forward a message on": {
 			args: args{
 				message: domain.SSEMessage{
 					Domain: domain.MsgDomainFeature,
 				},
 			},
 			mocks: mocks{
-				pushpinStream: &mockPublisher{
+				forwardedStream: &mockPublisher{
 					Mutex: &sync.Mutex{},
 					pub: func() error {
 						return nil
 					},
 				},
-				redisStream: &mockPublisher{
+				firstStream: &mockPublisher{
 					Mutex: &sync.Mutex{},
 					pub: func() error {
 						return errors.New("an error")
@@ -248,25 +270,25 @@ func TestMultipleForwarders(t *testing.T) {
 				}},
 			},
 			expected: expected{
-				redisEventsForwarded:   0,
-				pushpinEventsForwarded: 1,
+				firstStream:     0,
+				forwardedStream: 0,
 			},
 			shouldErr: true,
 		},
-		"Given the PushpinStreamForwarder fails we should still forward an event to redis": {
+		"Given we successfully publish to the first stream but fail to publish to the forwarded stream": {
 			args: args{
 				message: domain.SSEMessage{
 					Domain: domain.MsgDomainFeature,
 				},
 			},
 			mocks: mocks{
-				pushpinStream: &mockPublisher{
+				forwardedStream: &mockPublisher{
 					Mutex: &sync.Mutex{},
 					pub: func() error {
 						return errors.New("an error")
 					},
 				},
-				redisStream: &mockPublisher{
+				firstStream: &mockPublisher{
 					Mutex: &sync.Mutex{},
 					pub: func() error {
 						return nil
@@ -277,8 +299,8 @@ func TestMultipleForwarders(t *testing.T) {
 				}},
 			},
 			expected: expected{
-				redisEventsForwarded:   1,
-				pushpinEventsForwarded: 0,
+				firstStream:     1,
+				forwardedStream: 0,
 			},
 			shouldErr: true,
 		},
@@ -290,14 +312,18 @@ func TestMultipleForwarders(t *testing.T) {
 
 		t.Run(desc, func(t *testing.T) {
 
-			redisForwarder := NewForwarder(log.NewNoOpLogger(), tc.mocks.redisStream, domain.NoOpMessageHandler{})
-			pushpinForwarder := NewForwarder(log.NewNoOpLogger(), tc.mocks.pushpinStream, redisForwarder)
+			firstStream := NewForwarder(log.NewNoOpLogger(), tc.mocks.firstStream, domain.NoOpMessageHandler{})
+			forwardedStream := NewForwarder(log.NewNoOpLogger(), tc.mocks.forwardedStream, firstStream)
 
-			err := pushpinForwarder.HandleMessage(context.Background(), tc.args.message)
-			assert.Nil(t, err)
+			err := forwardedStream.HandleMessage(context.Background(), tc.args.message)
+			if tc.shouldErr {
+				assert.NotNil(t, err)
+			} else {
+				assert.Nil(t, err)
+			}
 
-			assert.Equal(t, tc.expected.redisEventsForwarded, tc.mocks.redisStream.getEventsForwarded())
-			assert.Equal(t, tc.expected.pushpinEventsForwarded, tc.mocks.pushpinStream.getEventsForwarded())
+			assert.Equal(t, tc.expected.firstStream, tc.mocks.firstStream.getEventsForwarded())
+			assert.Equal(t, tc.expected.forwardedStream, tc.mocks.forwardedStream.getEventsForwarded())
 		})
 	}
 }
