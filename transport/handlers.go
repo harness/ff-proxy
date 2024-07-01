@@ -29,6 +29,7 @@ func NewUnaryHandler(e endpoint.Endpoint, dec decodeRequestFunc, enc encodeRespo
 
 		// Use logging response writer to try and catch where superfluous write header calls are coming from
 		w := newLoggingResponseWriter(c.Request(), c.Response().Writer, l)
+		c.Response().Writer = w
 
 		req, err := dec(c, l)
 		if err != nil {
