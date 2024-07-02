@@ -2,9 +2,11 @@ package transport
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"sync"
+	"syscall"
 
 	"github.com/go-kit/kit/endpoint"
 	"github.com/harness/ff-proxy/v2/log"
@@ -76,23 +78,31 @@ func (l *loggingResponseWriter) Header() http.Header {
 
 func (l *loggingResponseWriter) Write(bytes []byte) (int, error) {
 	l.Lock()
+	defer l.Unlock()
 	defer func() {
 		l.writeCounts += 1
-		l.Unlock()
 	}()
 
 	if l.writeCounts > 0 {
-		l.log.Error("more than one write header call", "url", l.req.URL.String(), "resp_body", fmt.Sprintf("%s", bytes), "write_counts", l.writeCounts)
+		l.log.Error("more than one write call", "url", l.req.URL.String(), "resp_body", fmt.Sprintf("%s", bytes), "write_counts", l.writeCounts)
 	}
 
-	return l.writer.Write(bytes)
+	n, err := l.writer.Write(bytes)
+	if err != nil {
+		if errors.Is(err, syscall.EPIPE) {
+			l.log.Error("failed to write response because client disconnected", "url", l.req.URL.String(), "resp_body", fmt.Sprintf("%s", bytes))
+		}
+		return n, err
+	}
+
+	return n, nil
 }
 
 func (l *loggingResponseWriter) WriteHeader(statusCode int) {
 	l.Lock()
+	defer l.Unlock()
 	defer func() {
 		l.writeHeaderCounts += 1
-		l.Unlock()
 	}()
 
 	if l.writeHeaderCounts > 0 {
