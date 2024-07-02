@@ -46,20 +46,22 @@ func (m *mockRedisStream) Sub(ctx context.Context, channel string, id string, me
 }
 
 type mockMetricsService struct {
-	metrics chan domain.MetricsRequest
+	*sync.Mutex
+	metrics []domain.MetricsRequest
 }
 
 func (m *mockMetricsService) PostMetrics(ctx context.Context, envID string, r domain.MetricsRequest, clusterIdentifier string) error {
-	select {
-	case <-ctx.Done():
-		return ctx.Err()
-	case m.metrics <- r:
-	}
+	m.Lock()
+	defer m.Unlock()
 
+	m.metrics = append(m.metrics, r)
 	return nil
 }
 
-func (m *mockMetricsService) listen() <-chan domain.MetricsRequest {
+func (m *mockMetricsService) getMetrics() []domain.MetricsRequest {
+	m.Lock()
+	defer m.Unlock()
+
 	return m.metrics
 }
 
@@ -76,6 +78,24 @@ func mustMarshalToString(mr ...domain.MetricsRequest) []string {
 	}
 
 	return ss
+}
+
+type mockMetricStore struct {
+	metrics chan map[string]domain.MetricsRequest
+}
+
+func (m *mockMetricStore) StoreMetrics(ctx context.Context, r domain.MetricsRequest) error {
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case m.metrics <- map[string]domain.MetricsRequest{r.EnvironmentID: r}:
+	}
+
+	return nil
+}
+
+func (m *mockMetricStore) Listen(ctx context.Context) <-chan map[string]domain.MetricsRequest {
+	return m.metrics
 }
 
 func TestWorker_Start(t *testing.T) {
@@ -145,7 +165,8 @@ func TestWorker_Start(t *testing.T) {
 			mocks: mocks{
 				redisStream: newMockRedisStream(mustMarshalToString(mr123)...),
 				metricService: &mockMetricsService{
-					metrics: make(chan domain.MetricsRequest),
+					Mutex:   &sync.Mutex{},
+					metrics: []domain.MetricsRequest{},
 				},
 			},
 			expected: expected{metrics: []domain.MetricsRequest{mr123EvaluationMetricsExpected}},
@@ -154,7 +175,8 @@ func TestWorker_Start(t *testing.T) {
 			mocks: mocks{
 				redisStream: newMockRedisStream(mustMarshalToString(mr123, mr456)...),
 				metricService: &mockMetricsService{
-					metrics: make(chan domain.MetricsRequest),
+					Mutex:   &sync.Mutex{},
+					metrics: []domain.MetricsRequest{},
 				},
 			},
 			expected: expected{metrics: []domain.MetricsRequest{mr123EvaluationMetricsExpected, mr456}},
@@ -169,28 +191,27 @@ func TestWorker_Start(t *testing.T) {
 			ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 			defer cancel()
 
-			queue := NewQueue(ctx, log.NoOpLogger{}, 5*time.Second)
-			w := NewWorker(log.NoOpLogger{}, queue, tc.mocks.metricService, tc.mocks.redisStream, 1, "1")
+			mockQueue := &mockMetricStore{metrics: make(chan map[string]domain.MetricsRequest)}
+			w := NewWorker(log.NoOpLogger{}, mockQueue, tc.mocks.metricService, tc.mocks.redisStream, 1, "1")
 
 			w.Start(ctx)
 
-			actual := []domain.MetricsRequest{}
-
-			// Wait for metrics to be 'posted' to the metrics service
 			done := false
 			for !done {
-				m, ok := <-tc.mocks.metricService.listen()
-				if !ok {
+				select {
+				case <-ctx.Done():
 					done = true
 					continue
-				}
+				default:
 
-				actual = append(actual, m)
-
-				if len(actual) == len(tc.expected.metrics) {
-					done = true
+					if len(tc.mocks.metricService.getMetrics()) == len(tc.expected.metrics) {
+						done = true
+						continue
+					}
 				}
 			}
+
+			actual := tc.mocks.metricService.getMetrics()
 
 			for i := 0; i < len(tc.expected.metrics); i++ {
 				exp := tc.expected.metrics[i]
