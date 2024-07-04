@@ -49,6 +49,8 @@ func encodeStreamResponse(_ context.Context, w http.ResponseWriter, response int
 
 func encodeEchoError(c echo.Context, err error) error {
 	code := codeFrom(err)
+
+	c.Response().Header().Add("Content-Type", "application/json; charset=UTF-8")
 	return c.JSON(code, map[string]interface{}{
 		"error": err.Error(),
 	})
