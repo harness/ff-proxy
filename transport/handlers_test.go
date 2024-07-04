@@ -77,7 +77,7 @@ func Test_UnaryHandlerAuthRequest(t *testing.T) {
 			expected: expected{
 				writeCalls:       1,
 				writeHeaderCalls: 1,
-				headerCalls:      1,
+				headerCalls:      2,
 			},
 			shouldErr: false,
 		},
@@ -94,7 +94,7 @@ func Test_UnaryHandlerAuthRequest(t *testing.T) {
 			expected: expected{
 				writeCalls:       1,
 				writeHeaderCalls: 1,
-				headerCalls:      1,
+				headerCalls:      2,
 			},
 			shouldErr: false,
 		},
@@ -130,7 +130,7 @@ func Test_UnaryHandlerAuthRequest(t *testing.T) {
 			expected: expected{
 				writeCalls:       1,
 				writeHeaderCalls: 1, // Wonder why this is
-				headerCalls:      1,
+				headerCalls:      2,
 			},
 			shouldErr: false,
 		},
