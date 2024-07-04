@@ -1,7 +1,6 @@
 package transport
 
 import (
-	"context"
 	"errors"
 	"fmt"
 	"net/http"
@@ -22,7 +21,10 @@ type errorEncoderFunc func(c echo.Context, err error) error
 type decodeRequestFunc func(c echo.Context, l log.Logger) (request interface{}, err error)
 
 // encodeResponseFunc is a function for encoding http responses
-type encodeResponseFunc func(ctx context.Context, w http.ResponseWriter, resp interface{}) (err error)
+//type encodeResponseFunc func(ctx context.Context, w http.ResponseWriter, resp interface{}) (err error)
+
+// encodeResponseFunc is a function for encoding http responses
+type encodeResponseFunc func(c echo.Context, resp interface{}) (err error)
 
 // NewUnaryHandler creates and returns an echo.HandlerFunc that accepts a single request
 // and returns a single response
@@ -31,8 +33,7 @@ func NewUnaryHandler(e endpoint.Endpoint, dec decodeRequestFunc, enc encodeRespo
 		ctx := c.Request().Context()
 
 		// Use logging response writer to try and catch where superfluous write header calls are coming from
-		w := newLoggingResponseWriter(c.Request(), c.Response().Writer, l)
-		c.Response().Writer = w
+		c.Response().Writer = newLoggingResponseWriter(c.Request(), c.Response().Writer, l)
 
 		req, err := dec(c, l)
 		if err != nil {
@@ -44,9 +45,12 @@ func NewUnaryHandler(e endpoint.Endpoint, dec decodeRequestFunc, enc encodeRespo
 			return errorEncoder(c, err)
 		}
 
-		if err := enc(ctx, w, resp); err != nil {
+		if err := enc(c, resp); err != nil {
 			return errorEncoder(c, err)
 		}
+		//if err := enc(ctx, w, resp); err != nil {
+		//	return errorEncoder(c, err)
+		//}
 		return nil
 	}
 }

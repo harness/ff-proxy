@@ -1,7 +1,6 @@
 package transport
 
 import (
-	"context"
 	"encoding/base64"
 	"errors"
 	"fmt"
@@ -29,21 +28,38 @@ var (
 // encodeResponse is the common method to encode all the non error response types
 // to the client. If we need to we can write specific encodeResponse functions
 // for endpoints that require one.
-func encodeResponse(_ context.Context, w http.ResponseWriter, response interface{}) error {
-	w.Header().Set("Content-Type", "application/json; charset=utf-8")
-	return jsoniter.NewEncoder(w).Encode(response)
+//func encodeResponse(_ context.Context, w http.ResponseWriter, response interface{}) error {
+//	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+//	return jsoniter.NewEncoder(w).Encode(response)
+//}
+
+func encodeResponse(c echo.Context, response interface{}) error {
+	return c.JSON(http.StatusOK, response)
 }
 
-func encodeStreamResponse(_ context.Context, w http.ResponseWriter, response interface{}) error {
+//func encodeStreamResponse(_ context.Context, w http.ResponseWriter, response interface{}) error {
+//	r, ok := response.(domain.StreamResponse)
+//	if !ok {
+//		return fmt.Errorf("internal error encoding stream response")
+//	}
+//
+//	w.Header().Add("Content-Type", "text/event-stream")
+//	w.Header().Add("Grip-Hold", "stream")
+//	w.Header().Add("Grip-Channel", r.GripChannel)
+//	w.Header().Add("Grip-Keep-Alive", ":\\n\\n; format=cstring; timeout=15")
+//	return nil
+//}
+
+func encodeStreamResponse(c echo.Context, response interface{}) error {
 	r, ok := response.(domain.StreamResponse)
 	if !ok {
 		return fmt.Errorf("internal error encoding stream response")
 	}
 
-	w.Header().Add("Content-Type", "text/event-stream")
-	w.Header().Add("Grip-Hold", "stream")
-	w.Header().Add("Grip-Channel", r.GripChannel)
-	w.Header().Add("Grip-Keep-Alive", ":\\n\\n; format=cstring; timeout=15")
+	c.Response().Header().Add("Content-Type", "text/event-stream")
+	c.Response().Header().Add("Grip-Hold", "stream")
+	c.Response().Header().Add("Grip-Channel", r.GripChannel)
+	c.Response().Header().Add("Grip-Keep-Alive", ":\\n\\n; format=cstring; timeout=15")
 	return nil
 }
 

@@ -110,7 +110,7 @@ func Test_UnaryHandlerAuthRequest(t *testing.T) {
 			},
 			expected: expected{
 				writeCalls:       1,
-				writeHeaderCalls: 0, // Wonder why this is
+				writeHeaderCalls: 1, // Wonder why this is
 				headerCalls:      1,
 			},
 			shouldErr: false,
@@ -121,7 +121,10 @@ func Test_UnaryHandlerAuthRequest(t *testing.T) {
 				endpoint: func(ctx context.Context, request interface{}) (interface{}, error) {
 					return domain.AuthResponse{AuthToken: "1234"}, nil
 				},
-				encodeFunc: func(ctx context.Context, w http.ResponseWriter, resp interface{}) (err error) {
+				//encodeFunc: func(ctx context.Context, w http.ResponseWriter, resp interface{}) (err error) {
+				//	return errors.New("encode error")
+				//},
+				encodeFunc: func(c echo.Context, resp interface{}) (err error) {
 					return errors.New("encode error")
 				},
 				errorEncoder: encodeEchoError,
