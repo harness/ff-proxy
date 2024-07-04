@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"regexp"
 	"sync"
 	"syscall"
 
@@ -50,6 +51,8 @@ func NewUnaryHandler(e endpoint.Endpoint, dec decodeRequestFunc, enc encodeRespo
 	}
 }
 
+var matchStr = regexp.MustCompile(`/client/env/[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}/target/[^/]+/evaluations\?cluster=\d+`)
+
 type loggingResponseWriter struct {
 	*sync.Mutex
 	log log.Logger
@@ -82,6 +85,10 @@ func (l *loggingResponseWriter) Write(bytes []byte) (int, error) {
 	defer func() {
 		l.writeCounts += 1
 	}()
+
+	if ok := matchStr.MatchString(l.req.URL.String()); ok {
+		l.log.Error("first write call for evaluations request", "url", l.req.URL.String(), "resp_body", string(bytes), "write_counts", l.writeCounts)
+	}
 
 	if l.writeCounts > 0 {
 		l.log.Error("more than one write call", "url", l.req.URL.String(), "resp_body", fmt.Sprintf("%s", bytes), "write_counts", l.writeCounts)

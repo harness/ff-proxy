@@ -1,7 +1,9 @@
 package transport
 
 import (
+	"bytes"
 	"encoding/base64"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -351,6 +353,99 @@ func Test_decodeGetEvaluationsByFeatureRequest(t *testing.T) {
 			}
 
 			assert.Equal(t, tc.expected.req, actual)
+		})
+	}
+}
+
+func Benchmark_JSONEncoding(b *testing.B) {
+
+	benchmarks := map[string]struct {
+		v  interface{}
+		fn func(v interface{}, w io.Writer, b *testing.B)
+	}{
+		"jsoniter.NewEncoder": {
+			v: []clientgen.Evaluation{
+				{
+					Flag:       "Foobar",
+					Identifier: domain.ToPtr("Foobar"),
+					Kind:       "boolean",
+					Value:      "true",
+				},
+				{
+					Flag:       "Foobar",
+					Identifier: domain.ToPtr("Foobar"),
+					Kind:       "boolean",
+					Value:      "true",
+				},
+				{
+					Flag:       "Foobar",
+					Identifier: domain.ToPtr("Foobar"),
+					Kind:       "boolean",
+					Value:      "true",
+				},
+				{
+					Flag:       "Foobar",
+					Identifier: domain.ToPtr("Foobar"),
+					Kind:       "boolean",
+					Value:      "true",
+				},
+			},
+			fn: func(v interface{}, w io.Writer, b *testing.B) {
+				err := jsoniter.NewEncoder(w).Encode(v)
+				if err != nil {
+					b.Fatal(err)
+				}
+			},
+		},
+		"jsoniter.Marshal": {
+			v: []clientgen.Evaluation{
+				{
+					Flag:       "Foobar",
+					Identifier: domain.ToPtr("Foobar"),
+					Kind:       "boolean",
+					Value:      "true",
+				},
+				{
+					Flag:       "Foobar",
+					Identifier: domain.ToPtr("Foobar"),
+					Kind:       "boolean",
+					Value:      "true",
+				},
+				{
+					Flag:       "Foobar",
+					Identifier: domain.ToPtr("Foobar"),
+					Kind:       "boolean",
+					Value:      "true",
+				},
+				{
+					Flag:       "Foobar",
+					Identifier: domain.ToPtr("Foobar"),
+					Kind:       "boolean",
+					Value:      "true",
+				},
+			},
+			fn: func(v interface{}, w io.Writer, b *testing.B) {
+				d, err := jsoniter.Marshal(v)
+				if err != nil {
+					b.Fatal(b)
+				}
+
+				_, err = w.Write(d)
+				if err != nil {
+					b.Fatal(err)
+				}
+
+			},
+		},
+	}
+
+	for desc, bm := range benchmarks {
+		desc := desc
+		bm := bm
+
+		b.Run(desc, func(b *testing.B) {
+			w := &bytes.Buffer{}
+			bm.fn(bm.v, w, b)
 		})
 	}
 }
