@@ -1,10 +1,12 @@
 package transport
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"net/http"
 	"regexp"
+	"strings"
 	"sync"
 	"syscall"
 
@@ -32,8 +34,10 @@ func NewUnaryHandler(e endpoint.Endpoint, dec decodeRequestFunc, enc encodeRespo
 	return func(c echo.Context) error {
 		ctx := c.Request().Context()
 
+		bl := NewBufferedLogger(l, defaultBufferSize)
+
 		// Use logging response writer to try and catch where superfluous write header calls are coming from
-		c.Response().Writer = newLoggingResponseWriter(c.Request(), c.Response().Writer, l)
+		c.Response().Writer = newLoggingResponseWriter(c.Request(), c.Response().Writer, bl)
 
 		req, err := dec(c, l)
 		if err != nil {
@@ -91,7 +95,7 @@ func (l *loggingResponseWriter) Write(bytes []byte) (int, error) {
 	}()
 
 	if ok := matchStr.MatchString(l.req.URL.String()); ok {
-		l.log.Error("first write call for evaluations request", "url", l.req.URL.String(), "resp_body", string(bytes), "write_counts", l.writeCounts)
+		l.log.Info("first write call for evaluations request", "url", l.req.URL.String(), "resp_body", string(bytes), "write_counts", l.writeCounts)
 	}
 
 	if l.writeCounts > 0 {
@@ -121,4 +125,70 @@ func (l *loggingResponseWriter) WriteHeader(statusCode int) {
 	}
 
 	l.writer.WriteHeader(statusCode)
+}
+
+const defaultBufferSize = 16384
+
+// BufferedLogger represents a logger that buffers messages and flushes on errors or buffer full.
+type BufferedLogger struct {
+	*sync.Mutex
+	log.Logger
+	buffer  *bytes.Buffer
+	maxSize int
+}
+
+// NewBufferedLogger creates a new BufferedLogger.
+func NewBufferedLogger(l log.Logger, maxSize int) *BufferedLogger {
+	if maxSize <= 0 {
+		maxSize = defaultBufferSize
+	}
+
+	return &BufferedLogger{
+		Mutex:   &sync.Mutex{},
+		Logger:  l,
+		buffer:  &bytes.Buffer{},
+		maxSize: maxSize,
+	}
+}
+
+// Info buffers a log message and flushes if an error is logged or buffer is full.
+func (bl *BufferedLogger) Info(message string, keyvals ...interface{}) {
+	bl.Lock()
+	defer bl.Unlock()
+
+	foo := make([]string, len(keyvals))
+
+	for _, key := range keyvals {
+		keys, ok := key.(string)
+		if ok {
+			foo = append(foo, fmt.Sprintf("%s", keys))
+		}
+	}
+
+	// Buffer the log message
+	bl.buffer.WriteString(message + "keys:" + strings.Join(foo, "") + "\n")
+
+	// Flush if the buffer is full
+	if bl.buffer.Len() >= bl.maxSize {
+		bl.flushBuffer()
+	}
+}
+
+// Error buffers a log message and flushes if an error is logged or buffer is full.
+func (bl *BufferedLogger) Error(message string, keyvals ...interface{}) {
+	bl.Lock()
+	defer bl.Unlock()
+
+	// Flush the buffer first
+	bl.flushBuffer()
+	// Log the error immediately
+	bl.Logger.Error(message, keyvals...)
+}
+
+// flushBuffer flushes the buffered log messages to the underlying logger.
+func (bl *BufferedLogger) flushBuffer() {
+	if bl.buffer.Len() > 0 {
+		bl.Logger.Error("flushing buffered logger", "msg", bl.buffer.String())
+		bl.buffer.Reset()
+	}
 }
