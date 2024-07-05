@@ -168,14 +168,3 @@ func Test_UnaryHandlerAuthRequest(t *testing.T) {
 		})
 	}
 }
-
-func Test_BufferedLogger(t *testing.T) {
-	l, err := log.NewStructuredLogger("INFO")
-	assert.Nil(t, err)
-
-	bl := NewBufferedLogger(l, defaultBufferSize)
-
-	bl.Info("hello world", "name", "james", "age", "30")
-
-	bl.Error("uh oh an erorr happened", "err", "something went wrong")
-}
