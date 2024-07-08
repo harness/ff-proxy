@@ -314,8 +314,6 @@ func (s Service) TargetSegmentsByIdentifier(ctx context.Context, req domain.Targ
 
 // Evaluations gets all the evaluations in an environment for a target
 func (s Service) Evaluations(ctx context.Context, req domain.EvaluationsRequest) ([]clientgen.Evaluation, error) {
-	evaluations := []clientgen.Evaluation{}
-
 	target, err := s.findTarget(ctx, req.EnvironmentID, req.Target, req.TargetIdentifier)
 	if err != nil {
 		if errors.Is(err, domain.ErrCacheNotFound) {
@@ -351,15 +349,19 @@ func (s Service) Evaluations(ctx context.Context, req domain.EvaluationsRequest)
 		s.logger.Error(ctx, "GetEvaluationByIdentifier() failed to perform evaluation", "environment", req.EnvironmentID, "target", target.Identifier, "err", err)
 		return nil, err
 	}
+
 	//package all into the evaluations
-	for i, fv := range flagVariations {
+	evaluations := make([]clientgen.Evaluation, 0, len(flagVariations))
+
+	for i := 0; i < len(flagVariations); i++ {
+		fv := &flagVariations[i]
 
 		kind := string(fv.Kind)
 		eval := clientgen.Evaluation{
 			Flag:       fv.FlagIdentifier,
 			Value:      toString(fv.Variation, kind),
 			Kind:       kind,
-			Identifier: &flagVariations[i].Variation.Identifier,
+			Identifier: &fv.Variation.Identifier,
 		}
 		evaluations = append(evaluations, eval)
 	}
@@ -470,7 +472,7 @@ func (s Service) makeSegmentMap(ctx context.Context, envID string) map[string]*d
 	}
 
 	if len(segments) > 0 {
-		segmentMap = make(map[string]*domain.Segment)
+		segmentMap = make(map[string]*domain.Segment, len(segments))
 		for i := 0; i < len(segments); i++ {
 			seg := segments[i]
 			segmentMap[seg.Identifier] = &seg

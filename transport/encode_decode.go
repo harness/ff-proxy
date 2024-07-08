@@ -31,7 +31,18 @@ var (
 // for endpoints that require one.
 func encodeResponse(_ context.Context, w http.ResponseWriter, response interface{}) error {
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
-	return jsoniter.NewEncoder(w).Encode(response)
+
+	b, err := jsoniter.Marshal(response)
+	if err != nil {
+		return err
+	}
+
+	_, err = w.Write(b)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func encodeStreamResponse(_ context.Context, w http.ResponseWriter, response interface{}) error {

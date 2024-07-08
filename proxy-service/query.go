@@ -93,7 +93,7 @@ func (s Service) GenerateQueryStore(ctx context.Context, environmentID string, s
 				s.logger.Debug(ctx, "flags not found in cache: ", "err", err.Error())
 			}
 			// TODO can/should we do this conversion in the repo layer instead?
-			var restFlags []rest.FeatureConfig
+			restFlags := make([]rest.FeatureConfig, 0, len(flags))
 			for _, flag := range flags {
 				restFlags = append(restFlags, flag.ToSDKFeatureConfig())
 			}
@@ -110,8 +110,9 @@ func (s Service) GenerateQueryStore(ctx context.Context, environmentID string, s
 			}
 			// TODO can/should we do this conversion in the repo layer instead?
 			var flagMap = make(map[string]*rest.FeatureConfig, len(flags))
-			for _, flag := range flags {
-				f := flag.ToSDKFeatureConfig()
+
+			for i := 0; i < len(flags); i++ {
+				f := flags[i].ToSDKFeatureConfig()
 				flagMap[f.Feature] = &f
 			}
 
