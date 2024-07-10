@@ -1,8 +1,8 @@
 package transport
 
 import (
-	"context"
 	"encoding/base64"
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -369,15 +369,75 @@ func benchmarkEvalResponse() []clientgen.Evaluation {
 
 }
 
-func BenchmarkEncodeResponses(b *testing.B) {
-	ctx := context.Background()
+func Benchmark_EncodeResponse(b *testing.B) {
 	response := benchmarkEvalResponse()
+
+	newline := []byte{'\n'}
 
 	benchmarks := []struct {
 		name       string
-		encodeFunc func(context.Context, http.ResponseWriter, interface{}) error
+		encodeFunc func(interface{}, http.ResponseWriter) error
 	}{
-		{"encodeResponse", encodeResponse},
+		{"jsoniter.Marshal", func(i interface{}, w http.ResponseWriter) error {
+			w.Header().Set("Content-Type", "application/json; charset=utf-8")
+
+			b, err := jsoniter.Marshal(response)
+			if err != nil {
+				return err
+			}
+
+			_, err = w.Write(b)
+			if err != nil {
+				return err
+			}
+
+			_, err = w.Write(newline)
+			if err != nil {
+				return err
+			}
+			return nil
+		}},
+		{"json.Marshal", func(i interface{}, w http.ResponseWriter) error {
+			w.Header().Set("Content-Type", "application/json; charset=utf-8")
+
+			b, err := json.Marshal(response)
+			if err != nil {
+				return err
+			}
+
+			_, err = w.Write(b)
+			if err != nil {
+				return err
+			}
+
+			_, err = w.Write(newline)
+			if err != nil {
+				return err
+			}
+			return nil
+		}},
+		{"json.NewEncoder", func(i interface{}, w http.ResponseWriter) error {
+			w.Header().Set("Content-Type", "application/json; charset=utf-8")
+
+			encoder := json.NewEncoder(w)
+			if err := encoder.Encode(response); err != nil {
+				return err
+			}
+
+			return nil
+		}},
+		{
+			"jsoniter.NewEncoder", func(i interface{}, w http.ResponseWriter) error {
+				w.Header().Set("Content-Type", "application/json; charset=utf-8")
+
+				encoder := jsoniter.NewEncoder(w)
+				if err := encoder.Encode(response); err != nil {
+					return err
+				}
+
+				return nil
+			},
+		},
 	}
 
 	for _, bm := range benchmarks {
@@ -385,7 +445,7 @@ func BenchmarkEncodeResponses(b *testing.B) {
 			b.ReportAllocs()
 			for n := 0; n < b.N; n++ {
 				rec := httptest.NewRecorder()
-				if err := bm.encodeFunc(ctx, rec, response); err != nil {
+				if err := bm.encodeFunc(response, rec); err != nil {
 					b.Fatal(err)
 				}
 			}
