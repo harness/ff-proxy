@@ -26,8 +26,6 @@ var (
 	rulesQueryParam = "rules"
 )
 
-var newlineByte = []byte{'\n'}
-
 // encodeResponse is the common method to encode all the non error response types
 // to the client. If we need to we can write specific encodeResponse functions
 // for endpoints that require one.
@@ -39,22 +37,20 @@ func encodeResponse(_ context.Context, w http.ResponseWriter, response interface
 		return err
 	}
 
-	// We previously used jsoniter.NewEncoder(w).Encode(response) which appended a newline
-	// character on to the end of the response body to make it compliant with RFC 7159.
-	// We swapped to json.Marshal because it reduced the number of memory allocations we
-	// were making but it doesn't append the newline character. So we're adding the newline
-	// character back in so that we haven't changed any functionality.
-	//
-	// Using a preallocated buffer and copy data to reduce memory allocations
-	buf := make([]byte, 0, len(b)+len(newlineByte))
-	buf = append(buf, b...)
-	buf = append(buf, newlineByte...)
-
 	_, err = w.Write(b)
 	if err != nil {
 		return err
 	}
 
+	// We previously used jsoniter.NewEncoder(w).Encode(response) which appended a newline
+	// character on to the end of the response body to make it compliant with RFC 7159.
+	// We swapped to json.Marshal because it reduced the number of memory allocations we
+	// were making but it doesn't append the newline character. So we're adding the newline
+	// character back in so that we haven't changed any functionality.
+	_, err = w.Write([]byte{'\n'})
+	if err != nil {
+		return err
+	}
 	return nil
 }
 
