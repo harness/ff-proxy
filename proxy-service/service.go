@@ -316,18 +316,16 @@ func (s Service) TargetSegmentsByIdentifier(ctx context.Context, req domain.Targ
 func (s Service) Evaluations(ctx context.Context, req domain.EvaluationsRequest) ([]clientgen.Evaluation, error) {
 	evaluations := []clientgen.Evaluation{}
 
-	// fetch target
-	t, err := s.targetRepo.GetByIdentifier(ctx, req.EnvironmentID, req.TargetIdentifier)
+	target, err := s.findTarget(ctx, req.EnvironmentID, req.Target, req.TargetIdentifier)
 	if err != nil {
 		if errors.Is(err, domain.ErrCacheNotFound) {
 			s.logger.Warn(ctx, "target not found in cache, serving request using only identifier attribute: ", "err", err.Error())
-			t = domain.Target{Target: clientgen.Target{Identifier: req.TargetIdentifier}}
+			target = domain.ConvertTarget(domain.Target{Target: clientgen.Target{Identifier: req.TargetIdentifier}})
 		} else {
 			s.logger.Error(ctx, "error fetching target: ", "err", err.Error())
 			return []clientgen.Evaluation{}, fmt.Errorf("%w: %s", ErrInternal, err)
 		}
 	}
-	target := domain.ConvertTarget(t)
 
 	// We fetch all the segments ahead of time and build up a map that we can
 	// pass to the QueryStore. This might be overkill for users that don't have
@@ -346,7 +344,11 @@ func (s Service) Evaluations(ctx context.Context, req domain.EvaluationsRequest)
 
 	flagVariations, err := sdkEvaluator.EvaluateAll(&target)
 	if err != nil {
-		s.logger.Error(ctx, "ClientAPI.GetEvaluationByIdentifier() failed to perform evaluation", "environment", req.EnvironmentID, "target", target.Identifier, "err", err)
+		if !errors.Is(err, context.Canceled) {
+			s.logger.Info(ctx, "unable to complete Evaluations request, client cancelled the request", "err", err)
+			return nil, err
+		}
+		s.logger.Error(ctx, "GetEvaluationByIdentifier() failed to perform evaluation", "environment", req.EnvironmentID, "target", target.Identifier, "err", err)
 		return nil, err
 	}
 	//package all into the evaluations
@@ -367,19 +369,16 @@ func (s Service) Evaluations(ctx context.Context, req domain.EvaluationsRequest)
 
 // EvaluationsByFeature gets all the evaluations in an environment for a target for a particular feature
 func (s Service) EvaluationsByFeature(ctx context.Context, req domain.EvaluationsByFeatureRequest) (clientgen.Evaluation, error) {
-
-	// fetch target
-	t, err := s.targetRepo.GetByIdentifier(ctx, req.EnvironmentID, req.TargetIdentifier)
+	target, err := s.findTarget(ctx, req.EnvironmentID, req.Target, req.TargetIdentifier)
 	if err != nil {
 		if errors.Is(err, domain.ErrCacheNotFound) {
 			s.logger.Warn(ctx, "target not found in cache, serving request using only identifier attribute: ", "err", err.Error())
-			t = domain.Target{Target: clientgen.Target{Identifier: req.TargetIdentifier}}
+			target = domain.ConvertTarget(domain.Target{Target: clientgen.Target{Identifier: req.TargetIdentifier}})
 		} else {
 			s.logger.Error(ctx, "error fetching target: ", "err", err.Error())
 			return clientgen.Evaluation{}, fmt.Errorf("%w: %s", ErrInternal, err)
 		}
 	}
-	target := domain.ConvertTarget(t)
 
 	query := s.GenerateQueryStore(ctx, req.EnvironmentID, nil)
 
@@ -461,6 +460,10 @@ func (s Service) makeSegmentMap(ctx context.Context, envID string) map[string]*d
 
 	segments, err := s.segmentRepo.Get(ctx, envID)
 	if err != nil {
+		if errors.Is(err, context.Canceled) {
+			s.logger.Info(ctx, "makeSegmentMap can't get segments from the cache, context was cancelled by the client", "err", err)
+			return segmentMap
+		}
 		// Not much else we can really do here other than log the error
 		s.logger.Error(ctx, "makeSegmentMap failed to get segments from cache: ", "err", err)
 		return segmentMap
@@ -475,4 +478,19 @@ func (s Service) makeSegmentMap(ctx context.Context, envID string) map[string]*d
 	}
 
 	return segmentMap
+}
+
+func (s Service) findTarget(ctx context.Context, envID string, target *domain.Target, targetIdentifier string) (evaluation.Target, error) {
+	// If we've been given a target we can just convert and return it
+	if target != nil {
+		return domain.ConvertTarget(*target), nil
+	}
+
+	// otherwise we'll need to fetch the Target from the cache
+	t, err := s.targetRepo.GetByIdentifier(ctx, envID, targetIdentifier)
+	if err != nil {
+		return evaluation.Target{}, err
+	}
+
+	return domain.ConvertTarget(t), nil
 }

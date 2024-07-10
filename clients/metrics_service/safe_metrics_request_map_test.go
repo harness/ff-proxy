@@ -143,6 +143,82 @@ func Test_SafeMetricsRequestMap(t *testing.T) {
 		Timestamp:   0,
 	}
 
+	featureNameFlag := clientgen.MetricsData{
+		Attributes: []clientgen.KeyValue{
+			{
+				Key:   "featureName",
+				Value: "fname",
+			},
+			{
+				Key:   "variationIdentifier",
+				Value: "false",
+			},
+			{
+				Key:   "SDK_LANGUAGE",
+				Value: "java",
+			},
+			{
+				Key:   "SDK_VERSION",
+				Value: "1.0.0",
+			},
+		},
+		Count:       1,
+		MetricsType: "Server",
+		Timestamp:   0,
+	}
+
+	featureNameFlag2 := clientgen.MetricsData{
+		Attributes: []clientgen.KeyValue{
+			{
+				Key:   "featureName",
+				Value: "fname2",
+			},
+			{
+				Key:   "variationIdentifier",
+				Value: "false",
+			},
+			{
+				Key:   "SDK_LANGUAGE",
+				Value: "java",
+			},
+			{
+				Key:   "SDK_VERSION",
+				Value: "1.0.0",
+			},
+		},
+		Count:       1,
+		MetricsType: "Server",
+		Timestamp:   0,
+	}
+
+	featureNameAndIdentifierFlag := clientgen.MetricsData{
+		Attributes: []clientgen.KeyValue{
+			{
+				Key:   "featureName",
+				Value: "fname",
+			},
+			{
+				Key:   "featureIdentifier",
+				Value: "hello-world",
+			},
+			{
+				Key:   "variationIdentifier",
+				Value: "false",
+			},
+			{
+				Key:   "SDK_LANGUAGE",
+				Value: "java",
+			},
+			{
+				Key:   "SDK_VERSION",
+				Value: "1.0.0",
+			},
+		},
+		Count:       1,
+		MetricsType: "Server",
+		Timestamp:   0,
+	}
+
 	type args struct {
 		envID           string
 		metricsRequests []domain.MetricsRequest
@@ -374,6 +450,71 @@ func Test_SafeMetricsRequestMap(t *testing.T) {
 							MetricsData: domain.ToPtr([]clientgen.MetricsData{
 								flagOneFalseGolangOne,
 								flagOneFalseJaveOne,
+							}),
+						},
+					},
+				},
+			},
+		},
+		"Given I have one metrics requests with only a featureName attribute": {
+			args: args{
+				envID: "123",
+				metricsRequests: []domain.MetricsRequest{
+					makeMetricsRequest("123", 12, featureNameFlag),
+				},
+			},
+			expected: expected{
+				mapSize: 12,
+				data: map[string]domain.MetricsRequest{
+					"123": {
+						EnvironmentID: "123",
+						Metrics: clientgen.Metrics{
+							MetricsData: domain.ToPtr([]clientgen.MetricsData{
+								featureNameFlag,
+							}),
+						},
+					},
+				},
+			},
+		},
+		"Given I have two metrics requests with only a featureName attribute": {
+			args: args{
+				envID: "123",
+				metricsRequests: []domain.MetricsRequest{
+					makeMetricsRequest("123", 12, featureNameFlag),
+					makeMetricsRequest("123", 12, featureNameFlag2),
+				},
+			},
+			expected: expected{
+				mapSize: 24,
+				data: map[string]domain.MetricsRequest{
+					"123": {
+						EnvironmentID: "123",
+						Metrics: clientgen.Metrics{
+							MetricsData: domain.ToPtr([]clientgen.MetricsData{
+								featureNameFlag,
+								featureNameFlag2,
+							}),
+						},
+					},
+				},
+			},
+		},
+		"Given I have one metrics requests with a featureName & featureIdentifier": {
+			args: args{
+				envID: "123",
+				metricsRequests: []domain.MetricsRequest{
+					makeMetricsRequest("123", 12, featureNameAndIdentifierFlag),
+				},
+			},
+			expected: expected{
+				mapSize: 12,
+				data: map[string]domain.MetricsRequest{
+					"123": {
+						EnvironmentID: "123",
+						Metrics: clientgen.Metrics{
+							MetricsData: domain.ToPtr([]clientgen.MetricsData{
+								featureNameAndIdentifierFlag,
 							}),
 						},
 					},

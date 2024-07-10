@@ -3,6 +3,7 @@ package transport
 import (
 	"bytes"
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -16,6 +17,8 @@ import (
 	"github.com/alicebob/miniredis/v2"
 	"github.com/harness-community/sse/v3"
 	sdkstream "github.com/harness/ff-golang-server-sdk/stream"
+	clientgen "github.com/harness/ff-proxy/v2/gen/client"
+	jsoniter "github.com/json-iterator/go"
 	"github.com/labstack/echo/v4"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/redis/go-redis/v9"
@@ -24,7 +27,6 @@ import (
 	"github.com/harness/ff-proxy/v2/cache"
 	"github.com/harness/ff-proxy/v2/config/local"
 	"github.com/harness/ff-proxy/v2/domain"
-	clientgen "github.com/harness/ff-proxy/v2/gen/client"
 	"github.com/harness/ff-proxy/v2/hash"
 	"github.com/harness/ff-proxy/v2/log"
 	"github.com/harness/ff-proxy/v2/middleware"
@@ -701,6 +703,9 @@ var (
 	// targetFooEvaluations is the expected response body for a Evaluations request - the newline at the end is intentional
 	targetFooEvaluations = []byte(`[{"flag":"harnessappdemodarkmode","identifier":"true","kind":"boolean","value":"true"},{"flag":"yet_another_flag","identifier":"1","kind":"string","value":"1"}]
 `)
+
+	targetDavejEvaluations = []byte(`[{"flag":"harnessappdemodarkmode","identifier":"false","kind":"boolean","value":"false"},{"flag":"yet_another_flag","identifier":"1","kind":"string","value":"1"}]
+`)
 )
 
 // TestHTTPServer_GetEvaluations sets up a service with repositories populated
@@ -712,9 +717,27 @@ func TestHTTPServer_GetEvaluations(t *testing.T) {
 	testServer := httptest.NewServer(server)
 	defer testServer.Close()
 
+	target := domain.Target{
+		Target: clientgen.Target{
+			Attributes: domain.ToPtr(map[string]interface{}{
+				"email": "foo@gmail.com",
+			}),
+			Identifier: "davej",
+			Name:       "Dave Johnson",
+		},
+	}
+
+	b, err := jsoniter.Marshal(target)
+	assert.Nil(t, err)
+
+	encodedTarget := base64.StdEncoding.EncodeToString(b)
+
+	badlyEncodedTarget := base64.StdEncoding.EncodeToString([]byte(`{"identifier": "foo", "name": "foo"`))
+
 	testCases := map[string]struct {
 		method               string
 		url                  string
+		headers              map[string]string
 		expectedStatusCode   int
 		expectedResponseBody []byte
 	}{
@@ -752,6 +775,20 @@ func TestHTTPServer_GetEvaluations(t *testing.T) {
 			expectedStatusCode:   http.StatusOK,
 			expectedResponseBody: targetFooEvaluations,
 		},
+		"Given I make a GET request with a valid Target in the Harness-Target header then the Target in the header will be used for evaluations": {
+			method:               http.MethodGet,
+			url:                  fmt.Sprintf("%s/client/env/1234/target/foo/evaluations", testServer.URL),
+			headers:              map[string]string{targetHeader: encodedTarget},
+			expectedStatusCode:   http.StatusOK,
+			expectedResponseBody: targetDavejEvaluations,
+		},
+		"Given I make a GET request with an invalid Target in the Harness-Target, then the target from the path will be used": {
+			method:               http.MethodGet,
+			url:                  fmt.Sprintf("%s/client/env/1234/target/foo/evaluations", testServer.URL),
+			headers:              map[string]string{targetHeader: badlyEncodedTarget},
+			expectedStatusCode:   http.StatusOK,
+			expectedResponseBody: targetFooEvaluations,
+		},
 	}
 	for desc, tc := range testCases {
 		tc := tc
@@ -770,6 +807,10 @@ func TestHTTPServer_GetEvaluations(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
+			}
+
+			for h, v := range tc.headers {
+				req.Header.Set(h, v)
 			}
 
 			resp, err := testServer.Client().Do(req)
@@ -802,6 +843,9 @@ var (
 	// darkModeEvaluationTrue is the expected response body for a EvaluationsByFeature request when identifer='james' and feature='harnessappdemodarkmode '- the newline at the end is intentional
 	darkModeEvaluationTrue = []byte(`{"flag":"harnessappdemodarkmode","identifier":"true","kind":"boolean","value":"true"}
 `)
+
+	targetDavejDarkModeEvaluation = []byte(`{"flag":"harnessappdemodarkmode","identifier":"false","kind":"boolean","value":"false"}
+`)
 )
 
 // TestHTTPServer_GetEvaluationsByFeature sets up an service with repositories
@@ -813,9 +857,27 @@ func TestHTTPServer_GetEvaluationsByFeature(t *testing.T) {
 	testServer := httptest.NewServer(server)
 	defer testServer.Close()
 
+	target := domain.Target{
+		Target: clientgen.Target{
+			Attributes: domain.ToPtr(map[string]interface{}{
+				"email": "foo@gmail.com",
+			}),
+			Identifier: "davej",
+			Name:       "Dave Johnson",
+		},
+	}
+
+	b, err := jsoniter.Marshal(target)
+	assert.Nil(t, err)
+
+	encodedTarget := base64.StdEncoding.EncodeToString(b)
+
+	badlyEncodedTarget := base64.StdEncoding.EncodeToString([]byte(`{"identifier": "foo", "name": "foo"`))
+
 	testCases := map[string]struct {
 		method               string
 		url                  string
+		headers              map[string]string
 		expectedStatusCode   int
 		expectedResponseBody []byte
 	}{
@@ -851,7 +913,22 @@ func TestHTTPServer_GetEvaluationsByFeature(t *testing.T) {
 			expectedStatusCode:   http.StatusOK,
 			expectedResponseBody: darkModeEvaluationTrue,
 		},
+		"Given I make a GET request with a valid Target in the Harness-Target header then the Target in the header will be used for evaluations": {
+			method:               http.MethodGet,
+			url:                  fmt.Sprintf("%s/client/env/1234/target/foo/evaluations/harnessappdemodarkmode", testServer.URL),
+			headers:              map[string]string{targetHeader: encodedTarget},
+			expectedStatusCode:   http.StatusOK,
+			expectedResponseBody: targetDavejDarkModeEvaluation,
+		},
+		"Given I make a GET request with an invalid Target in the Harness-Target, then the target from the path will be used": {
+			method:               http.MethodGet,
+			url:                  fmt.Sprintf("%s/client/env/1234/target/foo/evaluations/harnessappdemodarkmode", testServer.URL),
+			headers:              map[string]string{targetHeader: badlyEncodedTarget},
+			expectedStatusCode:   http.StatusOK,
+			expectedResponseBody: darkModeEvaluationTrue,
+		},
 	}
+
 	for desc, tc := range testCases {
 		tc := tc
 		t.Run(desc, func(t *testing.T) {
@@ -869,6 +946,10 @@ func TestHTTPServer_GetEvaluationsByFeature(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
+			}
+
+			for h, v := range tc.headers {
+				req.Header.Set(h, v)
 			}
 
 			resp, err := testServer.Client().Do(req)
@@ -1040,6 +1121,16 @@ func TestHTTPServer_PostAuthentication(t *testing.T) {
 			expectedStatusCode:           http.StatusOK,
 			expectedCacheTargets:         targets,
 			expectedClientServiceTargets: []domain.Target{},
+		},
+		"Given I make an auth request with an invalid Target Identifier": {
+			method:             http.MethodPost,
+			body:               []byte(fmt.Sprintf(`{"apiKey": "%s", "target": {"identifier": "hello world"}}`, apiKey1)),
+			expectedStatusCode: http.StatusBadRequest,
+		},
+		"Given I make an auth request with an invalid Target Name": {
+			method:             http.MethodPost,
+			body:               []byte(fmt.Sprintf(`{"apiKey": "%s", "target": {"identifier": "helloworld", "name": "Hello/World"}}`, apiKey1)),
+			expectedStatusCode: http.StatusBadRequest,
 		},
 	}
 
