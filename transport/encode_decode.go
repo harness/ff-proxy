@@ -3,6 +3,7 @@ package transport
 import (
 	"context"
 	"encoding/base64"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -31,7 +32,9 @@ var (
 // for endpoints that require one.
 func encodeResponse(_ context.Context, w http.ResponseWriter, response interface{}) error {
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
-	return jsoniter.NewEncoder(w).Encode(response)
+
+	encoder := json.NewEncoder(w)
+	return encoder.Encode(response)
 }
 
 func encodeStreamResponse(_ context.Context, w http.ResponseWriter, response interface{}) error {
