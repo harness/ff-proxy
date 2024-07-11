@@ -34,11 +34,7 @@ func encodeResponse(_ context.Context, w http.ResponseWriter, response interface
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 
 	encoder := json.NewEncoder(w)
-	if err := encoder.Encode(response); err != nil {
-		return err
-	}
-
-	return nil
+	return encoder.Encode(response)
 }
 
 func encodeStreamResponse(_ context.Context, w http.ResponseWriter, response interface{}) error {
