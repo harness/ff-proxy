@@ -46,10 +46,35 @@ serviceAccount:
 
 # configuration specific to the writer pods
 writer:
+
+  enabled: true
+
+  # a service is only needed if you are not using read replicas
   service:
     enabled: false
     type: ClusterIP
     port: 7000
+
+  # if you use istio we can create a virtualservice for the writer
+  # like a regular service, this is only needed if you are not using read replicas
+  istio:
+    enabled: false
+    gateways:
+    - istio-gateways/istio-gateway
+    hosts: []
+    # - ff-proxy-writer.mycompany.net
+    tls:
+      enabled: true
+      port: 443
+
+    port: 80
+
+    resources:
+      limits:
+        memory: 100Mi
+      requests:
+        cpu: 100m
+        memory: 50Mi
 
   resources:
     limits:
@@ -119,6 +144,18 @@ readReplica:
     type: ClusterIP
     port: 7000
 
+  # if you use istio we can create a virtualservice for the writer
+  # like a regular service, this is only needed if you are not using read replicas
+  istio:
+    enabled: false
+    gateways:
+    - istio-gateways/istio-gateway
+    hosts: []
+    # - ff-proxy-writer.mycompany.net
+    tls:
+      enabled: true
+      port: 443
+
   replicaCount: 2
 
   resources:
@@ -186,6 +223,7 @@ readReplica:
     #   persistentVolumeClaim:
     #     claimName: harness-delegate-ng-certs
 
+
 # The url of the FF Client Service running in Harness Saas that the Proxy commuincates with to fetch configuration data
 clientService:
 
@@ -223,3 +261,29 @@ pprof:
 
 # Sets the max length of the redis stream that replicas use to send metrics to the Primary
 metricsStreamMaxLen:
+
+# provision a test instance of the sdk to connect to the proxy
+canary:
+  enabled: false
+
+  # an sdk key for an environment which is covered by this proxy
+  sdkKey: 
+
+  # if you want to evaluate a flag (in addition to just connecting to the proxy) set the flag id
+  flagId: 
+
+  # if not set defaults to the reader or writer svc address
+  connectionAddress:
+
+  # source: https://github.com/harness-community/feature-flag-examples/tree/main/connectivity_check
+  image:
+    repository: harnesscommunity/feature-flag-connectivity-check
+    pullPolicy: IfNotPresent
+    tag: latest
+
+  resources:
+    limits:
+      memory: 50Mi
+    requests:
+      cpu: 10m
+      memory: 10Mi

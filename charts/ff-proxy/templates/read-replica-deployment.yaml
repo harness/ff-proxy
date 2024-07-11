@@ -7,7 +7,7 @@ metadata:
   labels:
     {{- include "ff-proxy.labels" . | nindent 4 }}
 spec:
-  replicas: 1
+  replicas: {{ .Values.readReplica.replicaCount }}
   selector:
     matchLabels:
       {{- include "ff-proxy.readReplica.SelectorLabels" . | nindent 6 }}
@@ -41,19 +41,25 @@ spec:
             httpGet:
               path: /health
               port: sdk
+              httpHeaders:
+              - name: Host
+                value: localhost
           readinessProbe:
             httpGet:
               path: /health
               port: sdk
+              httpHeaders:
+              - name: Host
+                value: localhost
           resources:
             {{- toYaml .Values.readReplica.resources | nindent 12 }}
           envFrom:
             - configMapRef:
                 name: {{ include "ff-proxy.readReplica.name" . }}
-            - secretRef:
-                name: {{ include "ff-proxy.proxyKey" . }}
+            {{- if or .Values.authSecret .Values.existingAuthSecret}}
             - secretRef:
                 name: {{ include "ff-proxy.authSecret" . }}
+            {{- end }}
             {{- if or .Values.redis.password .Values.redis.existingPassword}}
             - secretRef:
                 name: {{ include "ff-proxy.redisPassword" . }}
