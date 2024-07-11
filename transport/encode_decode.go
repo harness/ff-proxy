@@ -3,6 +3,7 @@ package transport
 import (
 	"context"
 	"encoding/base64"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -32,26 +33,8 @@ var (
 func encodeResponse(_ context.Context, w http.ResponseWriter, response interface{}) error {
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 
-	b, err := jsoniter.Marshal(response)
-	if err != nil {
-		return err
-	}
-
-	_, err = w.Write(b)
-	if err != nil {
-		return err
-	}
-
-	// We previously used jsoniter.NewEncoder(w).Encode(response) which appended a newline
-	// character on to the end of the response body to make it compliant with RFC 7159.
-	// We swapped to json.Marshal because it reduced the number of memory allocations we
-	// were making but it doesn't append the newline character. So we're adding the newline
-	// character back in so that we haven't changed any functionality.
-	_, err = w.Write([]byte{'\n'})
-	if err != nil {
-		return err
-	}
-	return nil
+	encoder := json.NewEncoder(w)
+	return encoder.Encode(response)
 }
 
 func encodeStreamResponse(_ context.Context, w http.ResponseWriter, response interface{}) error {
