@@ -150,35 +150,20 @@ func NewPrometheusMiddleware(reg prometheus.Registerer) echo.MiddlewareFunc {
 			Name: "ff_proxy_http_requests_total",
 			Help: "Records the number of requests to an endpoint",
 		},
-			[]string{"url", "envID", "code", "method"},
+			[]string{"url", "envID", "code"},
 		),
 		requestDuration: prometheus.NewHistogramVec(prometheus.HistogramOpts{
 			Name:    "ff_proxy_http_requests_duration",
 			Help:    "Records the request duration for an endpoint",
-			Buckets: []float64{0.05, 0.1, 0.2, 0.3, 0.4, 0.5, 0.75, 1},
+			Buckets: prometheus.DefBuckets,
 		},
-			[]string{"url", "envID"},
+			[]string{"url"},
 		),
 		contentLength: prometheus.NewHistogramVec(prometheus.HistogramOpts{
-			Name: "ff_http_requests_content_length_histogram",
-			Help: "Records the value of the Content-Length header for an http request",
-			Buckets: []float64{
-				100,
-				250,
-				500,
-				1000,
-				5000,
-				10000,
-				25000,
-				50000,
-				100000,  // 0.1 MiB
-				250000,  // 0.25 MiB
-				500000,  // 0.5MiB
-				1000000, // 1 MiB
-				2500000, // 2.5 MiB
-				5000000, // 5 MiB
-			},
-		}, []string{"url", "envID"}),
+			Name:    "ff_http_requests_content_length_histogram",
+			Help:    "Records the value of the Content-Length header for an http request",
+			Buckets: prometheus.ExponentialBuckets(100, 2, 10),
+		}, []string{}),
 	}
 
 	reg.MustRegister(p.requestCount, p.requestDuration, p.contentLength)
@@ -204,20 +189,18 @@ func NewPrometheusMiddleware(reg prometheus.Registerer) echo.MiddlewareFunc {
 
 			path := c.Path()
 			statusCode := strconv.Itoa(res.Status)
-			method := req.Method
-
 			envID := c.Param("environment_uuid")
 
 			// Don't want to track request count or duration to the health or prometheus /metrics endpoints
 			if strings.Contains(path, "/health") || path != "/metrics" {
-				p.requestCount.WithLabelValues(path, envID, statusCode, method).Inc()
-				p.requestDuration.WithLabelValues(path, envID).Observe(duration.Seconds())
+				p.requestCount.WithLabelValues(path, envID, statusCode).Inc()
+				p.requestDuration.WithLabelValues(path).Observe(duration.Seconds())
 
 			}
 
 			// We only care about tracking content length for POST requests
 			if req.Method == http.MethodPost {
-				p.contentLength.WithLabelValues(path, envID).Observe(float64(req.ContentLength))
+				p.contentLength.WithLabelValues().Observe(float64(req.ContentLength))
 			}
 
 			return err

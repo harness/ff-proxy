@@ -41,7 +41,7 @@ func (c MetricsCache) Scan(ctx context.Context, key string) (m map[string]string
 	start := time.Now()
 	defer func() {
 
-		trackHistogram(start, c.scanDuration, key)
+		trackHistogram(start, c.scanDuration)
 		trackCounter(c.scanCount, key, getErrorLabel(err))
 	}()
 	return c.next.Scan(ctx, key)
@@ -78,32 +78,32 @@ func NewMetricsCache(label string, reg prometheus.Registerer, next Cache) Metric
 			Help:    "Tracks how long delete operations to the cache take",
 			Buckets: []float64{0.01, 0.025, 0.05, 0.075, 0.1, 0.25, 0.5},
 		},
-			[]string{"key"},
+			[]string{},
 		),
 
 		writeCount: prometheus.NewCounterVec(prometheus.CounterOpts{
 			Name: fmt.Sprintf("ff_proxy_%s_cache_write_count", label),
 			Help: "Tracks how many writes we make to the cache",
 		},
-			[]string{"key", "error"},
+			[]string{"error"},
 		),
 		readCount: prometheus.NewCounterVec(prometheus.CounterOpts{
 			Name: fmt.Sprintf("ff_proxy_%s_cache_read_count", label),
 			Help: "Tracks how many reads we make to the cache",
 		},
-			[]string{"key", "error"},
+			[]string{"error"},
 		),
 		deleteCount: prometheus.NewCounterVec(prometheus.CounterOpts{
 			Name: fmt.Sprintf("ff_proxy_%s_cache_remove_count", label),
 			Help: "Tracks how many deletes we make to the cache",
 		},
-			[]string{"key", "error"},
+			[]string{"error"},
 		),
 		scanCount: prometheus.NewCounterVec(prometheus.CounterOpts{
 			Name: fmt.Sprintf("ff_proxy_%s_cache_scan_count", label),
 			Help: "Tracks how many scans for keys we make to the cache per environment",
 		},
-			[]string{"key", "error"},
+			[]string{"error"},
 		),
 	}
 
