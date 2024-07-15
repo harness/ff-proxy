@@ -42,7 +42,7 @@ func (c MetricsCache) Scan(ctx context.Context, key string) (m map[string]string
 	defer func() {
 
 		trackHistogram(start, c.scanDuration)
-		trackCounter(c.scanCount, key, getErrorLabel(err))
+		trackCounter(c.scanCount, getErrorLabel(err))
 	}()
 	return c.next.Scan(ctx, key)
 }
@@ -126,7 +126,7 @@ func (c MetricsCache) Set(ctx context.Context, key string, value interface{}) (e
 	start := time.Now()
 	defer func() {
 		trackHistogram(start, c.writeDuration)
-		trackCounter(c.writeCount, key, getErrorLabel(err))
+		trackCounter(c.writeCount, getErrorLabel(err))
 	}()
 
 	return c.next.Set(ctx, key, value)
@@ -138,7 +138,7 @@ func (c MetricsCache) Get(ctx context.Context, key string, v interface{}) (err e
 	start := time.Now()
 	defer func() {
 		trackHistogram(start, c.readDuration)
-		trackCounter(c.readCount, key, getErrorLabel(err))
+		trackCounter(c.readCount, getErrorLabel(err))
 	}()
 
 	return c.next.Get(ctx, key, v)
@@ -150,7 +150,7 @@ func (c MetricsCache) Delete(ctx context.Context, key string) (err error) {
 	start := time.Now()
 	defer func() {
 		trackHistogram(start, c.deleteDuration)
-		trackCounter(c.deleteCount, key, getErrorLabel(err))
+		trackCounter(c.deleteCount, getErrorLabel(err))
 	}()
 
 	return c.next.Delete(ctx, key)
