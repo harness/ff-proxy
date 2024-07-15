@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"net/http"
-	"net/url"
 	"strconv"
 	"strings"
 	"time"
@@ -122,12 +121,16 @@ func AllowQuerySemicolons() echo.MiddlewareFunc {
 		return func(c echo.Context) error {
 			req := c.Request()
 
+			// Check if the raw query contains a semicolon
 			if strings.Contains(req.URL.RawQuery, ";") {
-				r2 := new(http.Request)
-				*r2 = *req
-				r2.URL = new(url.URL)
-				*r2.URL = *req.URL
-				r2.URL.RawQuery = strings.ReplaceAll(req.URL.RawQuery, ";", "&")
+				newURL := *req.URL
+				newURL.RawQuery = strings.ReplaceAll(req.URL.RawQuery, ";", "&")
+
+				// Clone the request to avoid modifying the original one
+				r2 := req.Clone(c.Request().Context())
+				r2.URL = &newURL
+
+				// Set the modified request in the context
 				c.SetRequest(r2)
 			}
 
