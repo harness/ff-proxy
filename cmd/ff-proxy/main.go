@@ -565,6 +565,7 @@ func main() {
 		middleware.NewEchoRequestIDMiddleware(),
 		middleware.NewEchoLoggingMiddleware(logger),
 		middleware.NewEchoAuthMiddleware(logger, authRepo, []byte(authSecret), bypassAuth),
+		middleware.ValidateEnvironment(bypassAuth),
 	)
 
 	// We want to be able to expose prometheus metrics on a different server than the

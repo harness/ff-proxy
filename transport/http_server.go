@@ -12,30 +12,17 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 )
 
-const (
-	authRoute                     = "/client/auth"
-	healthRoute                   = "/health"
-	featureConfigsRoute           = "/client/env/:environment_uuid/feature-configs"
-	featureConfigsIdentifierRoute = "/client/env/:environment_uuid/feature-configs/:identifier"
-	segmentsRoute                 = "/client/env/:environment_uuid/target-segments"
-	segmentsIdentifierRoute       = "/client/env/:environment_uuid/target-segments/:identifier"
-	evaluationsRoute              = "/client/env/:environment_uuid/target/:target/evaluations"
-	evaluationsFlagRoute          = "/client/env/:environment_uuid/target/:target/evaluations/:feature"
-	streamRoute                   = "/stream"
-	metricsRoute                  = "/metrics/:environment_uuid"
-)
-
 var proxyRoutes = domain.NewImmutableSet(map[string]struct{}{
-	authRoute:                     {},
-	healthRoute:                   {},
-	featureConfigsRoute:           {},
-	featureConfigsIdentifierRoute: {},
-	segmentsRoute:                 {},
-	segmentsIdentifierRoute:       {},
-	evaluationsRoute:              {},
-	evaluationsFlagRoute:          {},
-	streamRoute:                   {},
-	metricsRoute:                  {},
+	domain.AuthRoute:                     {},
+	domain.HealthRoute:                   {},
+	domain.FeatureConfigsRoute:           {},
+	domain.FeatureConfigsIdentifierRoute: {},
+	domain.SegmentsRoute:                 {},
+	domain.SegmentsIdentifierRoute:       {},
+	domain.EvaluationsRoute:              {},
+	domain.EvaluationsFlagRoute:          {},
+	domain.StreamRoute:                   {},
+	domain.MetricsRoute:                  {},
 })
 
 type prometheusRegister interface {
@@ -109,7 +96,7 @@ func (h *HTTPServer) Use(mw ...echo.MiddlewareFunc) {
 }
 
 func (h *HTTPServer) registerEndpoints(e *Endpoints) {
-	h.router.POST(authRoute, NewUnaryHandler(
+	h.router.POST(domain.AuthRoute, NewUnaryHandler(
 		e.PostAuthenticate,
 		decodeAuthRequest,
 		encodeResponse,
@@ -117,7 +104,7 @@ func (h *HTTPServer) registerEndpoints(e *Endpoints) {
 		h.log,
 	))
 
-	h.router.GET(healthRoute, NewUnaryHandler(
+	h.router.GET(domain.HealthRoute, NewUnaryHandler(
 		e.Health,
 		decodeHealthRequest,
 		encodeResponse,
@@ -125,7 +112,7 @@ func (h *HTTPServer) registerEndpoints(e *Endpoints) {
 		h.log,
 	))
 
-	h.router.GET(featureConfigsRoute, NewUnaryHandler(
+	h.router.GET(domain.FeatureConfigsRoute, NewUnaryHandler(
 		e.GetFeatureConfigs,
 		decodeGetFeatureConfigsRequest,
 		encodeResponse,
@@ -133,7 +120,7 @@ func (h *HTTPServer) registerEndpoints(e *Endpoints) {
 		h.log,
 	))
 
-	h.router.GET(featureConfigsIdentifierRoute, NewUnaryHandler(
+	h.router.GET(domain.FeatureConfigsIdentifierRoute, NewUnaryHandler(
 		e.GetFeatureConfigsByIdentifier,
 		decodeGetFeatureConfigsByIdentifierRequest,
 		encodeResponse,
@@ -141,7 +128,7 @@ func (h *HTTPServer) registerEndpoints(e *Endpoints) {
 		h.log,
 	))
 
-	h.router.GET(segmentsRoute, NewUnaryHandler(
+	h.router.GET(domain.SegmentsRoute, NewUnaryHandler(
 		e.GetTargetSegments,
 		decodeGetTargetSegmentsRequest,
 		encodeResponse,
@@ -149,7 +136,7 @@ func (h *HTTPServer) registerEndpoints(e *Endpoints) {
 		h.log,
 	))
 
-	h.router.GET(segmentsIdentifierRoute, NewUnaryHandler(
+	h.router.GET(domain.SegmentsIdentifierRoute, NewUnaryHandler(
 		e.GetTargetSegmentsByIdentifier,
 		decodeGetTargetSegmentsByIdentifierRequest,
 		encodeResponse,
@@ -157,7 +144,7 @@ func (h *HTTPServer) registerEndpoints(e *Endpoints) {
 		h.log,
 	))
 
-	h.router.GET(evaluationsRoute, NewUnaryHandler(
+	h.router.GET(domain.EvaluationsRoute, NewUnaryHandler(
 		e.GetEvaluations,
 		decodeGetEvaluationsRequest,
 		encodeResponse,
@@ -165,7 +152,7 @@ func (h *HTTPServer) registerEndpoints(e *Endpoints) {
 		h.log,
 	))
 
-	h.router.GET(evaluationsFlagRoute, NewUnaryHandler(
+	h.router.GET(domain.EvaluationsFlagRoute, NewUnaryHandler(
 		e.GetEvaluationsByFeature,
 		decodeGetEvaluationsByFeatureRequest,
 		encodeResponse,
@@ -173,7 +160,7 @@ func (h *HTTPServer) registerEndpoints(e *Endpoints) {
 		h.log,
 	))
 
-	h.router.GET(streamRoute, NewUnaryHandler(
+	h.router.GET(domain.StreamRoute, NewUnaryHandler(
 		e.GetStream,
 		decodeGetStreamRequest,
 		encodeStreamResponse,
@@ -181,7 +168,7 @@ func (h *HTTPServer) registerEndpoints(e *Endpoints) {
 		h.log,
 	))
 
-	h.router.POST(metricsRoute, NewUnaryHandler(
+	h.router.POST(domain.MetricsRoute, NewUnaryHandler(
 		e.PostMetrics,
 		decodeMetricsRequest,
 		encodeResponse,

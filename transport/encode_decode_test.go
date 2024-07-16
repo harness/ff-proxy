@@ -243,7 +243,7 @@ func Test_decodeGetEvaluationsRequest(t *testing.T) {
 
 			e := echo.New()
 			c := e.NewContext(req, httptest.NewRecorder())
-			c.SetPath(evaluationsFlagRoute)
+			c.SetPath(domain.EvaluationsFlagRoute)
 			c.SetParamNames("environment_uuid", "target")
 			c.SetParamValues(tc.args.envID, tc.args.target)
 
@@ -340,7 +340,7 @@ func Test_decodeGetEvaluationsByFeatureRequest(t *testing.T) {
 
 			e := echo.New()
 			c := e.NewContext(req, httptest.NewRecorder())
-			c.SetPath(evaluationsFlagRoute)
+			c.SetPath(domain.EvaluationsFlagRoute)
 			c.SetParamNames("environment_uuid", "target", "feature")
 			c.SetParamValues(tc.args.envID, tc.args.target, tc.args.feature)
 

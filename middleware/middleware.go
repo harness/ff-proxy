@@ -3,6 +3,7 @@ package middleware
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net/http"
 	"strconv"
 	"strings"
@@ -16,6 +17,16 @@ import (
 
 	"github.com/harness/ff-proxy/v2/domain"
 	"github.com/harness/ff-proxy/v2/log"
+)
+
+type requestContextKey string
+
+func (r requestContextKey) String() string {
+	return string(r)
+}
+
+const (
+	tokenClaims requestContextKey = "tokenClaims"
 )
 
 // keyLookUp checks if the key exists in cache
@@ -58,6 +69,7 @@ func NewEchoAuthMiddleware(logger log.Logger, authRepo keyLookUp, secret []byte,
 			}
 
 			if claims, ok := token.Claims.(*domain.Claims); ok && token.Valid && isKeyInCache(c.Request().Context(), logger, authRepo, claims) {
+				c.Set(tokenClaims.String(), claims)
 				return nil, nil
 			}
 			return nil, errors.New("invalid token")
@@ -218,4 +230,46 @@ func NewCorsMiddleware() echo.MiddlewareFunc {
 		AllowMethods: []string{http.MethodGet, http.MethodOptions, http.MethodPost},
 		AllowHeaders: []string{"*", "Authorization"},
 	})
+}
+
+func ValidateEnvironment(bypassAuth bool) echo.MiddlewareFunc {
+	return func(next echo.HandlerFunc) echo.HandlerFunc {
+		return func(c echo.Context) error {
+			if skipper(c, bypassAuth) {
+				return next(c)
+			}
+
+			claims, ok := c.Get(tokenClaims.String()).(*domain.Claims)
+			if !ok {
+				return errors.New("missing token claims")
+			}
+
+			if claims.Environment != c.Param("environment_uuid") {
+				return echo.NewHTTPError(http.StatusUnauthorized, fmt.Sprintf("Environment ID [%s] mismatch with requested %s", claims.Environment, c.Param("environment_uuid")))
+			}
+
+			return next(c)
+		}
+	}
+}
+
+func skipper(c echo.Context, bypassAuth bool) bool {
+	if bypassAuth {
+		return true
+	}
+
+	urlPath := c.Request().URL.Path
+
+	switch urlPath {
+	case domain.AuthRoute:
+		return true
+	case domain.StreamRoute:
+		return true
+	default:
+		// Skip for prometheus requests
+		if urlPath == "/metrics" && c.Request().Method == http.MethodGet {
+			return true
+		}
+		return false
+	}
 }
