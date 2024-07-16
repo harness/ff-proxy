@@ -167,8 +167,8 @@ func (c MetricsCache) HealthCheck(ctx context.Context) error {
 	return c.next.HealthCheck(ctx)
 }
 
-func trackHistogram(start time.Time, metric histogram, labels ...string) {
-	metric.WithLabelValues(labels...).Observe(time.Since(start).Seconds())
+func trackHistogram(start time.Time, metric histogram) {
+	metric.WithLabelValues().Observe(time.Since(start).Seconds())
 }
 
 func trackCounter(metric counter, labels ...string) {
