@@ -111,7 +111,7 @@ func TestCacheMetrics_Set(t *testing.T) {
 
 			expected: result{
 				observations: 1,
-				labels:       []string{"foo", "true"},
+				labels:       []string{"true"},
 			},
 		},
 		"Given I call Set and the decorated cache doesn't error": {
@@ -132,7 +132,7 @@ func TestCacheMetrics_Set(t *testing.T) {
 
 			expected: result{
 				observations: 1,
-				labels:       []string{"foo", "false"},
+				labels:       []string{"false"},
 			},
 		},
 	}
@@ -204,7 +204,7 @@ func TestCacheMetrics_Get(t *testing.T) {
 
 			expected: result{
 				observations: 1,
-				labels:       []string{"foo", "true"},
+				labels:       []string{"true"},
 			},
 		},
 		"Given I call Get and the decorated cache doesn't error": {
@@ -222,7 +222,7 @@ func TestCacheMetrics_Get(t *testing.T) {
 			readCount:    &mockCounter{},
 			expected: result{
 				observations: 1,
-				labels:       []string{"foo", "false"},
+				labels:       []string{"false"},
 			},
 		},
 	}
@@ -291,7 +291,7 @@ func TestCacheMetrics_Delete(t *testing.T) {
 
 			expected: result{
 				observations: 1,
-				labels:       []string{"foo", "true"},
+				labels:       []string{"true"},
 			},
 		},
 		"Given I call Delete and the underlying cache doesn't erorr": {
@@ -309,7 +309,7 @@ func TestCacheMetrics_Delete(t *testing.T) {
 
 			expected: result{
 				observations: 1,
-				labels:       []string{"foo", "false"},
+				labels:       []string{"false"},
 			},
 		},
 	}

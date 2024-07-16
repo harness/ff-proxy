@@ -41,8 +41,8 @@ func (c MetricsCache) Scan(ctx context.Context, key string) (m map[string]string
 	start := time.Now()
 	defer func() {
 
-		trackHistogram(start, c.scanDuration, key)
-		trackCounter(c.scanCount, key, getErrorLabel(err))
+		trackHistogram(start, c.scanDuration)
+		trackCounter(c.scanCount, getErrorLabel(err))
 	}()
 	return c.next.Scan(ctx, key)
 }
@@ -78,32 +78,32 @@ func NewMetricsCache(label string, reg prometheus.Registerer, next Cache) Metric
 			Help:    "Tracks how long delete operations to the cache take",
 			Buckets: []float64{0.01, 0.025, 0.05, 0.075, 0.1, 0.25, 0.5},
 		},
-			[]string{"key"},
+			[]string{},
 		),
 
 		writeCount: prometheus.NewCounterVec(prometheus.CounterOpts{
 			Name: fmt.Sprintf("ff_proxy_%s_cache_write_count", label),
 			Help: "Tracks how many writes we make to the cache",
 		},
-			[]string{"key", "error"},
+			[]string{"error"},
 		),
 		readCount: prometheus.NewCounterVec(prometheus.CounterOpts{
 			Name: fmt.Sprintf("ff_proxy_%s_cache_read_count", label),
 			Help: "Tracks how many reads we make to the cache",
 		},
-			[]string{"key", "error"},
+			[]string{"error"},
 		),
 		deleteCount: prometheus.NewCounterVec(prometheus.CounterOpts{
 			Name: fmt.Sprintf("ff_proxy_%s_cache_remove_count", label),
 			Help: "Tracks how many deletes we make to the cache",
 		},
-			[]string{"key", "error"},
+			[]string{"error"},
 		),
 		scanCount: prometheus.NewCounterVec(prometheus.CounterOpts{
 			Name: fmt.Sprintf("ff_proxy_%s_cache_scan_count", label),
 			Help: "Tracks how many scans for keys we make to the cache per environment",
 		},
-			[]string{"key", "error"},
+			[]string{"error"},
 		),
 	}
 
@@ -126,7 +126,7 @@ func (c MetricsCache) Set(ctx context.Context, key string, value interface{}) (e
 	start := time.Now()
 	defer func() {
 		trackHistogram(start, c.writeDuration)
-		trackCounter(c.writeCount, key, getErrorLabel(err))
+		trackCounter(c.writeCount, getErrorLabel(err))
 	}()
 
 	return c.next.Set(ctx, key, value)
@@ -138,7 +138,7 @@ func (c MetricsCache) Get(ctx context.Context, key string, v interface{}) (err e
 	start := time.Now()
 	defer func() {
 		trackHistogram(start, c.readDuration)
-		trackCounter(c.readCount, key, getErrorLabel(err))
+		trackCounter(c.readCount, getErrorLabel(err))
 	}()
 
 	return c.next.Get(ctx, key, v)
@@ -150,7 +150,7 @@ func (c MetricsCache) Delete(ctx context.Context, key string) (err error) {
 	start := time.Now()
 	defer func() {
 		trackHistogram(start, c.deleteDuration)
-		trackCounter(c.deleteCount, key, getErrorLabel(err))
+		trackCounter(c.deleteCount, getErrorLabel(err))
 	}()
 
 	return c.next.Delete(ctx, key)
@@ -167,8 +167,8 @@ func (c MetricsCache) HealthCheck(ctx context.Context) error {
 	return c.next.HealthCheck(ctx)
 }
 
-func trackHistogram(start time.Time, metric histogram, labels ...string) {
-	metric.WithLabelValues(labels...).Observe(time.Since(start).Seconds())
+func trackHistogram(start time.Time, metric histogram) {
+	metric.WithLabelValues().Observe(time.Since(start).Seconds())
 }
 
 func trackCounter(metric counter, labels ...string) {
