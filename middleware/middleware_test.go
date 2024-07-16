@@ -205,7 +205,7 @@ func TestSkipper(t *testing.T) {
 			rec := httptest.NewRecorder()
 			c := e.NewContext(req, rec)
 
-			result := skipper(c)
+			result := skipValidateEnv(c, false)
 			assert.Equal(t, tt.expected, result)
 		})
 	}

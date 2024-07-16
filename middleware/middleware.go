@@ -27,6 +27,7 @@ func (r requestContextKey) String() string {
 
 const (
 	tokenClaims requestContextKey = "tokenClaims"
+	metricsPath                   = "/metrics"
 )
 
 // keyLookUp checks if the key exists in cache
@@ -80,7 +81,7 @@ func NewEchoAuthMiddleware(logger log.Logger, authRepo keyLookUp, secret []byte,
 			}
 
 			urlPath := c.Request().URL.Path
-			prometheusRequest := urlPath == "/metrics" && c.Request().Method == http.MethodGet
+			prometheusRequest := urlPath == metricsPath && c.Request().Method == http.MethodGet
 
 			return urlPath == "/client/auth" || urlPath == "/health" || prometheusRequest
 		},
@@ -235,7 +236,7 @@ func NewCorsMiddleware() echo.MiddlewareFunc {
 func ValidateEnvironment(bypassAuth bool) echo.MiddlewareFunc {
 	return func(next echo.HandlerFunc) echo.HandlerFunc {
 		return func(c echo.Context) error {
-			if skipper(c, bypassAuth) {
+			if skipValidateEnv(c, bypassAuth) {
 				return next(c)
 			}
 
@@ -244,7 +245,8 @@ func ValidateEnvironment(bypassAuth bool) echo.MiddlewareFunc {
 				return errors.New("missing token claims")
 			}
 
-			if claims.Environment != c.Param("environment_uuid") {
+			envID := c.Param("environment_uuid")
+			if claims.Environment != envID {
 				return echo.NewHTTPError(http.StatusUnauthorized, fmt.Sprintf("Environment ID [%s] mismatch with requested %s", claims.Environment, c.Param("environment_uuid")))
 			}
 
@@ -253,7 +255,7 @@ func ValidateEnvironment(bypassAuth bool) echo.MiddlewareFunc {
 	}
 }
 
-func skipper(c echo.Context, bypassAuth bool) bool {
+func skipValidateEnv(c echo.Context, bypassAuth bool) bool {
 	if bypassAuth {
 		return true
 	}
@@ -267,7 +269,7 @@ func skipper(c echo.Context, bypassAuth bool) bool {
 		return true
 	default:
 		// Skip for prometheus requests
-		if urlPath == "/metrics" && c.Request().Method == http.MethodGet {
+		if urlPath == metricsPath && c.Request().Method == http.MethodGet {
 			return true
 		}
 		return false

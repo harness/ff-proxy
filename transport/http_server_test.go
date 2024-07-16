@@ -89,7 +89,7 @@ const (
 	apiKey1         = "apikey1"
 	envID123        = "1234"
 	hashedAPIKey123 = "486089aa445aa0d9ee898f4f38dec4b0d1ee69da3ed7697afb1bdcd46f3fc5ec"
-	apiKey123Token  = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJlbnZpcm9ubWVudCI6ImVudi0xMjMiLCJpYXQiOjE2MzcwNTUyMjUsIm5iZiI6MTYzNzA1NTIyNX0.scUWHotiphYV_xYr3UvEkaUw9CuHQnFThcq3CpPkmu8"
+	apiKey123Token  = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJhcGlLZXkiOiJhdXRoLWtleS1iYzFjYTZiODI3MWJmZWYwNDg1YzlmMjk3OGNiYjJlMTUzNjgwMWYzMTJkYzA2OWEzNDRjODUxNDZhZDdjZGIzIiwiZW52aXJvbm1lbnQiOiIxMjM0IiwiY2x1c3RlcklkZW50aWZpZXIiOiIxIiwibmJmIjoxNzIxMTI4MDIzLCJpYXQiOjE3MjExMjgwMjN9.dRKJEbkmhoIufklai9CAlxQFupZb2-Phl-10OyaPFbI"
 )
 
 type setupConfig struct {
