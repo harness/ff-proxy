@@ -1,4 +1,4 @@
-# FF-Proxy
+# FF-Proxy V2
 [![Go Report Card](https://goreportcard.com/badge/github.com/harness/ff-proxy)](https://goreportcard.com/report/github.com/harness/ff-proxy)
 
 The Relay Proxy is a lightweight Go application that runs within your infrastructure and handles all streaming connections to the Harness platform. It fetches all of your flag, target, and target group data on startup, caches it, fetches any updates over time, and serves it to your connected downstream SDKs.
@@ -19,12 +19,7 @@ To view the many configuration options available read [Configuration](./docs/con
 To view how to securely connect sdks to the Relay Proxy with HTTPS enabled see [TLS](./docs/tls.md).
 
 ## Redis Cache
-By default the Relay Proxy runs with an [In Memory Cache](./docs/in_memory_cache.md).
-
-To run with persistent storage in redis read [Redis](./docs/redis_cache.md).
-
-## Offline Mode
-If you'd like to run the Relay Proxy in airgapped environments or locations with poor internet reliability you can generate offline flag configuration and run the Relay Proxy in a fully offline mode. To learn more read [Offline Mode](./docs/offline.md).
+By default the Relay Proxy V2 runs with a [redis cache](./docs/redis_cache.md).
 
 ## Load Balancing
 For info on horizontal scaling Relay Proxies and a working example see [Load Balancing](./docs/load_balancing.md).
