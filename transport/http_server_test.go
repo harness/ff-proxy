@@ -89,7 +89,7 @@ const (
 	apiKey1         = "apikey1"
 	envID123        = "1234"
 	hashedAPIKey123 = "486089aa445aa0d9ee898f4f38dec4b0d1ee69da3ed7697afb1bdcd46f3fc5ec"
-	apiKey123Token  = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJlbnZpcm9ubWVudCI6ImVudi0xMjMiLCJpYXQiOjE2MzcwNTUyMjUsIm5iZiI6MTYzNzA1NTIyNX0.scUWHotiphYV_xYr3UvEkaUw9CuHQnFThcq3CpPkmu8"
+	apiKey123Token  = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJhcGlLZXkiOiJhdXRoLWtleS1iYzFjYTZiODI3MWJmZWYwNDg1YzlmMjk3OGNiYjJlMTUzNjgwMWYzMTJkYzA2OWEzNDRjODUxNDZhZDdjZGIzIiwiZW52aXJvbm1lbnQiOiIxMjM0IiwiY2x1c3RlcklkZW50aWZpZXIiOiIxIiwibmJmIjoxNzIxMTI4MDIzLCJpYXQiOjE3MjExMjgwMjN9.dRKJEbkmhoIufklai9CAlxQFupZb2-Phl-10OyaPFbI"
 )
 
 type setupConfig struct {
@@ -303,12 +303,13 @@ func setupHTTPServer(t *testing.T, bypassAuth bool, opts ...setupOpts) *HTTPServ
 
 	server := NewHTTPServer(setupConfig.port, endpoints, logger, false, "", "")
 	server.Use(
+		middleware.NewPrometheusMiddleware(prometheus.NewRegistry()),
 		middleware.NewCorsMiddleware(),
 		middleware.AllowQuerySemicolons(),
 		middleware.NewEchoRequestIDMiddleware(),
 		middleware.NewEchoLoggingMiddleware(logger),
 		middleware.NewEchoAuthMiddleware(logger, repo, []byte(`secret`), bypassAuth),
-		middleware.NewPrometheusMiddleware(prometheus.NewRegistry()),
+		middleware.ValidateEnvironment(bypassAuth),
 	)
 	return server
 }
@@ -1554,7 +1555,7 @@ func TestHTTPServer_WithCustomHandler(t *testing.T) {
 		"Given I try to register a custom handler on /client/auth": {
 			args: args{
 				method:  http.MethodGet,
-				route:   authRoute,
+				route:   domain.AuthRoute,
 				handler: nil,
 			},
 			shouldErr: true,
@@ -1562,7 +1563,7 @@ func TestHTTPServer_WithCustomHandler(t *testing.T) {
 		"Given I try to register a custom handler on /health": {
 			args: args{
 				method:  http.MethodGet,
-				route:   healthRoute,
+				route:   domain.HealthRoute,
 				handler: nil,
 			},
 			shouldErr: true,
@@ -1570,7 +1571,7 @@ func TestHTTPServer_WithCustomHandler(t *testing.T) {
 		"Given I try to register a custom handler on /feature-configs": {
 			args: args{
 				method:  http.MethodGet,
-				route:   featureConfigsRoute,
+				route:   domain.FeatureConfigsRoute,
 				handler: nil,
 			},
 			shouldErr: true,
@@ -1578,7 +1579,7 @@ func TestHTTPServer_WithCustomHandler(t *testing.T) {
 		"Given I try to register a custom handler on /feature-configs/:identifier": {
 			args: args{
 				method:  http.MethodGet,
-				route:   featureConfigsIdentifierRoute,
+				route:   domain.FeatureConfigsIdentifierRoute,
 				handler: nil,
 			},
 			shouldErr: true,
@@ -1586,7 +1587,7 @@ func TestHTTPServer_WithCustomHandler(t *testing.T) {
 		"Given I try to register a custom handler on /target-segments": {
 			args: args{
 				method:  http.MethodGet,
-				route:   segmentsRoute,
+				route:   domain.SegmentsRoute,
 				handler: nil,
 			},
 			shouldErr: true,
@@ -1594,7 +1595,7 @@ func TestHTTPServer_WithCustomHandler(t *testing.T) {
 		"Given I try to register a custom handler on /target-segments/:identifier": {
 			args: args{
 				method:  http.MethodGet,
-				route:   segmentsRoute,
+				route:   domain.SegmentsRoute,
 				handler: nil,
 			},
 			shouldErr: true,
@@ -1602,7 +1603,7 @@ func TestHTTPServer_WithCustomHandler(t *testing.T) {
 		"Given I try to register a custom handler on /evaluations": {
 			args: args{
 				method:  http.MethodGet,
-				route:   evaluationsRoute,
+				route:   domain.EvaluationsRoute,
 				handler: nil,
 			},
 			shouldErr: true,
@@ -1610,7 +1611,7 @@ func TestHTTPServer_WithCustomHandler(t *testing.T) {
 		"Given I try to register a custom handler on /evaluations/:feature": {
 			args: args{
 				method:  http.MethodGet,
-				route:   evaluationsFlagRoute,
+				route:   domain.EvaluationsFlagRoute,
 				handler: nil,
 			},
 			shouldErr: true,
@@ -1618,7 +1619,7 @@ func TestHTTPServer_WithCustomHandler(t *testing.T) {
 		"Given I try to register a custom handler on /metrics/:environmentUUID": {
 			args: args{
 				method:  http.MethodPost,
-				route:   metricsRoute,
+				route:   domain.MetricsRoute,
 				handler: nil,
 			},
 			shouldErr: true,
@@ -1626,7 +1627,7 @@ func TestHTTPServer_WithCustomHandler(t *testing.T) {
 		"Given I try to register a custom handler on /stream": {
 			args: args{
 				method:  http.MethodGet,
-				route:   streamRoute,
+				route:   domain.StreamRoute,
 				handler: nil,
 			},
 			shouldErr: true,

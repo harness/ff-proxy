@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/harness/ff-proxy/v2/domain"
 	"github.com/labstack/echo/v4"
 	"github.com/stretchr/testify/assert"
 )
@@ -148,6 +149,64 @@ func BenchmarkAllowQuerySemicolons(b *testing.B) {
 		b.Run(bm.name, func(b *testing.B) {
 			b.ReportAllocs()
 			benchmarkAllowQuerySemicolons(b, bm.middleware, bm.rawQuery)
+		})
+	}
+}
+
+func TestSkipper(t *testing.T) {
+	tests := []struct {
+		name     string
+		method   string
+		urlPath  string
+		expected bool
+	}{
+		{
+			name:     "Auth route",
+			method:   http.MethodGet,
+			urlPath:  domain.AuthRoute,
+			expected: true,
+		},
+		{
+			name:     "Stream route",
+			method:   http.MethodGet,
+			urlPath:  domain.StreamRoute,
+			expected: true,
+		},
+		{
+			name:     "Metrics route GET",
+			method:   http.MethodGet,
+			urlPath:  "/metrics",
+			expected: true,
+		},
+		{
+			name:     "Metrics route POST",
+			method:   http.MethodPost,
+			urlPath:  "/metrics",
+			expected: false,
+		},
+		{
+			name:     "Metrics route POST with environment_uuid",
+			method:   http.MethodPost,
+			urlPath:  "/metrics/environment_uuid",
+			expected: false,
+		},
+		{
+			name:     "Other route",
+			method:   http.MethodGet,
+			urlPath:  "/other",
+			expected: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			e := echo.New()
+			req := httptest.NewRequest(tt.method, tt.urlPath, nil)
+			rec := httptest.NewRecorder()
+			c := e.NewContext(req, rec)
+
+			result := skipValidateEnv(c, false)
+			assert.Equal(t, tt.expected, result)
 		})
 	}
 }
