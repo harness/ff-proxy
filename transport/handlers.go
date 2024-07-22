@@ -37,7 +37,10 @@ func NewUnaryHandler(e endpoint.Endpoint, dec decodeRequestFunc, enc encodeRespo
 		}
 
 		if err := enc(ctx, w, resp); err != nil {
-			return errorEncoder(c, err)
+			if !c.Response().Committed {
+				return errorEncoder(c, err)
+			}
+			l.Error("response headers already written", "err", err)
 		}
 		return nil
 	}
