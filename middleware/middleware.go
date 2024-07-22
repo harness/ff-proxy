@@ -267,6 +267,8 @@ func skipValidateEnv(c echo.Context, bypassAuth bool) bool {
 		return true
 	case domain.StreamRoute:
 		return true
+	case domain.HealthRoute:
+		return true
 	default:
 		// Skip for prometheus requests
 		if urlPath == metricsPath && c.Request().Method == http.MethodGet {
