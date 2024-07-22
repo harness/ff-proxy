@@ -196,6 +196,12 @@ func TestSkipper(t *testing.T) {
 			urlPath:  "/other",
 			expected: false,
 		},
+		{
+			name:     "Health check request",
+			method:   http.MethodGet,
+			urlPath:  "/health",
+			expected: true,
+		},
 	}
 
 	for _, tt := range tests {
