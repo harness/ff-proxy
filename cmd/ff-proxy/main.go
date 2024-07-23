@@ -667,7 +667,8 @@ func newMetricStore(ctx context.Context, logger log.Logger, readReplica bool, re
 }
 
 func removeRedisScheme(addr string) string {
-	return strings.TrimPrefix(strings.TrimPrefix(addr, "redis://"), "rediss://")
+	parts := strings.Split(addr, "@")
+	return strings.TrimPrefix(strings.TrimPrefix(parts[len(parts)-1], "redis://"), "rediss://")
 }
 
 func newRedisClient(addr string, logger log.Logger) redis.UniversalClient {
