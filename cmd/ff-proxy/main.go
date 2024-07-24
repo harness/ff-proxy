@@ -106,7 +106,7 @@ const (
 	configDirEnv     = "CONFIG_DIR"
 	redisAddrEnv     = "REDIS_ADDRESS"
 	redisPasswordEnv = "REDIS_PASSWORD"
-	redisUsernameEnv = "REDIS_PASSWORD"
+	redisUsernameEnv = "REDIS_USERNAME"
 	redisDBEnv       = "REDIS_DB"
 	redisPoolSizeEnv = "REDIS_POOL_SIZE"
 
@@ -225,6 +225,7 @@ func init() {
 		authSecretEnv:                   authSecretFlag,
 		redisAddrEnv:                    redisAddressFlag,
 		redisPasswordEnv:                redisPasswordFlag,
+		redisUsernameEnv:                redisUsernameFlag,
 		redisDBEnv:                      redisDBFlag,
 		redisPoolSizeEnv:                redisPoolSizeFlag,
 		metricPostDurationEnv:           metricPostDurationFlag,
