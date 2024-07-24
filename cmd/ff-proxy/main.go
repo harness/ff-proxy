@@ -63,6 +63,7 @@ var (
 	configDir     string
 	redisAddress  string
 	redisPassword string
+	redisUsername string
 	redisDB       int
 	redisPoolSize int
 
@@ -105,6 +106,7 @@ const (
 	configDirEnv     = "CONFIG_DIR"
 	redisAddrEnv     = "REDIS_ADDRESS"
 	redisPasswordEnv = "REDIS_PASSWORD"
+	redisUsernameEnv = "REDIS_USERNAME"
 	redisDBEnv       = "REDIS_DB"
 	redisPoolSizeEnv = "REDIS_POOL_SIZE"
 
@@ -147,6 +149,7 @@ const (
 	offlineFlag       = "offline"
 	redisAddressFlag  = "redis-address"
 	redisPasswordFlag = "redis-password"
+	redisUsernameFlag = "redis-username"
 	redisDBFlag       = "redis-db"
 	redisPoolSizeFlag = "redis-pool-size"
 
@@ -189,6 +192,7 @@ func init() {
 	flag.StringVar(&configDir, configDirFlag, "/config", "specify a custom path to search for the offline config directory. Defaults to /config")
 	flag.StringVar(&redisAddress, redisAddressFlag, "", "Redis host:port address")
 	flag.StringVar(&redisPassword, redisPasswordFlag, "", "Optional. Redis password")
+	flag.StringVar(&redisUsername, redisUsernameFlag, "", "Optional. Redis username")
 	flag.IntVar(&redisDB, redisDBFlag, 0, "Database to be selected after connecting to the server.")
 	flag.IntVar(&redisPoolSize, redisPoolSizeFlag, 10, "sets the redi connection pool size, to this value multipled by the number of CPU available. E.g if this value is 10 and you've 2 CPU the connection pool size will be 20")
 
@@ -221,6 +225,7 @@ func init() {
 		authSecretEnv:                   authSecretFlag,
 		redisAddrEnv:                    redisAddressFlag,
 		redisPasswordEnv:                redisPasswordFlag,
+		redisUsernameEnv:                redisUsernameFlag,
 		redisDBEnv:                      redisDBFlag,
 		redisPoolSizeEnv:                redisPoolSizeFlag,
 		metricPostDurationEnv:           metricPostDurationFlag,
@@ -312,7 +317,7 @@ func main() {
 	var hashCache *cache.HashCache
 
 	if redisAddress != "" && !generateOfflineConfig { //nolint:nestif
-		redisClient = newRedisClient(redisAddress, logger)
+		redisClient = newRedisClient(redisAddress, redisUsername, redisPassword, logger)
 
 		mcMetrics := cache.NewMemoizeMetrics("proxy", promReg)
 		mcCache := cache.NewMemoizeCache(redisClient, 1*time.Minute, 2*time.Minute, mcMetrics)
@@ -670,7 +675,7 @@ func removeRedisScheme(addr string) string {
 	return strings.TrimPrefix(strings.TrimPrefix(addr, "redis://"), "rediss://")
 }
 
-func newRedisClient(addr string, logger log.Logger) redis.UniversalClient {
+func newRedisClient(addr string, username string, password string, logger log.Logger) redis.UniversalClient {
 	splitAddr := strings.Split(addr, ",")
 
 	// if address does not start with redis:// or rediss:// then default to redis://
@@ -693,8 +698,8 @@ func newRedisClient(addr string, logger log.Logger) redis.UniversalClient {
 	opts := redis.UniversalOptions{
 		Addrs:     splitAddr,
 		DB:        parsed.DB,
-		Username:  parsed.Username,
-		Password:  parsed.Password,
+		Username:  username,
+		Password:  password,
 		PoolSize:  redisPoolSize * runtime.NumCPU(),
 		TLSConfig: parsed.TLSConfig,
 	}
