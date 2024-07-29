@@ -316,13 +316,15 @@ func (s Service) TargetSegmentsByIdentifier(ctx context.Context, req domain.Targ
 func (s Service) Evaluations(ctx context.Context, req domain.EvaluationsRequest) ([]clientgen.Evaluation, error) {
 	target, err := s.findTarget(ctx, req.EnvironmentID, req.Target, req.TargetIdentifier)
 	if err != nil {
-		if errors.Is(err, domain.ErrCacheNotFound) {
-			s.logger.Warn(ctx, "target not found in cache, serving request using only identifier attribute: ", "err", err.Error())
-			target = domain.ConvertTarget(domain.Target{Target: clientgen.Target{Identifier: req.TargetIdentifier}})
-		} else {
-			s.logger.Error(ctx, "error fetching target: ", "err", err.Error())
+		if !errors.Is(err, domain.ErrCacheNotFound) {
+			if !errors.Is(err, context.Canceled) {
+				s.logger.Error(ctx, "error fetching target: ", "err", err.Error())
+			}
 			return []clientgen.Evaluation{}, fmt.Errorf("%w: %s", ErrInternal, err)
 		}
+
+		s.logger.Warn(ctx, "target not found in cache, serving request using only identifier attribute: ", "err", err.Error())
+		target = domain.ConvertTarget(domain.Target{Target: clientgen.Target{Identifier: req.TargetIdentifier}})
 	}
 
 	// We fetch all the segments ahead of time and build up a map that we can
@@ -373,13 +375,15 @@ func (s Service) Evaluations(ctx context.Context, req domain.EvaluationsRequest)
 func (s Service) EvaluationsByFeature(ctx context.Context, req domain.EvaluationsByFeatureRequest) (clientgen.Evaluation, error) {
 	target, err := s.findTarget(ctx, req.EnvironmentID, req.Target, req.TargetIdentifier)
 	if err != nil {
-		if errors.Is(err, domain.ErrCacheNotFound) {
-			s.logger.Warn(ctx, "target not found in cache, serving request using only identifier attribute: ", "err", err.Error())
-			target = domain.ConvertTarget(domain.Target{Target: clientgen.Target{Identifier: req.TargetIdentifier}})
-		} else {
-			s.logger.Error(ctx, "error fetching target: ", "err", err.Error())
+		if !errors.Is(err, domain.ErrCacheNotFound) {
+			if !errors.Is(err, context.Canceled) {
+				s.logger.Error(ctx, "error fetching target: ", "err", err.Error())
+			}
 			return clientgen.Evaluation{}, fmt.Errorf("%w: %s", ErrInternal, err)
 		}
+
+		s.logger.Warn(ctx, "target not found in cache, serving request using only identifier attribute: ", "err", err.Error())
+		target = domain.ConvertTarget(domain.Target{Target: clientgen.Target{Identifier: req.TargetIdentifier}})
 	}
 
 	query := s.GenerateQueryStore(ctx, req.EnvironmentID, nil)
