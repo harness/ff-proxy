@@ -148,7 +148,7 @@ func (i InventoryRepo) removeOldKeyData(ctx context.Context, key string) error {
 
 	delete(res, string(excludeKey))
 
-	for k, _ := range res {
+	for k := range res {
 		var oldAssets map[string]string
 		err := i.cache.Get(ctx, k, &oldAssets)
 		if err != nil {
