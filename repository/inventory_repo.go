@@ -3,6 +3,7 @@ package repository
 import (
 	"context"
 	"errors"
+	"fmt"
 	"regexp"
 	"strings"
 	"sync"
@@ -11,12 +12,6 @@ import (
 	"github.com/harness/ff-proxy/v2/domain"
 	"github.com/harness/ff-proxy/v2/log"
 )
-
-// InventoryRepo is a repository that stores all references to all assets for the key.
-type InventoryRepo struct {
-	log   log.Logger
-	cache cache.Cache
-}
 
 const (
 	patchVariant   = "patch"
@@ -30,6 +25,12 @@ var (
 	featureConfigRegEx = regexp.MustCompile(`env-([a-zA-Z0-9-]+)-feature-config-([a-zA-Z0-9-]+)`)
 	segmentConfigRegEx = regexp.MustCompile(`env-([a-zA-Z0-9-]+)-segment-([a-zA-Z0-9-]+)`)
 )
+
+// InventoryRepo is a repository that stores all references to all assets for the key.
+type InventoryRepo struct {
+	log   log.Logger
+	cache cache.Cache
+}
 
 // NewInventoryRepo creates new instance of inventory
 func NewInventoryRepo(c cache.Cache, l log.Logger) InventoryRepo {
@@ -124,12 +125,77 @@ func (i InventoryRepo) Cleanup(ctx context.Context, key string, config []domain.
 		}
 	}
 
+	if err := i.removeOldKeyData(ctx, key); err != nil {
+		return []domain.SSEMessage{}, fmt.Errorf("failed to remove old key data: %w", err)
+	}
+
 	// set new inventory.
 	err = i.Add(ctx, key, newAssets)
 	if err != nil {
 		return []domain.SSEMessage{}, err
 	}
 	return notifications, err
+}
+
+func (i InventoryRepo) removeOldKeyData(ctx context.Context, key string) error {
+	wildcardKey := domain.NewKeyInventory("*")
+	excludeKey := domain.NewKeyInventory(key)
+
+	res, err := i.cache.Scan(ctx, string(wildcardKey))
+	if err != nil {
+		return err
+	}
+
+	delete(res, string(excludeKey))
+
+	for k, _ := range res {
+		var oldAssets map[string]string
+		err := i.cache.Get(ctx, k, &oldAssets)
+		if err != nil {
+			return err
+		}
+
+		if err := i.removeAssets(ctx, oldAssets); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func (i InventoryRepo) removeAssets(ctx context.Context, assets map[string]string) error {
+	var (
+		wg        = &sync.WaitGroup{}
+		errChan   = make(chan error)
+		semaphore = make(chan struct{}, 1000)
+	)
+
+	// what's left of old values. we want to delete.
+	for key := range assets {
+		wg.Add(1)
+		go func(k string) {
+			defer func() {
+				wg.Done()
+				<-semaphore
+			}()
+			semaphore <- struct{}{}
+			errChan <- i.cache.Delete(ctx, k)
+		}(key)
+	}
+
+	go func() {
+		wg.Wait()
+		close(semaphore)
+		close(errChan)
+	}()
+
+	for e := range errChan {
+		if e != nil {
+			return e
+		}
+	}
+
+	return nil
 }
 
 func diffAssets(oldMap, newMap map[string]string) domain.Assets {
