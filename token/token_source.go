@@ -44,7 +44,7 @@ func (a Source) GenerateToken(key string) (domain.Token, error) {
 		a.log.Error("failed to get auth key from cache to generate token", "err", err)
 	}
 	if !ok {
-		return domain.Token{}, fmt.Errorf("key %q not found", key)
+		return domain.Token{}, fmt.Errorf("%w: key not found", err)
 	}
 
 	t := time.Now()

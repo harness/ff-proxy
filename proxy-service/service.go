@@ -171,6 +171,10 @@ func (s Service) Authenticate(ctx context.Context, req domain.AuthRequest) (doma
 
 	token, err := s.authFn(req.APIKey)
 	if err != nil {
+		if errors.Is(err, domain.ErrCacheNotFound) {
+			s.logger.Info(ctx, "unable to generate auth token because the provided sdk key doesn't exist")
+			return domain.AuthResponse{}, ErrUnauthorised
+		}
 		s.logger.Error(ctx, "failed to generate auth token", "err", err)
 		return domain.AuthResponse{}, ErrUnauthorised
 	}
