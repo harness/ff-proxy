@@ -1,0 +1,1 @@
+{{ include "harnesscommon.monitoring.podMonitor" (dict "name" "ff-proxy-primary" "ctx" $ "label" "app.kubernetes.io/name") }}
