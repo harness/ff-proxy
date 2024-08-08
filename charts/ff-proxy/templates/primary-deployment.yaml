@@ -65,7 +65,7 @@ spec:
                 name: {{ include "ff-proxy.primary.name" . }}
           env:
             {{- include "harnesscommon.renderSecretsAsEnvironmentVariables" (dict "ctx" $) | indent 12 }}
-            {{- include "harnesscommon.dbv3.redisEnv" (dict "ctx" $ "database" "events" "userVariableName" "REDIS USERNAME" "passwordVariableName" "REDIS_PASSWORD" ) | indent 12 }}
+            {{- include "harnesscommon.dbv3.redisEnv" (dict "ctx" $ "database" "events" "userVariableName" "REDIS_USERNAME" "passwordVariableName" "REDIS_PASSWORD" ) | indent 12 }}
             {{- if .Values.extraEnvVars }}
             {{- include "harnesscommon.tplvalues.render" (dict "value" .Values.extraEnvVars "context" $) | nindent 12 }}
             {{- end }}
@@ -91,7 +91,7 @@ spec:
               - key: app
                 operator: In
                 values:
-                - app: {{ include "ff-proxy.primary.name" . }}
+                - {{ include "ff-proxy.primary.name" . }}
             topologyKey: "kubernetes.io/hostname"
       {{- with .Values.affinity }}
         {{- toYaml . | nindent 8 }}

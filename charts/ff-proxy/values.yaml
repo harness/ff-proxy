@@ -125,7 +125,7 @@ primary:
   affinity: {}
 
   config:
-    READ_REPLICA: 'true'
+    READ_REPLICA: 'false'
     ENV: '{{ .Values.config.ENV }}'
     GCP_PROFILER_ENABLED: "true"
     LOG_LEVEL: ERROR
