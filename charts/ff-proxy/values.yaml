@@ -2,28 +2,56 @@
 # This is a YAML-formatted file.
 # Declare variables to be passed into your templates.
 
-# The ProxyKey you want to configure your Proxy to use
-proxyKey: "-----"
-
-# Use existing Secret which stores PROXY_KEY key instead of creating a new one. The value should be set with the `PROXY_KEY` key inside the secret.
-## If set, this parameter takes precedence over "proxyKey".
-existingProxyKey:
-
-# Used by the Proxy to sign the JWT tokens it creates and returns to SDKs when they authenticate with the Proxy. The Proxy then checks that the token provided in any subsequent reqeusts by SDKs has been signed with this secret to ensure auth tokens can't be spoofed.
-authSecret: "dfwfrdfa"
-
-# Use existing Secret which stores AUTH_SECRET key instead of creating a new one. The value should be set with the `AUTH_SECRET` key inside the secret.
-## If set, this parameter takes precedence over "authSecret".
-existingAuthSecret:
-
-# The host and port of the redis server you want your Proxy to connect to
-redis:
-  address:
-  db: 0
-  password:
-  # Use existing Secret which stores REDIS_PASSWORD key instead of creating a new one. The value should be set with the `REDIS_PASSWORD` key inside the secret.
-  ## If set, this parameter takes precedence over "redis.password".
-  existingPassword:
+global:
+  loadbalancerURL: ""
+  database:
+    redis:
+      installed: true
+      protocol: "redis"
+      # --  provide default values if redis.installed is set to false
+      hosts:
+        - redis:6379
+      ssl:
+        enabled: false
+        secret: ""
+        caFileKey: ""
+        trustStoreKey: ""
+        trustStorePasswordKey: ""
+      secretName: ""
+      userKey: ""
+      passwordKey: ""
+      extraArgs: ""
+      secrets:
+        kubernetesSecrets:
+          - secretName: ""
+            keys:
+              REDIS_USERNAME: ""
+              REDIS_PASSWORD: ""
+        secretManagement:
+          externalSecretsOperator:
+            - secretStore:
+                name: ""
+                kind: ""
+              remoteKeys:
+                REDIS_USERNAME:
+                  name: ""
+                  property: ""
+                REDIS_PASSWORD:
+                  name: ""
+                  property: ""
+  waitForInitContainer:
+    image:
+      registry: docker.io
+      repository: harness/helm-init-container
+      pullPolicy: Always
+      tag: "latest"
+      digest: ""
+      imagePullSecrets: []
+  monitoring:
+    enabled: true
+    port: 8889
+    managedPlatform: ""
+    path: /metrics
 
 image:
   repository: harness/ff-proxy
@@ -46,7 +74,7 @@ serviceAccount:
   name: ""
 
 # configuration specific to the writer pods
-writer:
+primary:
   service:
     enabled: false
     type: ClusterIP
@@ -54,31 +82,24 @@ writer:
 
   resources:
     limits:
-      memory: 1Gi
+      memory: 600Mi
     requests:
-      cpu: 2
-      memory: 1Gi
+      cpu: 1
+      memory: 600Mi
 
-  ingress:
+  autoscaling:
     enabled: false
-    className: ""
-    annotations: {}
-      # kubernetes.io/ingress.class: nginx
-      # kubernetes.io/tls-acme: "true"
-    hosts:
-      - host: chart-example.local
-        paths:
-          - path: /
-            pathType: ImplementationSpecific
-    tls: []
-    #  - secretName: chart-example-tls
-    #    hosts:
-    #      - chart-example.local
-
+    minReplicas: 1
+    maxReplicas: 100
+    targetCPUUtilizationPercentage: 80
+    # targetMemoryUtilizationPercentage: 80
+  
   podAnnotations: {}
 
-  podSecurityContext: {}
-    # fsGroup: 2000
+  podSecurityContext:
+    sysctls:
+      - name: net.ipv4.ip_local_port_range
+        value: "10240 65000"
 
   securityContext: {}
     # capabilities:
@@ -88,27 +109,28 @@ writer:
     # runAsNonRoot: true
     # runAsUser: 1000
 
+  probes:
+    livenessProbe:
+      tcpSocket:
+        port: 7000
+      initialDelaySeconds: 15
+      periodSeconds: 20
+
   nodeSelector: {}
 
   tolerations: []
 
   affinity: {}
 
-  # additional environment variables
-  custom_envs:
-    # - name: DELEGATE_TASK_CAPACITY
-    #   value: "10"
-
-  # mounts for the delegate pod
-  custom_mounts:
-    # - name: certs
-    #   mountPath: /shared/customer-artifacts/certificates/
-
-  # volumes to add to the delegate container
-  custom_volumes:
-    # - name: certs
-    #   persistentVolumeClaim:
-    #     claimName: harness-delegate-ng-certs
+  config:
+    READ_REPLICA: 'true'
+    ENV: '{{ .Values.config.ENV }}'
+    GCP_PROFILER_ENABLED: "true"
+    LOG_LEVEL: ERROR
+    PROMETHEUS_PORT: "9091"
+    REDIS_ADDRESS: '{{ include "harnesscommon.dbv3.redisConnection" (dict "ctx" $ "database" "proxy" "unsetProtocol" true) }}'
+    CLIENT_SERVICE: '{{ .Values.loadbalancerURL }}/sdk/api/1.0'
+    METRIC_SERVICE: '{{ .Values.loadbalancerURL }}/events'
 
 # configuration specific to the read replica pods
 readReplica:
@@ -124,37 +146,31 @@ readReplica:
 
   resources:
     limits:
-      memory: 1Gi
+      memory: 600Mi
     requests:
-      cpu: 2
-      memory: 1Gi
+      cpu: 1
+      memory: 600Mi
+
+  probes:
+    livenessProbe:
+      tcpSocket:
+        port: 7000
+      initialDelaySeconds: 15
+      periodSeconds: 20
 
   autoscaling:
-    enabled: false
+    enabled: true
     minReplicas: 1
     maxReplicas: 100
     targetCPUUtilizationPercentage: 80
     # targetMemoryUtilizationPercentage: 80
 
-  ingress:
-    enabled: false
-    className: ""
-    annotations: {}
-      # kubernetes.io/ingress.class: nginx
-      # kubernetes.io/tls-acme: "true"
-    hosts:
-      - host: chart-example.local
-        paths:
-          - path: /
-            pathType: ImplementationSpecific
-    tls: []
-    #  - secretName: chart-example-tls
-    #    hosts:
-    #      - chart-example.local
-
   podAnnotations: {}
 
-  podSecurityContext: {}
+  podSecurityContext:
+    sysctls:
+      - name: net.ipv4.ip_local_port_range
+        value: "10240 65000"
     # fsGroup: 2000
 
   securityContext: {}
@@ -171,56 +187,84 @@ readReplica:
 
   affinity: {}
 
-  # additional environment variables
-  custom_envs:
-    # - name: DELEGATE_TASK_CAPACITY
-    #   value: "10"
+  config:
+    READ_REPLICA: 'true'
+    ENV: '{{ .Values.config.ENV }}'
+    GCP_PROFILER_ENABLED: "true"
+    LOG_LEVEL: ERROR
+    PROMETHEUS_PORT: "9091"
+    REDIS_ADDRESS: '{{ include "harnesscommon.dbv3.redisConnection" (dict "ctx" $ "database" "proxy" "unsetProtocol" true) }}'
+    CLIENT_SERVICE: '{{ .Values.loadbalancerURL }}/sdk/api/1.0'
+    METRIC_SERVICE: '{{ .Values.loadbalancerURL }}/events'
 
-  # mounts for the delegate pod
-  custom_mounts:
-    # - name: certs
-    #   mountPath: /shared/customer-artifacts/certificates/
+#common configs which other services use.
+config:
+  ENV: SMP
 
-  # volumes to add to the delegate container
-  custom_volumes:
-    # - name: certs
-    #   persistentVolumeClaim:
-    #     claimName: harness-delegate-ng-certs
+secrets:
+  default:
+    # Used by the Proxy to sign the JWT tokens it creates and returns to SDKs when they authenticate with the Proxy. The Proxy then checks that the token provided in any subsequent reqeusts by SDKs has been signed with this secret to ensure auth tokens can't be spoofed.
+    AUTH_SECRET: ""
+    # The ProxyKey you want to configure your Proxy to use
+    PROXY_KEY: ""
+  kubernetesSecrets:
+    - secretName: ""
+      keys:
+        AUTH_SECRET: ""
+        PROXY_KEY: ""
+  secretManagement:
+    externalSecretsOperator:
+      - secretStore:
+          name: ""
+          kind: ""
+        remoteKeys:
+          AUTH_SECRET:
+            name: ""
+            property: ""
+          PROXY_KEY:
+            name: ""
+            property: ""
 
-# The url of the FF Client Service running in Harness Saas that the Proxy commuincates with to fetch configuration data
-clientService:
+database:
+  redis:
+    proxy:
+      enabled: false
+      protocol: ""
+      hosts: []
+      secretName: ""
+      userKey: ""
+      passwordKey: ""
+      extraArgs: ""
+      ssl:
+        secret: ""
+        enabled: false
+        caFileKey: ""
+        trustStoreKey: ""
+        trustStorePasswordKey: ""
+      secrets:
+        secretManagement:
+          externalSecretsOperator:
+            - secretStore:
+                name: ""
+                kind: ""
+              remoteKeys:
+                REDIS_USERNAME:
+                  name: ""
+                  property: ""
+                REDIS_PASSWORD:
+                  name: ""
+                  property: ""
+                REDIS_CA:
+                  name: ""
+                  property: ""
+                REDIS_SSL_CA_TRUST_STORE_PASSWORD:
+                  name: ""
+                  property: ""
+monitoring:
+  port: 9091
 
-# The url of the FF Metric Service running in Harness Saas that the Proxy forwards SDK metric data onto
-metricService:
-
-# Controls how frequently in seconds the Primary Proxy posts metrics to Harness. Setting this to 0 will disable metrics forwarding from the Proxy to Saas and the absolute minimum that it can be set to is 60 seconds. It's also worth knowing that the Primary forwards metrics on to Harness Saas whenever 60 seconds has elapsed OR it has received 1MB worth of data. So if there's a high volume of metrics data going through your Proxy you may see metrics requests forwarded to Harness Saas more frequently than the value you set here
-metricPostDuration:
-
-# How often in seconds the proxy pings its health function. Set to 0 to disable
-heartbeatInterval:
-
-# Port that the Proxy http server runs on inside the Relay Proxy container. This should only be changed for specific local dev purposes. The Pushpin Proxy that runs inside the Relay Proxy container expects the Proxy HTTP server to be available on port 8000. If you change this in a Production environment it is likely that SDK traffic won't be able to reach your Proxy
-port:
-
-# If true the proxy will use the tlsCert and tlsKey to run with https enabled
-tls:
+autoscaling:
   enabled: false
-  # # Path to tls cert file
-  certPath:
-  # Path to tls key file
-  keyPath:
-
-# Contorls whether or not authentication is enforced on the Proxy's endpoints. This is ONLY used for local dev purposes to aid debugging, never set this to true in Production environments
-bypassAuth:
-
-# Contorls the logging level, valid options are INFO, DEBUG & ERROR
-logLevel:
-
-# Enables the GCP Cloud Profiler. If you're using the Profiler in GCP to monitor your applications CPU & Memory usage then setting this to true will mean the Proxy will appear there along side your other applications. If you aren't using the GCP Profiler then you can ignore this setting
-gcpProfilerEnabled:
-
-# Enables the golang profiler on port 6060. This is also only used for local development and we don't recommend enabling this in your production envrionments
-pprof:
-
-# Sets the max length of the redis stream that replicas use to send metrics to the Primary
-metricsStreamMaxLen:
+  minReplicas: 1
+  maxReplicas: 100
+  targetCPUUtilizationPercentage: 80

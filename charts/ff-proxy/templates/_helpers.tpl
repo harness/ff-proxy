@@ -44,10 +44,10 @@ app.kubernetes.io/managed-by: {{ .Release.Service }}
 {{- end }}
 
 {{/*
-Writer selector labels
+primary selector labels
 */}}
-{{- define "ff-proxy.writer.SelectorLabels" -}}
-app.kubernetes.io/component: {{ include "ff-proxy.name" . }}-writer
+{{- define "ff-proxy.primary.SelectorLabels" -}}
+app.kubernetes.io/component: {{ include "ff-proxy.name" . }}-primary
 {{- end }}
 
 {{/*
@@ -104,9 +104,18 @@ Define the redis password name
 {{/*
 Define resource names
 */}}
-{{- define "ff-proxy.writer.name" -}}
-{{- include "ff-proxy.fullname" . }}-writer
+{{- define "ff-proxy.primary.name" -}}
+{{- include "ff-proxy.name" . }}-primary
 {{- end }}
 {{- define "ff-proxy.readReplica.name" -}}
-{{- include "ff-proxy.fullname" . }}-read-replica
+{{- include "ff-proxy.name" . }}-read-replica
 {{- end }}
+
+
+{{- define "ff-proxy.pullSecrets" -}}
+{{- if .Values.waitForInitContainer }}
+    {{ include "common.images.pullSecrets" (dict "images" (list .Values.image .Values.waitForInitContainer.image) "global" .Values.global ) }}
+{{- else }}
+    {{ include "common.images.pullSecrets" (dict "images" (list .Values.image .Values.global.waitForInitContainer.image) "global" .Values.global ) }}
+{{- end }}
+{{- end -}}

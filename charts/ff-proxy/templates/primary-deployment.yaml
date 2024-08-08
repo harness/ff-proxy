@@ -1,7 +1,7 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: {{ include "ff-proxy.readReplica.name" . }}
+  name: {{ include "ff-proxy.primary.name" . }}
   namespace: {{ .Release.Namespace }}
   labels:
     {{- include "ff-proxy.labels" . | nindent 4 }}
@@ -12,19 +12,19 @@ metadata:
   annotations: {{- include "harnesscommon.tplvalues.render" ( dict "value" .Values.global.commonAnnotations "context" $ ) | nindent 4 }}
   {{- end }}
 spec:
-  {{- if not .Values.readReplica.autoscaling.enabled }}
-  replicas: {{ .Values.readReplica.replicaCount }}
+  {{- if not .Values.primary.autoscaling.enabled }}
+  replicas: {{ .Values.primary.replicaCount }}
   {{- end }}
   {{- if .Values.updateStrategy }}
   strategy: {{- toYaml .Values.updateStrategy | nindent 4 }}
   {{- end }}
   selector:
     matchLabels:
-      {{- include "ff-proxy.readReplica.SelectorLabels" . | nindent 6 }}
+      {{- include "ff-proxy.primary.SelectorLabels" . | nindent 6 }}
   template:
     metadata:
       annotations:
-        {{- with .Values.readReplica.podAnnotations }}
+        {{- with .Values.primary.podAnnotations }}
           {{- toYaml . | nindent 8 }}
         {{- end }}
         {{- if .Values.global.commonAnnotations }}
@@ -32,23 +32,23 @@ spec:
         {{- end }}
         {{- include "harnesscommon.monitoring.annotations" . | nindent 8 }}
       labels:
-        {{- include "ff-proxy.readReplica.SelectorLabels" . | nindent 8 }}
-        app: ff-proxy-readReplica
+        {{- include "ff-proxy.primary.SelectorLabels" . | nindent 8 }}
+        app: ff-proxy-primary
         {{- if .Values.global.commonLabels }}
         {{- include "harnesscommon.tplvalues.render" ( dict "value" .Values.global.commonLabels "context" $ ) | nindent 8 }}
         {{- end }}
-        {{- if .Values.readReplica.podLabels }}
-        {{- include "harnesscommon.tplvalues.render" (dict "value" .Values.readReplica.podLabels "context" $) | nindent 8 }}
+        {{- if .Values.primary.podLabels }}
+        {{- include "harnesscommon.tplvalues.render" (dict "value" .Values.primary.podLabels "context" $) | nindent 8 }}
         {{- end }}
     spec:
       {{- include "ff-proxy.pullSecrets" . | nindent 6 }}
       serviceAccountName: {{ include "ff-proxy.serviceAccountName" . }}
       securityContext:
-        {{- toYaml .Values.readReplica.podSecurityContext | nindent 8 }}
+        {{- toYaml .Values.primary.podSecurityContext | nindent 8 }}
       containers:
-        - name: {{ include "ff-proxy.readReplica.name" . }}
+        - name: {{ include "ff-proxy.primary.name" . }}
           securityContext:
-            {{- toYaml .Values.readReplica.securityContext | nindent 12 }}
+            {{- toYaml .Values.primary.securityContext | nindent 12 }}
           image: {{ include "common.images.image" (dict "imageRoot" .Values.image "global" .Values.global) }}
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           ports:
@@ -56,12 +56,12 @@ spec:
               containerPort: 7000
               protocol: TCP
           {{- include "harnesscommon.monitoring.containerPort" . | nindent 12 }}
-          {{- toYaml .Values.readReplica.probes | nindent 10 }}
+          {{- toYaml .Values.primary.probes | nindent 10 }}
           resources:
-            {{- toYaml .Values.readReplica.resources | nindent 12 }}
+            {{- toYaml .Values.primary.resources | nindent 12 }}
           envFrom:
             - configMapRef:
-                name: {{ include "ff-proxy.readReplica.name" . }}
+                name: {{ include "ff-proxy.primary.name" . }}
           env:
             {{- include "harnesscommon.renderSecretsAsEnvironmentVariables" (dict "ctx" $) | indent 12 }}
             {{- if .Values.extraEnvVars }}
@@ -77,7 +77,7 @@ spec:
       {{- if .Values.extraVolumes }}
         {{- include "harnesscommon.tplvalues.render" (dict "value" .Values.extraVolumes "context" $) | nindent 8 }}
       {{- end }}
-      {{- with .Values.readReplica.nodeSelector }}
+      {{- with .Values.primary.nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}
       {{- end }}
@@ -89,12 +89,12 @@ spec:
               - key: app
                 operator: In
                 values:
-                - app: {{ include "ff-proxy.readReplica.name" . }}
+                - app: {{ include "ff-proxy.primary.name" . }}
             topologyKey: "kubernetes.io/hostname"
       {{- with .Values.affinity }}
         {{- toYaml . | nindent 8 }}
       {{- end }}
-      {{- with .Values.readReplica.tolerations }}
+      {{- with .Values.primary.tolerations }}
       tolerations:
         {{- toYaml . | nindent 8 }}
       {{- end }}

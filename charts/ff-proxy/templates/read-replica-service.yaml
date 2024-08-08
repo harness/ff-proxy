@@ -9,10 +9,11 @@ metadata:
 spec:
   type: {{ .Values.readReplica.service.type }}
   ports:
-    - port: {{ .Values.readReplica.service.port }}
-      targetPort: sdk
+    - port: 80
+      targetPort: {{ .Values.readReplica.service.port }}
       protocol: TCP
       name: sdk
   selector:
     {{- include "ff-proxy.readReplica.SelectorLabels" . | nindent 4 }}
+    app: {{ include "ff-proxy.readReplica.name" . }}
 {{- end }}
