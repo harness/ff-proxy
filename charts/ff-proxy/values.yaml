@@ -128,7 +128,7 @@ primary:
     GCP_PROFILER_ENABLED: "true"
     LOG_LEVEL: ERROR
     PROMETHEUS_PORT: "9091"
-    REDIS_ADDRESS: '{{ include "harnesscommon.dbv3.redisConnection" (dict "ctx" $ "database" "proxy" "unsetProtocol" true) }}'
+    REDIS_ADDRESS: '{{ include "harnesscommon.dbv3.redisConnection" (dict "ctx" $ "database" "events" "unsetProtocol" true) }}'
     CLIENT_SERVICE: '{{ .Values.loadbalancerURL }}/sdk/api/1.0'
     METRIC_SERVICE: '{{ .Values.loadbalancerURL }}/events'
 
@@ -159,7 +159,7 @@ readReplica:
       periodSeconds: 20
 
   autoscaling:
-    enabled: true
+    enabled: false
     minReplicas: 1
     maxReplicas: 100
     targetCPUUtilizationPercentage: 80
@@ -193,7 +193,7 @@ readReplica:
     GCP_PROFILER_ENABLED: "true"
     LOG_LEVEL: ERROR
     PROMETHEUS_PORT: "9091"
-    REDIS_ADDRESS: '{{ include "harnesscommon.dbv3.redisConnection" (dict "ctx" $ "database" "proxy" "unsetProtocol" true) }}'
+    REDIS_ADDRESS: '{{ include "harnesscommon.dbv3.redisConnection" (dict "ctx" $ "database" "events" "unsetProtocol" true) }}'
     CLIENT_SERVICE: '{{ .Values.loadbalancerURL }}/sdk/api/1.0'
     METRIC_SERVICE: '{{ .Values.loadbalancerURL }}/events'
 
@@ -227,7 +227,7 @@ secrets:
 
 database:
   redis:
-    proxy:
+    events:
       enabled: false
       protocol: ""
       hosts: []
@@ -263,8 +263,6 @@ database:
 monitoring:
   port: 9091
 
+#there is a bug in chart, its needed now. Will fix later
 autoscaling:
-  enabled: false
-  minReplicas: 1
-  maxReplicas: 100
   targetCPUUtilizationPercentage: 80

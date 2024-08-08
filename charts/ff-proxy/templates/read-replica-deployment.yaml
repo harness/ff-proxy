@@ -64,6 +64,7 @@ spec:
                 name: {{ include "ff-proxy.readReplica.name" . }}
           env:
             {{- include "harnesscommon.renderSecretsAsEnvironmentVariables" (dict "ctx" $) | indent 12 }}
+            {{- include "harnesscommon.dbv3.redisEnv" (dict "ctx" $ "database" "events" "userVariableName" "REDIS USERNAME" "passwordVariableName" "REDIS_PASSWORD" ) | indent 12 }}
             {{- if .Values.extraEnvVars }}
             {{- include "harnesscommon.tplvalues.render" (dict "value" .Values.extraEnvVars "context" $) | nindent 12 }}
             {{- end }}
