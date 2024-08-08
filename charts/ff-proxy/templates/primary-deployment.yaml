@@ -21,6 +21,7 @@ spec:
   selector:
     matchLabels:
       {{- include "ff-proxy.primary.SelectorLabels" . | nindent 6 }}
+      app: {{ include "ff-proxy.primary.name" . }}
   template:
     metadata:
       annotations:
@@ -33,7 +34,7 @@ spec:
         {{- include "harnesscommon.monitoring.annotations" . | nindent 8 }}
       labels:
         {{- include "ff-proxy.primary.SelectorLabels" . | nindent 8 }}
-        app: ff-proxy-primary
+        app: {{ include "ff-proxy.primary.name" . }}
         {{- if .Values.global.commonLabels }}
         {{- include "harnesscommon.tplvalues.render" ( dict "value" .Values.global.commonLabels "context" $ ) | nindent 8 }}
         {{- end }}

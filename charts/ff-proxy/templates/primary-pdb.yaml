@@ -1,0 +1,25 @@
+{{- if .Values.primary.pdb.create }}
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ include "ff-proxy.primary.name" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- if .Values.global.commonLabels }}
+    {{- include "harnesscommon.tplvalues.render" ( dict "value" .Values.global.commonLabels "context" $ ) | nindent 4 }}
+    {{- end }}
+  {{- if .Values.global.commonAnnotations }}
+  annotations: {{- include "harnesscommon.tplvalues.render" ( dict "value" .Values.global.commonAnnotations "context" $ ) | nindent 4 }}
+  {{- end }}
+spec:
+  {{- if .Values.primary.pdb.minAvailable }}
+  minAvailable: {{ .Values.primary.pdb.minAvailable }}
+  {{- end }}
+  {{- if or .Values.primary.pdb.maxUnavailable (not .Values.primary.pdb.minAvailable) }}
+  maxUnavailable: {{ .Values.primary.pdb.maxUnavailable | default 1 }}
+  {{- end }}
+  selector:
+    matchLabels:
+      {{- include "ff-proxy.primary.SelectorLabels" . | nindent 6 }}
+      app: {{ include "ff-proxy.primary.name" . }}
+{{- end }}

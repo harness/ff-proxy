@@ -48,8 +48,7 @@ global:
       digest: ""
       imagePullSecrets: []
   monitoring:
-    enabled: true
-    port: 8889
+    enabled: false
     managedPlatform: ""
     path: /metrics
 
@@ -93,8 +92,11 @@ primary:
     maxReplicas: 100
     targetCPUUtilizationPercentage: 80
     # targetMemoryUtilizationPercentage: 80
-  
-  podAnnotations: {}
+  pdb:
+    create: true
+    minAvailable: ""
+    maxUnavailable: ""
+    podAnnotations: {}
 
   podSecurityContext:
     sysctls:
@@ -164,7 +166,11 @@ readReplica:
     maxReplicas: 100
     targetCPUUtilizationPercentage: 80
     # targetMemoryUtilizationPercentage: 80
-
+  pdb:
+    create: true
+    minAvailable: ""
+    maxUnavailable: ""
+    podAnnotations: {}
   podAnnotations: {}
 
   podSecurityContext:
