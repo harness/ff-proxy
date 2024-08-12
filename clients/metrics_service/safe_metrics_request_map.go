@@ -95,12 +95,11 @@ func (s *safeMetricsRequestMap) get() map[string]domain.MetricsRequest {
 	// Take a copy an unlock so we don't block other thread
 	// marshaling to the response type
 	s.RLock()
-	cpy := s.detailed
-	s.RUnlock()
+	defer s.RUnlock()
 
 	result := map[string]domain.MetricsRequest{}
 
-	for envID, detailedMap := range cpy {
+	for envID, detailedMap := range s.detailed {
 
 		slice := []clientgen.MetricsData{}
 		for _, v := range detailedMap {

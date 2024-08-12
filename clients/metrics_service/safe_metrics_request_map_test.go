@@ -565,3 +565,79 @@ func Test_SafeMetricsRequestMap(t *testing.T) {
 		})
 	}
 }
+
+func BenchmarkSafeMetricsRequestMapGetMethods(b *testing.B) {
+	// Initialize your safeMetricsRequestMap with some data
+	smr := newSafeMetricsRequestMap()
+
+	// Populate smr with test data
+	populateTestData(smr) // Assuming you have a function to populate test data
+
+	// Table-driven benchmarks
+	benchmarks := []struct {
+		name string
+		fn   func() map[string]domain.MetricsRequest
+	}{
+		{name: "get", fn: smr.get},
+		{name: "getNew", fn: smr.getNew},
+	}
+
+	for _, bm := range benchmarks {
+		// Run the benchmark
+		b.Run(bm.name, func(b *testing.B) {
+			b.ReportAllocs()
+			for i := 0; i < b.N; i++ {
+				_ = bm.fn() // Call the function and discard the result
+			}
+		})
+	}
+}
+
+// populateTestData is a helper function to add test data to the map
+func populateTestData(smr *safeMetricsRequestMap) {
+	// Populate the map with sample data for benchmarking
+	// This function should create a reasonably sized map to reflect a typical workload
+	// Example:
+	smr.add(domain.MetricsRequest{
+		Size:          2,
+		EnvironmentID: "env1",
+		Metrics: clientgen.Metrics{
+			MetricsData: domain.ToPtr([]clientgen.MetricsData{
+				{Count: 3, Attributes: []clientgen.KeyValue{
+					{
+						Key:   "attr1",
+						Value: "attr1",
+					},
+				}},
+				{Count: 4, Attributes: []clientgen.KeyValue{
+					{
+						Key:   "attr2",
+						Value: "attr2",
+					},
+				}},
+			}),
+		},
+	})
+
+	smr.add(domain.MetricsRequest{
+		Size:          2,
+		EnvironmentID: "env2",
+		Metrics: clientgen.Metrics{
+			MetricsData: domain.ToPtr([]clientgen.MetricsData{
+				{Count: 3, Attributes: []clientgen.KeyValue{
+					{
+						Key:   "attr3",
+						Value: "attr3",
+					},
+				}},
+				{Count: 4, Attributes: []clientgen.KeyValue{
+					{
+						Key:   "attr4",
+						Value: "attr4",
+					},
+				}},
+			}),
+		},
+	})
+	// Add more test data as needed
+}
