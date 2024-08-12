@@ -2,6 +2,7 @@ package token
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -41,7 +42,9 @@ func (a Source) GenerateToken(key string) (domain.Token, error) {
 
 	env, ok, err := a.repo.Get(context.Background(), k)
 	if err != nil {
-		a.log.Error("failed to get auth key from cache to generate token", "err", err)
+		if !errors.Is(err, domain.ErrCacheNotFound) {
+			a.log.Error("failed to get auth key from cache to generate token", "err", err)
+		}
 	}
 	if !ok {
 		return domain.Token{}, fmt.Errorf("%w: key not found", err)
