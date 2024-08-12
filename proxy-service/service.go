@@ -477,8 +477,11 @@ func (s Service) makeSegmentMap(ctx context.Context, envID string) map[string]*d
 			s.logger.Info(ctx, "makeSegmentMap can't get segments from the cache, context was cancelled by the client", "err", err)
 			return segmentMap
 		}
+
 		// Not much else we can really do here other than log the error
-		s.logger.Error(ctx, "makeSegmentMap failed to get segments from cache: ", "err", err)
+		if !errors.Is(err, domain.ErrCacheNotFound) {
+			s.logger.Error(ctx, "makeSegmentMap failed to get segments from cache: ", "err", err)
+		}
 		return segmentMap
 	}
 
