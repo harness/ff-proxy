@@ -579,7 +579,7 @@ func BenchmarkSafeMetricsRequestMapGetMethods(b *testing.B) {
 		fn   func() map[string]domain.MetricsRequest
 	}{
 		{name: "get", fn: smr.get},
-		{name: "getNew", fn: smr.getNew},
+		{name: "getNew", fn: smr.getDeepCopyBenchmarkOnly},
 	}
 
 	for _, bm := range benchmarks {
@@ -640,4 +640,38 @@ func populateTestData(smr *safeMetricsRequestMap) {
 		},
 	})
 	// Add more test data as needed
+}
+
+func (s *safeMetricsRequestMap) getDeepCopyBenchmarkOnly() map[string]domain.MetricsRequest {
+	s.RLock()
+	// Deep copy of the outer map
+	cpy := make(map[string]map[string]clientgen.MetricsData, len(s.detailed))
+
+	for envID, detailedMap := range s.detailed {
+		// Deep copy of the nested map
+		nestedCopy := make(map[string]clientgen.MetricsData, len(detailedMap))
+		for key, value := range detailedMap {
+			nestedCopy[key] = value
+		}
+		cpy[envID] = nestedCopy
+	}
+	s.RUnlock()
+
+	result := make(map[string]domain.MetricsRequest, len(cpy))
+
+	for envID, detailedMap := range cpy {
+		slice := make([]clientgen.MetricsData, 0, len(detailedMap))
+		for _, v := range detailedMap {
+			slice = append(slice, v)
+		}
+
+		result[envID] = domain.MetricsRequest{
+			EnvironmentID: envID,
+			Metrics: clientgen.Metrics{
+				MetricsData: domain.ToPtr(slice),
+			},
+		}
+	}
+
+	return result
 }
