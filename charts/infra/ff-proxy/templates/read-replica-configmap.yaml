@@ -1,0 +1,11 @@
+{{- if .Values.readReplica.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "ff-proxy.readReplica.name" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "ff-proxy.labels" . | nindent 4 }}
+data:
+  {{- include "harnesscommon.tplvalues.render" ( dict "value" .Values.readReplica.config "context" $) | nindent 2}}
+{{- end }}

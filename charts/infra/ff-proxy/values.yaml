@@ -1,0 +1,305 @@
+# Default values for ff-proxy.
+# This is a YAML-formatted file.
+# Declare variables to be passed into your templates.
+
+global:
+  loadbalancerURL: ""
+  database:
+    redis:
+      installed: true
+      protocol: "redis"
+      # --  provide default values if redis.installed is set to false
+      hosts:
+        - redis:6379
+      ssl:
+        enabled: false
+        secret: ""
+        caFileKey: ""
+        trustStoreKey: ""
+        trustStorePasswordKey: ""
+      secretName: ""
+      userKey: ""
+      passwordKey: ""
+      extraArgs: ""
+      secrets:
+        kubernetesSecrets:
+          - secretName: ""
+            keys:
+              REDIS_USERNAME: ""
+              REDIS_PASSWORD: ""
+        secretManagement:
+          externalSecretsOperator:
+            - secretStore:
+                name: ""
+                kind: ""
+              remoteKeys:
+                REDIS_USERNAME:
+                  name: ""
+                  property: ""
+                REDIS_PASSWORD:
+                  name: ""
+                  property: ""
+  waitForInitContainer:
+    image:
+      registry: docker.io
+      repository: harness/helm-init-container
+      pullPolicy: Always
+      tag: "latest"
+      digest: ""
+      imagePullSecrets: []
+  monitoring:
+    enabled: false
+    managedPlatform: ""
+    path: /metrics
+
+image:
+  repository: harness/ff-proxy
+  pullPolicy: IfNotPresent
+  # Overrides the image tag whose default is the chart appVersion.
+  tag: "latest"
+  registry: docker.io
+
+imagePullSecrets: []
+nameOverride: ""
+fullnameOverride: ""
+
+serviceAccount:
+  # Specifies whether a service account should be created
+  create: true
+  # Annotations to add to the service account
+  annotations: {}
+  # The name of the service account to use.
+  # If not set and create is true, a name is generated using the fullname template
+  name: ""
+
+# configuration specific to the writer pods
+primary:
+  service:
+    enabled: false
+    type: ClusterIP
+    port: 7000
+
+  resources:
+    limits:
+      memory: 600Mi
+    requests:
+      cpu: 1
+      memory: 600Mi
+
+  autoscaling:
+    enabled: false
+    minReplicas: 1
+    maxReplicas: 100
+    targetCPUUtilizationPercentage: 80
+    # targetMemoryUtilizationPercentage: 80
+  pdb:
+    create: true
+    minAvailable: ""
+    maxUnavailable: ""
+    podAnnotations: {}
+
+  podSecurityContext:
+    sysctls:
+      - name: net.ipv4.ip_local_port_range
+        value: "10240 65000"
+
+  securityContext: {}
+    # capabilities:
+    #   drop:
+    #   - ALL
+    # readOnlyRootFilesystem: true
+    # runAsNonRoot: true
+    # runAsUser: 1000
+
+  probes:
+    livenessProbe:
+      failureThreshold: 6
+      httpGet:
+        path: /health
+        port: 7000
+        scheme: HTTP
+      initialDelaySeconds: 120
+      periodSeconds: 10
+      successThreshold: 1
+      timeoutSeconds: 10
+    readinessProbe:
+      failureThreshold: 6
+      httpGet:
+        path: /health
+        port: 7000
+        scheme: HTTP
+      initialDelaySeconds: 10
+      periodSeconds: 10
+      successThreshold: 1
+      timeoutSeconds: 10
+
+  nodeSelector: {}
+
+  tolerations: []
+
+  affinity: {}
+
+  config:
+    READ_REPLICA: 'false'
+    ENV: '{{ .Values.config.ENV }}'
+    GCP_PROFILER_ENABLED: "true"
+    LOG_LEVEL: ERROR
+    PROMETHEUS_PORT: "9091"
+    REDIS_ADDRESS: '{{ include "harnesscommon.dbv3.redisConnection" (dict "ctx" $ "database" "events" "unsetProtocol" true) }}'
+    CLIENT_SERVICE: '{{ .Values.loadbalancerURL }}/sdk/api/1.0'
+    METRIC_SERVICE: '{{ .Values.loadbalancerURL }}/events'
+
+# configuration specific to the read replica pods
+readReplica:
+
+  # disable the read replica to run in single pod mode, not advised for production
+  enabled: true
+
+  service:
+    type: ClusterIP
+    port: 7000
+    annotations: {}
+
+  replicaCount: 2
+
+  resources:
+    limits:
+      memory: 600Mi
+    requests:
+      cpu: 1
+      memory: 600Mi
+
+  probes:
+    livenessProbe:
+      failureThreshold: 6
+      httpGet:
+        path: /health
+        port: 7000
+        scheme: HTTP
+      initialDelaySeconds: 120
+      periodSeconds: 10
+      successThreshold: 1
+      timeoutSeconds: 10
+    readinessProbe:
+      failureThreshold: 6
+      httpGet:
+        path: /health
+        port: 7000
+        scheme: HTTP
+      initialDelaySeconds: 10
+      periodSeconds: 10
+      successThreshold: 1
+      timeoutSeconds: 10
+
+  autoscaling:
+    enabled: false
+    minReplicas: 1
+    maxReplicas: 100
+    targetCPUUtilizationPercentage: 80
+    # targetMemoryUtilizationPercentage: 80
+  pdb:
+    create: true
+    minAvailable: ""
+    maxUnavailable: ""
+    podAnnotations: {}
+  podAnnotations: {}
+
+  podSecurityContext:
+    sysctls:
+      - name: net.ipv4.ip_local_port_range
+        value: "10240 65000"
+    # fsGroup: 2000
+
+  securityContext: {}
+    # capabilities:
+    #   drop:
+    #   - ALL
+    # readOnlyRootFilesystem: true
+    # runAsNonRoot: true
+    # runAsUser: 1000
+
+  nodeSelector: {}
+
+  tolerations: []
+
+  affinity: {}
+
+  config:
+    READ_REPLICA: 'true'
+    ENV: '{{ .Values.config.ENV }}'
+    GCP_PROFILER_ENABLED: "true"
+    LOG_LEVEL: ERROR
+    PROMETHEUS_PORT: "9091"
+    REDIS_ADDRESS: '{{ include "harnesscommon.dbv3.redisConnection" (dict "ctx" $ "database" "events" "unsetProtocol" true) }}'
+    CLIENT_SERVICE: '{{ .Values.loadbalancerURL }}/sdk/api/1.0'
+    METRIC_SERVICE: '{{ .Values.loadbalancerURL }}/events'
+
+#common configs which other services use.
+config:
+  ENV: SMP
+
+secrets:
+  default:
+    # Used by the Proxy to sign the JWT tokens it creates and returns to SDKs when they authenticate with the Proxy. The Proxy then checks that the token provided in any subsequent reqeusts by SDKs has been signed with this secret to ensure auth tokens can't be spoofed.
+    AUTH_SECRET: ""
+    # The ProxyKey you want to configure your Proxy to use
+    PROXY_KEY: ""
+  kubernetesSecrets:
+    - secretName: ""
+      keys:
+        AUTH_SECRET: ""
+        PROXY_KEY: ""
+  secretManagement:
+    externalSecretsOperator:
+      - secretStore:
+          name: ""
+          kind: ""
+        remoteKeys:
+          AUTH_SECRET:
+            name: ""
+            property: ""
+          PROXY_KEY:
+            name: ""
+            property: ""
+
+database:
+  redis:
+    events:
+      enabled: false
+      protocol: ""
+      hosts: []
+      secretName: ""
+      userKey: ""
+      passwordKey: ""
+      extraArgs: ""
+      ssl:
+        secret: ""
+        enabled: false
+        caFileKey: ""
+        trustStoreKey: ""
+        trustStorePasswordKey: ""
+      secrets:
+        secretManagement:
+          externalSecretsOperator:
+            - secretStore:
+                name: ""
+                kind: ""
+              remoteKeys:
+                REDIS_USERNAME:
+                  name: ""
+                  property: ""
+                REDIS_PASSWORD:
+                  name: ""
+                  property: ""
+                REDIS_CA:
+                  name: ""
+                  property: ""
+                REDIS_SSL_CA_TRUST_STORE_PASSWORD:
+                  name: ""
+                  property: ""
+monitoring:
+  port: 9091
+
+#there is a bug in chart, its needed now. Will fix later
+autoscaling:
+  targetCPUUtilizationPercentage: 80

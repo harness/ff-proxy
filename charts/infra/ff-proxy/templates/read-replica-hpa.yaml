@@ -1,0 +1,17 @@
+{{- if .Values.readReplica.autoscaling.enabled }}
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: {{ include "ff-proxy.readReplica.name" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "ff-proxy.labels" . | nindent 4 }}
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: {{ include "ff-proxy.readReplica.name" . }}
+  minReplicas: {{ .Values.readReplica.autoscaling.minReplicas }}
+  maxReplicas: {{ .Values.readReplica.autoscaling.maxReplicas }}
+  {{ include "harnesscommon.hpa.metrics.apiVersion" . }}
+{{- end }}
