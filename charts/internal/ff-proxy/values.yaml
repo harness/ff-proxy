@@ -300,6 +300,5 @@ database:
 monitoring:
   port: 9091
 
-#there is a bug in chart, its needed now. Will fix later
 autoscaling:
   targetCPUUtilizationPercentage: 80

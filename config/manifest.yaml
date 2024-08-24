@@ -1,2 +1,2 @@
 DOCKER_FILE_PATH: ff-proxy/Dockerfile
-HELM_CHART_SOURCE_DIRECTORY: ff-proxy/charts/infra/ff-proxy
+HELM_CHART_SOURCE_DIRECTORY: ff-proxy/charts/internal/ff-proxy
