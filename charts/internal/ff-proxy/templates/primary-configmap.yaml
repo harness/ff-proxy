@@ -1,0 +1,10 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "ff-proxy.primary.name" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "ff-proxy.labels" . | nindent 4 }}
+data:
+  {{- include "harnesscommon.tplvalues.render" ( dict "value" .Values.primary.config "context" $) | nindent 2}}
+

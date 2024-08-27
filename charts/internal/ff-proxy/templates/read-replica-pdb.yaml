@@ -1,0 +1,25 @@
+{{- if .Values.readReplica.pdb.create }}
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ include "ff-proxy.readReplica.name" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- if .Values.global.commonLabels }}
+    {{- include "harnesscommon.tplvalues.render" ( dict "value" .Values.global.commonLabels "context" $ ) | nindent 4 }}
+    {{- end }}
+  {{- if .Values.global.commonAnnotations }}
+  annotations: {{- include "harnesscommon.tplvalues.render" ( dict "value" .Values.global.commonAnnotations "context" $ ) | nindent 4 }}
+  {{- end }}
+spec:
+  {{- if .Values.readReplica.pdb.minAvailable }}
+  minAvailable: {{ .Values.readReplica.pdb.minAvailable }}
+  {{- end }}
+  {{- if or .Values.readReplica.pdb.maxUnavailable (not .Values.readReplica.pdb.minAvailable) }}
+  maxUnavailable: {{ .Values.readReplica.pdb.maxUnavailable | default 1 }}
+  {{- end }}
+  selector:
+    matchLabels:
+      {{- include "ff-proxy.readReplica.SelectorLabels" . | nindent 6 }}
+      app: {{ include "ff-proxy.readReplica.name" . }}
+{{- end }}

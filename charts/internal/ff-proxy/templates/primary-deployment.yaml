@@ -1,0 +1,102 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "ff-proxy.primary.name" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "ff-proxy.labels" . | nindent 4 }}
+    {{- if .Values.global.commonLabels }}
+    {{- include "harnesscommon.tplvalues.render" ( dict "value" .Values.global.commonLabels "context" $ ) | nindent 4 }}
+    {{- end }}
+  {{- if .Values.global.commonAnnotations }}
+  annotations: {{- include "harnesscommon.tplvalues.render" ( dict "value" .Values.global.commonAnnotations "context" $ ) | nindent 4 }}
+  {{- end }}
+spec:
+  {{- if not .Values.primary.autoscaling.enabled }}
+  replicas: {{ .Values.primary.replicaCount }}
+  {{- end }}
+  {{- if .Values.updateStrategy }}
+  strategy: {{- toYaml .Values.updateStrategy | nindent 4 }}
+  {{- end }}
+  selector:
+    matchLabels:
+      {{- include "ff-proxy.primary.SelectorLabels" . | nindent 6 }}
+      app: {{ include "ff-proxy.primary.name" . }}
+  template:
+    metadata:
+      annotations:
+        {{- with .Values.primary.podAnnotations }}
+          {{- toYaml . | nindent 8 }}
+        {{- end }}
+        {{- if .Values.global.commonAnnotations }}
+        {{- include "harnesscommon.tplvalues.render" ( dict "value" .Values.global.commonAnnotations "context" $ ) | nindent 8 }}
+        {{- end }}
+        {{- include "harnesscommon.monitoring.annotations" . | nindent 8 }}
+      labels:
+        {{- include "ff-proxy.primary.SelectorLabels" . | nindent 8 }}
+        app: {{ include "ff-proxy.primary.name" . }}
+        {{- if .Values.global.commonLabels }}
+        {{- include "harnesscommon.tplvalues.render" ( dict "value" .Values.global.commonLabels "context" $ ) | nindent 8 }}
+        {{- end }}
+        {{- if .Values.primary.podLabels }}
+        {{- include "harnesscommon.tplvalues.render" (dict "value" .Values.primary.podLabels "context" $) | nindent 8 }}
+        {{- end }}
+    spec:
+      {{- include "ff-proxy.pullSecrets" . | nindent 6 }}
+      serviceAccountName: {{ include "ff-proxy.serviceAccountName" . }}
+      securityContext:
+        {{- toYaml .Values.primary.podSecurityContext | nindent 8 }}
+      containers:
+        - name: {{ include "ff-proxy.primary.name" . }}
+          securityContext:
+            {{- toYaml .Values.primary.securityContext | nindent 12 }}
+          image: {{ include "common.images.image" (dict "imageRoot" .Values.image "global" .Values.global) }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - name: sdk
+              containerPort: 7000
+              protocol: TCP
+          {{- include "harnesscommon.monitoring.containerPort" . | nindent 12 }}
+          {{- toYaml .Values.primary.probes | nindent 10 }}
+          resources:
+            {{- toYaml .Values.primary.resources | nindent 12 }}
+          envFrom:
+            - configMapRef:
+                name: {{ include "ff-proxy.primary.name" . }}
+          env:
+            {{- include "harnesscommon.renderSecretsAsEnvironmentVariables" (dict "ctx" $) | indent 12 }}
+            {{- include "harnesscommon.dbv3.redisEnv" (dict "ctx" $ "database" "events" "userVariableName" "REDIS_USERNAME" "passwordVariableName" "REDIS_PASSWORD" ) | indent 12 }}
+            {{- if .Values.extraEnvVars }}
+            {{- include "harnesscommon.tplvalues.render" (dict "value" .Values.extraEnvVars "context" $) | nindent 12 }}
+            {{- end }}
+          volumeMounts:
+            {{- include "harnesscommon.mountRenderedSecretsAsVolumeMounts" (dict "ctx" $) | indent 8 }}
+            {{- if .Values.extraVolumeMounts }}
+            {{- include "harnesscommon.tplvalues.render" (dict "value" .Values.extraVolumeMounts "context" $) | nindent 8 }}
+            {{- end }}
+      volumes:
+      {{- include "harnesscommon.renderSecretsAsVolumes" (dict "ctx" $) | indent 8 }}
+      {{- if .Values.extraVolumes }}
+        {{- include "harnesscommon.tplvalues.render" (dict "value" .Values.extraVolumes "context" $) | nindent 8 }}
+      {{- end }}
+      {{- with .Values.primary.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      affinity:
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+          - labelSelector:
+              matchExpressions:
+              - key: app
+                operator: In
+                values:
+                - {{ include "ff-proxy.primary.name" . }}
+            topologyKey: "kubernetes.io/hostname"
+      {{- with .Values.affinity }}
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.primary.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}

@@ -49,8 +49,7 @@ RUN \
 # Cleanup
 RUN \
   apt-get clean && \
-  rm -fr /var/lib/apt/lists/* && \
-  rm -fr /tmp/*
+  rm -fr /var/lib/apt/lists/*
 
 # Add entrypoint script
 COPY docker-entrypoint.sh /usr/local/bin/
