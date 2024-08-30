@@ -211,3 +211,112 @@ func TestInventoryRepo_Cleanup(t *testing.T) {
 		})
 	}
 }
+
+func TestInventoryRepo_BuildNotificatons(t *testing.T) {
+
+	type args struct {
+		assets domain.Assets
+	}
+
+	type expected struct {
+		notifications []domain.SSEMessage
+	}
+
+	testCases := map[string]struct {
+		args     args
+		expected expected
+	}{
+		"Given I have assets with no underscores": {
+			args: args{
+				assets: domain.Assets{
+					Deleted: map[string]string{
+						"env-1234-feature-config-foobar": "",
+					},
+					Created: map[string]string{
+						"env-1234-feature-config-helloworld": "",
+					},
+					Patched: map[string]string{
+						"env-1234-segment-foobar": "",
+					},
+				},
+			},
+			expected: expected{
+				notifications: []domain.SSEMessage{
+					{
+						Event:       "delete",
+						Domain:      "flag",
+						Identifier:  "foobar",
+						Version:     0,
+						Environment: "1234",
+					},
+					{
+						Event:       "create",
+						Domain:      "flag",
+						Identifier:  "helloworld",
+						Version:     0,
+						Environment: "1234",
+					},
+					{
+						Event:       "patch",
+						Domain:      "target-segment",
+						Identifier:  "foobar",
+						Version:     0,
+						Environment: "1234",
+					},
+				},
+			},
+		},
+		"Given I have assets with underscores": {
+			args: args{
+				assets: domain.Assets{
+					Deleted: map[string]string{
+						"env-1234-feature-config-PIE_ENABLE_THIS_THING": "",
+					},
+					Created: map[string]string{
+						"env-1234-feature-config-_CDS__ENABLED___FLAG": "",
+					},
+					Patched: map[string]string{
+						"env-1234-segment-_SOME_SPECIAL_SEGMENT__": "",
+					},
+				},
+			},
+			expected: expected{
+				notifications: []domain.SSEMessage{
+					{
+						Event:       "delete",
+						Domain:      "flag",
+						Identifier:  "PIE_ENABLE_THIS_THING",
+						Version:     0,
+						Environment: "1234",
+					},
+					{
+						Event:       "create",
+						Domain:      "flag",
+						Identifier:  "_CDS__ENABLED___FLAG",
+						Version:     0,
+						Environment: "1234",
+					},
+					{
+						Event:       "patch",
+						Domain:      "target-segment",
+						Identifier:  "_SOME_SPECIAL_SEGMENT__",
+						Version:     0,
+						Environment: "1234",
+					},
+				},
+			},
+		},
+	}
+
+	for desc, tc := range testCases {
+		desc := desc
+		tc := tc
+
+		t.Run(desc, func(t *testing.T) {
+
+			i := InventoryRepo{}
+			actual := i.BuildNotifications(tc.args.assets)
+			assert.Equal(t, tc.expected.notifications, actual)
+		})
+	}
+}

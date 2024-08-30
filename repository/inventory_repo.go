@@ -22,8 +22,8 @@ const (
 )
 
 var (
-	featureConfigRegEx = regexp.MustCompile(`env-([a-zA-Z0-9-]+)-feature-config-([a-zA-Z0-9-]+)`)
-	segmentConfigRegEx = regexp.MustCompile(`env-([a-zA-Z0-9-]+)-segment-([a-zA-Z0-9-]+)`)
+	featureConfigRegEx = regexp.MustCompile(`env-([a-zA-Z0-9-_]+)-feature-config-([a-zA-Z0-9-_]+)`)
+	segmentConfigRegEx = regexp.MustCompile(`env-([a-zA-Z0-9-]+)-segment-([a-zA-Z0-9-_]+)`)
 )
 
 // InventoryRepo is a repository that stores all references to all assets for the key.
