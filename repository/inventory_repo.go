@@ -146,7 +146,12 @@ func (i InventoryRepo) removeOldKeyData(ctx context.Context, key string) error {
 		return err
 	}
 
+	i.log.Error("old key data", "map", res)
+	i.log.Error("key to exclude", "excludeKey", key)
+
 	delete(res, string(excludeKey))
+
+	i.log.Error("old key data after exclusion", "map", res)
 
 	for k := range res {
 		i.log.Error("removing config for key", "key", k)
