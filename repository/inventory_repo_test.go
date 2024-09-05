@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/alicebob/miniredis/v2"
+	"github.com/google/uuid"
 	"github.com/harness/ff-proxy/v2/cache"
 	"github.com/harness/ff-proxy/v2/domain"
 	"github.com/harness/ff-proxy/v2/log"
@@ -112,14 +113,66 @@ func TestInventoryRepo_Cleanup(t *testing.T) {
 		key123 = "123"
 		key456 = "456"
 
-		assets123 = map[string]string{
-			"env-123-feature-configs":     "[{}]",
-			"env-123-feature-configs-foo": "{}",
+		assetsc22b78a0Map = map[string]string{
+			"env-c22b78a0-4bbe-46dc-bc12-a0206c0d4ad7-feature-config-flagOne": "",
+			"env-c22b78a0-4bbe-46dc-bc12-a0206c0d4ad7-feature-configs":        "",
+			"env-c22b78a0-4bbe-46dc-bc12-a0206c0d4ad7-segments":               "",
+			"env-c22b78a0-4bbe-46dc-bc12-a0206c0d4ad7-segment-segmentOne":     "",
+			"env-c22b78a0-4bbe-46dc-bc12-a0206c0d4ad7-api-configs":            "",
+			"auth-key-123": "",
 		}
 
-		assets456 = map[string]string{
-			"env-456-feature-configs":     "[{}]",
-			"env-456-feature-configs-bar": "{}",
+		assetsc22b78a0 = []domain.ProxyConfig{
+			{
+				Environments: []domain.Environments{
+					{
+						ID:      uuid.MustParse("c22b78a0-4bbe-46dc-bc12-a0206c0d4ad7"),
+						APIKeys: []string{"123"},
+						FeatureConfigs: []domain.FeatureFlag{
+							{
+								Feature: "flagOne",
+							},
+						},
+						Segments: []domain.Segment{
+							{
+								Name:       "segmentOne",
+								Identifier: "segmentOne",
+							},
+						},
+					},
+				},
+			},
+		}
+
+		assetsd5c39e52Map = map[string]string{
+			"auth-key-456": "",
+			"env-d5c39e52-0f94-4a4b-a053-9ad842ffd692-feature-config-flagTwo": "",
+			"env-d5c39e52-0f94-4a4b-a053-9ad842ffd692-feature-configs":        "",
+			"env-d5c39e52-0f94-4a4b-a053-9ad842ffd692-segments":               "",
+			"env-d5c39e52-0f94-4a4b-a053-9ad842ffd692-segment-segmentTwo":     "",
+			"env-d5c39e52-0f94-4a4b-a053-9ad842ffd692-api-configs":            "",
+		}
+
+		assetsd5c39e52 = []domain.ProxyConfig{
+			{
+				Environments: []domain.Environments{
+					{
+						ID:      uuid.MustParse("d5c39e52-0f94-4a4b-a053-9ad842ffd692"),
+						APIKeys: []string{"456"},
+						FeatureConfigs: []domain.FeatureFlag{
+							{
+								Feature: "flagTwo",
+							},
+						},
+						Segments: []domain.Segment{
+							{
+								Name:       "segmentTwo",
+								Identifier: "segmentTwo",
+							},
+						},
+					},
+				},
+			},
 		}
 	)
 
@@ -135,7 +188,7 @@ func TestInventoryRepo_Cleanup(t *testing.T) {
 		oldAssets map[string]string
 
 		newKey    string
-		newAssets map[string]string
+		newAssets []domain.ProxyConfig
 	}
 
 	type mocks struct {
@@ -154,27 +207,27 @@ func TestInventoryRepo_Cleanup(t *testing.T) {
 		"Given I cleanup key123": {
 			args: args{
 				oldKey:    key123,
-				oldAssets: assets123,
+				oldAssets: assetsc22b78a0Map,
 
 				newKey:    key456,
-				newAssets: assets456,
+				newAssets: assetsd5c39e52,
 			},
 			shouldErr: false,
 			expected: expected{
-				config: assets456,
+				config: assetsd5c39e52Map,
 			},
 		},
 		"Given I cleanup key456": {
 			args: args{
 				oldKey:    key456,
-				oldAssets: assets456,
+				oldAssets: assetsd5c39e52Map,
 
 				newKey:    key123,
-				newAssets: assets123,
+				newAssets: assetsc22b78a0,
 			},
 			shouldErr: false,
 			expected: expected{
-				config: assets123,
+				config: assetsc22b78a0Map,
 			},
 		},
 	}
@@ -190,19 +243,20 @@ func TestInventoryRepo_Cleanup(t *testing.T) {
 
 			// Add both keys to setup test
 			assert.Nil(t, ir.Add(ctx, tc.args.oldKey, tc.args.oldAssets))
-			assert.Nil(t, ir.Add(ctx, tc.args.newKey, tc.args.newAssets))
 
-			_, err := ir.Cleanup(ctx, tc.args.oldKey, []domain.ProxyConfig{})
+			_, err := ir.Cleanup(ctx, tc.args.newKey, tc.args.newAssets)
 			if tc.shouldErr {
 				assert.NotNil(t, err)
 			} else {
 				assert.Nil(t, err)
 			}
 
+			var nilMap map[string]string
+
 			// Assert that we've removed data for the cleanup key
 			cleanupRes, err := ir.Get(ctx, tc.args.oldKey)
 			assert.Nil(t, err)
-			assert.Equal(t, cleanupRes, map[string]string{})
+			assert.Equal(t, cleanupRes, nilMap)
 
 			// Assert that config for the new key still exists
 			newAssets, err := ir.Get(ctx, tc.args.newKey)

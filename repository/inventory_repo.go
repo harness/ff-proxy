@@ -151,12 +151,21 @@ func (i InventoryRepo) removeOldKeyData(ctx context.Context, key string) error {
 	for k := range res {
 		var oldAssets map[string]string
 		err := i.cache.Get(ctx, k, &oldAssets)
-		if err != nil {
-			return err
+		if err != nil && !errors.Is(err, domain.ErrCacheNotFound) {
+			i.log.Error("failed to get stale assets for inventory key", "key", k, "err", err)
+			continue
 		}
 
 		if err := i.removeAssets(ctx, oldAssets); err != nil {
-			return err
+			i.log.Error("failed to remove stale assets for inventory key", "key", k, "err", err)
+			continue
+		}
+
+		// Once we've removed all the assets associated with this key we should remove
+		// the key itself so that we don't fetch it the next time we start up
+		if err := i.cache.Delete(ctx, k); err != nil {
+			i.log.Error("failed to stale inventory key", "key", k, "err", err)
+			continue
 		}
 	}
 
