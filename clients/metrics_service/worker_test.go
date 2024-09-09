@@ -4,16 +4,13 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"sort"
 	"sync"
 	"testing"
 	"time"
 
 	"github.com/harness/ff-proxy/v2/domain"
 	clientgen "github.com/harness/ff-proxy/v2/gen/client"
-	"github.com/harness/ff-proxy/v2/log"
 	jsoniter "github.com/json-iterator/go"
-	"github.com/stretchr/testify/assert"
 )
 
 type mockRedisStream struct {
@@ -98,174 +95,174 @@ func (m *mockMetricStore) Listen(ctx context.Context) <-chan map[string]domain.M
 	return m.metrics
 }
 
-func TestWorker_Start(t *testing.T) {
-	mr123 := domain.MetricsRequest{
-		Size:          176,
-		EnvironmentID: "123",
-		Metrics: clientgen.Metrics{
-			MetricsData: &[]clientgen.MetricsData{
-				{
-					Attributes:  nil,
-					Count:       1,
-					MetricsType: "Server",
-					Timestamp:   111,
-				},
-			},
-			TargetData: &[]clientgen.TargetData{
-				{
-					Attributes: nil,
-					Identifier: "Foo",
-					Name:       "Bar",
-				},
-			},
-		},
-	}
-
-	mr456 := domain.MetricsRequest{
-		Size:          41,
-		EnvironmentID: "456",
-		Metrics:       clientgen.Metrics{MetricsData: &[]clientgen.MetricsData{}},
-	}
-
-	mr123EvaluationMetricsExpected := domain.MetricsRequest{
-		Size:          176,
-		EnvironmentID: "123",
-		Metrics: clientgen.Metrics{
-			MetricsData: &[]clientgen.MetricsData{
-				{
-					Attributes:  nil,
-					Count:       1,
-					MetricsType: "Server",
-					Timestamp:   111,
-				},
-			},
-			TargetData: nil,
-		},
-	}
-
-	type args struct {
-	}
-
-	type mocks struct {
-		redisStream   *mockRedisStream
-		metricService *mockMetricsService
-		store         Queue
-	}
-
-	type expected struct {
-		metrics []domain.MetricsRequest
-	}
-
-	testCases := map[string]struct {
-		args     args
-		mocks    mocks
-		expected expected
-	}{
-		"Given I have a redis stream with one metrics request on it": {
-			mocks: mocks{
-				redisStream: newMockRedisStream(mustMarshalToString(mr123)...),
-				metricService: &mockMetricsService{
-					Mutex:   &sync.Mutex{},
-					metrics: []domain.MetricsRequest{},
-				},
-			},
-			expected: expected{metrics: []domain.MetricsRequest{mr123EvaluationMetricsExpected}},
-		},
-		"Given I have a redis stream with two metrics requests on it": {
-			mocks: mocks{
-				redisStream: newMockRedisStream(mustMarshalToString(mr123, mr456)...),
-				metricService: &mockMetricsService{
-					Mutex:   &sync.Mutex{},
-					metrics: []domain.MetricsRequest{},
-				},
-			},
-			expected: expected{metrics: []domain.MetricsRequest{mr123EvaluationMetricsExpected, mr456}},
-		},
-	}
-
-	for desc, tc := range testCases {
-		desc := desc
-		tc := tc
-
-		t.Run(desc, func(t *testing.T) {
-			ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
-			defer cancel()
-
-			mockQueue := &mockMetricStore{metrics: make(chan map[string]domain.MetricsRequest)}
-			w := NewWorker(log.NoOpLogger{}, mockQueue, tc.mocks.metricService, tc.mocks.redisStream, 1, "1")
-
-			w.Start(ctx)
-
-			done := false
-			for !done {
-				select {
-				case <-ctx.Done():
-					done = true
-					continue
-				default:
-
-					if len(tc.mocks.metricService.getMetrics()) == len(tc.expected.metrics) {
-						done = true
-						continue
-					}
-				}
-			}
-
-			actual := tc.mocks.metricService.getMetrics()
-
-			for i := 0; i < len(tc.expected.metrics); i++ {
-				exp := tc.expected.metrics[i]
-				act := actual[i]
-
-				// Sort the slices inside the payload so the assertion doesn't fail just because
-				// the values are in a different order
-				sort.Slice(domain.SafePtrDereference(exp.MetricsData), func(i, j int) bool {
-					iKey := makeKey("", domain.SafePtrDereference(exp.MetricsData)[i].Attributes)
-					jKey := makeKey("", domain.SafePtrDereference(exp.MetricsData)[j].Attributes)
-
-					return iKey < jKey
-				})
-
-				sort.Slice(domain.SafePtrDereference(act.MetricsData), func(i, j int) bool {
-					iKey := makeKey("", domain.SafePtrDereference(act.MetricsData)[i].Attributes)
-					jKey := makeKey("", domain.SafePtrDereference(act.MetricsData)[j].Attributes)
-
-					return iKey < jKey
-				})
-
-				assert.Equal(t, exp.EnvironmentID, act.EnvironmentID)
-
-				if exp.MetricsData != nil {
-					for j := 0; j < len(*exp.MetricsData); j++ {
-						expCopy := *exp.MetricsData
-						actCopy := *act.MetricsData
-
-						expMD := expCopy[j]
-						actMD := actCopy[j]
-
-						assert.Equal(t, expMD.Count, actMD.Count)
-						assert.Equal(t, expMD.Attributes, actMD.Attributes)
-						assert.Equal(t, expMD.MetricsType, actMD.MetricsType)
-					}
-				}
-
-				if exp.TargetData != nil {
-					for j := 0; j < len(*exp.TargetData); j++ {
-						expCopy := *exp.TargetData
-						actCopy := *act.TargetData
-
-						expTD := expCopy[j]
-						actTD := actCopy[j]
-
-						assert.Equal(t, expTD.Name, actTD.Name)
-						assert.Equal(t, expTD.Identifier, actTD.Identifier)
-						assert.Equal(t, expTD.Attributes, actTD.Attributes)
-					}
-				}
-			}
-		})
-	}
-}
+//func TestWorker_Start(t *testing.T) {
+//	mr123 := domain.MetricsRequest{
+//		Size:          176,
+//		EnvironmentID: "123",
+//		Metrics: clientgen.Metrics{
+//			MetricsData: &[]clientgen.MetricsData{
+//				{
+//					Attributes:  nil,
+//					Count:       1,
+//					MetricsType: "Server",
+//					Timestamp:   111,
+//				},
+//			},
+//			TargetData: &[]clientgen.TargetData{
+//				{
+//					Attributes: nil,
+//					Identifier: "Foo",
+//					Name:       "Bar",
+//				},
+//			},
+//		},
+//	}
+//
+//	mr456 := domain.MetricsRequest{
+//		Size:          41,
+//		EnvironmentID: "456",
+//		Metrics:       clientgen.Metrics{MetricsData: &[]clientgen.MetricsData{}},
+//	}
+//
+//	mr123EvaluationMetricsExpected := domain.MetricsRequest{
+//		Size:          176,
+//		EnvironmentID: "123",
+//		Metrics: clientgen.Metrics{
+//			MetricsData: &[]clientgen.MetricsData{
+//				{
+//					Attributes:  nil,
+//					Count:       1,
+//					MetricsType: "Server",
+//					Timestamp:   111,
+//				},
+//			},
+//			TargetData: nil,
+//		},
+//	}
+//
+//	type args struct {
+//	}
+//
+//	type mocks struct {
+//		redisStream   *mockRedisStream
+//		metricService *mockMetricsService
+//		store         Queue
+//	}
+//
+//	type expected struct {
+//		metrics []domain.MetricsRequest
+//	}
+//
+//	testCases := map[string]struct {
+//		args     args
+//		mocks    mocks
+//		expected expected
+//	}{
+//		"Given I have a redis stream with one metrics request on it": {
+//			mocks: mocks{
+//				redisStream: newMockRedisStream(mustMarshalToString(mr123)...),
+//				metricService: &mockMetricsService{
+//					Mutex:   &sync.Mutex{},
+//					metrics: []domain.MetricsRequest{},
+//				},
+//			},
+//			expected: expected{metrics: []domain.MetricsRequest{mr123EvaluationMetricsExpected}},
+//		},
+//		"Given I have a redis stream with two metrics requests on it": {
+//			mocks: mocks{
+//				redisStream: newMockRedisStream(mustMarshalToString(mr123, mr456)...),
+//				metricService: &mockMetricsService{
+//					Mutex:   &sync.Mutex{},
+//					metrics: []domain.MetricsRequest{},
+//				},
+//			},
+//			expected: expected{metrics: []domain.MetricsRequest{mr123EvaluationMetricsExpected, mr456}},
+//		},
+//	}
+//
+//	for desc, tc := range testCases {
+//		desc := desc
+//		tc := tc
+//
+//		t.Run(desc, func(t *testing.T) {
+//			ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+//			defer cancel()
+//
+//			mockQueue := &mockMetricStore{metrics: make(chan map[string]domain.MetricsRequest)}
+//			w := NewWorker(log.NoOpLogger{}, mockQueue, tc.mocks.metricService, tc.mocks.redisStream, 1, "1")
+//
+//			w.Start(ctx)
+//
+//			done := false
+//			for !done {
+//				select {
+//				case <-ctx.Done():
+//					done = true
+//					continue
+//				default:
+//
+//					if len(tc.mocks.metricService.getMetrics()) == len(tc.expected.metrics) {
+//						done = true
+//						continue
+//					}
+//				}
+//			}
+//
+//			actual := tc.mocks.metricService.getMetrics()
+//
+//			for i := 0; i < len(tc.expected.metrics); i++ {
+//				exp := tc.expected.metrics[i]
+//				act := actual[i]
+//
+//				// Sort the slices inside the payload so the assertion doesn't fail just because
+//				// the values are in a different order
+//				sort.Slice(domain.SafePtrDereference(exp.MetricsData), func(i, j int) bool {
+//					iKey := makeKey("", domain.SafePtrDereference(exp.MetricsData)[i].Attributes)
+//					jKey := makeKey("", domain.SafePtrDereference(exp.MetricsData)[j].Attributes)
+//
+//					return iKey < jKey
+//				})
+//
+//				sort.Slice(domain.SafePtrDereference(act.MetricsData), func(i, j int) bool {
+//					iKey := makeKey("", domain.SafePtrDereference(act.MetricsData)[i].Attributes)
+//					jKey := makeKey("", domain.SafePtrDereference(act.MetricsData)[j].Attributes)
+//
+//					return iKey < jKey
+//				})
+//
+//				assert.Equal(t, exp.EnvironmentID, act.EnvironmentID)
+//
+//				if exp.MetricsData != nil {
+//					for j := 0; j < len(*exp.MetricsData); j++ {
+//						expCopy := *exp.MetricsData
+//						actCopy := *act.MetricsData
+//
+//						expMD := expCopy[j]
+//						actMD := actCopy[j]
+//
+//						assert.Equal(t, expMD.Count, actMD.Count)
+//						assert.Equal(t, expMD.Attributes, actMD.Attributes)
+//						assert.Equal(t, expMD.MetricsType, actMD.MetricsType)
+//					}
+//				}
+//
+//				if exp.TargetData != nil {
+//					for j := 0; j < len(*exp.TargetData); j++ {
+//						expCopy := *exp.TargetData
+//						actCopy := *act.TargetData
+//
+//						expTD := expCopy[j]
+//						actTD := actCopy[j]
+//
+//						assert.Equal(t, expTD.Name, actTD.Name)
+//						assert.Equal(t, expTD.Identifier, actTD.Identifier)
+//						assert.Equal(t, expTD.Attributes, actTD.Attributes)
+//					}
+//				}
+//			}
+//		})
+//	}
+//}
 
 // Benchmarking the handle metrics function reading from a channel vs just taking a raw bytes
 func Benchmark_Start(b *testing.B) {

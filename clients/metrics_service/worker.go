@@ -136,12 +136,23 @@ func (w Worker) handleMetrics(ctx context.Context, metrics <-chan []byte) {
 }
 
 func (w Worker) postMetrics(ctx context.Context) {
-	for metrics := range w.metricsStore.Listen(ctx) {
-
-		for _, _ = range metrics {
-			//if err := w.metricsService.PostMetrics(ctx, envID, metric, w.clusterIdentifier); err != nil {
-			//	w.log.Error("sending metrics failed", "environment", envID, "cluster_identifier", w.clusterIdentifier, "error", err)
-			//}
+	c := w.metricsStore.Listen(ctx)
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case _, ok := <-c:
+			if !ok {
+				return
+			}
 		}
 	}
+	//for _ = range w.metricsStore.Listen(ctx) {
+
+	//for _, _ = range metrics {
+	//if err := w.metricsService.PostMetrics(ctx, envID, metric, w.clusterIdentifier); err != nil {
+	//	w.log.Error("sending metrics failed", "environment", envID, "cluster_identifier", w.clusterIdentifier, "error", err)
+	//}
+	//}
+	//}
 }
