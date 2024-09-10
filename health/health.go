@@ -123,7 +123,6 @@ func (p ProxyHealth) Health(ctx context.Context) domain.HealthResponse {
 
 func (p ProxyHealth) PollCacheHealth(ctx context.Context, interval time.Duration) {
 	ticker := time.NewTicker(interval)
-	defer ticker.Stop()
 
 	// Check cache health when we first start so we don't have to wait for the
 	// ticker to expire before we know the state of the cache health at startup
@@ -134,6 +133,8 @@ func (p ProxyHealth) PollCacheHealth(ctx context.Context, interval time.Duration
 	}
 
 	go func() {
+		defer ticker.Stop()
+
 		for {
 			select {
 			case <-ctx.Done():
@@ -141,16 +142,9 @@ func (p ProxyHealth) PollCacheHealth(ctx context.Context, interval time.Duration
 			case <-ticker.C:
 				if err := p.cacheHealth(ctx); err != nil {
 					p.cacheHealthy.Set(false)
-					continue
+				} else {
+					p.cacheHealthy.Set(true)
 				}
-
-				// If the current status is already healthy then we don't
-				// need to do anything
-				if currentStatus := p.cacheHealthy.Get(); currentStatus {
-					continue
-				}
-
-				p.cacheHealthy.Set(true)
 			}
 		}
 	}()
