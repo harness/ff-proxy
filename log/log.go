@@ -231,16 +231,30 @@ func ExtractRequestValuesFromContext(ctx context.Context) []interface{} {
 		values = append(values, reqID)
 	}
 
+	appID := getAppID(ctx)
+	if appID != "" {
+		values = append(values, "appID")
+		values = append(values, appID)
+	}
+
 	return values
 }
 
 type contextKey string
 
 // RequestIDKey is the key we associate with the requestID that we set in the request context
-const RequestIDKey contextKey = "requestID"
+const (
+	RequestIDKey contextKey = "requestID"
+	AppIDKey     contextKey = "appID"
+)
 
 // getRequestID extracts the requestID value from the context if it exists.
 func getRequestID(ctx context.Context) string {
 	requestID, _ := ctx.Value(RequestIDKey).(string)
 	return requestID
+}
+
+func getAppID(ctx context.Context) string {
+	appID, _ := ctx.Value(AppIDKey).(string)
+	return appID
 }
