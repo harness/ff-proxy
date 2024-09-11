@@ -40,7 +40,8 @@ type keyLookUp interface {
 func NewEchoLoggingMiddleware(l log.Logger) echo.MiddlewareFunc {
 	return middleware.RequestLoggerWithConfig(middleware.RequestLoggerConfig{
 		LogValuesFunc: func(c echo.Context, v middleware.RequestLoggerValues) error {
-			l.Info("request", "component", "LoggingMiddleware", "method", v.Method, "path", v.RoutePath, "status", v.Status, "took", v.Latency.String(), "reqID", v.RequestID)
+			appID := c.Request().Context().Value(log.AppIDKey)
+			l.Info("request", "component", "LoggingMiddleware", "method", v.Method, "path", v.RoutePath, "status", v.Status, "took", v.Latency.String(), "reqID", v.RequestID, "appID", appID)
 			return nil
 		},
 		LogLatency:   true,
@@ -107,9 +108,10 @@ func isKeyInCache(ctx context.Context, logger log.Logger, repo keyLookUp, claims
 	return exists
 }
 
-// NewEchoRequestIDMiddleware returns an echo middleware that either uses a
-// provided requestID from the header or generates one and adds it to the request
-// context.
+const harnessSDKAppIDHeader = "Harness-SDK-ApplicationID"
+
+// NewEchoRequestIDMiddleware extracts X-Request_Id and Harness-SDK-ApplicationID
+// headers from the request and adds them to the context.
 func NewEchoRequestIDMiddleware() echo.MiddlewareFunc {
 	return func(next echo.HandlerFunc) echo.HandlerFunc {
 		return func(c echo.Context) error {
@@ -121,10 +123,15 @@ func NewEchoRequestIDMiddleware() echo.MiddlewareFunc {
 				requestUUID, _ := uuid.NewRandom()
 				reqID = requestUUID.String()
 			}
-
 			req = req.WithContext(context.WithValue(req.Context(), log.RequestIDKey, reqID))
-			c.SetRequest(req)
 
+			appID := req.Header.Get(harnessSDKAppIDHeader)
+			if appID == "" {
+				appID = "unknown"
+			}
+			req = req.WithContext(context.WithValue(req.Context(), log.AppIDKey, appID))
+
+			c.SetRequest(req)
 			resp.Header().Set(echo.HeaderXRequestID, reqID)
 			return next(c)
 		}
