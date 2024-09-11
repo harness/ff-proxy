@@ -27,10 +27,11 @@ type SSEClient struct {
 func NewSSEClient(l log.Logger, url string, key string, token string, accountID string, onConn func(), onDisconn func()) *SSEClient {
 	c := sse.NewClient(url)
 	c.Headers = map[string]string{
-		"Authorization":     fmt.Sprintf("Bearer %s", token),
-		"API-Key":           key,
-		"Harness-Accountid": accountID,
-		"Harness-Sdk-Info":  fmt.Sprintf("Proxy %s", build.Version),
+		"Authorization":             fmt.Sprintf("Bearer %s", token),
+		"API-Key":                   key,
+		"Harness-Accountid":         accountID,
+		"Harness-Sdk-Info":          fmt.Sprintf("Proxy %s", build.Version),
+		"Harness-SDK-ApplicationID": domain.GetAppID(),
 	}
 
 	c.OnConnect(func(c *sse.Client) {

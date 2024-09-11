@@ -5,16 +5,9 @@ import (
 	"testing"
 )
 
-// Mocking os.Hostname function
-var osHostname = os.Hostname
-
-func Test_getAppID(t *testing.T) {
+func Test_GetAppID(t *testing.T) {
 	// Mock hostname for tests
 	mockHostname := "mock-hostname"
-
-	osHostname = func() (string, error) {
-		return mockHostname, nil
-	}
 
 	tests := []struct {
 		name         string
@@ -64,7 +57,7 @@ func Test_getAppID(t *testing.T) {
 			}
 
 			// Execute function
-			result := getAppID()
+			result := GetAppID()
 
 			// Validate result
 			if result != tt.expected {

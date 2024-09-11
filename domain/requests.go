@@ -111,7 +111,7 @@ type AuthenticateProxyKeyResponse struct {
 	ClusterIdentifier string
 }
 
-func getAppID() string {
+func GetAppID() string {
 	a := os.Getenv("APP_ID")
 	if a != "" {
 		return a
@@ -126,7 +126,7 @@ func getAppID() string {
 }
 
 var (
-	appID = getAppID()
+	appID = GetAppID()
 
 	// Assign os.Hostname to a variable so we can mock it for testing
 	hostnameFunc = os.Hostname
