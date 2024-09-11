@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"os"
 
 	"github.com/harness/ff-proxy/v2/build"
 	jsoniter "github.com/json-iterator/go"
@@ -110,6 +111,27 @@ type AuthenticateProxyKeyResponse struct {
 	ClusterIdentifier string
 }
 
+func getAppID() string {
+	a := os.Getenv("APP_ID")
+	if a != "" {
+		return a
+	}
+
+	h, err := hostnameFunc()
+	if err != nil || h == "" {
+		return "unknown"
+	}
+
+	return h
+}
+
+var (
+	appID = getAppID()
+
+	// Assign os.Hostname to a variable so we can mock it for testing
+	hostnameFunc = os.Hostname
+)
+
 func AddHarnessXHeaders(envID string) func(ctx context.Context, req *http.Request) error {
 	return func(ctx context.Context, req *http.Request) error {
 		accountID := ctx.Value(ContextKeyAccountID).(string)
@@ -117,6 +139,7 @@ func AddHarnessXHeaders(envID string) func(ctx context.Context, req *http.Reques
 		req.Header.Set("Harness-Accountid", accountID)
 		req.Header.Set("Harness-Environmentid", envID)
 		req.Header.Set("Harness-Sdk-Info", fmt.Sprintf("Proxy %s", build.Version))
+		req.Header.Set("Harness-SDK-ApplicationID", appID)
 		return nil
 	}
 }
