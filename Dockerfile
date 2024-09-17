@@ -1,7 +1,7 @@
 ############################
 # STEP 1 build executable binary
 ############################
-FROM golang:1.20 as builder
+FROM golang:1.22 as builder
 
 WORKDIR /app
 
@@ -21,7 +21,7 @@ RUN make build
 # TODO - this will rarely change - publish as an image we can consume
 ############################
 # Pull the base image
-FROM ubuntu:22.04 as pushpin
+FROM ubuntu:24.04 as pushpin
 
 # Add private APT repository
 RUN \
