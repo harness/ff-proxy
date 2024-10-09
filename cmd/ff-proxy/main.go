@@ -66,6 +66,7 @@ var (
 	redisUsername string
 	redisDB       int
 	redisPoolSize int
+	redisCluster  bool
 
 	// Server Config
 	port           int
@@ -109,6 +110,7 @@ const (
 	redisUsernameEnv = "REDIS_USERNAME"
 	redisDBEnv       = "REDIS_DB"
 	redisPoolSizeEnv = "REDIS_POOL_SIZE"
+	redisClusterEnv  = "REDIS_CLUSTER"
 
 	// Server Config
 	portEnv           = "PORT"
@@ -152,6 +154,7 @@ const (
 	redisUsernameFlag = "redis-username"
 	redisDBFlag       = "redis-db"
 	redisPoolSizeFlag = "redis-pool-size"
+	redisClusterFlag  = "redis-cluster"
 
 	// Server Config
 	portFlag           = "port"
@@ -195,6 +198,7 @@ func init() {
 	flag.StringVar(&redisUsername, redisUsernameFlag, "", "Optional. Redis username")
 	flag.IntVar(&redisDB, redisDBFlag, 0, "Database to be selected after connecting to the server.")
 	flag.IntVar(&redisPoolSize, redisPoolSizeFlag, 10, "sets the redi connection pool size, to this value multipled by the number of CPU available. E.g if this value is 10 and you've 2 CPU the connection pool size will be 20")
+	flag.BoolVar(&redisCluster, redisClusterFlag, false, "forces redis cluster mode")
 
 	// Server Config
 	flag.IntVar(&port, portFlag, 8000, "port the relay proxy service is exposed on, default's to 8000")
@@ -228,6 +232,7 @@ func init() {
 		redisUsernameEnv:                redisUsernameFlag,
 		redisDBEnv:                      redisDBFlag,
 		redisPoolSizeEnv:                redisPoolSizeFlag,
+		redisClusterEnv:                 redisClusterFlag,
 		metricPostDurationEnv:           metricPostDurationFlag,
 		heartbeatIntervalEnv:            heartbeatIntervalFlag,
 		pprofEnabledEnv:                 pprofEnabledFlag,
@@ -693,6 +698,16 @@ func newRedisClient(addr string, username string, password string, logger log.Lo
 
 	for i, split := range splitAddr {
 		splitAddr[i] = removeRedisScheme(split)
+	}
+
+	if redisCluster {
+		return redis.NewClusterClient(&redis.ClusterOptions{
+			Addrs:     splitAddr,
+			Username:  username,
+			Password:  password,
+			PoolSize:  redisPoolSize * runtime.NumCPU(),
+			TLSConfig: parsed.TLSConfig,
+		})
 	}
 
 	opts := redis.UniversalOptions{
