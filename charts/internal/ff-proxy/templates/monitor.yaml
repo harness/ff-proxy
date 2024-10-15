@@ -1,0 +1,1 @@
+{{ include "harnesscommon.monitoring.podMonitor" (dict "name" .Release.Name "ctx" $ "label" "app.kubernetes.io/instance") }}
