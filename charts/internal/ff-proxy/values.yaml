@@ -48,7 +48,7 @@ global:
       digest: ""
       imagePullSecrets: []
   monitoring:
-    enabled: true
+    enabled: false
     managedPlatform: ""
     path: /metrics
 
