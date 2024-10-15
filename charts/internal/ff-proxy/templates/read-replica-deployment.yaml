@@ -4,7 +4,7 @@ metadata:
   name: {{ include "ff-proxy.readReplica.name" . }}
   namespace: {{ .Release.Namespace }}
   labels:
-    {{- include "ff-proxy.labels" . | nindent 4 }}
+    {{- include "ff-proxy.readReplica.labels" . | nindent 4 }}
     {{- if .Values.global.commonLabels }}
     {{- include "harnesscommon.tplvalues.render" ( dict "value" .Values.global.commonLabels "context" $ ) | nindent 4 }}
     {{- end }}
@@ -20,26 +20,22 @@ spec:
   {{- end }}
   selector:
     matchLabels:
-      {{- include "ff-proxy.readReplica.SelectorLabels" . | nindent 6 }}
-      app: {{ include "ff-proxy.readReplica.name" . }}
+      {{- include "ff-proxy.primary.selectorLabels" . | nindent 6 }}
   template:
     metadata:
       annotations:
+        checksum/config: {{ include (print $.Template.BasePath "/read-replica-configmap.yaml") . | sha256sum }}
         {{- with .Values.readReplica.podAnnotations }}
-          {{- toYaml . | nindent 8 }}
+        {{- toYaml . | nindent 8 }}
         {{- end }}
         {{- if .Values.global.commonAnnotations }}
-        {{- include "harnesscommon.tplvalues.render" ( dict "value" .Values.global.commonAnnotations "context" $ ) | nindent 8 }}
+          {{- include "harnesscommon.tplvalues.render" ( dict "value" .Values.global.commonAnnotations "context" $ ) | nindent 8 }}
         {{- end }}
-        {{- include "harnesscommon.monitoring.annotations" . | nindent 8 }}
       labels:
-        {{- include "ff-proxy.readReplica.SelectorLabels" . | nindent 8 }}
-        app: {{ include "ff-proxy.readReplica.name" . }}
-        {{- if .Values.global.commonLabels }}
+        {{- include "ff-proxy.readReplica.labels" . | nindent 8 }}
         {{- include "harnesscommon.tplvalues.render" ( dict "value" .Values.global.commonLabels "context" $ ) | nindent 8 }}
-        {{- end }}
         {{- if .Values.readReplica.podLabels }}
-        {{- include "harnesscommon.tplvalues.render" (dict "value" .Values.readReplica.podLabels "context" $) | nindent 8 }}
+        {{- include "harnesscommon.tplvalues.render" (dict "value" .Values.podLabels "context" $) | nindent 8 }}
         {{- end }}
     spec:
       {{- include "ff-proxy.pullSecrets" . | nindent 6 }}
@@ -88,7 +84,7 @@ spec:
           requiredDuringSchedulingIgnoredDuringExecution:
           - labelSelector:
               matchExpressions:
-              - key: app
+              - key: app.kubernetes.io/name
                 operator: In
                 values:
                 - {{ include "ff-proxy.readReplica.name" . }}

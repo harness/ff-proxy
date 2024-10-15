@@ -14,5 +14,5 @@ spec:
       protocol: TCP
       name: sdk
   selector:
-    {{- include "ff-proxy.readReplica.SelectorLabels" . | nindent 4 }}
+    {{- include "ff-proxy.readReplica.selectorLabels" . | nindent 4 }}
 {{- end }}

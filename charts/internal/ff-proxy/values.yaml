@@ -48,7 +48,7 @@ global:
       digest: ""
       imagePullSecrets: []
   monitoring:
-    enabled: false
+    enabled: true
     managedPlatform: ""
     path: /metrics
 
@@ -71,6 +71,11 @@ serviceAccount:
   # The name of the service account to use.
   # If not set and create is true, a name is generated using the fullname template
   name: ""
+
+service:
+  enabled: false
+  type: ClusterIP
+  port: 7000
 
 # configuration specific to the writer pods
 primary:
@@ -297,7 +302,10 @@ database:
                 REDIS_SSL_CA_TRUST_STORE_PASSWORD:
                   name: ""
                   property: ""
+
 monitoring:
+  managedPlatform: google
+  path: /metrics
   port: 9091
 
 autoscaling:

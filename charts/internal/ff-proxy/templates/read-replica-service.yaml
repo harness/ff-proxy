@@ -5,8 +5,10 @@ metadata:
   name: {{ include "ff-proxy.readReplica.name" . }}
   namespace: {{ .Release.Namespace }}
   labels:
-    {{- include "ff-proxy.labels" . | nindent 4 }}
-  {{- if or .Values.readReplica.service.annotations .Values.global.commonAnnotations }}
+    {{- include "ff-proxy.readReplica.labels" . | nindent 4 }}
+    {{- if .Values.global.commonLabels }}
+    {{- include "harnesscommon.tplvalues.render" ( dict "value" .Values.global.commonLabels "context" $ ) | nindent 4 }}
+    {{- end }}
   annotations:
     {{- if .Values.readReplica.service.annotations }}
     {{- include "harnesscommon.tplvalues.render" ( dict "value" .Values.readReplica.service.annotations "context" $ ) | nindent 4 }}
@@ -14,7 +16,6 @@ metadata:
     {{- if .Values.global.commonAnnotations }}
     {{- include "harnesscommon.tplvalues.render" ( dict "value" .Values.global.commonAnnotations "context" $ ) | nindent 4 }}
     {{- end }}
-  {{- end }}
 spec:
   type: {{ .Values.readReplica.service.type }}
   ports:
@@ -23,6 +24,5 @@ spec:
       protocol: TCP
       name: sdk
   selector:
-    {{- include "ff-proxy.readReplica.SelectorLabels" . | nindent 4 }}
-    app: {{ include "ff-proxy.readReplica.name" . }}
+    {{- include "ff-proxy.readReplica.selectorLabels" . | nindent 4 }}
 {{- end }}

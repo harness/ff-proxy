@@ -4,7 +4,7 @@ metadata:
   name: {{ include "ff-proxy.primary.name" . }}
   namespace: {{ .Release.Namespace }}
   labels:
-    {{- include "ff-proxy.labels" . | nindent 4 }}
+    {{- include "ff-proxy.primary.labels" . | nindent 4 }}
 data:
   {{- include "harnesscommon.tplvalues.render" ( dict "value" .Values.primary.config "context" $) | nindent 2}}
 
