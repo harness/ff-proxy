@@ -87,7 +87,7 @@ spec:
               - key: app.kubernetes.io/name
                 operator: In
                 values:
-                - {{ include "ff-proxy.readReplica.name" . }}
+                - {{ include "ff-proxy.primary.name" . }}
             topologyKey: "kubernetes.io/hostname"
       {{- with .Values.affinity }}
         {{- toYaml . | nindent 8 }}
