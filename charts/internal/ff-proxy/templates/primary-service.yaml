@@ -1,28 +1,26 @@
-{{- if .Values.readReplica.enabled }}
 apiVersion: v1
 kind: Service
 metadata:
-  name: {{ include "ff-proxy.readReplica.name" . }}
+  name: {{ include "ff-proxy.primary.name" . }}
   namespace: {{ .Release.Namespace }}
   labels:
-    {{- include "ff-proxy.readReplica.labels" . | nindent 4 }}
+    {{- include "ff-proxy.primary.labels" . | nindent 4 }}
     {{- if .Values.global.commonLabels }}
     {{- include "harnesscommon.tplvalues.render" ( dict "value" .Values.global.commonLabels "context" $ ) | nindent 4 }}
     {{- end }}
   annotations:
-    {{- if .Values.readReplica.service.annotations }}
-    {{- include "harnesscommon.tplvalues.render" ( dict "value" .Values.readReplica.service.annotations "context" $ ) | nindent 4 }}
+    {{- if .Values.primary.service.annotations }}
+    {{- include "harnesscommon.tplvalues.render" ( dict "value" .Values.primary.service.annotations "context" $ ) | nindent 4 }}
     {{- end }}
     {{- if .Values.global.commonAnnotations }}
     {{- include "harnesscommon.tplvalues.render" ( dict "value" .Values.global.commonAnnotations "context" $ ) | nindent 4 }}
     {{- end }}
 spec:
-  type: {{ .Values.readReplica.service.type }}
+  type: {{ .Values.primary.service.type }}
   ports:
     - port: 80
-      targetPort: {{ .Values.readReplica.service.port }}
+      targetPort: {{ .Values.primary.service.port }}
       protocol: TCP
       name: sdk
   selector:
-    {{- include "ff-proxy.readReplica.selectorLabels" . | nindent 4 }}
-{{- end }}
+    {{- include "ff-proxy.primary.selectorLabels" . | nindent 4 }}

@@ -72,6 +72,11 @@ serviceAccount:
   # If not set and create is true, a name is generated using the fullname template
   name: ""
 
+service:
+  enabled: false
+  type: ClusterIP
+  port: 7000
+
 # configuration specific to the writer pods
 primary:
   service:
@@ -297,7 +302,10 @@ database:
                 REDIS_SSL_CA_TRUST_STORE_PASSWORD:
                   name: ""
                   property: ""
+
 monitoring:
+  managedPlatform: google
+  path: /metrics
   port: 9091
 
 autoscaling:

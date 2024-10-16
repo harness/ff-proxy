@@ -33,10 +33,22 @@ Create chart name and version as used by the chart label.
 {{/*
 Common labels
 */}}
-{{- define "ff-proxy.labels" -}}
+{{- define "ff-proxy.primary.labels" -}}
 helm.sh/chart: {{ include "ff-proxy.chart" . }}
-app.kubernetes.io/name: {{ include "ff-proxy.name" . }}
-app.kubernetes.io/instance: {{ .Release.Name }}
+{{ include "ff-proxy.primary.selectorLabels" . }}
+app.kubernetes.io/part-of: harness-feature-flags
+app.kubernetes.io/component: server
+{{- if .Chart.AppVersion }}
+app.kubernetes.io/version: {{ .Chart.AppVersion | quote }}
+{{- end }}
+app.kubernetes.io/managed-by: {{ .Release.Service }}
+{{- end }}
+
+{{- define "ff-proxy.readReplica.labels" -}}
+helm.sh/chart: {{ include "ff-proxy.chart" . }}
+{{ include "ff-proxy.readReplica.selectorLabels" . }}
+app.kubernetes.io/part-of: harness-feature-flags
+app.kubernetes.io/component: server
 {{- if .Chart.AppVersion }}
 app.kubernetes.io/version: {{ .Chart.AppVersion | quote }}
 {{- end }}
@@ -44,17 +56,15 @@ app.kubernetes.io/managed-by: {{ .Release.Service }}
 {{- end }}
 
 {{/*
-primary selector labels
+Selector labels
 */}}
-{{- define "ff-proxy.primary.SelectorLabels" -}}
-app.kubernetes.io/component: {{ include "ff-proxy.name" . }}-primary
+{{- define "ff-proxy.primary.selectorLabels" -}}
+app.kubernetes.io/name: {{ include "ff-proxy.primary.name" . }}
+app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end }}
-
-{{/*
-Read replica selector labels
-*/}}
-{{- define "ff-proxy.readReplica.SelectorLabels" -}}
-app.kubernetes.io/component: {{ include "ff-proxy.name" . }}-read-replica
+{{- define "ff-proxy.readReplica.selectorLabels" -}}
+app.kubernetes.io/name: {{ include "ff-proxy.readReplica.name" . }}
+app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end }}
 
 {{/*

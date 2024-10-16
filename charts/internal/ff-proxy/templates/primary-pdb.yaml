@@ -5,6 +5,7 @@ metadata:
   name: {{ include "ff-proxy.primary.name" . }}
   namespace: {{ .Release.Namespace }}
   labels:
+    {{- include "ff-proxy.primary.labels" . | nindent 4 }}
     {{- if .Values.global.commonLabels }}
     {{- include "harnesscommon.tplvalues.render" ( dict "value" .Values.global.commonLabels "context" $ ) | nindent 4 }}
     {{- end }}
@@ -20,6 +21,5 @@ spec:
   {{- end }}
   selector:
     matchLabels:
-      {{- include "ff-proxy.primary.SelectorLabels" . | nindent 6 }}
-      app: {{ include "ff-proxy.primary.name" . }}
+      {{- include "ff-proxy.primary.selectorLabels" . | nindent 6 }}
 {{- end }}
