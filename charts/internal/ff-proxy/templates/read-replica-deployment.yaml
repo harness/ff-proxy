@@ -20,7 +20,7 @@ spec:
   {{- end }}
   selector:
     matchLabels:
-      {{- include "ff-proxy.primary.selectorLabels" . | nindent 6 }}
+      {{- include "ff-proxy.readReplica.selectorLabels" . | nindent 6 }}
   template:
     metadata:
       annotations:
