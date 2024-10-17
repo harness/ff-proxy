@@ -39,7 +39,6 @@ helm.sh/chart: {{ include "ff-proxy.chart" . }}
 app.kubernetes.io/name: {{ include "ff-proxy.primary.name" . }}
 app.kubernetes.io/instance: {{ .Release.Name }}
 app.kubernetes.io/part-of: harness-feature-flags
-app.kubernetes.io/component: server
 {{- if .Chart.AppVersion }}
 app.kubernetes.io/version: {{ .Chart.AppVersion | quote }}
 {{- end }}
@@ -52,7 +51,6 @@ helm.sh/chart: {{ include "ff-proxy.chart" . }}
 app.kubernetes.io/name: {{ include "ff-proxy.readReplica.name" . }}
 app.kubernetes.io/instance: {{ .Release.Name }}
 app.kubernetes.io/part-of: harness-feature-flags
-app.kubernetes.io/component: server
 {{- if .Chart.AppVersion }}
 app.kubernetes.io/version: {{ .Chart.AppVersion | quote }}
 {{- end }}
