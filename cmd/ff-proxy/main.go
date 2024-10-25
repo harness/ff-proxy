@@ -317,7 +317,7 @@ func main() {
 	var hashCache *cache.HashCache
 
 	if redisAddress != "" && !generateOfflineConfig { //nolint:nestif
-		redisClient = newRedisClient(redisAddress, redisUsername, redisPassword, logger)
+		redisClient = newRedisClient(redisAddress, redisUsername, redisPassword, redisDB, logger)
 
 		mcMetrics := cache.NewMemoizeMetrics("proxy", promReg)
 		mcCache := cache.NewMemoizeCache(redisClient, 1*time.Minute, 2*time.Minute, mcMetrics)
@@ -675,7 +675,7 @@ func removeRedisScheme(addr string) string {
 	return strings.TrimPrefix(strings.TrimPrefix(addr, "redis://"), "rediss://")
 }
 
-func newRedisClient(addr string, username string, password string, logger log.Logger) redis.UniversalClient {
+func newRedisClient(addr string, username string, password string, db int, logger log.Logger) redis.UniversalClient {
 	splitAddr := strings.Split(addr, ",")
 
 	// if address does not start with redis:// or rediss:// then default to redis://
@@ -697,7 +697,7 @@ func newRedisClient(addr string, username string, password string, logger log.Lo
 
 	opts := redis.UniversalOptions{
 		Addrs:     splitAddr,
-		DB:        parsed.DB,
+		DB:        db,
 		Username:  username,
 		Password:  password,
 		PoolSize:  redisPoolSize * runtime.NumCPU(),
