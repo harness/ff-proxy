@@ -1,0 +1,60 @@
+version: "3.9"
+services:
+  primary:
+    image: "harness/ff-proxy:2.0.7-rc.1"
+    environment:
+      - LOG_LEVEL=INFO
+      - PROXY_KEY=62deafb7-8706-448f-ad93-46630852d405
+      - REDIS_ADDRESS=redis:6379
+      - READ_REPLICA=false
+      - AUTH_SECRET=foobar
+      - CLIENT_SERVICE=http://host.docker.internal:8000
+      - METRIC_SERVICE=http://host.docker.internal:8000
+    ports:
+      - "7001:7000"
+    depends_on:
+      - redis
+
+  replica:
+    image: "harness/ff-proxy:2.0.7-rc.1"
+    environment:
+      - LOG_LEVEL=INFO
+      - REDIS_ADDRESS=redis:6379
+      - READ_REPLICA=true
+      - AUTH_SECRET=foobar
+      - REDIS_DB=2
+    ports:
+      - "7002:7000"
+    depends_on:
+      - redis
+
+  nginx:
+    image: "nginx:latest"
+    ports:
+      - "8000:80"
+    volumes:
+      - ./config/default.conf:/etc/nginx/conf.d/default.conf:ro
+
+  redis:
+    image: "redis:latest"
+    ports:
+      - "6379:6379"
+
+  prometheus:
+    image: "prom/prometheus:v2.47.2"
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus.yaml:/etc/prometheus/prometheus.yml
+    logging:
+      driver: none
+
+  grafana:
+    image: "grafana/grafana:10.2.0"
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./grafana_data:/var/lib/grafana
+    logging:
+      driver: none
+
