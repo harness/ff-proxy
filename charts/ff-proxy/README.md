@@ -22,8 +22,7 @@ The minimum configuration needed is:
 - The address of a redis server
 
 ```
-helm upgrade -i ff-proxy --namespace ff-proxy --create-namespace \
-  feature-flag-relay-proxy/ff-proxy \
+helm upgrade -i ff-proxy --namespace ff-proxy --create-namespace .\
   --set proxyKey=xxxx-xxx-xxx-xxxx \
   --set authSecret=xxxx-xxx-xxx-xxxx \
   --set redis.address=redis:6379
