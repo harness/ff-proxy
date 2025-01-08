@@ -4,16 +4,6 @@ Helm chart to deploy a Harness Feature Flags v2r Relay Proxy
 
 ## Install
 
-Configure the helm repository:
-```
-helm repo add feature-flag-relay-proxy https://rssnyder.github.io/feature-flag-relay-proxy
-```
-
-Update the repository:
-```
-helm repo update feature-flag-relay-proxy
-```
-
 Install the v2 proxy:
 
 The minimum configuration needed is:
@@ -22,11 +12,10 @@ The minimum configuration needed is:
 - The address of a redis server
 
 ```
-helm upgrade -i ff-proxy --namespace ff-proxy --create-namespace \
-  feature-flag-relay-proxy/ff-proxy \
+helm upgrade -i ff-proxy --namespace ff-proxy --create-namespace .\
   --set proxyKey=xxxx-xxx-xxx-xxxx \
   --set authSecret=xxxx-xxx-xxx-xxxx \
-  --set redisAddress=redis:6379
+  --set redis.address=redis:6379
 ```
 
 After install/upgrade the helm notes will display information on how to retrieve the proxy URL for your configuration for use with the SDK.
