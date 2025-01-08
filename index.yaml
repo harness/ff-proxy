@@ -1,0 +1,14 @@
+apiVersion: v1
+entries:
+  ff-proxy:
+  - apiVersion: v2
+    appVersion: 2.0.7
+    created: "2025-01-08T16:29:15.420119Z"
+    description: A Helm chart for the Harness Feature Flag Relay Proxy (v2)
+    digest: dad8877accabdfde0e014c367ff97fd8e04777565056ed30a621a64c8b87de57
+    name: ff-proxy
+    type: application
+    urls:
+    - https://jcox250.github.io/ff-proxy/ff-proxy-0.1.16.tgz
+    version: 0.1.16
+generated: "2025-01-08T16:29:15.415212Z"
