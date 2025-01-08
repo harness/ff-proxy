@@ -26,7 +26,7 @@ helm upgrade -i ff-proxy --namespace ff-proxy --create-namespace \
   feature-flag-relay-proxy/ff-proxy \
   --set proxyKey=xxxx-xxx-xxx-xxxx \
   --set authSecret=xxxx-xxx-xxx-xxxx \
-  --set redisAddress=redis:6379
+  --set redis.address=redis:6379
 ```
 
 After install/upgrade the helm notes will display information on how to retrieve the proxy URL for your configuration for use with the SDK.
