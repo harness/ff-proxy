@@ -4,16 +4,6 @@ Helm chart to deploy a Harness Feature Flags v2r Relay Proxy
 
 ## Install
 
-Configure the helm repository:
-```
-helm repo add feature-flag-relay-proxy https://rssnyder.github.io/feature-flag-relay-proxy
-```
-
-Update the repository:
-```
-helm repo update feature-flag-relay-proxy
-```
-
 Install the v2 proxy:
 
 The minimum configuration needed is:
