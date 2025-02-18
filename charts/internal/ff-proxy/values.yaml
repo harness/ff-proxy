@@ -241,7 +241,7 @@ readReplica:
 
 #common configs which other services use.
 config:
-  ENV: SMP
+  ENV: qa
 
 secrets:
   default:

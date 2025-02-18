@@ -52,6 +52,9 @@ spec:
             - name: sdk
               containerPort: 7000
               protocol: TCP
+            - name: pushpin_prometheus
+              containerPort: 9000
+              protocol: TCP
           {{- include "harnesscommon.monitoring.containerPort" . | nindent 12 }}
           {{- toYaml .Values.primary.probes | nindent 10 }}
           resources:
