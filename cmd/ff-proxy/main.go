@@ -52,6 +52,7 @@ var (
 	clientService         string
 	metricService         string
 	authSecret            string
+	legacyAuthSecrets     legacySecrets
 	metricPostDuration    int
 	heartbeatInterval     int
 	generateOfflineConfig bool
@@ -88,6 +89,22 @@ var (
 	andRules bool
 )
 
+// legacySecrets implements the flag.Value interface and allows us to pass a comma separated
+// list of legacy secrets e.g. -legacy-secrets mysecret,mysecret2
+type legacySecrets []string
+
+func (l *legacySecrets) String() string {
+	return strings.Join(*l, ",")
+}
+
+func (l *legacySecrets) Set(value string) error {
+	ss := strings.Split(value, ",")
+	for _, s := range ss {
+		*l = append(*l, s)
+	}
+	return nil
+}
+
 // Environment Variables
 const (
 	// Service Config
@@ -95,6 +112,7 @@ const (
 	clientServiceEnv         = "CLIENT_SERVICE"
 	metricServiceEnv         = "METRIC_SERVICE"
 	authSecretEnv            = "AUTH_SECRET"
+	legacySecretsEnv         = "LEGACY_SECRETS"
 	metricPostDurationEnv    = "METRIC_POST_DURATION"
 	heartbeatIntervalEnv     = "HEARTBEAT_INTERVAL"
 	generateOfflineConfigEnv = "GENERATE_OFFLINE_CONFIG"
@@ -138,6 +156,7 @@ const (
 	clientServiceFlag         = "client-service"
 	metricServiceFlag         = "metric-service"
 	authSecretFlag            = "auth-secret"
+	legacySecretsFlag         = "legacy-secrets"
 	metricPostDurationFlag    = "metric-post-duration"
 	heartbeatIntervalFlag     = "heartbeat-interval"
 	generateOfflineConfigFlag = "generate-offline-config"
@@ -181,6 +200,7 @@ func init() {
 	flag.StringVar(&clientService, clientServiceFlag, "https://config.ff.harness.io/api/1.0", "the url of the ff client service")
 	flag.StringVar(&metricService, metricServiceFlag, "https://events.ff.harness.io/api/1.0", "the url of the ff metric service")
 	flag.StringVar(&authSecret, authSecretFlag, "secret", "the secret used for signing auth tokens")
+	flag.Var(&legacyAuthSecrets, legacySecretsFlag, "legacy secrets used to decode auth tokens. If rotating a secret you can place the old auth-secret in here so old tokens will still remain valid while new tokens are issued using the new auth secret")
 	flag.IntVar(&metricPostDuration, metricPostDurationFlag, 60, "How often in seconds the proxy posts metrics to Harness. Set to 0 to disable.")
 	flag.IntVar(&heartbeatInterval, heartbeatIntervalFlag, 60, "How often in seconds the proxy polls pings it's health function. Set to 0 to disable.")
 	flag.BoolVar(&generateOfflineConfig, generateOfflineConfigFlag, false, "if true the proxy will produce offline config in the /config directory then terminate")
@@ -223,6 +243,7 @@ func init() {
 		clientServiceEnv:                clientServiceFlag,
 		metricServiceEnv:                metricServiceFlag,
 		authSecretEnv:                   authSecretFlag,
+		legacySecretsEnv:                legacySecretsFlag,
 		redisAddrEnv:                    redisAddressFlag,
 		redisPasswordEnv:                redisPasswordFlag,
 		redisUsernameEnv:                redisUsernameFlag,
@@ -561,6 +582,10 @@ func main() {
 	})
 
 	// Configure endpoints and server
+	var legacySecretsBytes [][]byte
+	for _, s := range legacyAuthSecrets {
+		legacySecretsBytes = append(legacySecretsBytes, []byte(s))
+	}
 	endpoints := transport.NewEndpoints(service)
 	server := transport.NewHTTPServer(port, endpoints, logger, tlsEnabled, tlsCert, tlsKey)
 	server.Use(
@@ -569,7 +594,7 @@ func main() {
 		middleware.NewCorsMiddleware(),
 		middleware.NewEchoRequestIDMiddleware(),
 		middleware.NewEchoLoggingMiddleware(logger),
-		middleware.NewEchoAuthMiddleware(logger, authRepo, []byte(authSecret), bypassAuth),
+		middleware.NewEchoAuthMiddleware(logger, authRepo, []byte(authSecret), legacySecretsBytes, bypassAuth),
 		middleware.ValidateEnvironment(bypassAuth),
 	)
 

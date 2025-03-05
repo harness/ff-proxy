@@ -1,15 +1,19 @@
 package middleware
 
 import (
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
 	"strings"
 	"testing"
 
+	"github.com/golang-jwt/jwt"
+
 	"github.com/harness/ff-proxy/v2/domain"
 	"github.com/labstack/echo/v4"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestAllowQuerySemicolons(t *testing.T) {
@@ -213,6 +217,114 @@ func TestSkipper(t *testing.T) {
 
 			result := skipValidateEnv(c, false)
 			assert.Equal(t, tt.expected, result)
+		})
+	}
+}
+
+type mockKeyLookup struct {
+	shouldExist bool
+}
+
+func (m *mockKeyLookup) Get(_ context.Context, _ domain.AuthAPIKey) (string, bool, error) {
+	return "", m.shouldExist, nil
+}
+
+func TestNewEchoAuthMiddleware(t *testing.T) {
+	// Create test secrets
+	currentSecret := []byte("current-secret")
+	legacySecret := []byte("legacy-secret")
+	legacySecrets := [][]byte{legacySecret}
+
+	// Create test claims
+	validClaims := &domain.Claims{
+		APIKey: "test-key",
+	}
+
+	// Generate test tokens
+	validToken, err := jwt.NewWithClaims(jwt.SigningMethodHS256, validClaims).SignedString(currentSecret)
+	require.NoError(t, err)
+	legacyToken, err := jwt.NewWithClaims(jwt.SigningMethodHS256, validClaims).SignedString(legacySecret)
+	require.NoError(t, err)
+	invalidToken := "invalid-token"
+
+	tests := []struct {
+		name       string
+		token      string
+		keyExists  bool
+		bypassAuth bool
+		wantStatus int
+	}{
+		{
+			name:       "Valid token with current secret",
+			token:      validToken,
+			keyExists:  true,
+			wantStatus: http.StatusOK,
+		},
+		{
+			name:       "Valid token with legacy secret",
+			token:      legacyToken,
+			keyExists:  true,
+			wantStatus: http.StatusOK,
+		},
+		{
+			name:       "Invalid token",
+			token:      invalidToken,
+			keyExists:  true,
+			wantStatus: http.StatusUnauthorized,
+		},
+		{
+			name:       "Empty token",
+			token:      "",
+			keyExists:  true,
+			wantStatus: http.StatusUnauthorized,
+		},
+		{
+			name:       "Valid token but key not in cache",
+			token:      validToken,
+			keyExists:  false,
+			wantStatus: http.StatusUnauthorized,
+		},
+		{
+			name:       "Bypass auth enabled",
+			token:      "",
+			bypassAuth: true,
+			wantStatus: http.StatusOK,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Setup
+			e := echo.New()
+			req := httptest.NewRequest(http.MethodGet, "/", nil)
+			if tt.token != "" {
+				req.Header.Set("Authorization", "Bearer "+tt.token)
+			}
+			rec := httptest.NewRecorder()
+			c := e.NewContext(req, rec)
+
+			// Create mock auth repo with desired behavior
+			mockRepo := &mockKeyLookup{shouldExist: tt.keyExists}
+
+			// Create middleware
+			middleware := NewEchoAuthMiddleware(nil, mockRepo, currentSecret, legacySecrets, tt.bypassAuth)
+
+			// Create test handler
+			handler := middleware(func(c echo.Context) error {
+				return c.NoContent(http.StatusOK)
+			})
+
+			// Execute
+			_ = handler(c)
+
+			// Assert response status code
+			assert.Equal(t, tt.wantStatus, rec.Code)
+
+			// For successful non-bypassed auth, verify claims are set
+			if tt.wantStatus == http.StatusOK && !tt.bypassAuth {
+				claims := c.Get(tokenClaims.String()).(*domain.Claims)
+				assert.Equal(t, validClaims.APIKey, claims.APIKey)
+			}
 		})
 	}
 }

@@ -52,22 +52,36 @@ func NewEchoLoggingMiddleware(l log.Logger) echo.MiddlewareFunc {
 	})
 }
 
+// validateToken attempts to validate a JWT token with the given secret
+func validateToken(tokenStr string, secret []byte) (*jwt.Token, error) {
+	return jwt.ParseWithClaims(tokenStr, &domain.Claims{}, func(t *jwt.Token) (interface{}, error) {
+		return secret, nil
+	})
+}
+
 // NewEchoAuthMiddleware returns an echo middleware that checks if auth headers
 // are valid
-func NewEchoAuthMiddleware(logger log.Logger, authRepo keyLookUp, secret []byte, bypassAuth bool) echo.MiddlewareFunc {
+func NewEchoAuthMiddleware(logger log.Logger, authRepo keyLookUp, secret []byte, legacySecrets [][]byte, bypassAuth bool) echo.MiddlewareFunc {
 	return middleware.JWTWithConfig(middleware.JWTConfig{
 		AuthScheme:  "Bearer",
 		TokenLookup: "header:Authorization",
 		ParseTokenFunc: func(auth string, c echo.Context) (interface{}, error) {
 			if auth == "" {
-				return nil, errors.New("token was empty")
+				return nil, errors.New("authorization token is required")
 			}
 
-			token, err := jwt.ParseWithClaims(auth, &domain.Claims{}, func(t *jwt.Token) (interface{}, error) {
-				return secret, nil
-			})
+			// First try with current secret
+			token, err := validateToken(auth, secret)
 			if err != nil {
-				return nil, err
+				// If current secret fails, try legacy secrets
+				for _, legacySecret := range legacySecrets {
+					if token, err = validateToken(auth, legacySecret); err == nil {
+						break
+					}
+				}
+				if err != nil {
+					return nil, fmt.Errorf("failed to validate token: %w", err)
+				}
 			}
 
 			if claims, ok := token.Claims.(*domain.Claims); ok && token.Valid && isKeyInCache(c.Request().Context(), logger, authRepo, claims) {
