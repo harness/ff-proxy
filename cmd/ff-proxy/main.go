@@ -582,7 +582,7 @@ func main() {
 	})
 
 	// Configure endpoints and server
-	var legacySecretsBytes [][]byte
+	legacySecretsBytes := make([][]byte, 0)
 	for _, s := range legacyAuthSecrets {
 		legacySecretsBytes = append(legacySecretsBytes, []byte(s))
 	}
@@ -594,7 +594,7 @@ func main() {
 		middleware.NewCorsMiddleware(),
 		middleware.NewEchoRequestIDMiddleware(),
 		middleware.NewEchoLoggingMiddleware(logger),
-		middleware.NewEchoAuthMiddleware(logger, authRepo, []byte(authSecret), legacySecretsBytes, bypassAuth),
+		middleware.NewEchoAuthMiddleware(logger, authRepo, []byte(authSecret), legacySecretsBytes, bypassAuth, promReg),
 		middleware.ValidateEnvironment(bypassAuth),
 	)
 

@@ -8,6 +8,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/prometheus/client_golang/prometheus"
+
 	"github.com/golang-jwt/jwt"
 
 	"github.com/harness/ff-proxy/v2/domain"
@@ -307,7 +309,7 @@ func TestNewEchoAuthMiddleware(t *testing.T) {
 			mockRepo := &mockKeyLookup{shouldExist: tt.keyExists}
 
 			// Create middleware
-			middleware := NewEchoAuthMiddleware(nil, mockRepo, currentSecret, legacySecrets, tt.bypassAuth)
+			middleware := NewEchoAuthMiddleware(nil, mockRepo, currentSecret, legacySecrets, tt.bypassAuth, prometheus.NewRegistry())
 
 			// Create test handler
 			handler := middleware(func(c echo.Context) error {
