@@ -161,7 +161,7 @@ $(GOBIN)/golangci-lint:
 # Install goimports to format code
 $(GOBIN)/goimports:
 	@echo "🔘 Installing goimports ... (`date '+%H:%M:%S'`)"
-	@go install golang.org/x/tools/cmd/goimports@latest
+	@go install golang.org/x/tools/cmd/goimports@v0.30.0
 
 # Install gocov to parse code coverage
 $(GOBIN)/gocov:

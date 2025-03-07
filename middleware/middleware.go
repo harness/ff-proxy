@@ -11,12 +11,11 @@ import (
 
 	"github.com/golang-jwt/jwt"
 	"github.com/google/uuid"
+	"github.com/harness/ff-proxy/v2/domain"
+	"github.com/harness/ff-proxy/v2/log"
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
 	"github.com/prometheus/client_golang/prometheus"
-
-	"github.com/harness/ff-proxy/v2/domain"
-	"github.com/harness/ff-proxy/v2/log"
 )
 
 type requestContextKey string
@@ -52,29 +51,51 @@ func NewEchoLoggingMiddleware(l log.Logger) echo.MiddlewareFunc {
 	})
 }
 
+// validateToken attempts to validate a JWT token with the given secret
+func validateToken(tokenStr string, secret []byte) (*jwt.Token, error) {
+	return jwt.ParseWithClaims(tokenStr, &domain.Claims{}, func(t *jwt.Token) (interface{}, error) {
+		return secret, nil
+	})
+}
+
 // NewEchoAuthMiddleware returns an echo middleware that checks if auth headers
 // are valid
-func NewEchoAuthMiddleware(logger log.Logger, authRepo keyLookUp, secret []byte, bypassAuth bool) echo.MiddlewareFunc {
+// nolint:cyclop
+func NewEchoAuthMiddleware(logger log.Logger, authRepo keyLookUp, secret []byte, legacySecrets [][]byte, bypassAuth bool, reg *prometheus.Registry) echo.MiddlewareFunc {
+	metrics := newPrometheusAuth(reg)
+
 	return middleware.JWTWithConfig(middleware.JWTConfig{
 		AuthScheme:  "Bearer",
 		TokenLookup: "header:Authorization",
 		ParseTokenFunc: func(auth string, c echo.Context) (interface{}, error) {
 			if auth == "" {
-				return nil, errors.New("token was empty")
+				return nil, errors.New("authorization token is required")
 			}
 
-			token, err := jwt.ParseWithClaims(auth, &domain.Claims{}, func(t *jwt.Token) (interface{}, error) {
-				return secret, nil
-			})
-			if err != nil {
-				return nil, err
+			// First try with current secret
+			token, err := validateToken(auth, secret)
+			if err == nil {
+				metrics.currentSecretTokens.Inc()
+				if claims, ok := token.Claims.(*domain.Claims); ok && token.Valid && isKeyInCache(c.Request().Context(), logger, authRepo, claims) {
+					c.Set(tokenClaims.String(), claims)
+					return nil, nil
+				}
+				return nil, errors.New("invalid token")
 			}
 
-			if claims, ok := token.Claims.(*domain.Claims); ok && token.Valid && isKeyInCache(c.Request().Context(), logger, authRepo, claims) {
-				c.Set(tokenClaims.String(), claims)
-				return nil, nil
+			// If current secret fails, try legacy secrets
+			for _, legacySecret := range legacySecrets {
+				if token, err = validateToken(auth, legacySecret); err == nil {
+					metrics.legacySecretTokens.Inc()
+					if claims, ok := token.Claims.(*domain.Claims); ok && token.Valid && isKeyInCache(c.Request().Context(), logger, authRepo, claims) {
+						c.Set(tokenClaims.String(), claims)
+						return nil, nil
+					}
+					return nil, errors.New("invalid token")
+				}
 			}
-			return nil, errors.New("invalid token")
+
+			return nil, err
 		},
 		Skipper: func(c echo.Context) bool {
 			if bypassAuth {

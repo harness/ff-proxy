@@ -308,7 +308,7 @@ func setupHTTPServer(t *testing.T, bypassAuth bool, opts ...setupOpts) *HTTPServ
 		middleware.AllowQuerySemicolons(),
 		middleware.NewEchoRequestIDMiddleware(),
 		middleware.NewEchoLoggingMiddleware(logger),
-		middleware.NewEchoAuthMiddleware(logger, repo, []byte(`secret`), bypassAuth),
+		middleware.NewEchoAuthMiddleware(logger, repo, []byte(`secret`), [][]byte{}, bypassAuth, prometheus.NewRegistry()),
 		middleware.ValidateEnvironment(bypassAuth),
 	)
 	return server
