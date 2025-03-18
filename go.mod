@@ -1,6 +1,6 @@
 module github.com/harness/ff-proxy/v2
 
-go 1.23.0
+go 1.23.5
 
 toolchain go1.23.5
 
