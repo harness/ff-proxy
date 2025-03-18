@@ -56,7 +56,7 @@ run:
   # Define the Go version limit.
   # Mainly related to generics support since go1.18.
   # Default: use Go version from the go.mod file, fallback on the env var `GOVERSION`, fallback on 1.18
-  go: '1.19'
+  go: '1.23.5'
 linters:
   enable:
     - bodyclose
@@ -68,7 +68,6 @@ linters:
     - errchkjson
     - errname
     - exhaustive
-    - exportloopref
     - gochecknoinits
     - gocognit
     - goconst
@@ -86,14 +85,16 @@ linters:
     - nosprintfhostport
     - prealloc
     - predeclared
-    - revive
     - reassign
     - tagalign
     - unconvert
     - unparam
     - wastedassign
+    - typecheck
   disable:
+    - revive
     - depguard
+    - mnd
     - dupl
     - forcetypeassert
     - funlen
@@ -101,7 +102,6 @@ linters:
     - godot
     - godox
     - gofumpt
-    - gomnd
     - lll
     - misspell
     - nolintlint
@@ -110,7 +110,6 @@ linters:
     - tagliatelle
     - whitespace
     - wsl
-    - typecheck
 
   # Enable presets.
   # https://golangci-lint.run/usage/linters
