@@ -249,6 +249,8 @@ secrets:
     AUTH_SECRET: ""
     # The ProxyKey you want to configure your Proxy to use
     PROXY_KEY: ""
+    # Any legacy secrets you want the Proxy to allow. Only needed for when you're rotating the AUTH_SECRET
+    LEGACY_SECRETS: ""
   kubernetesSecrets:
     - secretName: ""
       keys:
