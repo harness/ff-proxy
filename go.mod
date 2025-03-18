@@ -2,8 +2,6 @@ module github.com/harness/ff-proxy/v2
 
 go 1.23.5
 
-toolchain go1.23.5
-
 require (
 	cloud.google.com/go/profiler v0.3.1
 	github.com/alicebob/miniredis/v2 v2.30.4
