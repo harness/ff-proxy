@@ -89,7 +89,6 @@ linters:
     - revive
     - reassign
     - tagalign
-    - typecheck
     - unconvert
     - unparam
     - wastedassign
@@ -111,6 +110,7 @@ linters:
     - tagliatelle
     - whitespace
     - wsl
+    - typecheck
 
   # Enable presets.
   # https://golangci-lint.run/usage/linters
