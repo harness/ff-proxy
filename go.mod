@@ -12,7 +12,7 @@ require (
 	github.com/go-kit/kit v0.12.0
 	github.com/go-redis/cache/v8 v8.4.4
 	github.com/golang-jwt/jwt v3.2.2+incompatible
-	github.com/golang-jwt/jwt/v4 v4.5.1
+	github.com/golang-jwt/jwt/v4 v4.5.2
 	github.com/google/uuid v1.5.0
 	github.com/harness-community/sse/v3 v3.1.0
 	github.com/harness/ff-golang-server-sdk v0.1.24
