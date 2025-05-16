@@ -645,7 +645,7 @@ func main() {
 
 func pushpinHealthy(ctx context.Context, logger log.Logger, pushpin stream.Pushpin) bool {
 	const (
-		maxAttempts   = 5
+		maxAttempts   = 10
 		sleepInterval = 5 * time.Second
 	)
 
