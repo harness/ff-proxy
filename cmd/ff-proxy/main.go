@@ -418,6 +418,12 @@ func main() {
 		controlEventsTopic = "proxy:primary_to_replica_control_events"
 	)
 
+	// Wait for pushpin to be available before continuing FFM-12445
+	if !pushpinHealthy(ctx, logger, pushpin) {
+		logger.Error("failed to connect to pushpin, pushpin streaming was not available")
+		os.Exit(1)
+	}
+
 	// Configure prometheus labels depending on if we're running as a replica or primary
 	if readReplica {
 		redisStream = stream.NewPrometheusStream("ff_proxy_replica_sse_consumer", redisStream, promReg)
@@ -635,6 +641,40 @@ func main() {
 	if err := server.Serve(); err != nil {
 		logger.Error("server stopped", "err", err)
 	}
+}
+
+func pushpinHealthy(ctx context.Context, logger log.Logger, pushpin stream.Pushpin) bool {
+	const (
+		maxAttempts   = 10
+		sleepInterval = 5 * time.Second
+	)
+
+	for attempt := 1; attempt <= maxAttempts; attempt++ {
+		logger.Info("checking pushpin health", "attempt", attempt, "maxAttempts", maxAttempts)
+
+		if pushpin.Healthy(ctx) {
+			logger.Info("pushpin is healthy")
+			return true
+		}
+
+		if attempt < maxAttempts {
+			timer := time.NewTimer(sleepInterval)
+			logger.Info("pushpin not healthy, retrying after delay", "delay", sleepInterval)
+
+			select {
+			case <-timer.C:
+				// continue to the next health check attempt
+				continue
+			case <-ctx.Done():
+				logger.Error("pushpin health check aborted due to context cancellation", "error", ctx.Err())
+				timer.Stop() // Stop the timer to avoid leaks if it hasn't elapsed
+				return false
+			}
+		}
+	}
+
+	logger.Error("pushpin failed health check after maximum attempts")
+	return false
 }
 
 // checks the health of the connected cache instance

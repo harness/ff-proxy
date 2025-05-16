@@ -62,3 +62,12 @@ func (p Pushpin) Close(channel string) error {
 func (p Pushpin) Sub(_ context.Context, _ string, _ string, _ domain.HandleMessageFn) error {
 	return errors.New("Pushpin.Sub not implemented")
 }
+
+// Healthy checks that we are able to publish events to pushpin.
+func (p Pushpin) Healthy(ctx context.Context) bool {
+	if err := p.Pub(ctx, "healthz", "healthy"); err != nil {
+		return false
+	}
+
+	return true
+}
