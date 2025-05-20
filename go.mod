@@ -21,11 +21,10 @@ require (
 	github.com/json-iterator/go v1.1.12
 	github.com/labstack/echo/v4 v4.11.4
 	github.com/patrickmn/go-cache v2.1.0+incompatible
-	github.com/pebbe/zmq4 v1.4.0
 	github.com/prometheus/client_golang v1.11.1
 	github.com/redis/go-redis/v9 v9.5.5
 	github.com/sirupsen/logrus v1.8.1
-	github.com/stretchr/testify v1.8.4
+	github.com/stretchr/testify v1.9.0
 	go.uber.org/zap v1.19.1
 	golang.org/x/exp v0.0.0-20231006140011-7918f672742d
 	golang.org/x/sync v0.12.0
@@ -46,9 +45,9 @@ require (
 	github.com/deepmap/oapi-codegen/v2 v2.1.0 // indirect
 	github.com/dgryski/go-rendezvous v0.0.0-20200823014737-9f7001d12a5f // indirect
 	github.com/fsnotify/fsnotify v1.5.1 // indirect
-	github.com/getkin/kin-openapi v0.124.0 // indirect
-	github.com/go-openapi/jsonpointer v0.20.2 // indirect
-	github.com/go-openapi/swag v0.22.8 // indirect
+	github.com/getkin/kin-openapi v0.131.0 // indirect
+	github.com/go-openapi/jsonpointer v0.21.0 // indirect
+	github.com/go-openapi/swag v0.23.0 // indirect
 	github.com/go-redis/redis/v8 v8.11.4 // indirect
 	github.com/golang/groupcache v0.0.0-20210331224755-41bb18bfe9da // indirect
 	github.com/golang/protobuf v1.5.3 // indirect
@@ -60,7 +59,6 @@ require (
 	github.com/hashicorp/go-cleanhttp v0.5.2 // indirect
 	github.com/hashicorp/go-retryablehttp v0.7.7 // indirect
 	github.com/hashicorp/golang-lru v0.5.4 // indirect
-	github.com/invopop/yaml v0.2.0 // indirect
 	github.com/josharian/intern v1.0.0 // indirect
 	github.com/klauspost/compress v1.16.7 // indirect
 	github.com/labstack/gommon v0.4.2 // indirect
@@ -74,6 +72,8 @@ require (
 	github.com/modern-go/reflect2 v1.0.2 // indirect
 	github.com/mohae/deepcopy v0.0.0-20170929034955-c48cc78d4826 // indirect
 	github.com/oapi-codegen/runtime v1.1.1 // indirect
+	github.com/oasdiff/yaml v0.0.0-20250309154309-f31be36b4037 // indirect
+	github.com/oasdiff/yaml3 v0.0.0-20250309153720-d2182401db90 // indirect
 	github.com/perimeterx/marshmallow v1.1.5 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/prometheus/client_model v0.2.0 // indirect
