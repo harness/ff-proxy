@@ -7,13 +7,13 @@ require (
 	github.com/alicebob/miniredis/v2 v2.30.4
 	github.com/avast/retry-go v3.0.0+incompatible
 	github.com/deepmap/oapi-codegen v1.11.0
-	github.com/fanout/go-gripcontrol v0.0.0-20221004121322-47dacded330e
-	github.com/fanout/go-pubcontrol v0.0.0-20221004123744-4d052349ceb5
 	github.com/go-kit/kit v0.12.0
 	github.com/go-redis/cache/v8 v8.4.4
 	github.com/golang-jwt/jwt v3.2.2+incompatible
 	github.com/golang-jwt/jwt/v4 v4.5.2
 	github.com/google/uuid v1.5.0
+	github.com/harness-community/go-gripcontrol v1.2.1
+	github.com/harness-community/go-pubcontrol v1.2.1
 	github.com/harness-community/sse/v3 v3.1.0
 	github.com/harness/ff-golang-server-sdk v0.1.24
 	github.com/hashicorp/go-multierror v1.1.1
