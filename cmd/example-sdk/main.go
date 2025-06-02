@@ -10,7 +10,6 @@ import (
 	"time"
 
 	harness "github.com/harness/ff-golang-server-sdk/client"
-	"github.com/harness/ff-golang-server-sdk/logger"
 
 	"github.com/harness/ff-golang-server-sdk/dto"
 )
@@ -35,11 +34,6 @@ func init() {
 }
 
 func main() {
-	logger, err := logger.NewZapLogger(true)
-	if err != nil {
-		log.Fatal(err)
-	}
-
 	target := dto.NewTargetBuilder(targetIdentifier).
 		Name(targetIdentifier).
 		Build()
