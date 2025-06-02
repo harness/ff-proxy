@@ -9,13 +9,12 @@ require (
 	github.com/deepmap/oapi-codegen v1.11.0
 	github.com/go-kit/kit v0.12.0
 	github.com/go-redis/cache/v8 v8.4.4
-	github.com/golang-jwt/jwt v3.2.2+incompatible
 	github.com/golang-jwt/jwt/v4 v4.5.2
 	github.com/google/uuid v1.5.0
 	github.com/harness-community/go-gripcontrol v1.2.1
 	github.com/harness-community/go-pubcontrol v1.2.1
 	github.com/harness-community/sse/v3 v3.1.0
-	github.com/harness/ff-golang-server-sdk v0.1.24
+	github.com/harness/ff-golang-server-sdk v0.1.26
 	github.com/hashicorp/go-multierror v1.1.1
 	github.com/joho/godotenv v1.4.0
 	github.com/json-iterator/go v1.1.12
@@ -39,7 +38,7 @@ require (
 	github.com/alicebob/gopher-json v0.0.0-20200520072559-a9ecdc9d1d3a // indirect
 	github.com/apapsch/go-jsonmerge/v2 v2.0.0 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
-	github.com/cenkalti/backoff/v4 v4.2.1 // indirect
+	github.com/cenkalti/backoff/v4 v4.3.0 // indirect
 	github.com/cespare/xxhash/v2 v2.2.0 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/deepmap/oapi-codegen/v2 v2.1.0 // indirect
@@ -49,6 +48,7 @@ require (
 	github.com/go-openapi/jsonpointer v0.21.0 // indirect
 	github.com/go-openapi/swag v0.23.0 // indirect
 	github.com/go-redis/redis/v8 v8.11.4 // indirect
+	github.com/golang-jwt/jwt v3.2.2+incompatible // indirect
 	github.com/golang/groupcache v0.0.0-20210331224755-41bb18bfe9da // indirect
 	github.com/golang/protobuf v1.5.3 // indirect
 	github.com/google/pprof v0.0.0-20221103000818-d260c55eee4c // indirect
