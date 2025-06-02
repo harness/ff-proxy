@@ -13,7 +13,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/harness/ff-proxy/v2/domain"
 	"github.com/harness/ff-proxy/v2/log"
-	"github.com/labstack/echo-jwt/v4"
+	echojwt "github.com/labstack/echo-jwt/v4"
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
 	"github.com/prometheus/client_golang/prometheus"
@@ -66,7 +66,7 @@ func NewEchoAuthMiddleware(logger log.Logger, authRepo keyLookUp, secret []byte,
 	metrics := newPrometheusAuth(reg)
 
 	return echojwt.WithConfig(echojwt.Config{
-		TokenLookup: "header:Authorization",
+		TokenLookup: "header:Authorization:Bearer ",
 		ParseTokenFunc: func(c echo.Context, auth string) (interface{}, error) {
 			if auth == "" {
 				return nil, errors.New("authorization token is required")
