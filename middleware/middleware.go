@@ -13,6 +13,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/harness/ff-proxy/v2/domain"
 	"github.com/harness/ff-proxy/v2/log"
+	"github.com/labstack/echo-jwt/v4"
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
 	"github.com/prometheus/client_golang/prometheus"
@@ -64,10 +65,9 @@ func validateToken(tokenStr string, secret []byte) (*jwt.Token, error) {
 func NewEchoAuthMiddleware(logger log.Logger, authRepo keyLookUp, secret []byte, legacySecrets [][]byte, bypassAuth bool, reg *prometheus.Registry) echo.MiddlewareFunc {
 	metrics := newPrometheusAuth(reg)
 
-	return middleware.JWTWithConfig(middleware.JWTConfig{
-		AuthScheme:  "Bearer",
+	return echojwt.WithConfig(echojwt.Config{
 		TokenLookup: "header:Authorization",
-		ParseTokenFunc: func(auth string, c echo.Context) (interface{}, error) {
+		ParseTokenFunc: func(c echo.Context, auth string) (interface{}, error) {
 			if auth == "" {
 				return nil, errors.New("authorization token is required")
 			}
@@ -107,7 +107,7 @@ func NewEchoAuthMiddleware(logger log.Logger, authRepo keyLookUp, secret []byte,
 
 			return urlPath == "/client/auth" || urlPath == "/health" || prometheusRequest
 		},
-		ErrorHandlerWithContext: func(err error, c echo.Context) error {
+		ErrorHandler: func(c echo.Context, err error) error {
 			return c.JSON(http.StatusUnauthorized, err)
 		},
 	})
