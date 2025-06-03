@@ -19,7 +19,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/collectors"
 
-	"github.com/fanout/go-gripcontrol"
+	"github.com/harness-community/go-gripcontrol"
 	"github.com/hashicorp/go-retryablehttp"
 
 	"cloud.google.com/go/profiler"

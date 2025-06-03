@@ -18,8 +18,8 @@ import (
 	admingen "github.com/harness/ff-proxy/gen/admin"
 
 	"github.com/alicebob/miniredis/v2"
-	"github.com/fanout/go-gripcontrol"
 	"github.com/go-redis/redis/v8"
+	"github.com/harness-community/go-gripcontrol"
 	"github.com/harness-community/sse/v3"
 	sdkstream "github.com/harness/ff-golang-server-sdk/stream"
 	"github.com/harness/ff-proxy/cache"
@@ -1373,7 +1373,7 @@ func TestHTTPServer_Stream(t *testing.T) {
 			url:                fmt.Sprintf("%s/stream", testServer.URL),
 			expectedStatusCode: http.StatusServiceUnavailable,
 			expectedResponseHeaders: http.Header{
-				"Content-Type": []string{"application/json; charset=UTF-8"},
+				"Content-Type": []string{"application/json"},
 			},
 		},
 	}

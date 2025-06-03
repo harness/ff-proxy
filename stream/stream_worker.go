@@ -5,8 +5,8 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/fanout/go-gripcontrol"
-	"github.com/fanout/go-pubcontrol"
+	"github.com/harness-community/go-gripcontrol"
+	"github.com/harness-community/go-pubcontrol"
 	"github.com/harness/ff-golang-server-sdk/stream"
 	"github.com/harness/ff-proxy/token"
 	"github.com/prometheus/client_golang/prometheus"
