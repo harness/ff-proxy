@@ -7,12 +7,12 @@ require (
 	github.com/alicebob/miniredis/v2 v2.30.4
 	github.com/avast/retry-go v3.0.0+incompatible
 	github.com/deepmap/oapi-codegen v1.11.0
-	github.com/fanout/go-gripcontrol v1.2.0
 	github.com/go-kit/kit v0.12.0
 	github.com/go-redis/cache/v8 v8.4.4
 	github.com/go-redis/redis/v8 v8.11.4
 	github.com/golang-jwt/jwt/v4 v4.5.2
 	github.com/google/uuid v1.5.0
+	github.com/harness-community/go-gripcontrol v1.2.1
 	github.com/harness-community/go-pubcontrol v1.2.1
 	github.com/harness-community/sse/v3 v3.1.0
 	github.com/harness/ff-golang-server-sdk v0.1.26
@@ -40,7 +40,6 @@ require (
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/deepmap/oapi-codegen/v2 v2.1.0 // indirect
 	github.com/dgryski/go-rendezvous v0.0.0-20200823014737-9f7001d12a5f // indirect
-	github.com/fanout/go-pubcontrol v1.2.0 // indirect
 	github.com/getkin/kin-openapi v0.124.0 // indirect
 	github.com/go-openapi/jsonpointer v0.20.2 // indirect
 	github.com/go-openapi/swag v0.22.8 // indirect

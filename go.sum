@@ -94,10 +94,6 @@ github.com/envoyproxy/go-control-plane v0.9.0/go.mod h1:YTl/9mNaCwkRvm6d1a2C3ymF
 github.com/envoyproxy/go-control-plane v0.9.1-0.20191026205805-5f8ba28d4473/go.mod h1:YTl/9mNaCwkRvm6d1a2C3ymFceY/DCBVvsKhRF0iEA4=
 github.com/envoyproxy/go-control-plane v0.9.4/go.mod h1:6rpuAdCZL397s3pYoYcLgu1mIlRU8Am5FuJP05cCM98=
 github.com/envoyproxy/protoc-gen-validate v0.1.0/go.mod h1:iSmxcyjqTsJpI2R4NaDN7+kN2VEUnK/pcBlmesArF7c=
-github.com/fanout/go-gripcontrol v1.2.0 h1:O333qhg14iDLTK7+E4zVdXqIxZrGndES95z5EKPbSbE=
-github.com/fanout/go-gripcontrol v1.2.0/go.mod h1:rkGBpJpUXKkgUt/wgekSK5bf2tIzubJe6BYiwMjCapI=
-github.com/fanout/go-pubcontrol v1.2.0 h1:pTQABRarHaPuUblkRtECY0jdJ/bkftHB3QN4aCLxdzM=
-github.com/fanout/go-pubcontrol v1.2.0/go.mod h1:2Jp/BECC0fiLcv6CgWCc0oFiejMwlIApjeb1quBJ00c=
 github.com/fatih/color v1.16.0 h1:zmkK9Ngbjj+K0yRhTVONQh1p/HknKYSlNT+vZCzyokM=
 github.com/fatih/color v1.16.0/go.mod h1:fL2Sau1YI5c0pdGEVCbKQbLXB6edEj1ZgiY4NijnWvE=
 github.com/fsnotify/fsnotify v1.4.7/go.mod h1:jwhsz4b93w/PPRr/qN1Yymfu8t87LnFCMoQvtojpjFo=
@@ -225,6 +221,8 @@ github.com/googleapis/gax-go/v2 v2.0.5/go.mod h1:DWXyrwAJ9X0FpwwEdw+IPEYBICEFu5m
 github.com/googleapis/gax-go/v2 v2.12.0 h1:A+gCJKdRfqXkr+BIRGtZLibNXf0m1f9E4HG56etFpas=
 github.com/googleapis/gax-go/v2 v2.12.0/go.mod h1:y+aIqrI5eb1YGMVJfuV3185Ts/D7qKpsEkdD5+I6QGU=
 github.com/gorilla/mux v1.8.0/go.mod h1:DVbg23sWSpFRCP0SfiEN6jmj59UnW/n46BH5rLB71So=
+github.com/harness-community/go-gripcontrol v1.2.1 h1:79CGkueTzajPk2d8Wm7rA58e2wTq7OKqJWPDeFOYFUA=
+github.com/harness-community/go-gripcontrol v1.2.1/go.mod h1:gB3aC+ztGY80EXeOg/s+yJREpyBf/BZKKu458sUtS6M=
 github.com/harness-community/go-pubcontrol v1.2.1 h1:6BNaiFlPtnwiImXXQcBxg1jp/CNf73bvkYpE/3qI1rs=
 github.com/harness-community/go-pubcontrol v1.2.1/go.mod h1:9Mi8NuTmSaShhRquC4j+IwrdmQXLEEqkC9/Nf6Xewwg=
 github.com/harness-community/sse/v3 v3.1.0 h1:uaLxXzC9DjpWEV/qTYU3uJV3eLMTRhMY2P6qb/3QAeY=
