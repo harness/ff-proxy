@@ -5,12 +5,12 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/fanout/go-gripcontrol"
+	"github.com/harness-community/go-gripcontrol"
 	jsoniter "github.com/json-iterator/go"
 
 	"github.com/harness/ff-proxy/v2/domain"
 
-	"github.com/fanout/go-pubcontrol"
+	"github.com/harness-community/go-pubcontrol"
 )
 
 // GripStream is the interface for publishing events to a grip channel

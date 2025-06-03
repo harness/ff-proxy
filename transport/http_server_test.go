@@ -1472,7 +1472,7 @@ func TestHTTPServer_Stream(t *testing.T) {
 			healthySaasStream:  unhealthySaasStream,
 			expectedStatusCode: http.StatusServiceUnavailable,
 			expectedResponseHeaders: http.Header{
-				"Content-Type": []string{"application/json; charset=UTF-8"},
+				"Content-Type": []string{"application/json"},
 			},
 		},
 	}

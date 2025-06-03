@@ -20,7 +20,7 @@ import (
 	"github.com/harness/ff-proxy/v2/domain"
 	"github.com/redis/go-redis/v9"
 
-	"github.com/fanout/go-gripcontrol"
+	"github.com/harness-community/go-gripcontrol"
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/collectors"

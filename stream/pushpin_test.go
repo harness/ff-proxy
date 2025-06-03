@@ -7,7 +7,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/fanout/go-pubcontrol"
+	"github.com/harness-community/go-pubcontrol"
 )
 
 type mockGripStream struct {
