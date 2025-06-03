@@ -27,8 +27,8 @@ var (
 		Environment: strPtr("env"),
 		Excluded:    &[]rest.Target{{Identifier: "exlc1"}, {Identifier: "exlc2"}},
 		Included:    &[]rest.Target{{Identifier: "incl1"}, {Identifier: "incl2"}},
-		Rules:       &[]rest.Clause{{Attribute: "attr", Id: "id", Negate: false, Op: "contains", Values: []string{"val1", "val2"}}},
-		Tags:        &[]rest.Tag{{Name: "tagName", Value: strPtr("tagValue")}},
+		Rules:       &[]rest.Clause{{Attribute: "attr", Id: strPtr("id"), Negate: false, Op: "contains", Values: []string{"val1", "val2"}}},
+		Tags:        &[]rest.Tag{{Name: "tagName", Identifier: "tagValue"}},
 		Version:     int64Ptr(2),
 	}
 
@@ -53,9 +53,9 @@ var (
 		Project:       "proj",
 		Rules: &[]rest.ServingRule{
 			{
-				Clauses:  []rest.Clause{{Attribute: "attr", Id: "id", Negate: false, Op: "contains", Values: []string{"val1", "val2"}}},
+				Clauses:  []rest.Clause{{Attribute: "attr", Id: strPtr("id"), Negate: false, Op: "contains", Values: []string{"val1", "val2"}}},
 				Priority: 1,
-				RuleId:   "ID",
+				RuleId:   strPtr("ID"),
 				Serve: rest.Serve{
 					Distribution: nil,
 					Variation:    strPtr("str"),
@@ -66,7 +66,7 @@ var (
 		VariationToTargetMap: &[]rest.VariationMap{
 			{
 				TargetSegments: &[]string{"segment1", "segment2", "segment3"},
-				Targets:        &[]rest.TargetMap{{strPtr("target1"), "target1"}, {strPtr("target2"), "target2"}, {strPtr("target3"), "target3"}},
+				Targets:        &[]rest.TargetMap{{"target1", "target1"}, {"target2", "target2"}, {"target3", "target3"}},
 				Variation:      "var",
 			},
 		},

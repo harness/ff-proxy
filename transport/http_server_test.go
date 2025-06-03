@@ -1373,7 +1373,7 @@ func TestHTTPServer_Stream(t *testing.T) {
 			url:                fmt.Sprintf("%s/stream", testServer.URL),
 			expectedStatusCode: http.StatusServiceUnavailable,
 			expectedResponseHeaders: http.Header{
-				"Content-Type": []string{"application/json; charset=UTF-8"},
+				"Content-Type": []string{"application/json"},
 			},
 		},
 	}

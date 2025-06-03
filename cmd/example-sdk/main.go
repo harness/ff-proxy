@@ -43,7 +43,6 @@ func main() {
 		harness.WithURL(baseURL),
 		harness.WithEventsURL(eventsURL),
 		harness.WithTarget(target),
-		harness.WithLogger(logger),
 		harness.WithPullInterval(1),
 	)
 	defer func() {

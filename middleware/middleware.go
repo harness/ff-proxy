@@ -38,7 +38,7 @@ func NewEchoLoggingMiddleware(l log.Logger) echo.MiddlewareFunc {
 // are valid
 func NewEchoAuthMiddleware(secret []byte, bypassAuth bool) echo.MiddlewareFunc {
 	return echojwt.WithConfig(echojwt.Config{
-		TokenLookup: "header:Authorization",
+		TokenLookup: "header:Authorization:Bearer ",
 		ParseTokenFunc: func(c echo.Context, auth string) (interface{}, error) {
 			if auth == "" {
 				return nil, errors.New("token was empty")
