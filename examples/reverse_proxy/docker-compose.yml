@@ -8,8 +8,8 @@ services:
       - REDIS_ADDRESS=redis:6379
       - READ_REPLICA=false
       - AUTH_SECRET=foobar
-      - CLIENT_SERVICE=http://host.docker.internal:8000
-      - METRIC_SERVICE=http://host.docker.internal:8000
+      - CLIENT_SERVICE=http://host.docker.internal:8000/api/1.0
+      - METRIC_SERVICE=http://host.docker.internal:8000/api/1.0
     ports:
       - "7001:7000"
     depends_on:
