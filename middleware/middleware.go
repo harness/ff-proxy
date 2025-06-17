@@ -41,7 +41,7 @@ func NewEchoLoggingMiddleware(l log.Logger) echo.MiddlewareFunc {
 	return middleware.RequestLoggerWithConfig(middleware.RequestLoggerConfig{
 		LogValuesFunc: func(c echo.Context, v middleware.RequestLoggerValues) error {
 			appID := c.Request().Context().Value(log.AppIDKey)
-			l.Info("request", "component", "LoggingMiddleware", "method", v.Method, "path", v.RoutePath, "status", v.Status, "took", v.Latency.String(), "reqID", v.RequestID, "appID", appID, "host", v.Host)
+			l.Info("request", "component", "LoggingMiddleware", "method", v.Method, "path", v.RoutePath, "status", v.Status, "took", v.Latency.String(), "reqID", v.RequestID, "appID", appID, "host", v.Host, "remoteIP", v.RemoteIP)
 			return nil
 		},
 		LogLatency:   true,
@@ -50,6 +50,7 @@ func NewEchoLoggingMiddleware(l log.Logger) echo.MiddlewareFunc {
 		LogRequestID: true,
 		LogStatus:    true,
 		LogHost:      true,
+		LogRemoteIP:  true,
 	})
 }
 
