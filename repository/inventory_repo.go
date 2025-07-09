@@ -49,11 +49,29 @@ func (i InventoryRepo) Add(ctx context.Context, key string, assets map[string]in
 func (i InventoryRepo) Remove(_ context.Context, _ string) error {
 	return nil
 }
+
 func (i InventoryRepo) Get(ctx context.Context, key string) (map[string]int64, error) {
-	var inventory map[string]int64
-	err := i.cache.Get(ctx, string(domain.NewKeyInventory(key)), &inventory)
+	var (
+		inventory    map[string]int64
+		inventoryKey = string(domain.NewKeyInventory(key))
+	)
+
+	err := i.cache.Get(ctx, inventoryKey, &inventory)
 	if err != nil && !errors.Is(err, domain.ErrCacheNotFound) {
-		return inventory, err
+		// Backwards compatibility:
+		// Before PR #404, inventory configs were stored as map[string]string.
+		// After PR #404, they use map[string]int64 for SSE optimizations.
+		//
+		// To support upgrades from older versions (<= 2.0.12), try reading the old format
+		// and convert it to the new format by setting all values to 0.
+		backup := map[string]string{}
+		if err := i.cache.Get(ctx, inventoryKey, &backup); err != nil {
+			return nil, err
+		}
+
+		for k := range backup {
+			inventory[k] = 0
+		}
 	}
 
 	return inventory, nil
