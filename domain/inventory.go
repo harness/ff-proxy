@@ -8,9 +8,9 @@ import (
 type KeyInventory string
 
 type Assets struct {
-	Deleted map[string]string
-	Created map[string]string
-	Patched map[string]string
+	Deleted map[string]int64
+	Created map[string]int64
+	Patched map[string]int64
 }
 
 // NewKeyInventory creates a key inventory entry for the proxy key. This key contains all the entries associated with the proxy key.
