@@ -149,7 +149,7 @@ func (i InventoryRepo) removeOldKeyData(ctx context.Context, key string) error {
 	delete(res, string(excludeKey))
 
 	for k := range res {
-		var oldAssets map[string]string
+		var oldAssets map[string]int64
 		err := i.cache.Get(ctx, k, &oldAssets)
 		if err != nil && !errors.Is(err, domain.ErrCacheNotFound) {
 			i.log.Error("failed to get stale assets for inventory key", "key", k, "err", err)
@@ -172,7 +172,7 @@ func (i InventoryRepo) removeOldKeyData(ctx context.Context, key string) error {
 	return nil
 }
 
-func (i InventoryRepo) removeAssets(ctx context.Context, assets map[string]string) error {
+func (i InventoryRepo) removeAssets(ctx context.Context, assets map[string]int64) error {
 	var (
 		wg        = &sync.WaitGroup{}
 		errChan   = make(chan error)

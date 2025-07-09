@@ -30,7 +30,7 @@ func TestInventoryRepo_Add(t *testing.T) {
 
 	type args struct {
 		key   string
-		value map[string]string
+		value map[string]int64
 	}
 
 	type mocks struct {
@@ -50,7 +50,7 @@ func TestInventoryRepo_Add(t *testing.T) {
 		"Given I call set and the cache errors": {
 			args: args{
 				key:   "123",
-				value: map[string]string{"hello": "world"},
+				value: map[string]int64{"hello": 1},
 			},
 			mocks: mocks{
 				cache: &mCache{
@@ -68,7 +68,7 @@ func TestInventoryRepo_Add(t *testing.T) {
 		"Given I call set and the cache doesn't error": {
 			args: args{
 				key:   "123",
-				value: map[string]string{"hello": "world"},
+				value: map[string]int64{"hello": 1},
 			},
 			mocks: mocks{
 				cache: &mCache{
@@ -82,7 +82,7 @@ func TestInventoryRepo_Add(t *testing.T) {
 			shouldErr: false,
 			expected: expected{
 				data: map[string]interface{}{
-					"key-123-inventory": map[string]string{"hello": "world"},
+					"key-123-inventory": map[string]int64{"hello": 1},
 				},
 			},
 		},
@@ -113,13 +113,13 @@ func TestInventoryRepo_Cleanup(t *testing.T) {
 		key123 = "123"
 		key456 = "456"
 
-		assetsc22b78a0Map = map[string]string{
-			"env-c22b78a0-4bbe-46dc-bc12-a0206c0d4ad7-feature-config-flagOne": "",
-			"env-c22b78a0-4bbe-46dc-bc12-a0206c0d4ad7-feature-configs":        "",
-			"env-c22b78a0-4bbe-46dc-bc12-a0206c0d4ad7-segments":               "",
-			"env-c22b78a0-4bbe-46dc-bc12-a0206c0d4ad7-segment-segmentOne":     "",
-			"env-c22b78a0-4bbe-46dc-bc12-a0206c0d4ad7-api-configs":            "",
-			"auth-key-123": "",
+		assetsc22b78a0Map = map[string]int64{
+			"env-c22b78a0-4bbe-46dc-bc12-a0206c0d4ad7-feature-config-flagOne": 1,
+			"env-c22b78a0-4bbe-46dc-bc12-a0206c0d4ad7-feature-configs":        0,
+			"env-c22b78a0-4bbe-46dc-bc12-a0206c0d4ad7-segments":               0,
+			"env-c22b78a0-4bbe-46dc-bc12-a0206c0d4ad7-segment-segmentOne":     1,
+			"env-c22b78a0-4bbe-46dc-bc12-a0206c0d4ad7-api-configs":            0,
+			"auth-key-123": 0,
 		}
 
 		assetsc22b78a0 = []domain.ProxyConfig{
@@ -131,12 +131,14 @@ func TestInventoryRepo_Cleanup(t *testing.T) {
 						FeatureConfigs: []domain.FeatureFlag{
 							{
 								Feature: "flagOne",
+								Version: int64Ptr(1),
 							},
 						},
 						Segments: []domain.Segment{
 							{
 								Name:       "segmentOne",
 								Identifier: "segmentOne",
+								Version:    int64Ptr(1),
 							},
 						},
 					},
@@ -144,13 +146,13 @@ func TestInventoryRepo_Cleanup(t *testing.T) {
 			},
 		}
 
-		assetsd5c39e52Map = map[string]string{
-			"auth-key-456": "",
-			"env-d5c39e52-0f94-4a4b-a053-9ad842ffd692-feature-config-flagTwo": "",
-			"env-d5c39e52-0f94-4a4b-a053-9ad842ffd692-feature-configs":        "",
-			"env-d5c39e52-0f94-4a4b-a053-9ad842ffd692-segments":               "",
-			"env-d5c39e52-0f94-4a4b-a053-9ad842ffd692-segment-segmentTwo":     "",
-			"env-d5c39e52-0f94-4a4b-a053-9ad842ffd692-api-configs":            "",
+		assetsd5c39e52Map = map[string]int64{
+			"auth-key-456": 0,
+			"env-d5c39e52-0f94-4a4b-a053-9ad842ffd692-feature-config-flagTwo": 2,
+			"env-d5c39e52-0f94-4a4b-a053-9ad842ffd692-feature-configs":        0,
+			"env-d5c39e52-0f94-4a4b-a053-9ad842ffd692-segments":               0,
+			"env-d5c39e52-0f94-4a4b-a053-9ad842ffd692-segment-segmentTwo":     2,
+			"env-d5c39e52-0f94-4a4b-a053-9ad842ffd692-api-configs":            0,
 		}
 
 		assetsd5c39e52 = []domain.ProxyConfig{
@@ -162,12 +164,14 @@ func TestInventoryRepo_Cleanup(t *testing.T) {
 						FeatureConfigs: []domain.FeatureFlag{
 							{
 								Feature: "flagTwo",
+								Version: int64Ptr(2),
 							},
 						},
 						Segments: []domain.Segment{
 							{
 								Name:       "segmentTwo",
 								Identifier: "segmentTwo",
+								Version:    int64Ptr(2),
 							},
 						},
 					},
@@ -185,7 +189,7 @@ func TestInventoryRepo_Cleanup(t *testing.T) {
 
 	type args struct {
 		oldKey    string
-		oldAssets map[string]string
+		oldAssets map[string]int64
 
 		newKey    string
 		newAssets []domain.ProxyConfig
@@ -195,7 +199,7 @@ func TestInventoryRepo_Cleanup(t *testing.T) {
 	}
 
 	type expected struct {
-		config map[string]string
+		config map[string]int64
 	}
 
 	testCases := map[string]struct {
@@ -251,7 +255,7 @@ func TestInventoryRepo_Cleanup(t *testing.T) {
 				assert.Nil(t, err)
 			}
 
-			var nilMap map[string]string
+			var nilMap map[string]int64
 
 			// Assert that we've removed data for the cleanup key
 			cleanupRes, err := ir.Get(ctx, tc.args.oldKey)
@@ -283,14 +287,14 @@ func TestInventoryRepo_BuildNotificatons(t *testing.T) {
 		"Given I have assets with no underscores": {
 			args: args{
 				assets: domain.Assets{
-					Deleted: map[string]string{
-						"env-1234-feature-config-foobar": "",
+					Deleted: map[string]int64{
+						"env-1234-feature-config-foobar": 1,
 					},
-					Created: map[string]string{
-						"env-1234-feature-config-helloworld": "",
+					Created: map[string]int64{
+						"env-1234-feature-config-helloworld": 2,
 					},
-					Patched: map[string]string{
-						"env-1234-segment-foobar": "",
+					Patched: map[string]int64{
+						"env-1234-segment-foobar": 3,
 					},
 				},
 			},
@@ -300,21 +304,21 @@ func TestInventoryRepo_BuildNotificatons(t *testing.T) {
 						Event:       "delete",
 						Domain:      "flag",
 						Identifier:  "foobar",
-						Version:     0,
+						Version:     1,
 						Environment: "1234",
 					},
 					{
 						Event:       "create",
 						Domain:      "flag",
 						Identifier:  "helloworld",
-						Version:     0,
+						Version:     2,
 						Environment: "1234",
 					},
 					{
 						Event:       "patch",
 						Domain:      "target-segment",
 						Identifier:  "foobar",
-						Version:     0,
+						Version:     3,
 						Environment: "1234",
 					},
 				},
@@ -323,14 +327,14 @@ func TestInventoryRepo_BuildNotificatons(t *testing.T) {
 		"Given I have assets with underscores": {
 			args: args{
 				assets: domain.Assets{
-					Deleted: map[string]string{
-						"env-1234-feature-config-PIE_ENABLE_THIS_THING": "",
+					Deleted: map[string]int64{
+						"env-1234-feature-config-PIE_ENABLE_THIS_THING": 1,
 					},
-					Created: map[string]string{
-						"env-1234-feature-config-_CDS__ENABLED___FLAG": "",
+					Created: map[string]int64{
+						"env-1234-feature-config-_CDS__ENABLED___FLAG": 2,
 					},
-					Patched: map[string]string{
-						"env-1234-segment-_SOME_SPECIAL_SEGMENT__": "",
+					Patched: map[string]int64{
+						"env-1234-segment-_SOME_SPECIAL_SEGMENT__": 3,
 					},
 				},
 			},
@@ -340,21 +344,21 @@ func TestInventoryRepo_BuildNotificatons(t *testing.T) {
 						Event:       "delete",
 						Domain:      "flag",
 						Identifier:  "PIE_ENABLE_THIS_THING",
-						Version:     0,
+						Version:     1,
 						Environment: "1234",
 					},
 					{
 						Event:       "create",
 						Domain:      "flag",
 						Identifier:  "_CDS__ENABLED___FLAG",
-						Version:     0,
+						Version:     2,
 						Environment: "1234",
 					},
 					{
 						Event:       "patch",
 						Domain:      "target-segment",
 						Identifier:  "_SOME_SPECIAL_SEGMENT__",
-						Version:     0,
+						Version:     3,
 						Environment: "1234",
 					},
 				},
