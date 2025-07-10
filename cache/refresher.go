@@ -188,14 +188,14 @@ func (s Refresher) handleAddEnvironmentEvent(ctx context.Context, environments [
 			return err
 		}
 		// update key inventory for environment.
-		if err := s.inventory.Patch(ctx, s.config.Key(), func(assets map[string]string) (map[string]string, error) {
+		if err := s.inventory.Patch(ctx, s.config.Key(), func(assets map[string]int64) (map[string]int64, error) {
 			newAssets, err := s.inventory.BuildAssetListFromConfig(proxyConfig)
 			if err != nil {
 				return newAssets, err
 			}
-			for k := range newAssets {
+			for k, version := range newAssets {
 				if _, ok := assets[k]; !ok {
-					assets[k] = ""
+					assets[k] = version
 				}
 			}
 			return assets, nil
@@ -244,7 +244,7 @@ func (s Refresher) removeAssets(ctx context.Context, env string) error {
 		return err
 	}
 
-	if err := s.inventory.Patch(ctx, s.config.Key(), func(assets map[string]string) (map[string]string, error) {
+	if err := s.inventory.Patch(ctx, s.config.Key(), func(assets map[string]int64) (map[string]int64, error) {
 		// remove deleted keys from the assets
 		for k := range assetsToDelete {
 			delete(assets, k)
@@ -299,7 +299,7 @@ func (s Refresher) handleAddAPIKeyEvent(ctx context.Context, env, apiKey string)
 	}
 
 	// add key to the invetnory if does not exits
-	return s.inventory.Patch(ctx, s.config.Key(), func(assets map[string]string) (map[string]string, error) {
+	return s.inventory.Patch(ctx, s.config.Key(), func(assets map[string]int64) (map[string]int64, error) {
 		apiKeyEntry := string(domain.NewAuthAPIKey(apiKey))
 		apiConfigsEntry := string(domain.NewAPIConfigsKey(env))
 		return s.addItems(assets, apiKeyEntry, apiConfigsEntry)
@@ -321,7 +321,7 @@ func (s Refresher) handleRemoveAPIKeyEvent(ctx context.Context, env, apiKey stri
 		return err
 	}
 
-	return s.inventory.Patch(ctx, s.config.Key(), func(assets map[string]string) (map[string]string, error) {
+	return s.inventory.Patch(ctx, s.config.Key(), func(assets map[string]int64) (map[string]int64, error) {
 		_, ok := assets[apiKeyEntry]
 		if ok {
 			delete(assets, apiKeyEntry)
@@ -353,7 +353,7 @@ func (s Refresher) handleFetchFeatureEvent(ctx context.Context, env, id string) 
 		return err
 	}
 	// patch the inventory
-	return s.inventory.Patch(ctx, s.config.Key(), func(assets map[string]string) (map[string]string, error) {
+	return s.inventory.Patch(ctx, s.config.Key(), func(assets map[string]int64) (map[string]int64, error) {
 		featureConfigEntry := string(domain.NewFeatureConfigKey(env, id))
 		featureConfigsEntry := string(domain.NewFeatureConfigsKey(env))
 		return s.addItems(assets, featureConfigEntry, featureConfigsEntry)
@@ -387,7 +387,7 @@ func (s Refresher) handleDeleteFeatureEvent(ctx context.Context, env, identifier
 		}
 	}
 
-	return s.inventory.Patch(ctx, s.config.Key(), func(assets map[string]string) (map[string]string, error) {
+	return s.inventory.Patch(ctx, s.config.Key(), func(assets map[string]int64) (map[string]int64, error) {
 		_, ok := assets[featureConfigEntry]
 		if ok {
 			delete(assets, featureConfigEntry)
@@ -433,7 +433,7 @@ func (s Refresher) handleFetchSegmentEvent(ctx context.Context, env, id string) 
 		return err
 	}
 	// patch the inventory
-	return s.inventory.Patch(ctx, s.config.Key(), func(assets map[string]string) (map[string]string, error) {
+	return s.inventory.Patch(ctx, s.config.Key(), func(assets map[string]int64) (map[string]int64, error) {
 		segmentConfigEntry := string(domain.NewSegmentKey(env, id))
 		segmentConfigsEntry := string(domain.NewSegmentsKey(env))
 		return s.addItems(assets, segmentConfigEntry, segmentConfigsEntry)
@@ -465,7 +465,7 @@ func (s Refresher) handleDeleteSegmentEvent(ctx context.Context, env, identifier
 		}
 	}
 
-	return s.inventory.Patch(ctx, s.config.Key(), func(assets map[string]string) (map[string]string, error) {
+	return s.inventory.Patch(ctx, s.config.Key(), func(assets map[string]int64) (map[string]int64, error) {
 		_, ok := assets[segmentConfig]
 		if ok {
 			delete(assets, segmentConfig)
@@ -492,14 +492,16 @@ func (s Refresher) updateSegmentConfigsEntry(ctx context.Context, env string, id
 	})
 }
 
-func (s Refresher) addItems(assets map[string]string, configKey, configsKey string) (map[string]string, error) {
-	_, ok := assets[configKey]
+func (s Refresher) addItems(assets map[string]int64, configKey, configsKey string) (map[string]int64, error) {
+	version, ok := assets[configKey]
 	if !ok {
-		assets[configKey] = ""
+		assets[configKey] = version
 	}
 	_, ok = assets[configsKey]
 	if !ok {
-		assets[configsKey] = ""
+		// Configs Keys aren't versioned the way keys for individual items are e.g. Flags, Segments are individually versioned,
+		// but the Flag/Segment config for an entire environment isn't versioned, so we can just set this to 0.
+		assets[configKey] = 0
 	}
 	return assets, nil
 }

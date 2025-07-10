@@ -42,23 +42,24 @@ func NewInventoryRepo(c cache.Cache, l log.Logger) InventoryRepo {
 }
 
 // Add sets the inventory for proxy config - list of assets for the key.
-func (i InventoryRepo) Add(ctx context.Context, key string, assets map[string]string) error {
+func (i InventoryRepo) Add(ctx context.Context, key string, assets map[string]int64) error {
 	return i.cache.Set(ctx, string(domain.NewKeyInventory(key)), assets)
 }
 
 func (i InventoryRepo) Remove(_ context.Context, _ string) error {
 	return nil
 }
-func (i InventoryRepo) Get(ctx context.Context, key string) (map[string]string, error) {
-	var inventory map[string]string
+func (i InventoryRepo) Get(ctx context.Context, key string) (map[string]int64, error) {
+	var inventory map[string]int64
 	err := i.cache.Get(ctx, string(domain.NewKeyInventory(key)), &inventory)
 	if err != nil && !errors.Is(err, domain.ErrCacheNotFound) {
 		return inventory, err
 	}
+
 	return inventory, nil
 }
 
-func (i InventoryRepo) Patch(ctx context.Context, key string, updateInventory func(assets map[string]string) (map[string]string, error)) error {
+func (i InventoryRepo) Patch(ctx context.Context, key string, updateInventory func(assets map[string]int64) (map[string]int64, error)) error {
 	oldAssets, err := i.Get(ctx, key)
 	if err != nil {
 		return err
@@ -149,7 +150,7 @@ func (i InventoryRepo) removeOldKeyData(ctx context.Context, key string) error {
 	delete(res, string(excludeKey))
 
 	for k := range res {
-		var oldAssets map[string]string
+		var oldAssets map[string]int64
 		err := i.cache.Get(ctx, k, &oldAssets)
 		if err != nil && !errors.Is(err, domain.ErrCacheNotFound) {
 			i.log.Error("failed to get stale assets for inventory key", "key", k, "err", err)
@@ -172,7 +173,7 @@ func (i InventoryRepo) removeOldKeyData(ctx context.Context, key string) error {
 	return nil
 }
 
-func (i InventoryRepo) removeAssets(ctx context.Context, assets map[string]string) error {
+func (i InventoryRepo) removeAssets(ctx context.Context, assets map[string]int64) error {
 	var (
 		wg        = &sync.WaitGroup{}
 		errChan   = make(chan error)
@@ -207,17 +208,21 @@ func (i InventoryRepo) removeAssets(ctx context.Context, assets map[string]strin
 	return nil
 }
 
-func diffAssets(oldMap, newMap map[string]string) domain.Assets {
-	deleted := make(map[string]string)
-	created := make(map[string]string)
-	patched := make(map[string]string)
+func diffAssets(oldMap map[string]int64, newMap map[string]int64) domain.Assets {
+	deleted := make(map[string]int64)
+	created := make(map[string]int64)
+	patched := make(map[string]int64)
 
 	// Check elements in old but not in new
-	for key, value := range oldMap {
-		if newValue, exists := newMap[key]; !exists || newValue != value {
-			deleted[key] = value
+	for key, oldVersion := range oldMap {
+		if newVersion, exists := newMap[key]; !exists {
+			deleted[key] = oldVersion
 		} else {
-			patched[key] = value
+			// If the version number of the newAsset is greater than the old one then we can
+			// assume it was updated in Saas so we should send a patch event
+			if newVersion > oldVersion {
+				patched[key] = newVersion
+			}
 		}
 	}
 
@@ -235,31 +240,31 @@ func diffAssets(oldMap, newMap map[string]string) domain.Assets {
 }
 
 // BuildAssetListFromConfig returns the list of keys for all assets associated with this proxyKey
-func (i InventoryRepo) BuildAssetListFromConfig(config []domain.ProxyConfig) (map[string]string, error) {
+func (i InventoryRepo) BuildAssetListFromConfig(config []domain.ProxyConfig) (map[string]int64, error) {
 
-	empty := ""
-	inventory := make(map[string]string)
+	inventory := make(map[string]int64)
 
 	for _, cfg := range config {
 		for _, env := range cfg.Environments {
 			environment := env.ID.String()
 			if len(env.APIKeys) > 0 {
-				inventory[string(domain.NewAPIConfigsKey(environment))] = empty
+				// APIKeys aren't versioned so we can hardcode their version to 0
+				inventory[string(domain.NewAPIConfigsKey(environment))] = 0
 				for _, apiKey := range env.APIKeys {
-					inventory[string(domain.NewAuthAPIKey(apiKey))] = empty
+					inventory[string(domain.NewAuthAPIKey(apiKey))] = 0
 				}
 			}
 			if len(env.FeatureConfigs) > 0 {
-				inventory[string(domain.NewFeatureConfigsKey(environment))] = empty
+				inventory[string(domain.NewFeatureConfigsKey(environment))] = 0
 				for _, f := range env.FeatureConfigs {
-					inventory[string(domain.NewFeatureConfigKey(environment, f.Feature))] = empty
+					inventory[string(domain.NewFeatureConfigKey(environment, f.Feature))] = domain.SafePtrDereference(f.Version)
 				}
 			}
 
 			if len(env.Segments) > 0 {
-				inventory[string(domain.NewSegmentsKey(environment))] = empty
+				inventory[string(domain.NewSegmentsKey(environment))] = 0
 				for _, s := range env.Segments {
-					inventory[string(domain.NewSegmentKey(environment, s.Name))] = empty
+					inventory[string(domain.NewSegmentKey(environment, s.Name))] = domain.SafePtrDereference(s.Version)
 				}
 			}
 		}
@@ -297,55 +302,55 @@ func (i InventoryRepo) BuildNotifications(assets domain.Assets) []domain.SSEMess
 	return events
 }
 
-func (i InventoryRepo) getDeleteEvents(m map[string]string) []domain.SSEMessage {
+func (i InventoryRepo) getDeleteEvents(m map[string]int64) []domain.SSEMessage {
 	res := make([]domain.SSEMessage, 0, len(m))
 	if m == nil {
 		return []domain.SSEMessage{}
 	}
-	for k := range m {
+	for k, version := range m {
 		if strings.Contains(k, featureVariant) {
-			res = append(res, i.parseFlagEntry(k, deleteVariant))
+			res = append(res, i.parseFlagEntry(k, deleteVariant, version))
 		}
 		if strings.Contains(k, segmentVariant) {
-			res = append(res, i.parseSegmentEntry(k, deleteVariant))
+			res = append(res, i.parseSegmentEntry(k, deleteVariant, version))
 		}
 	}
 	return res
 }
 
-func (i InventoryRepo) getCreateEvents(m map[string]string) []domain.SSEMessage {
+func (i InventoryRepo) getCreateEvents(m map[string]int64) []domain.SSEMessage {
 	res := make([]domain.SSEMessage, 0, len(m))
 	if m == nil {
 		return []domain.SSEMessage{}
 	}
-	for k := range m {
+	for k, version := range m {
 		if strings.Contains(k, featureVariant) {
-			res = append(res, i.parseFlagEntry(k, createVariant))
+			res = append(res, i.parseFlagEntry(k, createVariant, version))
 		}
 		if strings.Contains(k, segmentVariant) {
-			res = append(res, i.parseSegmentEntry(k, createVariant))
+			res = append(res, i.parseSegmentEntry(k, createVariant, version))
 		}
 	}
 	return res
 }
 
-func (i InventoryRepo) getPatchEvents(m map[string]string) []domain.SSEMessage {
+func (i InventoryRepo) getPatchEvents(m map[string]int64) []domain.SSEMessage {
 	res := make([]domain.SSEMessage, 0, len(m))
 	if m == nil {
 		return []domain.SSEMessage{}
 	}
-	for k := range m {
+	for k, version := range m {
 		if strings.Contains(k, featureVariant) {
-			res = append(res, i.parseFlagEntry(k, patchVariant))
+			res = append(res, i.parseFlagEntry(k, patchVariant, version))
 		}
 		if strings.Contains(k, segmentVariant) {
-			res = append(res, i.parseSegmentEntry(k, patchVariant))
+			res = append(res, i.parseSegmentEntry(k, patchVariant, version))
 		}
 	}
 	return res
 }
 
-func (i InventoryRepo) parseFlagEntry(flagString, variant string) domain.SSEMessage {
+func (i InventoryRepo) parseFlagEntry(flagString, variant string, version int64) domain.SSEMessage {
 	env, id, err := parseFlagString(flagString)
 	if err != nil {
 		i.log.Error("err", err)
@@ -356,10 +361,10 @@ func (i InventoryRepo) parseFlagEntry(flagString, variant string) domain.SSEMess
 		Event:       variant,
 		Identifier:  id,
 		Environment: env,
-		Version:     0,
+		Version:     int(version),
 	}
 }
-func (i InventoryRepo) parseSegmentEntry(segmentString, variant string) domain.SSEMessage {
+func (i InventoryRepo) parseSegmentEntry(segmentString, variant string, version int64) domain.SSEMessage {
 	env, id, err := parseSegmentString(segmentString)
 	if err != nil {
 		i.log.Error("err", err)
@@ -370,7 +375,7 @@ func (i InventoryRepo) parseSegmentEntry(segmentString, variant string) domain.S
 		Event:       variant,
 		Identifier:  id,
 		Environment: env,
-		Version:     0,
+		Version:     int(version),
 	}
 }
 

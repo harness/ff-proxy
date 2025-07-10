@@ -6,11 +6,11 @@ import (
 
 // KeyRepo the interface for keyRepository.
 type InventoryRepo interface {
-	Add(ctx context.Context, key string, assets map[string]string) error
+	Add(ctx context.Context, key string, assets map[string]int64) error
 	Remove(ctx context.Context, key string) error
-	Get(ctx context.Context, key string) (map[string]string, error)
-	Patch(ctx context.Context, key string, patch func(assets map[string]string) (map[string]string, error)) error
-	BuildAssetListFromConfig(config []ProxyConfig) (map[string]string, error)
+	Get(ctx context.Context, key string) (map[string]int64, error)
+	Patch(ctx context.Context, key string, patch func(assets map[string]int64) (map[string]int64, error)) error
+	BuildAssetListFromConfig(config []ProxyConfig) (map[string]int64, error)
 	Cleanup(ctx context.Context, key string, config []ProxyConfig) ([]SSEMessage, error)
 	KeyExists(ctx context.Context, key string) bool
 	GetKeysForEnvironment(ctx context.Context, env string) (map[string]string, error)
