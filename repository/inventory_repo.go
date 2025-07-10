@@ -4,12 +4,13 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/harness/ff-proxy/v2/cache"
-	"github.com/harness/ff-proxy/v2/domain"
-	"github.com/harness/ff-proxy/v2/log"
 	"regexp"
 	"strings"
 	"sync"
+
+	"github.com/harness/ff-proxy/v2/cache"
+	"github.com/harness/ff-proxy/v2/domain"
+	"github.com/harness/ff-proxy/v2/log"
 )
 
 const (
