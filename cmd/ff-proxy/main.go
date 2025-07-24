@@ -66,7 +66,25 @@ var (
 	redisPassword string
 	redisUsername string
 	redisDB       int
-	redisPoolSize int
+
+	// Redis Config Options
+	redisMaxRetries                  int
+	redisMinRetryBackoffMilliseconds int
+	redisMaxRetryBackoffMilliseconds int
+
+	redisDialTimeoutSeconds  int
+	redisReadTimeoutSeconds  int
+	redisWriteTimeoutSeconds int
+
+	redisPoolSize           int
+	redisPoolSizeLiteral    int
+	redisPoolTimeoutSeconds int
+
+	redisMinIdleConns           int
+	redisMaxIdleConns           int
+	redisMaxActiveConns         int
+	redisConnMaxIdleTimeMinutes int
+	redisConnMaxLifetimeMinutes int
 
 	// Server Config
 	port           int
@@ -126,7 +144,25 @@ const (
 	redisPasswordEnv = "REDIS_PASSWORD"
 	redisUsernameEnv = "REDIS_USERNAME"
 	redisDBEnv       = "REDIS_DB"
-	redisPoolSizeEnv = "REDIS_POOL_SIZE"
+
+	// Redis Config
+	redisMaxRetriesEnv                  = "REDIS_MAX_RETRIES"
+	redisMinRetryBackoffMillisecondsEnv = "REDIS_MIN_RETRY_BACKOFF_MILLIS"
+	redisMaxRetryBackoffMillisecondsEnv = "REDIS_MAX_RETRY_BACKOFF_MILLIS"
+
+	redisDialTimeoutSecondsEnv  = "REDIS_DIAL_TIMEOUT_SECONDS"
+	redisReadTimeoutSecondsEnv  = "REDIS_READ_TIMEOUT_SECONDS"
+	redisWriteTimeoutSecondsEnv = "REDIS_WRITE_TIMEOUT_SECONDS"
+
+	redisPoolSizeEnv           = "REDIS_POOL_SIZE"
+	redisPoolSizeLiteralEnv    = "REDIS_POOL_SIZE_LITERAL"
+	redisPoolTimeoutSecondsEnv = "REDIS_POOL_TIMEOUT_SECONDS"
+
+	redisMinIdleConnsEnv           = "REDIS_MIN_IDLE_CONNS"
+	redisMaxIdleConnsEnv           = "REDIS_MAX_IDLE_CONNS"
+	redisMaxActiveConnsEnv         = "REDIS_MAX_ACTIVE_CONNS"
+	redisConnMaxIdleTimeMinutesEnv = "REDIS_CON_MAX_IDLE_TIME_MINUTES"
+	redisConnMaxLifetimeMinutesEnv = "REDIS_CON_MAX_LIFETIME_MINUTES"
 
 	// Server Config
 	portEnv           = "PORT"
@@ -170,7 +206,25 @@ const (
 	redisPasswordFlag = "redis-password"
 	redisUsernameFlag = "redis-username"
 	redisDBFlag       = "redis-db"
-	redisPoolSizeFlag = "redis-pool-size"
+
+	// Redis Configuration Options
+	redisMaxRetriesFlag                  = "redis-max-retries"
+	redisMinRetryBackoffMillisecondsFlag = "redis-min-retry-backoff-milliseconds"
+	redisMaxRetryBackoffMillisecondsFlag = "redis-max-retry-backoff-milliseconds"
+
+	redisDialTimeoutSecondsFlag  = "redis-dial-timeout-seconds"
+	redisReadTimeoutSecondsFlag  = "redis-read-timeout-seconds"
+	redisWriteTimeoutSecondsFlag = "redis-write-timeout-seconds"
+
+	redisPoolSizeFlag           = "redis-pool-size"
+	redisPoolSizeLiteralFlag    = "redis-pool-size-literal"
+	redisPoolTimeoutSecondsFlag = "redis-pool-timeout"
+
+	redisMinIdleConnsFlag           = "redis-min-idle-conns"
+	redisMaxIdleConnsFlag           = "redis-max-idle-conns"
+	redisMaxActiveConnsFlag         = "redis-max-active-conns"
+	redisConnMaxIdleTimeMinutesFlag = "redis-conn-max-idle-time-minutes"
+	redisConnMaxLifetimeMinutesFlag = "redis-conn-max-lifetime-minutes"
 
 	// Server Config
 	portFlag           = "port"
@@ -214,7 +268,25 @@ func init() {
 	flag.StringVar(&redisPassword, redisPasswordFlag, "", "Optional. Redis password")
 	flag.StringVar(&redisUsername, redisUsernameFlag, "", "Optional. Redis username")
 	flag.IntVar(&redisDB, redisDBFlag, 0, "Database to be selected after connecting to the server.")
-	flag.IntVar(&redisPoolSize, redisPoolSizeFlag, 10, "sets the redi connection pool size, to this value multipled by the number of CPU available. E.g if this value is 10 and you've 2 CPU the connection pool size will be 20")
+
+	// Redis Configuration Options
+	flag.IntVar(&redisMaxRetries, redisMaxRetriesFlag, 3, "Maximum number of retries before giving up. Default is 3 retries.")
+	flag.IntVar(&redisMinRetryBackoffMilliseconds, redisMinRetryBackoffMillisecondsFlag, 8, "Minimum backoff between each retry.Default is 8 milliseconds;")
+	flag.IntVar(&redisMaxRetryBackoffMilliseconds, redisMaxRetryBackoffMillisecondsFlag, 512, "Maximum backoff between each retry. Default is 512 milliseconds")
+
+	flag.IntVar(&redisDialTimeoutSeconds, redisDialTimeoutSecondsFlag, 5, "Dial timeout for establishing new connections. Default is 5 seconds")
+	flag.IntVar(&redisReadTimeoutSeconds, redisReadTimeoutSecondsFlag, 3, " Timeout for socket reads. If reached, commands will fail with a timeout instead of blocking. Default is 3 seconds.")
+	flag.IntVar(&redisWriteTimeoutSeconds, redisWriteTimeoutSecondsFlag, 3, "Timeout for socket writes. If reached, commands will fail with a timeout instead of blocking. Default is 3 seconds.")
+
+	flag.IntVar(&redisPoolSize, redisPoolSizeFlag, 10, "Legacy setting that has been kept for backwards compatibility, you may want to use REDIS_POOL_SIZE_LITERAL going forward. This sets the redis connection pool size, to this value multiplied by the number of CPU available. E.g if this value is 10 and you've 2 CPU the connection pool size will be 20")
+	flag.IntVar(&redisPoolSizeLiteral, redisPoolSizeLiteralFlag, 0, "sets the maximum number of socket connections to the literal value passed e.g. setting this to 10 means the connection pool size will be 10. If not specified, this will be set to the default value of 10 per CPU")
+	flag.IntVar(&redisPoolTimeoutSeconds, redisPoolTimeoutSecondsFlag, 4, "Amount of time client waits for connection if all connections are busy before returning an error.Default is 4 seconds (default ReadTimeout + 1 second)")
+
+	flag.IntVar(&redisMinIdleConns, redisMinIdleConnsFlag, 0, "Minimum number of idle connections which is useful when establishing new connection is slow.")
+	flag.IntVar(&redisMaxIdleConns, redisMaxIdleConnsFlag, 0, "MaxIdleConns is the maximum number of idle connections. The idle connections are not closed by default. Default: 0")
+	flag.IntVar(&redisMaxActiveConns, redisMaxActiveConnsFlag, 0, "MaxActiveConns is the maximum number of connections allocated by the pool at a given time. When zero, there is no limit on the number of connections in the pool. If the pool is full, the next call to Get() will block until a connection is released.")
+	flag.IntVar(&redisConnMaxIdleTimeMinutes, redisConnMaxIdleTimeMinutesFlag, 30, "The maximum amount of time a connection may be idle. Should be less than server's timeout. Expired connections may be closed lazily before reuse. If d <= 0, connections are not closed due to a connection's idle time. -1 disables idle timeout check. Default: 30 minutes")
+	flag.IntVar(&redisConnMaxLifetimeMinutes, redisConnMaxLifetimeMinutesFlag, 0, "The maximum amount of time a connection may be reused. Expired connections may be closed lazily before reuse. If <= 0, connections are not closed due to a connection's age. Default: 0")
 
 	// Server Config
 	flag.IntVar(&port, portFlag, 8000, "port the relay proxy service is exposed on, default's to 8000")
@@ -266,6 +338,23 @@ func init() {
 		metricsStreamMaxLenEnv:          metricsStreamMaxLenFlag,
 		metricsStreamReadConcurrencyEnv: metricStreamReadConcurrencyFlag,
 		forwardTargetsEnv:               forwardTargetsFlag,
+
+		redisMaxRetriesEnv:                  redisMaxRetriesFlag,
+		redisMinRetryBackoffMillisecondsEnv: redisMinRetryBackoffMillisecondsFlag,
+		redisMaxRetryBackoffMillisecondsEnv: redisMaxRetryBackoffMillisecondsFlag,
+
+		redisDialTimeoutSecondsEnv:  redisDialTimeoutSecondsFlag,
+		redisReadTimeoutSecondsEnv:  redisReadTimeoutSecondsFlag,
+		redisWriteTimeoutSecondsEnv: redisWriteTimeoutSecondsFlag,
+
+		redisPoolSizeLiteralEnv:    redisPoolSizeLiteralFlag,
+		redisPoolTimeoutSecondsEnv: redisPoolTimeoutSecondsFlag,
+
+		redisMinIdleConnsEnv:           redisMinIdleConnsFlag,
+		redisMaxIdleConnsEnv:           redisMaxIdleConnsFlag,
+		redisMaxActiveConnsEnv:         redisMaxActiveConnsFlag,
+		redisConnMaxIdleTimeMinutesEnv: redisConnMaxIdleTimeMinutesFlag,
+		redisConnMaxLifetimeMinutesEnv: redisConnMaxLifetimeMinutesFlag,
 	})
 
 	flag.Parse()
@@ -760,20 +849,55 @@ func newRedisClient(addr string, username string, password string, db int, logge
 		splitAddr[i] = removeRedisScheme(split)
 	}
 
+	minRetryBackoff := time.Duration(redisMinRetryBackoffMilliseconds) * time.Millisecond
+	maxRetryBackoff := time.Duration(redisMaxRetryBackoffMilliseconds) * time.Millisecond
+	dialTimeout := time.Duration(redisDialTimeoutSeconds) * time.Second
+	readTimeout := time.Duration(redisReadTimeoutSeconds) * time.Second
+	writeTimeout := time.Duration(redisWriteTimeoutSeconds) * time.Second
+	poolTimeout := time.Duration(redisPoolTimeoutSeconds) * time.Second
+	maxIdleTime := time.Duration(redisConnMaxIdleTimeMinutes) * time.Minute
+	connMaxLifetime := time.Duration(redisConnMaxLifetimeMinutes) * time.Minute
+
+	if poolTimeout < readTimeout {
+		poolTimeout = readTimeout + time.Second
+		logger.Warn("redis pool timeout is less than readTimeout, setting redis pool timeout to read timeout +1 second", "readTimeout", readTimeout, "poolTimeout", poolTimeout)
+	}
+
+	// For backwards compatibility by default we use the old method of figuring out the pool size
+	// which is the REDIS_POOL_SIZE value multiplied by the number of CPU.
+	//
+	// However, if REDIS_POOL_SIZE_LITERAL is set then we will use it instead.
+	poolSize := redisPoolSize * runtime.NumCPU()
+	if redisPoolSizeLiteral >= 0 {
+		poolSize = redisPoolSizeLiteral
+	}
+
 	opts := redis.UniversalOptions{
-		Addrs:     splitAddr,
-		DB:        db,
-		Username:  username,
-		Password:  password,
-		PoolSize:  redisPoolSize * runtime.NumCPU(),
-		TLSConfig: parsed.TLSConfig,
+		Addrs:           splitAddr,
+		DB:              db,
+		Username:        username,
+		Password:        password,
+		PoolSize:        poolSize,
+		TLSConfig:       parsed.TLSConfig,
+		MaxRetries:      redisMaxRetries,
+		MinRetryBackoff: minRetryBackoff,
+		MaxRetryBackoff: maxRetryBackoff,
+		DialTimeout:     dialTimeout,
+		ReadTimeout:     readTimeout,
+		WriteTimeout:    writeTimeout,
+		PoolTimeout:     poolTimeout,
+		MinIdleConns:    redisMinIdleConns,
+		MaxIdleConns:    redisMaxIdleConns,
+		MaxActiveConns:  redisMaxActiveConns,
+		ConnMaxIdleTime: maxIdleTime,
+		ConnMaxLifetime: connMaxLifetime,
 	}
 
 	if redisPassword != "" {
 		opts.Password = redisPassword
 	}
 
-	logger.Info("connecting to redis", "address", redisAddress, "poolSize", opts.PoolSize)
+	logger.Info("connecting to redis", "redis_config", fmt.Sprintf("%+v", opts))
 	return redis.NewUniversalClient(&opts)
 }
 
