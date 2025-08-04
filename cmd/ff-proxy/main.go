@@ -868,7 +868,7 @@ func newRedisClient(addr string, username string, password string, db int, logge
 	//
 	// However, if REDIS_POOL_SIZE_LITERAL is set then we will use it instead.
 	poolSize := redisPoolSize * runtime.NumCPU()
-	if redisPoolSizeLiteral >= 0 {
+	if redisPoolSizeLiteral > 0 {
 		poolSize = redisPoolSizeLiteral
 	}
 
