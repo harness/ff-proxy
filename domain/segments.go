@@ -21,6 +21,10 @@ func NewSegmentsKey(envID string) SegmentKey {
 	return SegmentKey(fmt.Sprintf("env-%s-segments", envID))
 }
 
+func (s SegmentKey) String() string {
+	return string(s)
+}
+
 // Segment is a rest.Segment that we can declare methods on
 type Segment clientgen.Segment
 

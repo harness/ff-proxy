@@ -21,6 +21,10 @@ func NewFeatureConfigsKey(envID string) FeatureFlagKey {
 	return FeatureFlagKey(fmt.Sprintf("env-%s-feature-configs", envID))
 }
 
+func (f FeatureFlagKey) String() string {
+	return string(f)
+}
+
 // FeatureConfig is the type containing FeatureConfig information and is what
 // we return from /GET client/env/<env>/feature-configs
 type FeatureConfig struct {

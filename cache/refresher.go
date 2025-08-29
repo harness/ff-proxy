@@ -354,7 +354,7 @@ func (s Refresher) handleFetchFeatureEvent(ctx context.Context, env, id string) 
 	}
 	// patch the inventory
 	return s.inventory.Patch(ctx, s.config.Key(), func(assets map[string]int64) (map[string]int64, error) {
-		return s.addFeatureItems(assets, env, features)
+		return addFeatureItems(assets, env, features)
 	})
 }
 
@@ -432,7 +432,7 @@ func (s Refresher) handleFetchSegmentEvent(ctx context.Context, env, id string) 
 	}
 	// patch the inventory
 	return s.inventory.Patch(ctx, s.config.Key(), func(assets map[string]int64) (map[string]int64, error) {
-		return s.addSegmentItems(assets, env, segments)
+		return addSegmentItems(assets, env, segments)
 	})
 }
 
@@ -488,11 +488,11 @@ func (s Refresher) updateSegmentConfigsEntry(ctx context.Context, env string, id
 	})
 }
 
-func (s Refresher) addFeatureItems(assets map[string]int64, env string, features []domain.FeatureFlag) (map[string]int64, error) {
-	configsKey := string(domain.NewFeatureConfigsKey(env))
+func addFeatureItems(assets map[string]int64, env string, features []domain.FeatureFlag) (map[string]int64, error) {
+	configsKey := domain.NewFeatureConfigsKey(env).String()
 
 	for _, feature := range features {
-		configKey := string(domain.NewFeatureConfigKey(env, feature.Feature))
+		configKey := domain.NewFeatureConfigKey(env, feature.Feature).String()
 		version := domain.SafePtrDereference(feature.Version)
 		updateAsset(assets, configKey, version, configsKey)
 	}
@@ -500,11 +500,11 @@ func (s Refresher) addFeatureItems(assets map[string]int64, env string, features
 	return assets, nil
 }
 
-func (s Refresher) addSegmentItems(assets map[string]int64, env string, features []domain.Segment) (map[string]int64, error) {
-	configsKey := string(domain.NewSegmentsKey(env))
+func addSegmentItems(assets map[string]int64, env string, features []domain.Segment) (map[string]int64, error) {
+	configsKey := domain.NewSegmentsKey(env).String()
 
 	for _, seg := range features {
-		configKey := string(domain.NewSegmentKey(env, seg.Identifier))
+		configKey := domain.NewSegmentKey(env, seg.Identifier).String()
 		version := domain.SafePtrDereference(seg.Version)
 		updateAsset(assets, configKey, version, configsKey)
 	}
