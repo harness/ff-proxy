@@ -354,9 +354,7 @@ func (s Refresher) handleFetchFeatureEvent(ctx context.Context, env, id string) 
 	}
 	// patch the inventory
 	return s.inventory.Patch(ctx, s.config.Key(), func(assets map[string]int64) (map[string]int64, error) {
-		featureConfigEntry := string(domain.NewFeatureConfigKey(env, id))
-		featureConfigsEntry := string(domain.NewFeatureConfigsKey(env))
-		return s.addItems(assets, featureConfigEntry, featureConfigsEntry)
+		return s.addFeatureItems(assets, env, features)
 	})
 }
 
@@ -434,9 +432,7 @@ func (s Refresher) handleFetchSegmentEvent(ctx context.Context, env, id string) 
 	}
 	// patch the inventory
 	return s.inventory.Patch(ctx, s.config.Key(), func(assets map[string]int64) (map[string]int64, error) {
-		segmentConfigEntry := string(domain.NewSegmentKey(env, id))
-		segmentConfigsEntry := string(domain.NewSegmentsKey(env))
-		return s.addItems(assets, segmentConfigEntry, segmentConfigsEntry)
+		return s.addSegmentItems(assets, env, segments)
 	})
 }
 
@@ -490,6 +486,47 @@ func (s Refresher) updateSegmentConfigsEntry(ctx context.Context, env string, id
 		EnvironmentID: env,
 		Segments:      updatedSegment,
 	})
+}
+
+func (s Refresher) addFeatureItems(assets map[string]int64, env string, features []domain.FeatureFlag) (map[string]int64, error) {
+	configsKey := string(domain.NewFeatureConfigsKey(env))
+
+	for _, feature := range features {
+		configKey := string(domain.NewFeatureConfigKey(env, feature.Feature))
+		version := domain.SafePtrDereference(feature.Version)
+		updateAsset(assets, configKey, version, configsKey)
+	}
+
+	return assets, nil
+}
+
+func (s Refresher) addSegmentItems(assets map[string]int64, env string, features []domain.Segment) (map[string]int64, error) {
+	configsKey := string(domain.NewSegmentsKey(env))
+
+	for _, seg := range features {
+		configKey := string(domain.NewSegmentKey(env, seg.Identifier))
+		version := domain.SafePtrDereference(seg.Version)
+		updateAsset(assets, configKey, version, configsKey)
+	}
+
+	return assets, nil
+}
+
+func updateAsset(assets map[string]int64, configKey string, newVersion int64, configsKey string) {
+	if _, ok := assets[configsKey]; !ok {
+		// Configs Keys aren't versioned; just set to 0 once.
+		assets[configsKey] = 0
+	}
+
+	oldVersion, ok := assets[configsKey]
+	if !ok {
+		assets[configsKey] = newVersion
+		return
+	}
+
+	if newVersion > oldVersion {
+		assets[configKey] = newVersion
+	}
 }
 
 func (s Refresher) addItems(assets map[string]int64, configKey, configsKey string) (map[string]int64, error) {
