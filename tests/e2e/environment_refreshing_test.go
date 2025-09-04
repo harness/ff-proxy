@@ -160,6 +160,7 @@ func TestEnvironmentCreation(t *testing.T) {
 			resp, err := withRetry(
 				validateFeatureConfigs,
 				func() (*http.Response, error) {
+					t.Log("Making /feature-configs request to the Proxy")
 					return proxyClient.GetFeatureConfig(ctx, envID, &client.GetFeatureConfigParams{}, func(ctx context.Context, req *http.Request) error {
 						req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", token.JSON200.AuthToken))
 						return nil
