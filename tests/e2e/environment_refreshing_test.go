@@ -345,7 +345,9 @@ func TestEnvironmentDeletion(t *testing.T) {
 			},
 		)
 		assert.Nil(t, err)
-		defer resp1.Body.Close()
+		if resp1.Body != nil {
+			defer resp1.Body.Close()
+		}
 
 		assert.Equal(t, http.StatusUnauthorized, resp1.StatusCode)
 	})
