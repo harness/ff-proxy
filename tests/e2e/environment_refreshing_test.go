@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"testing"
 	"time"
@@ -44,6 +45,7 @@ func TestEnvironmentCreation(t *testing.T) {
 	}
 
 	createEnvironment := func(identifier string, project string, org string, t *testing.T) string {
+		log.Println("creating environment", "identifier", identifier, "project", project, "org", org)
 		resp, envID, err := testhelpers.CreateEnvironment(org, project, identifier, identifier)
 		assert.Nil(t, err)
 		assert.Equal(t, http.StatusOK, resp.StatusCode)
@@ -63,6 +65,7 @@ func TestEnvironmentCreation(t *testing.T) {
 
 		err = retry.Do(
 			func() error {
+				log.Println("Creating SDK Key", "identifier", identifier, "project", project, "org", org)
 				keyResp, err = testhelpers.AddAPIKey(
 					org,
 					admin.AddAPIKeyJSONRequestBody{
@@ -124,6 +127,7 @@ func TestEnvironmentCreation(t *testing.T) {
 				func() error {
 					token, err = testhelpers.Authenticate(sdkKey, GetStreamURL(), nil)
 					if token.StatusCode() != http.StatusOK {
+						t.Logf("Failed to authenticate against Proxy with SDK Key")
 						return errors.New("non 200")
 					}
 					return err
