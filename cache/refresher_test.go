@@ -3,6 +3,7 @@ package cache
 import (
 	"context"
 	"errors"
+	"reflect"
 	"testing"
 
 	"github.com/google/uuid"
@@ -751,4 +752,154 @@ func (c mockClientService) AuthenticateProxyKey(ctx context.Context, key string)
 
 func (c mockClientService) PageProxyConfig(ctx context.Context, input domain.GetProxyConfigInput) ([]domain.ProxyConfig, error) {
 	return c.PageProxyConfigFn(ctx, input)
+}
+
+func TestUpdateAsset(t *testing.T) {
+	tests := []struct {
+		name       string
+		assets     map[string]int64
+		configKey  string
+		newVersion int64
+		configsKey string
+		want       map[string]int64
+	}{
+		{
+			name:       "adds configsKey when missing, sets to 0",
+			assets:     map[string]int64{},
+			configKey:  "f1",
+			newVersion: 5,
+			configsKey: "configs",
+			want: map[string]int64{
+				"configs": 0,
+				"f1":      5,
+			},
+		},
+		{
+			name:       "configsKey exists, newVersion > oldVersion -> updates configKey",
+			assets:     map[string]int64{"configs": 1},
+			configKey:  "f1",
+			newVersion: 5,
+			configsKey: "configs",
+			want:       map[string]int64{"configs": 1, "f1": 5},
+		},
+		{
+			name:       "configsKey exists, newVersion <= oldVersion -> no update",
+			assets:     map[string]int64{"configs": 10},
+			configKey:  "f1",
+			newVersion: 5,
+			configsKey: "configs",
+			want:       map[string]int64{"configs": 10},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			updateAsset(tt.assets, tt.configKey, tt.newVersion, tt.configsKey)
+			if !reflect.DeepEqual(tt.assets, tt.want) {
+				t.Errorf("got %+v, want %+v", tt.assets, tt.want)
+			}
+		})
+	}
+}
+
+func Test_addFeatureItems(t *testing.T) {
+	var version1 int64 = 3
+	var version2 int64 = 7
+
+	tests := []struct {
+		name     string
+		assets   map[string]int64
+		env      string
+		features []domain.FeatureFlag
+		want     map[string]int64
+	}{
+		{
+			name:   "adds new feature and configsKey",
+			assets: map[string]int64{},
+			env:    "123",
+			features: []domain.FeatureFlag{
+				{Feature: "flag1", Version: &version1},
+			},
+			want: map[string]int64{
+				domain.NewFeatureConfigsKey("123").String(): 0,
+				// updateAsset only updates configKey if newVersion > configsKey value (0),
+				// so here we also expect feature entry
+				domain.NewFeatureConfigKey("123", "flag1").String(): 3,
+			},
+		},
+		{
+			name: "updates feature if newVersion greater",
+			assets: map[string]int64{
+				domain.NewFeatureConfigsKey("123").String():         0,
+				domain.NewFeatureConfigKey("123", "flag1").String(): 1,
+			},
+			env: "123",
+			features: []domain.FeatureFlag{
+				{Feature: "flag1", Version: &version2},
+			},
+			want: map[string]int64{
+				domain.NewFeatureConfigsKey("123").String():         0,
+				domain.NewFeatureConfigKey("123", "flag1").String(): version2,
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, _ := addFeatureItems(tt.assets, tt.env, tt.features)
+			if !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("got %+v, want %+v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestRefresher_addSegmentItems(t *testing.T) {
+	var version1 int64 = 2
+	var version2 int64 = 6
+
+	tests := []struct {
+		name     string
+		assets   map[string]int64
+		env      string
+		segments []domain.Segment
+		want     map[string]int64
+	}{
+		{
+			name:   "adds new segment and configsKey",
+			assets: map[string]int64{},
+			env:    "123",
+			segments: []domain.Segment{
+				{Identifier: "seg1", Version: &version1},
+			},
+			want: map[string]int64{
+				domain.NewSegmentsKey("123").String():        0,
+				domain.NewSegmentKey("123", "seg1").String(): 2,
+			},
+		},
+		{
+			name: "updates segment if newVersion greater",
+			assets: map[string]int64{
+				domain.NewSegmentsKey("123").String():        0,
+				domain.NewSegmentKey("123", "seg1").String(): 2,
+			},
+			env: "123",
+			segments: []domain.Segment{
+				{Identifier: "seg1", Version: &version2},
+			},
+			want: map[string]int64{
+				domain.NewSegmentsKey("123").String():        0,
+				domain.NewSegmentKey("123", "seg1").String(): 6,
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, _ := addSegmentItems(tt.assets, tt.env, tt.segments)
+			if !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("got %+v, want %+v", got, tt.want)
+			}
+		})
+	}
 }

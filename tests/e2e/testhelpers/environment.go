@@ -66,7 +66,7 @@ func CreateEnvironmentRemote(org string, projectIdentifier string, environment, 
 		func() error {
 			environmentResponse, err := GetEnvironment(org, projectIdentifier, environment)
 			if err != nil || environmentResponse.StatusCode() != http.StatusOK {
-				return errors.New("environment not found")
+				return fmt.Errorf("environment '%s' not founnd in org=%s project=%s", org, projectIdentifier, environment)
 			}
 
 			if environmentResponse.JSON200 != nil {
