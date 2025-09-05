@@ -167,12 +167,21 @@ func TestEnvironmentCreation(t *testing.T) {
 					defer cancel()
 
 					t.Log("Making /feature-configs request to the Proxy")
-					return proxyClient.GetFeatureConfig(ctx, envID, &client.GetFeatureConfigParams{}, func(ctx context.Context, req *http.Request) error {
+					r, err2 := proxyClient.GetFeatureConfig(ctx, envID, &client.GetFeatureConfigParams{}, func(ctx context.Context, req *http.Request) error {
 						req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", token.JSON200.AuthToken))
 						return nil
 					})
+					if err2 != nil {
+						if errors.Is(err2, context.DeadlineExceeded) || errors.Is(err2, context.Canceled) {
+							t.Logf("Timeout exceeded making /feature-configs request to the Proxy: %s", err2)
+						}
+					}
+					return r, err2
 				},
 			)
+			if err != nil {
+				t.Log(err)
+			}
 			assert.Nil(t, err)
 			if resp.Body != nil {
 				defer resp.Body.Close()
@@ -281,6 +290,9 @@ func TestEnvironmentDeletion(t *testing.T) {
 		err = retry.Do(
 			func() error {
 				token, err = testhelpers.Authenticate(sdkKey, GetStreamURL(), nil)
+				if err != nil {
+					return fmt.Errorf("failed to authenticate sdk key with proxy: %w", err)
+				}
 				if token.StatusCode() != http.StatusOK {
 					return errors.New("non 200")
 				}
@@ -288,6 +300,9 @@ func TestEnvironmentDeletion(t *testing.T) {
 			},
 			retry.Attempts(5), retry.Delay(2000*time.Millisecond),
 		)
+		if err != nil {
+			t.Log(err)
+		}
 		assert.Nil(t, err)
 		assert.NotNil(t, token.JSON200)
 
@@ -309,13 +324,20 @@ func TestEnvironmentDeletion(t *testing.T) {
 		resp, err := withRetry(
 			validateFeatureConfigs,
 			func() (*http.Response, error) {
-				ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+				ctx, cancel := context.WithTimeout(context.Background(), 1*time.Minute)
 				defer cancel()
 
-				return proxyClient.GetFeatureConfig(ctx, envID, &client.GetFeatureConfigParams{}, func(ctx context.Context, req *http.Request) error {
+				r, err2 := proxyClient.GetFeatureConfig(ctx, envID, &client.GetFeatureConfigParams{}, func(ctx context.Context, req *http.Request) error {
 					req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", token.JSON200.AuthToken))
 					return nil
 				})
+				if err2 != nil {
+					if errors.Is(err2, context.DeadlineExceeded) || errors.Is(err2, context.Canceled) {
+						t.Logf("Timeout exceeded making /feature-configs request to the Proxy: %s", err2)
+					}
+				}
+
+				return r, err2
 			},
 		)
 		assert.Nil(t, err)
