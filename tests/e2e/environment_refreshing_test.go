@@ -139,9 +139,6 @@ func TestEnvironmentCreation(t *testing.T) {
 
 			proxyClient := testhelpers.DefaultEvaluationClient(GetStreamURL())
 
-			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-			defer cancel()
-
 			validateFeatureConfigs := func(r *http.Response) bool {
 				var (
 					featureConfigsBody = bytes.NewBuffer([]byte{})
@@ -160,6 +157,9 @@ func TestEnvironmentCreation(t *testing.T) {
 			resp, err := withRetry(
 				validateFeatureConfigs,
 				func() (*http.Response, error) {
+					ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+					defer cancel()
+
 					t.Log("Making /feature-configs request to the Proxy")
 					return proxyClient.GetFeatureConfig(ctx, envID, &client.GetFeatureConfigParams{}, func(ctx context.Context, req *http.Request) error {
 						req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", token.JSON200.AuthToken))
