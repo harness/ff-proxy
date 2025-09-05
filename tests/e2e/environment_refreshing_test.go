@@ -264,9 +264,6 @@ func TestEnvironmentDeletion(t *testing.T) {
 
 		proxyClient := testhelpers.DefaultEvaluationClient(GetStreamURL())
 
-		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-		defer cancel()
-
 		sdkKey := createSDKKey("sdkkey", projectTwo, orgTwo, envIdentifier, t)
 		defer deleteSDKKey("sdkkey", projectTwo, orgTwo, envIdentifier)
 
@@ -306,6 +303,9 @@ func TestEnvironmentDeletion(t *testing.T) {
 		resp, err := withRetry(
 			validateFeatureConfigs,
 			func() (*http.Response, error) {
+				ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+				defer cancel()
+
 				return proxyClient.GetFeatureConfig(ctx, envID, &client.GetFeatureConfigParams{}, func(ctx context.Context, req *http.Request) error {
 					req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", token.JSON200.AuthToken))
 					return nil
@@ -338,6 +338,9 @@ func TestEnvironmentDeletion(t *testing.T) {
 		resp1, err := withRetry(
 			validateFeatureConfigs2,
 			func() (*http.Response, error) {
+				ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+				defer cancel()
+
 				return proxyClient.GetFeatureConfig(ctx, envID, &client.GetFeatureConfigParams{}, func(ctx context.Context, req *http.Request) error {
 					req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", token.JSON200))
 					return nil
