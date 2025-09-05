@@ -153,8 +153,9 @@ func TestEnvironmentCreation(t *testing.T) {
 
 				_, err = io.Copy(featureConfigsBody, r.Body)
 				assert.Nil(t, err)
-
 				assert.Nil(t, jsoniter.Unmarshal(featureConfigsBody.Bytes(), &featureConfigs))
+				t.Logf("/feature-configs status=%d response=%s", r.StatusCode, featureConfigsBody.String())
+				t.Logf("Actual num FeatureConfigs: %d; Expected num FeatureConfigs: %d", len(featureConfigs), tc.expected.numFeatureConfigs)
 
 				return len(featureConfigs) == tc.expected.numFeatureConfigs
 			}
@@ -314,8 +315,10 @@ func TestEnvironmentDeletion(t *testing.T) {
 
 			_, err = io.Copy(featureConfigsBody, r.Body)
 			assert.Nil(t, err)
-
 			assert.Nil(t, jsoniter.Unmarshal(featureConfigsBody.Bytes(), &featureConfigs))
+
+			t.Logf("/feature-configs status=%d response=%s", r.StatusCode, featureConfigsBody.String())
+			t.Logf("Actual num FeatureConfigs: %d; Expected num FeatureConfigs: %d", len(featureConfigs), tc.expected.numFeatureConfigs)
 
 			return len(featureConfigs) == 2
 		}
