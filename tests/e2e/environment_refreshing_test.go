@@ -126,6 +126,9 @@ func TestEnvironmentCreation(t *testing.T) {
 			err = retry.Do(
 				func() error {
 					token, err = testhelpers.Authenticate(sdkKey, GetStreamURL(), nil)
+					if err != nil {
+						return fmt.Errorf("got error authenticating with Proxy: %w", err)
+					}
 					if token.StatusCode() != http.StatusOK {
 						t.Logf("Failed to authenticate against Proxy with SDK Key")
 						return errors.New("non 200")
@@ -134,6 +137,9 @@ func TestEnvironmentCreation(t *testing.T) {
 				},
 				retry.Attempts(5), retry.Delay(2000*time.Millisecond),
 			)
+			if err != nil {
+				t.Log(err)
+			}
 			assert.Nil(t, err)
 			assert.NotNil(t, token.JSON200)
 
