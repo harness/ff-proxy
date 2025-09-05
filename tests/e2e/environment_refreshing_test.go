@@ -318,7 +318,7 @@ func TestEnvironmentDeletion(t *testing.T) {
 			assert.Nil(t, jsoniter.Unmarshal(featureConfigsBody.Bytes(), &featureConfigs))
 
 			t.Logf("/feature-configs status=%d response=%s", r.StatusCode, featureConfigsBody.String())
-			t.Logf("Actual num FeatureConfigs: %d; Expected num FeatureConfigs: %d", len(featureConfigs), tc.expected.numFeatureConfigs)
+			t.Logf("Actual num FeatureConfigs: %d; Expected num FeatureConfigs: %d", len(featureConfigs), 2)
 
 			return len(featureConfigs) == 2
 		}
