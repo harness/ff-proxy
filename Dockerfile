@@ -36,8 +36,9 @@ COPY --from=builder /app/start.sh /start.sh
 # Prepare directories + set permissions in a single layer
 RUN chmod +x /usr/local/bin/docker-entrypoint.sh \
  && mkdir -p /log /pushpin/run /pushpin/log \
- && chmod -R 0500 /app/ff-proxy /usr/lib/pushpin /etc/pushpin \
- && chmod -R 0755 /log /pushpin /usr/lib/pushpin /etc/pushpin \
+ && chmod 0500 /app/ff-proxy \
+ && chmod -R 0755 /usr/lib/pushpin /etc/pushpin \
+ && chmod -R 0775 /log /pushpin \
  && chown -R 65534:65534 /app/ff-proxy /log /pushpin /usr/lib/pushpin /etc/pushpin
 
 # Drop to nobody user for runtime
