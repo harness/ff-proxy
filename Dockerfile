@@ -26,12 +26,9 @@ RUN apt-get update && apt-get install -y ca-certificates
 RUN mkdir /tmp/certs && cp -r /etc/ssl/certs/* /tmp/certs
 
 ############################
-# STEP 2: Final runtime image
+# STEP 3: Add relay proxy to base pushpin image
 ############################
 FROM fanout/pushpin:1.41.0
-
-# Switch to root only for setup
-USER root
 
 # Copy entrypoint and binaries
 COPY docker-entrypoint.sh /usr/local/bin/
@@ -50,10 +47,10 @@ RUN chmod +x /usr/local/bin/docker-entrypoint.sh \
  && chmod -R 0775 /log /pushpin \
  && chown -R 65534:65534 /app/ff-proxy /log /pushpin /usr/lib/pushpin /etc/pushpin
 
-# Switch back to nobody user for runtime
+# Setting this to 65534 which hould be the nodbody user
 USER 65534:65534
 
-# Expose port and set entrypoint
+# Expose default port pushpin listens on
 EXPOSE 7000
 ENTRYPOINT ["docker-entrypoint.sh"]
 CMD ["./start.sh"]
