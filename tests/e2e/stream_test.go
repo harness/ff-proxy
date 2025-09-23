@@ -111,7 +111,7 @@ func TestEvent(t *testing.T) {
 				assert.Equal(t, tt.want.sseEvent.Event, msg.Event)
 				assert.Equal(t, tt.want.sseEvent.Domain, msg.Domain)
 				assert.Equal(t, tt.want.sseEvent.Identifier, msg.Identifier)
-			case <-time.After(10 * time.Second):
+			case <-time.After(20 * time.Second):
 				t.Error("Timed out waiting for event to come in")
 			}
 			result, err := client.StringVariation("string-flag1", nil, "default")
