@@ -30,6 +30,9 @@ RUN mkdir /tmp/certs && cp -r /etc/ssl/certs/* /tmp/certs
 ############################
 FROM fanout/pushpin:1.41.0
 
+# Use root user for setup
+USER root
+
 # Copy entrypoint and binaries
 COPY docker-entrypoint.sh /usr/local/bin/
 COPY --from=builder /app/ff-proxy /app/ff-proxy
@@ -47,7 +50,7 @@ RUN chmod +x /usr/local/bin/docker-entrypoint.sh \
  && chmod -R 0775 /log /pushpin \
  && chown -R 65534:65534 /app/ff-proxy /log /pushpin /usr/lib/pushpin /etc/pushpin
 
-# Setting this to 65534 which hould be the nodbody user
+# Use nobody user for runtime
 USER 65534:65534
 
 # Expose default port pushpin listens on
