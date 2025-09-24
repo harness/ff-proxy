@@ -134,7 +134,7 @@ check: lint format sec ## Runs linter, goimports and gosec
 PHONY+= lint
 lint: tools ## lint the golang code
 	@echo "Linting $(1)"
-	@golint ./...
+	golint run ./...
 
 PHONY+= tools
 format: tools ## Format go code and error if any changes are made
@@ -159,9 +159,8 @@ sec: tools ## Run the security checks
 # Install golangci-lint
 $(GOBIN)/golangci-lint:
 	@echo "🔘 Installing golangci-lint... (`date '+%H:%M:%S'`)"
-	@curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(GOPATH)/bin
+	@curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(go env GOPATH)/bin v1.64.8
 
-# Install golint to lint code
 $(GOBIN)/golint:
 	@echo "🔘 Installing golint ... (`date '+%H:%M:%S'`)"
 	@go install golang.org/x/lint/golint@latest
