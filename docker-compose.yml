@@ -1,20 +1,12 @@
 version: "3.9"
 services:
   proxy:
-    image: "harness/ff-proxy:v2.0.0-rc.20"
     environment:
-      - DEBUG=${DEBUG}
       - LOG_LEVEL=INFO
       - REDIS_ADDRESS=redis:6379
       - READ_REPLICA=false
       - AUTH_SECRET=foobar
-      - TLS_ENABLED=${TLS_ENABLED}
-      - TLS_CERT=${TLS_CERT}
-      - TLS_KEY=${TLS_KEY}
       - PROXY_KEY=${PROXY_KEY}
-      - PORT=${PORT}
-      - BYPASS_AUTH=${BYPASS_AUTH}
-      - ACCOUNT_IDENTIFIER=${ACCOUNT_IDENTIFIER}
     build:
       context: ./
       dockerfile: ./Dockerfile
@@ -22,19 +14,11 @@ services:
       - ${CONFIG_VOLUME:-./config:/config}
       - ./tests/e2e/certs:/certs
     ports:
-      - 7000:${PORT:-7000}
+      - "7000:7000"
+    depends_on:
+      - redis
 
   redis:
     image: "redis:latest"
     ports:
       - "6379:6379"
-
-  pushpin:
-    image: fanout/pushpin
-    ports:
-      - "7000:7000"
-      - "5560-5563:5560-5563"
-      - "5555:5555"
-    volumes:
-      - ./config/pushpin:/etc/pushpin
-    command: "pushpin --merge-output"
