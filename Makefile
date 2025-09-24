@@ -134,7 +134,7 @@ check: lint format sec ## Runs linter, goimports and gosec
 PHONY+= lint
 lint: tools ## lint the golang code
 	@echo "Linting $(1)"
-	golint run ./...
+	golint ./...
 
 PHONY+= tools
 format: tools ## Format go code and error if any changes are made
