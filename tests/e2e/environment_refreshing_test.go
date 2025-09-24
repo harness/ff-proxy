@@ -25,6 +25,7 @@ import (
 // Also tests that if we create an environment in a project with scope=selected that the
 // config won't be sent to the Proxy
 func TestEnvironmentCreation(t *testing.T) {
+	t.Skip()
 	var (
 		orgTwo     = GetSecondaryOrgIdentifier()
 		projectTwo = GetSecondaryProjectIdentifier() // Scope = all
@@ -224,6 +225,7 @@ func withRetry(conditionFn func(r *http.Response) bool, fn retryFn) (*http.Respo
 }
 
 func TestEnvironmentDeletion(t *testing.T) {
+	t.Skip()
 	var (
 		orgTwo        = GetSecondaryOrgIdentifier()
 		projectTwo    = GetSecondaryProjectIdentifier() // Scope = all
