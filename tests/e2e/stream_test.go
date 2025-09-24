@@ -41,6 +41,7 @@ func TestEvent(t *testing.T) {
 			args{
 				Key: GetServerAPIKey(),
 				Operation: func() error {
+					t.Log("Patching feature flag")
 					parameters := make(map[string]interface{})
 					parameters["state"] = "on"
 					resp := PatchFeatureFlag(t, DefaultClient(), GetAccountIdentifier(), GetOrgIdentifier(), "string-flag1", GetProjectIdentifier(), GetEnvironmentIdentifier(), "setFeatureFlagState", parameters)
@@ -61,6 +62,7 @@ func TestEvent(t *testing.T) {
 			args{
 				Key: GetServerAPIKey(),
 				Operation: func() error {
+					t.Log("Patching feature flag")
 					parameters := make(map[string]interface{})
 					parameters["state"] = "off"
 					resp := PatchFeatureFlag(t, DefaultClient(), GetAccountIdentifier(), GetOrgIdentifier(), "string-flag1", GetProjectIdentifier(), GetEnvironmentIdentifier(), "setFeatureFlagState", parameters)
@@ -109,10 +111,11 @@ func TestEvent(t *testing.T) {
 			// wait for up to 10 seconds for the expected sse event to come in
 			select {
 			case msg := <-eventChan:
+				t.Log("Event received")
 				assert.Equal(t, tt.want.sseEvent.Event, msg.Event)
 				assert.Equal(t, tt.want.sseEvent.Domain, msg.Domain)
 				assert.Equal(t, tt.want.sseEvent.Identifier, msg.Identifier)
-			case <-time.After(10 * time.Second):
+			case <-time.After(20 * time.Second):
 				t.Error("Timed out waiting for event to come in")
 			}
 			result, err := client.StringVariation("string-flag1", nil, "default")

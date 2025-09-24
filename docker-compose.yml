@@ -39,13 +39,3 @@ services:
     image: "redis:latest"
     ports:
       - "6379:6379"
-
-  pushpin:
-    image: fanout/pushpin
-    ports:
-      - "7000:7000"
-      - "5560-5563:5560-5563"
-      - "5555:5555"
-    volumes:
-      - ./config/pushpin:/etc/pushpin
-    command: "pushpin --merge-output"

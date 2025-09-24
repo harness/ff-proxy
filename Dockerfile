@@ -1,7 +1,7 @@
 ############################
 # STEP 1 build executable binary
 ############################
-FROM golang:1.23.5 as builder
+FROM golang:1.23.12 as builder
 
 WORKDIR /app
 
@@ -15,73 +15,42 @@ COPY . .
 # Generate Code and Build
 RUN make build
 
+############################
+# STEP 2: Grab CA certificates
+############################
+FROM debian:bookworm-slim as certs
+RUN apt-get update && apt-get install -y ca-certificates
+RUN mkdir /tmp/certs && cp -r /etc/ssl/certs/* /tmp/certs
 
 ############################
-# STEP 2 build pushpin 22.04 image - source https://github.com/fanout/docker-pushpin/blob/master/Dockerfile
-# TODO - this will rarely change - publish as an image we can consume
+# STEP 3: Add relay proxy to base pushpin image
 ############################
-# Pull the base image
-FROM ubuntu:24.04 as pushpin
+FROM fanout/pushpin:1.41.0
 
-# Add private APT repository
-RUN \
-  apt-get update && \
-  apt-get install -y apt-transport-https software-properties-common && \
-  echo deb https://fanout.jfrog.io/artifactory/debian fanout-jammy main \
-    | tee /etc/apt/sources.list.d/fanout.list && \
-  apt-key adv --keyserver hkp://keyserver.ubuntu.com:80 --recv-keys \
-    7D0343148157C3DF
+# Use root user for setup
+USER root
 
-ENV PUSHPIN_VERSION 1.37.0-1~jammy
-
-# Install Pushpin
-RUN \
-  apt-get update && \
-  apt-get install -y pushpin=$PUSHPIN_VERSION curl binutils
-
-# Fix CVEs
-RUN \
-  apt-get upgrade -y perl openssl nghttp2
-
-# Required for the image to work on Centos7 with 3.10 kernel
-RUN \
-    strip --remove-section=.note.ABI-tag /usr/lib/x86_64-linux-gnu/libQt5Core.so.5
-
-# Cleanup
-RUN \
-  apt-get clean && \
-  rm -fr /var/lib/apt/lists/* && \
-  rm -fr /tmp/*
-
-# Add entrypoint script
+# Copy entrypoint and binaries
 COPY docker-entrypoint.sh /usr/local/bin/
-# give permission to run entrypoint script
-RUN chmod +x /usr/local/bin/docker-entrypoint.sh
-
-# Define default entrypoint and command
-ENTRYPOINT ["docker-entrypoint.sh"]
-CMD ["pushpin", "--merge-output"]
-
-
-############################
-# STEP 3 add relay proxy build to pushpin image
-############################
-FROM pushpin
 COPY --from=builder /app/ff-proxy /app/ff-proxy
-COPY --from=builder ./app/config/pushpin /etc/pushpin
-COPY --from=builder ./app/start.sh /start.sh
+COPY --from=builder /app/config/pushpin /etc/pushpin
+COPY --from=builder /app/start.sh /start.sh
 
-RUN mkdir /log
-RUN mkdir /pushpin
-RUN mkdir /pushpin/run
-RUN mkdir /pushpin/log
-RUN chmod -R 0500 /app/ff-proxy /usr/lib/pushpin /etc/pushpin
-RUN chmod -R 0755 /log /pushpin /usr/lib/pushpin /etc/pushpin
-RUN chown -R 65534:65534 /app/ff-proxy /log /pushpin /usr/lib/pushpin /etc/pushpin
+# Copy CA certificates
+COPY --from=certs /tmp/certs /etc/ssl/certs
 
-# Setting this to 65534 which hould be the nodbody user
-USER 65534
+# Prepare directories + set permissions in a single layer
+RUN chmod +x /usr/local/bin/docker-entrypoint.sh \
+ && mkdir -p /log /pushpin/run /pushpin/log \
+ && chmod 0500 /app/ff-proxy \
+ && chmod -R 0755 /usr/lib/pushpin /etc/pushpin \
+ && chmod -R 0775 /log /pushpin \
+ && chown -R 65534:65534 /app/ff-proxy /log /pushpin /usr/lib/pushpin /etc/pushpin
+
+# Use nobody user for runtime
+USER 65534:65534
 
 # Expose default port pushpin listens on
 EXPOSE 7000
+ENTRYPOINT ["docker-entrypoint.sh"]
 CMD ["./start.sh"]
