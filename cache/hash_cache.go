@@ -13,7 +13,9 @@ import (
 	"golang.org/x/sync/singleflight"
 )
 
-// HashCache ...
+// The HashCache wraps a Cache implementation (via the MemoizeCache) and adds an in-memory caching layer for serialised data.
+// It contains its own implementations for certain methods of the Cache interface that are specifically used for caching
+// large objects that the Proxy stores.
 type HashCache struct {
 	Cache
 	localCache   internalCache

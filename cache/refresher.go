@@ -40,7 +40,8 @@ type config interface {
 	SetProxyConfig(proxyConfig []domain.ProxyConfig)
 }
 
-// Refresher is a type for handling SSE events from Harness Saas
+// Refresher is a type for handling SSE events from Harness Saas and making sure that data in the underlying
+// repositories is updated when change events are received.
 type Refresher struct {
 	proxyKey          string
 	authToken         string

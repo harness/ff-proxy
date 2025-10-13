@@ -48,7 +48,8 @@ func WithLocalCache(lc cache.LocalCache) Options {
 	}
 }
 
-// KeyValCache is a cache that stores KeyValue pairs
+// KeyValCache is a simple abstraction over Redis that provides basic
+// operations for storing, retrieving, and deleting key-value pairs
 type KeyValCache struct {
 	marshalFn   cache.MarshalFunc
 	unmarshalFn cache.UnmarshalFunc

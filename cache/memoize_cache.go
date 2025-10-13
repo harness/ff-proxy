@@ -33,6 +33,10 @@ type internalCache interface {
 	Delete(key string)
 }
 
+// The Memoize Cache embeds the KeyValCache and adds an in-memory caching layer for serialised data.
+// It overrides the MarshalFn and UnmarshalFn in the underlying KeyValCache to cache the raw bytes returned
+// from Redis in memory. In effect, the MemoizeCache behaves just like a KeyValueCache, but with additional
+// logic to avoid repeatedly unmarshalling the same data.
 type memoizeCache struct {
 	Cache
 	metrics memoizeMetrics
