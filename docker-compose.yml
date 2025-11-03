@@ -22,3 +22,10 @@ services:
     image: "redis:latest"
     ports:
       - "6379:6379"
+
+  pushpin:
+    image: "fanout/pushpin:1.41.0"
+    ports:
+      - "7999:7999"
+      - "5560-5563:5560-5563"
+      - "5555:5555"

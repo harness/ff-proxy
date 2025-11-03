@@ -29,6 +29,17 @@ type mockService struct {
 	getProxyConfig func(req *clientgen.GetProxyConfigParams) (*clientgen.GetProxyConfigResponse, error)
 
 	getProxyConfigCalls int
+
+	getFeatureConfigIdentifier func() (*clientgen.GetFeatureConfigByIdentifierResponse, error)
+	getSegmentIdentifier       func() (*clientgen.GetSegmentByIdentifierResponse, error)
+}
+
+func (m *mockService) GetSegmentByIdentifierWithResponse(ctx context.Context, envID string, identifier string, params *clientgen.GetSegmentByIdentifierParams, reqEditor ...clientgen.RequestEditorFn) (*clientgen.GetSegmentByIdentifierResponse, error) {
+	return m.getSegmentIdentifier()
+}
+
+func (m *mockService) GetFeatureConfigByIdentifierWithResponse(ctx context.Context, envID string, identifier string, params *clientgen.GetFeatureConfigByIdentifierParams, reqEditor ...clientgen.RequestEditorFn) (*clientgen.GetFeatureConfigByIdentifierResponse, error) {
+	return m.getFeatureConfigIdentifier()
 }
 
 func (m *mockService) AuthenticateWithResponse(ctx context.Context, req clientgen.AuthenticateJSONRequestBody, fns ...clientgen.RequestEditorFn) (*clientgen.AuthenticateResponse, error) {
@@ -459,4 +470,417 @@ func mustMarshal(v interface{}) []byte {
 		panic(err)
 	}
 	return b
+}
+
+func TestClient_GetFeatureConfigsByIdentifier(t *testing.T) {
+	validInput := GetFeatureConfigsByIdentifierInput{
+		AuthToken:  "foo",
+		EnvID:      "123",
+		Identifier: "Hello",
+		Cluster:    "2",
+	}
+
+	resp200 := &clientgen.FeatureConfig{
+		DefaultServe:         clientgen.Serve{},
+		Environment:          "123",
+		Feature:              "Foo",
+		Kind:                 "boolean",
+		OffVariation:         "off",
+		Prerequisites:        nil,
+		Project:              "test",
+		Rules:                nil,
+		State:                "on",
+		VariationToTargetMap: nil,
+		Variations:           nil,
+		Version:              nil,
+	}
+
+	type args struct {
+		input GetFeatureConfigsByIdentifierInput
+	}
+
+	type mocks struct {
+		clientService *mockService
+	}
+
+	type expected struct {
+		featureConfig clientgen.FeatureConfig
+		err           error
+	}
+
+	testCases := map[string]struct {
+		args      args
+		mocks     mocks
+		expected  expected
+		shouldErr bool
+	}{
+		"Given the ff-client service returns an error": {
+			args: args{
+				input: validInput,
+			},
+			mocks: mocks{
+				clientService: &mockService{
+					getFeatureConfigIdentifier: func() (*clientgen.GetFeatureConfigByIdentifierResponse, error) {
+						return nil, errors.New("some error")
+					},
+				},
+			},
+			shouldErr: true,
+			expected: expected{
+				featureConfig: clientgen.FeatureConfig{},
+				err:           ErrInternal,
+			},
+		},
+		"Given the ff-client service returns a 400": {
+			args: args{
+				input: validInput,
+			},
+			mocks: mocks{
+				clientService: &mockService{
+					getFeatureConfigIdentifier: func() (*clientgen.GetFeatureConfigByIdentifierResponse, error) {
+						return &clientgen.GetFeatureConfigByIdentifierResponse{
+							Body:         nil,
+							HTTPResponse: &http.Response{StatusCode: http.StatusBadRequest},
+							JSON200:      nil,
+						}, nil
+					},
+				},
+			},
+			shouldErr: true,
+			expected: expected{
+				featureConfig: clientgen.FeatureConfig{},
+				err:           ErrBadRequest,
+			},
+		},
+		"Given the ff-client service returns a 401": {
+			args: args{
+				input: validInput,
+			},
+			mocks: mocks{
+				clientService: &mockService{
+					getFeatureConfigIdentifier: func() (*clientgen.GetFeatureConfigByIdentifierResponse, error) {
+						return &clientgen.GetFeatureConfigByIdentifierResponse{
+							Body:         nil,
+							HTTPResponse: &http.Response{StatusCode: http.StatusUnauthorized},
+							JSON200:      nil,
+						}, nil
+					},
+				},
+			},
+			shouldErr: true,
+			expected: expected{
+				featureConfig: clientgen.FeatureConfig{},
+				err:           ErrUnauthorized,
+			},
+		},
+		"Given the ff-client service returns a 403": {
+			args: args{
+				input: validInput,
+			},
+			mocks: mocks{
+				clientService: &mockService{
+					getFeatureConfigIdentifier: func() (*clientgen.GetFeatureConfigByIdentifierResponse, error) {
+						return &clientgen.GetFeatureConfigByIdentifierResponse{
+							Body:         nil,
+							HTTPResponse: &http.Response{StatusCode: http.StatusForbidden},
+							JSON200:      nil,
+						}, nil
+					},
+				},
+			},
+			shouldErr: true,
+			expected: expected{
+				featureConfig: clientgen.FeatureConfig{},
+				err:           ErrUnauthorized,
+			},
+		},
+		"Given the ff-client service returns a 404": {
+			args: args{
+				input: validInput,
+			},
+			mocks: mocks{
+				clientService: &mockService{
+					getFeatureConfigIdentifier: func() (*clientgen.GetFeatureConfigByIdentifierResponse, error) {
+						return &clientgen.GetFeatureConfigByIdentifierResponse{
+							Body:         nil,
+							HTTPResponse: &http.Response{StatusCode: http.StatusNotFound},
+							JSON200:      nil,
+						}, nil
+					},
+				},
+			},
+			shouldErr: true,
+			expected: expected{
+				featureConfig: clientgen.FeatureConfig{},
+				err:           ErrNotFound,
+			},
+		},
+		"Given the ff-client service returns a 500": {
+			args: args{
+				input: validInput,
+			},
+			mocks: mocks{
+				clientService: &mockService{
+					getFeatureConfigIdentifier: func() (*clientgen.GetFeatureConfigByIdentifierResponse, error) {
+						return &clientgen.GetFeatureConfigByIdentifierResponse{
+							Body:         nil,
+							HTTPResponse: &http.Response{StatusCode: http.StatusInternalServerError},
+							JSON200:      nil,
+						}, nil
+					},
+				},
+			},
+			shouldErr: true,
+			expected: expected{
+				featureConfig: clientgen.FeatureConfig{},
+				err:           ErrInternal,
+			},
+		},
+		"Given the ff-client service returns a 200": {
+			args: args{
+				input: validInput,
+			},
+			mocks: mocks{
+				clientService: &mockService{
+					getFeatureConfigIdentifier: func() (*clientgen.GetFeatureConfigByIdentifierResponse, error) {
+						return &clientgen.GetFeatureConfigByIdentifierResponse{
+							Body:         nil,
+							HTTPResponse: &http.Response{StatusCode: http.StatusOK},
+							JSON200:      resp200,
+						}, nil
+					},
+				},
+			},
+			shouldErr: false,
+			expected: expected{
+				featureConfig: *resp200,
+				err:           nil,
+			},
+		},
+	}
+
+	for desc, tc := range testCases {
+		desc := desc
+		tc := tc
+
+		t.Run(desc, func(t *testing.T) {
+			c := Client{client: tc.mocks.clientService}
+
+			actual, err := c.GetFeatureConfigByIdentifier(context.Background(), tc.args.input)
+			if tc.shouldErr {
+				assert.NotNil(t, err)
+				assert.True(t, errors.Is(err, tc.expected.err))
+			} else {
+				assert.Nil(t, err)
+			}
+
+			assert.Equal(t, tc.expected.featureConfig, actual)
+		})
+	}
+}
+
+func TestClient_GetSegmentsByIdentifier(t *testing.T) {
+	validInput := GetSegmentByIdentifierInput{
+		AuthToken:  "foo",
+		EnvID:      "123",
+		Identifier: "Hello",
+		Cluster:    "2",
+	}
+
+	resp200 := clientgen.Segment{
+		CreatedAt:    nil,
+		Environment:  nil,
+		Excluded:     nil,
+		Identifier:   "Foobar",
+		Included:     nil,
+		ModifiedAt:   nil,
+		Name:         "foobar",
+		Rules:        nil,
+		ServingRules: nil,
+		Tags:         nil,
+		Version:      nil,
+	}
+
+	type args struct {
+		input GetSegmentByIdentifierInput
+	}
+
+	type mocks struct {
+		clientService *mockService
+	}
+
+	type expected struct {
+		segment clientgen.Segment
+		err     error
+	}
+
+	testCases := map[string]struct {
+		args      args
+		mocks     mocks
+		expected  expected
+		shouldErr bool
+	}{
+		"Given the ff-client service returns an error": {
+			args: args{
+				input: validInput,
+			},
+			mocks: mocks{
+				clientService: &mockService{
+					getSegmentIdentifier: func() (*clientgen.GetSegmentByIdentifierResponse, error) {
+						return nil, errors.New("some error")
+					},
+				},
+			},
+			shouldErr: true,
+			expected: expected{
+				segment: clientgen.Segment{},
+				err:     ErrInternal,
+			},
+		},
+		"Given the ff-client service returns a 400": {
+			args: args{
+				input: validInput,
+			},
+			mocks: mocks{
+				clientService: &mockService{
+					getSegmentIdentifier: func() (*clientgen.GetSegmentByIdentifierResponse, error) {
+						return &clientgen.GetSegmentByIdentifierResponse{
+							Body:         nil,
+							HTTPResponse: &http.Response{StatusCode: http.StatusBadRequest},
+							JSON200:      nil,
+						}, nil
+					},
+				},
+			},
+			shouldErr: true,
+			expected: expected{
+				segment: clientgen.Segment{},
+				err:     ErrBadRequest,
+			},
+		},
+		"Given the ff-client service returns a 401": {
+			args: args{
+				input: validInput,
+			},
+			mocks: mocks{
+				clientService: &mockService{
+					getSegmentIdentifier: func() (*clientgen.GetSegmentByIdentifierResponse, error) {
+						return &clientgen.GetSegmentByIdentifierResponse{
+							Body:         nil,
+							HTTPResponse: &http.Response{StatusCode: http.StatusUnauthorized},
+							JSON200:      nil,
+						}, nil
+					},
+				},
+			},
+			shouldErr: true,
+			expected: expected{
+				segment: clientgen.Segment{},
+				err:     ErrUnauthorized,
+			},
+		},
+		"Given the ff-client service returns a 403": {
+			args: args{
+				input: validInput,
+			},
+			mocks: mocks{
+				clientService: &mockService{
+					getSegmentIdentifier: func() (*clientgen.GetSegmentByIdentifierResponse, error) {
+						return &clientgen.GetSegmentByIdentifierResponse{
+							Body:         nil,
+							HTTPResponse: &http.Response{StatusCode: http.StatusForbidden},
+							JSON200:      nil,
+						}, nil
+					},
+				},
+			},
+			shouldErr: true,
+			expected: expected{
+				segment: clientgen.Segment{},
+				err:     ErrUnauthorized,
+			},
+		},
+		"Given the ff-client service returns a 404": {
+			args: args{
+				input: validInput,
+			},
+			mocks: mocks{
+				clientService: &mockService{
+					getSegmentIdentifier: func() (*clientgen.GetSegmentByIdentifierResponse, error) {
+						return &clientgen.GetSegmentByIdentifierResponse{
+							Body:         nil,
+							HTTPResponse: &http.Response{StatusCode: http.StatusNotFound},
+							JSON200:      nil,
+						}, nil
+					},
+				},
+			},
+			shouldErr: true,
+			expected: expected{
+				segment: clientgen.Segment{},
+				err:     ErrNotFound,
+			},
+		},
+		"Given the ff-client service returns a 500": {
+			args: args{
+				input: validInput,
+			},
+			mocks: mocks{
+				clientService: &mockService{
+					getSegmentIdentifier: func() (*clientgen.GetSegmentByIdentifierResponse, error) {
+						return &clientgen.GetSegmentByIdentifierResponse{
+							Body:         nil,
+							HTTPResponse: &http.Response{StatusCode: http.StatusInternalServerError},
+							JSON200:      nil,
+						}, nil
+					},
+				},
+			},
+			shouldErr: true,
+			expected: expected{
+				segment: clientgen.Segment{},
+				err:     ErrInternal,
+			},
+		},
+		"Given the ff-client service returns a 200": {
+			args: args{
+				input: validInput,
+			},
+			mocks: mocks{
+				clientService: &mockService{
+					getSegmentIdentifier: func() (*clientgen.GetSegmentByIdentifierResponse, error) {
+						return &clientgen.GetSegmentByIdentifierResponse{
+							Body:         nil,
+							HTTPResponse: &http.Response{StatusCode: http.StatusOK},
+							JSON200:      &resp200,
+						}, nil
+					},
+				},
+			},
+			shouldErr: false,
+			expected: expected{
+				segment: resp200,
+				err:     nil,
+			},
+		},
+	}
+
+	for desc, tc := range testCases {
+		desc := desc
+		tc := tc
+
+		t.Run(desc, func(t *testing.T) {
+			c := Client{client: tc.mocks.clientService}
+
+			actual, err := c.GetSegmentByIdentifier(context.Background(), tc.args.input)
+			if tc.shouldErr {
+				assert.NotNil(t, err)
+				assert.True(t, errors.Is(err, tc.expected.err))
+			} else {
+				assert.Nil(t, err)
+			}
+
+			assert.Equal(t, tc.expected.segment, actual)
+		})
+	}
 }
