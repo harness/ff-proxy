@@ -45,6 +45,8 @@ type ffClientService interface {
 	GetProxyConfigWithResponse(ctx context.Context, params *clientgen.GetProxyConfigParams, reqEditors ...clientgen.RequestEditorFn) (*clientgen.GetProxyConfigResponse, error)
 	GetAllSegmentsWithResponse(ctx context.Context, environmentUUID string, params *clientgen.GetAllSegmentsParams, reqEditors ...clientgen.RequestEditorFn) (*clientgen.GetAllSegmentsResponse, error)
 	GetFeatureConfigWithResponse(ctx context.Context, environmentUUID string, params *clientgen.GetFeatureConfigParams, reqEditors ...clientgen.RequestEditorFn) (*clientgen.GetFeatureConfigResponse, error)
+	GetFeatureConfigByIdentifierWithResponse(ctx context.Context, environmentUUID string, identifier string, params *clientgen.GetFeatureConfigByIdentifierParams, reqEditors ...clientgen.RequestEditorFn) (*clientgen.GetFeatureConfigByIdentifierResponse, error)
+	GetSegmentByIdentifierWithResponse(ctx context.Context, environmentUUID string, identifier string, params *clientgen.GetSegmentByIdentifierParams, reqEditors ...clientgen.RequestEditorFn) (*clientgen.GetSegmentByIdentifierResponse, error)
 }
 
 // Client is a type for interacting with the Feature Flag Client Service
@@ -270,6 +272,68 @@ func (c Client) FetchSegmentConfigForEnvironment(ctx context.Context, authToken,
 			return []clientgen.Segment{}, ErrInternal
 		}
 		return []clientgen.Segment{}, err
+	}
+
+	return *resp.JSON200, nil
+}
+
+type GetFeatureConfigsByIdentifierInput struct {
+	AuthToken  string
+	Cluster    string
+	EnvID      string
+	Identifier string
+}
+
+func (c Client) GetFeatureConfigByIdentifier(ctx context.Context, input GetFeatureConfigsByIdentifierInput) (clientgen.FeatureConfig, error) {
+	resp, err := c.client.GetFeatureConfigByIdentifierWithResponse(
+		ctx,
+		input.EnvID,
+		input.Identifier,
+		&clientgen.GetFeatureConfigByIdentifierParams{Cluster: &input.Cluster},
+		addAuthToken(input.AuthToken),
+		domain.AddHarnessXHeaders(input.EnvID),
+	)
+	if err != nil {
+		return clientgen.FeatureConfig{}, fmt.Errorf("%w: %s", ErrInternal, err)
+	}
+
+	if resp.JSON200 == nil {
+		err, ok := statusCodeToErr[resp.StatusCode()]
+		if !ok {
+			return clientgen.FeatureConfig{}, ErrInternal
+		}
+		return clientgen.FeatureConfig{}, err
+	}
+
+	return *resp.JSON200, nil
+}
+
+type GetSegmentByIdentifierInput struct {
+	AuthToken  string
+	Cluster    string
+	EnvID      string
+	Identifier string
+}
+
+func (c Client) GetSegmentByIdentifier(ctx context.Context, input GetSegmentByIdentifierInput) (clientgen.Segment, error) {
+	resp, err := c.client.GetSegmentByIdentifierWithResponse(
+		ctx,
+		input.EnvID,
+		input.Identifier,
+		&clientgen.GetSegmentByIdentifierParams{Cluster: &input.Cluster},
+		addAuthToken(input.AuthToken),
+		domain.AddHarnessXHeaders(input.EnvID),
+	)
+	if err != nil {
+		return clientgen.Segment{}, fmt.Errorf("%w: %s", ErrInternal, err)
+	}
+
+	if resp.JSON200 == nil {
+		err, ok := statusCodeToErr[resp.StatusCode()]
+		if !ok {
+			return clientgen.Segment{}, ErrInternal
+		}
+		return clientgen.Segment{}, err
 	}
 
 	return *resp.JSON200, nil

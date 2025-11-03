@@ -99,3 +99,27 @@ func (p prometheusClient) GetFeatureConfigWithResponse(ctx context.Context, envi
 
 	return p.next.GetFeatureConfigWithResponse(ctx, environmentUUID, params, reqEditors...)
 }
+
+func (p prometheusClient) GetFeatureConfigByIdentifierWithResponse(ctx context.Context, environmentUUID string, identifier string, params *clientgen.GetFeatureConfigByIdentifierParams, reqEditors ...clientgen.RequestEditorFn) (resp *clientgen.GetFeatureConfigByIdentifierResponse, err error) {
+	start := time.Now()
+	defer func() {
+		if resp != nil {
+			p.requestCount.WithLabelValues("/client/env/:env/feature-configs/:identifier", environmentUUID, strconv.Itoa(resp.StatusCode())).Inc()
+			p.requestDuration.WithLabelValues("/client/env/:env/feature-configs/:identifier", environmentUUID).Observe(time.Since(start).Seconds())
+		}
+	}()
+
+	return p.next.GetFeatureConfigByIdentifierWithResponse(ctx, environmentUUID, identifier, params, reqEditors...)
+}
+
+func (p prometheusClient) GetSegmentByIdentifierWithResponse(ctx context.Context, environmentUUID string, identifier string, params *clientgen.GetSegmentByIdentifierParams, reqEditors ...clientgen.RequestEditorFn) (resp *clientgen.GetSegmentByIdentifierResponse, err error) {
+	start := time.Now()
+	defer func() {
+		if resp != nil {
+			p.requestCount.WithLabelValues("/client/env/:env/target-segments/:identifier", environmentUUID, strconv.Itoa(resp.StatusCode())).Inc()
+			p.requestDuration.WithLabelValues("/client/env/:env/target-segments/:identifier", environmentUUID).Observe(time.Since(start).Seconds())
+		}
+	}()
+
+	return p.next.GetSegmentByIdentifierWithResponse(ctx, environmentUUID, identifier, params, reqEditors...)
+}
