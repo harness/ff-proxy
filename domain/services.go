@@ -12,4 +12,6 @@ type ClientService interface {
 	PageProxyConfig(ctx context.Context, input GetProxyConfigInput) ([]ProxyConfig, error)
 	FetchFeatureConfigForEnvironment(ctx context.Context, authToken, cluster string, envID string) ([]clientgen.FeatureConfig, error)
 	FetchSegmentConfigForEnvironment(ctx context.Context, authToken, cluster string, envID string) ([]clientgen.Segment, error)
+	GetFeatureConfigByIdentifier(ctx context.Context, input GetFeatureConfigsByIdentifierInput) (clientgen.FeatureConfig, error)
+	GetSegmentByIdentifier(ctx context.Context, input GetSegmentByIdentifierInput) (clientgen.Segment, error)
 }

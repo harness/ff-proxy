@@ -337,14 +337,29 @@ func (s Refresher) handleRemoveAPIKeyEvent(ctx context.Context, env, apiKey stri
 func (s Refresher) handleFetchFeatureEvent(ctx context.Context, env, id string) error {
 	s.log.Debug("updating featureConfig entry", "environment", env, "identifier", id)
 
-	featureConfigs, err := s.clientService.FetchFeatureConfigForEnvironment(ctx, s.config.Token(), s.config.ClusterIdentifier(), env)
+	fc, err := s.clientService.GetFeatureConfigByIdentifier(ctx, domain.GetFeatureConfigsByIdentifierInput{
+		AuthToken:  s.config.Token(),
+		Cluster:    s.config.ClusterIdentifier(),
+		EnvID:      env,
+		Identifier: id,
+	})
 	if err != nil {
 		return err
 	}
-	features := make([]domain.FeatureFlag, 0, len(featureConfigs))
-	for _, v := range featureConfigs {
-		features = append(features, domain.FeatureFlag(v))
-	}
+
+	//featureConfigs, err := s.clientService.FetchFeatureConfigForEnvironment(ctx, s.config.Token(), s.config.ClusterIdentifier(), env)
+	//if err != nil {
+	//	return err
+	//}
+
+	dff := domain.FeatureFlag(fc)
+
+	//features := make([]domain.FeatureFlag, 0, len(featureConfigs))
+	//for _, v := range featureConfigs {
+	//	features = append(features, domain.FeatureFlag(v))
+	//}
+
+	s.flagRepo.Add(ctx)
 
 	// set the config
 	if err := s.flagRepo.Add(ctx, domain.FlagConfig{

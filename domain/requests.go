@@ -120,3 +120,17 @@ func AddHarnessXHeaders(envID string) func(ctx context.Context, req *http.Reques
 		return nil
 	}
 }
+
+type GetSegmentByIdentifierInput struct {
+	AuthToken  string
+	Cluster    string
+	EnvID      string
+	Identifier string
+}
+
+type GetFeatureConfigsByIdentifierInput struct {
+	AuthToken  string
+	Cluster    string
+	EnvID      string
+	Identifier string
+}
