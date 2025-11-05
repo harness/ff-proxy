@@ -221,6 +221,7 @@ func (m *mockFlagRepo) Add(ctx context.Context, config ...domain.FlagConfig) err
 }
 
 type mockClientService struct {
+	domain.ClientService
 	authProxyKey    func() (domain.AuthenticateProxyKeyResponse, error)
 	pageProxyConfig func() ([]domain.ProxyConfig, error)
 }
