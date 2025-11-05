@@ -98,7 +98,6 @@ func (k *KeyValCache) Get(ctx context.Context, key string, value interface{}) er
 		}
 		return fmt.Errorf("%w: KeyValCache.Get failed for key: %q", err, key)
 	}
-
 	return k.unmarshalFn(b, value)
 }
 

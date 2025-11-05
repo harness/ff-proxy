@@ -20,18 +20,26 @@ func TestRefresher_HandleMessage(t *testing.T) {
 		message domain.SSEMessage
 	}
 
+	type mocks struct {
+		clientService mockClientService
+	}
+
 	type expected struct {
 		err error
 	}
 
 	testCases := map[string]struct {
 		args      args
+		mocks     mocks
 		expected  expected
 		shouldErr bool
 	}{
 		"Given I have an SSEMessage with the domain 'Foo'": {
 			args: args{
 				message: domain.SSEMessage{Domain: "Foo"},
+			},
+			mocks: mocks{
+				clientService: mockClientService{},
 			},
 			expected:  expected{err: ErrUnexpectedMessageDomain},
 			shouldErr: true,
@@ -43,6 +51,9 @@ func TestRefresher_HandleMessage(t *testing.T) {
 					Event:  "foo",
 				},
 			},
+			mocks: mocks{
+				clientService: mockClientService{},
+			},
 			expected:  expected{err: ErrUnexpectedEventType},
 			shouldErr: true,
 		},
@@ -53,17 +64,26 @@ func TestRefresher_HandleMessage(t *testing.T) {
 					Event:  "foo",
 				},
 			},
+			mocks: mocks{
+				clientService: mockClientService{},
+			},
 			expected:  expected{err: ErrUnexpectedEventType},
 			shouldErr: true,
 		},
 		"Given I have an SSEMessage with the domain 'flag' event 'patch'": {
 			args: args{
 				message: domain.SSEMessage{
-					Domain: domain.MsgDomainFeature,
-					Event:  domain.EventPatch,
+					Domain:      domain.MsgDomainFeature,
+					Event:       domain.EventPatch,
+					Environment: "123",
 				},
 			},
-			expected:  expected{err: nil},
+			mocks: mocks{clientService: mockClientService{getFeatureConfigByIdentifier: func(ctx context.Context, input domain.GetFeatureConfigsByIdentifierInput) (clientgen.FeatureConfig, error) {
+				return clientgen.FeatureConfig{Feature: "Foobar", Version: domain.ToPtr(int64(2))}, nil
+			}}},
+			expected: expected{
+				err: nil,
+			},
 			shouldErr: false,
 		},
 		"Given I have an SSEMessage with the domain 'flag' event 'create'": {
@@ -73,6 +93,9 @@ func TestRefresher_HandleMessage(t *testing.T) {
 					Event:  domain.EventCreate,
 				},
 			},
+			mocks: mocks{clientService: mockClientService{getFeatureConfigByIdentifier: func(ctx context.Context, input domain.GetFeatureConfigsByIdentifierInput) (clientgen.FeatureConfig, error) {
+				return clientgen.FeatureConfig{Feature: "Foobar", Version: domain.ToPtr(int64(2))}, nil
+			}}},
 			expected:  expected{err: nil},
 			shouldErr: false,
 		},
@@ -93,6 +116,12 @@ func TestRefresher_HandleMessage(t *testing.T) {
 					Event:  domain.EventPatch,
 				},
 			},
+			mocks: mocks{clientService: mockClientService{FetchSegmentConfigForEnvironmentFn: func(ctx context.Context, authToken, envId string) ([]clientgen.Segment, error) {
+				return []clientgen.Segment{
+					{Identifier: "foo"},
+					{Identifier: "bar"},
+				}, nil
+			}}},
 			expected:  expected{err: nil},
 			shouldErr: false,
 		},
@@ -103,6 +132,12 @@ func TestRefresher_HandleMessage(t *testing.T) {
 					Event:  domain.EventCreate,
 				},
 			},
+			mocks: mocks{clientService: mockClientService{FetchSegmentConfigForEnvironmentFn: func(ctx context.Context, authToken, envId string) ([]clientgen.Segment, error) {
+				return []clientgen.Segment{
+					{Identifier: "foo"},
+					{Identifier: "bar"},
+				}, nil
+			}}},
 			expected:  expected{err: nil},
 			shouldErr: false,
 		},
@@ -112,6 +147,9 @@ func TestRefresher_HandleMessage(t *testing.T) {
 					Domain: domain.MsgDomainSegment,
 					Event:  domain.EventDelete,
 				},
+			},
+			mocks: mocks{
+				clientService: mockClientService{},
 			},
 			expected:  expected{err: nil},
 			shouldErr: false,
@@ -144,6 +182,9 @@ func TestRefresher_HandleMessage(t *testing.T) {
 					Environments: []string{"123"},
 				},
 			},
+			mocks: mocks{clientService: mockClientService{PageProxyConfigFn: func(ctx context.Context, input domain.GetProxyConfigInput) ([]domain.ProxyConfig, error) {
+				return []domain.ProxyConfig{}, nil
+			}}},
 			expected:  expected{err: nil},
 			shouldErr: false,
 		},
@@ -191,20 +232,6 @@ func TestRefresher_HandleMessage(t *testing.T) {
 			},
 			expected:  expected{err: nil},
 			shouldErr: false,
-		},
-	}
-
-	mockClient := mockClientService{
-
-		PageProxyConfigFn: func(ctx context.Context, input domain.GetProxyConfigInput) ([]domain.ProxyConfig, error) {
-			return []domain.ProxyConfig{}, nil
-		},
-
-		FetchFeatureConfigForEnvironmentFn: func(ctx context.Context, authToken, envId string) ([]clientgen.FeatureConfig, error) {
-			return []clientgen.FeatureConfig{}, nil
-		},
-		FetchSegmentConfigForEnvironmentFn: func(ctx context.Context, authToken, envId string) ([]clientgen.Segment, error) {
-			return []clientgen.Segment{}, nil
 		},
 	}
 
@@ -289,7 +316,7 @@ func TestRefresher_HandleMessage(t *testing.T) {
 
 		t.Run(desc, func(t *testing.T) {
 
-			r := NewRefresher(log.NewNoOpLogger(), config, mockClient, inventoryRepo, authRepo, flagRepo, segmentRepo)
+			r := NewRefresher(log.NewNoOpLogger(), config, tc.mocks.clientService, inventoryRepo, authRepo, flagRepo, segmentRepo)
 			err := r.HandleMessage(context.Background(), tc.args.message)
 			if tc.shouldErr {
 				assert.NotNil(t, err)
@@ -735,6 +762,16 @@ type mockClientService struct {
 	PageProxyConfigFn                  func(ctx context.Context, input domain.GetProxyConfigInput) ([]domain.ProxyConfig, error)
 	FetchFeatureConfigForEnvironmentFn func(ctx context.Context, authToken, envId string) ([]clientgen.FeatureConfig, error)
 	FetchSegmentConfigForEnvironmentFn func(ctx context.Context, authToken, envId string) ([]clientgen.Segment, error)
+	getFeatureConfigByIdentifier       func(ctx context.Context, input domain.GetFeatureConfigsByIdentifierInput) (clientgen.FeatureConfig, error)
+	getSegmentByIdentifier             func(ctx context.Context, input domain.GetSegmentByIdentifierInput) (clientgen.Segment, error)
+}
+
+func (c mockClientService) GetFeatureConfigByIdentifier(ctx context.Context, input domain.GetFeatureConfigsByIdentifierInput) (clientgen.FeatureConfig, error) {
+	return c.getFeatureConfigByIdentifier(ctx, input)
+}
+
+func (c mockClientService) GetSegmentByIdentifier(ctx context.Context, input domain.GetSegmentByIdentifierInput) (clientgen.Segment, error) {
+	return c.getSegmentByIdentifier(ctx, input)
 }
 
 func (c mockClientService) FetchSegmentConfigForEnvironment(ctx context.Context, authToken, cluster, envId string) ([]clientgen.Segment, error) {
@@ -899,6 +936,53 @@ func TestRefresher_addSegmentItems(t *testing.T) {
 			got, _ := addSegmentItems(tt.assets, tt.env, tt.segments)
 			if !reflect.DeepEqual(got, tt.want) {
 				t.Errorf("got %+v, want %+v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestReplaceFeatureConfig(t *testing.T) {
+	var version1 int64 = 1
+	var version2 int64 = 2
+
+	tests := []struct {
+		name           string
+		initialConfigs []domain.FeatureFlag
+		newConfig      domain.FeatureFlag
+		expected       []domain.FeatureFlag
+	}{
+		{
+			name: "replaces matching feature",
+			initialConfigs: []domain.FeatureFlag{
+				{Feature: "featA", Version: &version1},
+				{Feature: "featB", Version: &version1},
+			},
+			newConfig: domain.FeatureFlag{Feature: "featA", Version: &version2},
+			expected: []domain.FeatureFlag{
+				{Feature: "featA", Version: &version2},
+				{Feature: "featB", Version: &version1},
+			},
+		},
+		{
+			name: "no matching feature - no change",
+			initialConfigs: []domain.FeatureFlag{
+				{Feature: "featA", Version: &version1},
+			},
+			newConfig: domain.FeatureFlag{Feature: "featB", Version: &version2},
+			expected: []domain.FeatureFlag{
+				{Feature: "featA", Version: &version1},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+
+		t.Run(tt.name, func(t *testing.T) {
+			configs := append([]domain.FeatureFlag{}, tt.initialConfigs...) // copy to avoid mutation
+			replaceFeatureConfig(tt.newConfig, &configs)
+			if !reflect.DeepEqual(configs, tt.expected) {
+				t.Errorf("expected %+v, got %+v", tt.expected, configs)
 			}
 		})
 	}
