@@ -116,10 +116,9 @@ func TestRefresher_HandleMessage(t *testing.T) {
 					Event:  domain.EventPatch,
 				},
 			},
-			mocks: mocks{clientService: mockClientService{FetchSegmentConfigForEnvironmentFn: func(ctx context.Context, authToken, envId string) ([]clientgen.Segment, error) {
-				return []clientgen.Segment{
-					{Identifier: "foo"},
-					{Identifier: "bar"},
+			mocks: mocks{clientService: mockClientService{getSegmentByIdentifier: func(ctx context.Context, input domain.GetSegmentByIdentifierInput) (clientgen.Segment, error) {
+				return clientgen.Segment{
+					Identifier: "bar",
 				}, nil
 			}}},
 			expected:  expected{err: nil},
@@ -132,10 +131,9 @@ func TestRefresher_HandleMessage(t *testing.T) {
 					Event:  domain.EventCreate,
 				},
 			},
-			mocks: mocks{clientService: mockClientService{FetchSegmentConfigForEnvironmentFn: func(ctx context.Context, authToken, envId string) ([]clientgen.Segment, error) {
-				return []clientgen.Segment{
-					{Identifier: "foo"},
-					{Identifier: "bar"},
+			mocks: mocks{clientService: mockClientService{getSegmentByIdentifier: func(ctx context.Context, input domain.GetSegmentByIdentifierInput) (clientgen.Segment, error) {
+				return clientgen.Segment{
+					Identifier: "foo",
 				}, nil
 			}}},
 			expected:  expected{err: nil},
