@@ -473,7 +473,7 @@ func mustMarshal(v interface{}) []byte {
 }
 
 func TestClient_GetFeatureConfigsByIdentifier(t *testing.T) {
-	validInput := GetFeatureConfigsByIdentifierInput{
+	validInput := domain.GetFeatureConfigsByIdentifierInput{
 		AuthToken:  "foo",
 		EnvID:      "123",
 		Identifier: "Hello",
@@ -496,7 +496,7 @@ func TestClient_GetFeatureConfigsByIdentifier(t *testing.T) {
 	}
 
 	type args struct {
-		input GetFeatureConfigsByIdentifierInput
+		input domain.GetFeatureConfigsByIdentifierInput
 	}
 
 	type mocks struct {
@@ -680,7 +680,7 @@ func TestClient_GetFeatureConfigsByIdentifier(t *testing.T) {
 }
 
 func TestClient_GetSegmentsByIdentifier(t *testing.T) {
-	validInput := GetSegmentByIdentifierInput{
+	validInput := domain.GetSegmentByIdentifierInput{
 		AuthToken:  "foo",
 		EnvID:      "123",
 		Identifier: "Hello",
@@ -702,7 +702,7 @@ func TestClient_GetSegmentsByIdentifier(t *testing.T) {
 	}
 
 	type args struct {
-		input GetSegmentByIdentifierInput
+		input domain.GetSegmentByIdentifierInput
 	}
 
 	type mocks struct {

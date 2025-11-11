@@ -277,14 +277,7 @@ func (c Client) FetchSegmentConfigForEnvironment(ctx context.Context, authToken,
 	return *resp.JSON200, nil
 }
 
-type GetFeatureConfigsByIdentifierInput struct {
-	AuthToken  string
-	Cluster    string
-	EnvID      string
-	Identifier string
-}
-
-func (c Client) GetFeatureConfigByIdentifier(ctx context.Context, input GetFeatureConfigsByIdentifierInput) (clientgen.FeatureConfig, error) {
+func (c Client) GetFeatureConfigByIdentifier(ctx context.Context, input domain.GetFeatureConfigsByIdentifierInput) (clientgen.FeatureConfig, error) {
 	resp, err := c.client.GetFeatureConfigByIdentifierWithResponse(
 		ctx,
 		input.EnvID,
@@ -308,14 +301,7 @@ func (c Client) GetFeatureConfigByIdentifier(ctx context.Context, input GetFeatu
 	return *resp.JSON200, nil
 }
 
-type GetSegmentByIdentifierInput struct {
-	AuthToken  string
-	Cluster    string
-	EnvID      string
-	Identifier string
-}
-
-func (c Client) GetSegmentByIdentifier(ctx context.Context, input GetSegmentByIdentifierInput) (clientgen.Segment, error) {
+func (c Client) GetSegmentByIdentifier(ctx context.Context, input domain.GetSegmentByIdentifierInput) (clientgen.Segment, error) {
 	resp, err := c.client.GetSegmentByIdentifierWithResponse(
 		ctx,
 		input.EnvID,

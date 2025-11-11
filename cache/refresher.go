@@ -334,29 +334,64 @@ func (s Refresher) handleRemoveAPIKeyEvent(ctx context.Context, env, apiKey stri
 	})
 }
 
-func (s Refresher) handleFetchFeatureEvent(ctx context.Context, env, id string) error {
-	s.log.Debug("updating featureConfig entry", "environment", env, "identifier", id)
+// handleFetchFeatureEvent handles any PATCH/CREATE Feature Config events that we receive from Harness Saas.
+//
+// When we get a PATCH/CREATE feature event there are three keys in the cache that we need to update.
+// 1. env-<id>-feature-config-<identifier> entry which is the individual feature config record for that environment
+// 2. env-<id>-feature-configs entry which is the collection of featureConfigs for that environment. Since a change has been made to a flag in this environment, we need to update that specific flag in this collection.
+// 3. inventory entry for the featureConfig. This Inventory entry tracks all the resources in the cache associated with the Proxy key. It's used for cache cleanup and diffing assets during stream disconnects.
+//
+// In order to ensure we update these records correctly, when we get a PATCH/CREATE feature event we need to do the following:
+// 1. Fetch the featureConfig from HarnessSaas.
+// 2. Update the individual featureConfig record in the cache.
+// 3. Update the featureConfigs record in the cache.
+// 4. Update the inventory record for the featureConfig.
+func (s Refresher) handleFetchFeatureEvent(ctx context.Context, env, identifier string) error {
+	s.log.Debug("updating featureConfig entry", "environment", env, "identifier", identifier)
 
-	featureConfigs, err := s.clientService.FetchFeatureConfigForEnvironment(ctx, s.config.Token(), s.config.ClusterIdentifier(), env)
+	// Make a request to Harness Saas to fetch the updated featureConfig
+	fc, err := s.clientService.GetFeatureConfigByIdentifier(ctx, domain.GetFeatureConfigsByIdentifierInput{
+		AuthToken:  s.config.Token(),
+		Cluster:    s.config.ClusterIdentifier(),
+		EnvID:      env,
+		Identifier: identifier,
+	})
 	if err != nil {
 		return err
 	}
-	features := make([]domain.FeatureFlag, 0, len(featureConfigs))
-	for _, v := range featureConfigs {
-		features = append(features, domain.FeatureFlag(v))
+	updatedFlagConfig := domain.FeatureFlag(fc)
+
+	// Retrieve the currently cached flag config values.
+	featureConfigs, ok := s.flagRepo.GetFeatureConfigForEnvironment(ctx, env)
+	if !ok {
+		return fmt.Errorf("failed to get featureConfig for environment %s", env)
 	}
 
-	// set the config
-	if err := s.flagRepo.Add(ctx, domain.FlagConfig{
-		EnvironmentID:  env,
-		FeatureConfigs: features,
-	}); err != nil {
+	// Iterate over the cached flag config values and update the record that has changed
+	replaceFeatureConfig(updatedFlagConfig, &featureConfigs)
+
+	// Update the cached flagConfig. This will take care of updating the individual cached record stored at env-<id>-feature-config-<identifier> and the collection of featureConfigs stored at env-<id>-feature-configs.
+	if err := s.flagRepo.Add(ctx, domain.FlagConfig{EnvironmentID: env, FeatureConfigs: featureConfigs}); err != nil {
 		return err
 	}
-	// patch the inventory
+
+	// Update the inventory entry for the featureConfig.
 	return s.inventory.Patch(ctx, s.config.Key(), func(assets map[string]int64) (map[string]int64, error) {
-		return addFeatureItems(assets, env, features)
+		return addFeatureItems(assets, env, featureConfigs)
 	})
+}
+
+func replaceFeatureConfig(newConfig domain.FeatureFlag, featureConfigs *[]domain.FeatureFlag) {
+	if featureConfigs == nil {
+		return
+	}
+
+	for i := range *featureConfigs {
+		if (*featureConfigs)[i].Feature == newConfig.Feature {
+			(*featureConfigs)[i] = newConfig
+			break
+		}
+	}
 }
 
 func (s Refresher) handleDeleteFeatureEvent(ctx context.Context, env, identifier string) error {
