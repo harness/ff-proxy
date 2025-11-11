@@ -987,3 +987,50 @@ func TestReplaceFeatureConfig(t *testing.T) {
 		})
 	}
 }
+
+func TestReplaceSegmentConfig(t *testing.T) {
+	var version1 int64 = 1
+	var version2 int64 = 2
+
+	tests := []struct {
+		name           string
+		initialConfigs []domain.Segment
+		newConfig      domain.Segment
+		expected       []domain.Segment
+	}{
+		{
+			name: "replaces matching segment",
+			initialConfigs: []domain.Segment{
+				{Identifier: "featA", Version: &version1},
+				{Identifier: "featB", Version: &version1},
+			},
+			newConfig: domain.Segment{Identifier: "featA", Version: &version2},
+			expected: []domain.Segment{
+				{Identifier: "featA", Version: &version2},
+				{Identifier: "featB", Version: &version1},
+			},
+		},
+		{
+			name: "no matching segment - no change",
+			initialConfigs: []domain.Segment{
+				{Identifier: "featA", Version: &version1},
+			},
+			newConfig: domain.Segment{Identifier: "featB", Version: &version2},
+			expected: []domain.Segment{
+				{Identifier: "featA", Version: &version1},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+
+		t.Run(tt.name, func(t *testing.T) {
+			configs := append([]domain.Segment{}, tt.initialConfigs...) // copy to avoid mutation
+			replaceSegmentConfig(tt.newConfig, &configs)
+			if !reflect.DeepEqual(configs, tt.expected) {
+				t.Errorf("expected %+v, got %+v", tt.expected, configs)
+			}
+		})
+	}
+}

@@ -448,17 +448,37 @@ func (s Refresher) updateFeatureConfigsEntry(ctx context.Context, env string, id
 	})
 }
 
-func (s Refresher) handleFetchSegmentEvent(ctx context.Context, env, id string) error {
-	s.log.Debug("updating featureConfig entry", "environment", env, "identifier", id)
+// handleFetchSegmentEvent handles any PATCH/CREATE Segment events that we receive from Harness Saas.
+//
+// When we get a PATCH/CREATE segment event there are three keys in the cache that we need to update.
+// 1. env-<id>-segment-<identifier> entry which is the individual segment record for that environment
+// 2. env-<id>-segments entry which is the collection of segments for that environment. Since a change has been made to a flag in this environment, we need to update that specific segment in this collection.
+// 3. inventory entry for the segments. This Inventory entry tracks all the resources in the cache associated with the Proxy key. It's used for cache cleanup and diffing assets during stream disconnects.
+//
+// In order to ensure we update these records correctly, when we get a PATCH/CREATE feature event we need to do the following:
+// 1. Fetch the segment from HarnessSaas.
+// 2. Update the individual segment record in the cache.
+// 3. Update the segments record in the cache.
+// 4. Update the inventory record for the segment.
+func (s Refresher) handleFetchSegmentEvent(ctx context.Context, env, identifier string) error {
+	s.log.Debug("updating featureConfig entry", "environment", env, "identifier", identifier)
 
-	segmentConfig, err := s.clientService.FetchSegmentConfigForEnvironment(ctx, s.config.Token(), s.config.ClusterIdentifier(), env)
+	sc, err := s.clientService.GetSegmentByIdentifier(ctx, domain.GetSegmentByIdentifierInput{
+		AuthToken:  s.config.Token(),
+		Cluster:    s.config.ClusterIdentifier(),
+		EnvID:      env,
+		Identifier: identifier,
+	})
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to get segment by identifier: %w", err)
 	}
-	segments := make([]domain.Segment, 0, len(segmentConfig))
-	for _, v := range segmentConfig {
-		segments = append(segments, domain.Segment(v))
+	updatedSegment := domain.Segment(sc)
+
+	segments, ok := s.segmentRepo.GetSegmentsForEnvironment(ctx, env)
+	if !ok {
+		return fmt.Errorf("failed to get segment for environment %s", env)
 	}
+	replaceSegmentConfig(updatedSegment, &segments)
 
 	if err := s.segmentRepo.Add(ctx, domain.SegmentConfig{
 		EnvironmentID: env,
@@ -599,4 +619,17 @@ func (s Refresher) handleDeleteProxyKeyEvent(ctx context.Context) error {
 	keyInventoryEntry := string(domain.NewKeyInventory(proxyKey))
 	return s.inventory.Remove(ctx, keyInventoryEntry)
 
+}
+
+func replaceSegmentConfig(newConfig domain.Segment, segmentConfigs *[]domain.Segment) {
+	if segmentConfigs == nil {
+		return
+	}
+
+	for i := range *segmentConfigs {
+		if (*segmentConfigs)[i].Identifier == newConfig.Identifier {
+			(*segmentConfigs)[i] = newConfig
+			break
+		}
+	}
 }
