@@ -640,6 +640,7 @@ func replaceSegmentConfig(newConfig domain.Segment, segmentConfigs *[]domain.Seg
 	for i := range *segmentConfigs {
 		if (*segmentConfigs)[i].Identifier == newConfig.Identifier {
 			(*segmentConfigs)[i] = newConfig
+			segmentUpdated = true
 			break
 		}
 	}
