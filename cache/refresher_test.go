@@ -962,13 +962,14 @@ func TestReplaceFeatureConfig(t *testing.T) {
 			},
 		},
 		{
-			name: "no matching feature - no change",
+			name: "adding a new feature",
 			initialConfigs: []domain.FeatureFlag{
 				{Feature: "featA", Version: &version1},
 			},
-			newConfig: domain.FeatureFlag{Feature: "featB", Version: &version2},
+			newConfig: domain.FeatureFlag{Feature: "newFlag", Version: &version1},
 			expected: []domain.FeatureFlag{
 				{Feature: "featA", Version: &version1},
+				{Feature: "newFlag", Version: &version1},
 			},
 		},
 	}
@@ -1009,13 +1010,14 @@ func TestReplaceSegmentConfig(t *testing.T) {
 			},
 		},
 		{
-			name: "no matching segment - no change",
+			name: "adding a new segment",
 			initialConfigs: []domain.Segment{
 				{Identifier: "featA", Version: &version1},
 			},
-			newConfig: domain.Segment{Identifier: "featB", Version: &version2},
+			newConfig: domain.Segment{Identifier: "newSegment", Version: &version1},
 			expected: []domain.Segment{
 				{Identifier: "featA", Version: &version1},
+				{Identifier: "newSegment", Version: &version1},
 			},
 		},
 	}
