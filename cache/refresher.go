@@ -381,16 +381,26 @@ func (s Refresher) handleFetchFeatureEvent(ctx context.Context, env, identifier 
 	})
 }
 
+// replaceFeatureConfig replaces the featureConfig in the featureConfigs array with the updated featureConfig. If the
+// featureConfig does not exist in the featureConfigs slice it is added to it.
 func replaceFeatureConfig(newConfig domain.FeatureFlag, featureConfigs *[]domain.FeatureFlag) {
 	if featureConfigs == nil {
 		return
 	}
 
+	flagUpdated := false
 	for i := range *featureConfigs {
 		if (*featureConfigs)[i].Feature == newConfig.Feature {
 			(*featureConfigs)[i] = newConfig
+			flagUpdated = true
 			break
 		}
+	}
+
+	// If we didn't update any featureConfigs then this must be a new one so we
+	// need to add it to the featureConfigs slice
+	if !flagUpdated {
+		*featureConfigs = append(*featureConfigs, newConfig)
 	}
 }
 
@@ -625,11 +635,17 @@ func replaceSegmentConfig(newConfig domain.Segment, segmentConfigs *[]domain.Seg
 	if segmentConfigs == nil {
 		return
 	}
+	segmentUpdated := false
 
 	for i := range *segmentConfigs {
 		if (*segmentConfigs)[i].Identifier == newConfig.Identifier {
 			(*segmentConfigs)[i] = newConfig
+			segmentUpdated = true
 			break
 		}
+	}
+
+	if !segmentUpdated {
+		*segmentConfigs = append(*segmentConfigs, newConfig)
 	}
 }
