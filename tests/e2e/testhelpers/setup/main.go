@@ -82,7 +82,7 @@ func main() {
 
 	project, err := testhelpers.SetupTestProject()
 	if err != nil {
-		log.Errorf(err.Error())
+		log.Error(err)
 		os.Exit(1)
 	}
 
