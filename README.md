@@ -19,7 +19,7 @@ To view the many configuration options available read [Configuration](./docs/con
 To view how to securely connect sdks to the Relay Proxy with HTTPS enabled see [TLS](./docs/tls.md).
 
 ## Redis Cache
-By default the Relay Proxy V2 runs with a [redis cache](./docs/redis_cache.md).
+By default the Relay Proxy V2 runs with a [redis cache](./docs/redis_cache.md). The Redis cache supports password authentication and mTLS (mutual TLS) authentication.
 
 ## Load Balancing
 For info on horizontal scaling Relay Proxies and a working example see [Load Balancing](./docs/load_balancing.md).
