@@ -68,6 +68,22 @@ func NewConfig(
 		finalPoolSize = poolSizeLiteral
 	}
 
+	// Convert timeout values to time.Duration
+	minRetryBackoff := time.Duration(minRetryBackoffMilliseconds) * time.Millisecond
+	maxRetryBackoff := time.Duration(maxRetryBackoffMilliseconds) * time.Millisecond
+	dialTimeout := time.Duration(dialTimeoutSeconds) * time.Second
+	readTimeout := time.Duration(readTimeoutSeconds) * time.Second
+	writeTimeout := time.Duration(writeTimeoutSeconds) * time.Second
+	poolTimeout := time.Duration(poolTimeoutSeconds) * time.Second
+	connMaxIdleTime := time.Duration(connMaxIdleTimeMinutes) * time.Minute
+	connMaxLifetime := time.Duration(connMaxLifetimeMinutes) * time.Minute
+
+	// Adjust pool timeout if needed to prevent timeout issues
+	// Pool timeout should be at least readTimeout + 1 second
+	if poolTimeout < readTimeout {
+		poolTimeout = readTimeout + time.Second
+	}
+
 	return &Config{
 		Address:  address,
 		Username: username,
@@ -83,18 +99,18 @@ func NewConfig(
 		TLSServerName:         tlsServerName,
 
 		MaxRetries:      maxRetries,
-		MinRetryBackoff: time.Duration(minRetryBackoffMilliseconds) * time.Millisecond,
-		MaxRetryBackoff: time.Duration(maxRetryBackoffMilliseconds) * time.Millisecond,
-		DialTimeout:     time.Duration(dialTimeoutSeconds) * time.Second,
-		ReadTimeout:     time.Duration(readTimeoutSeconds) * time.Second,
-		WriteTimeout:    time.Duration(writeTimeoutSeconds) * time.Second,
+		MinRetryBackoff: minRetryBackoff,
+		MaxRetryBackoff: maxRetryBackoff,
+		DialTimeout:     dialTimeout,
+		ReadTimeout:     readTimeout,
+		WriteTimeout:    writeTimeout,
 		PoolSize:        finalPoolSize,
-		PoolTimeout:     time.Duration(poolTimeoutSeconds) * time.Second,
+		PoolTimeout:     poolTimeout,
 		MinIdleConns:    minIdleConns,
 		MaxIdleConns:    maxIdleConns,
 		MaxActiveConns:  maxActiveConns,
-		ConnMaxIdleTime: time.Duration(connMaxIdleTimeMinutes) * time.Minute,
-		ConnMaxLifetime: time.Duration(connMaxLifetimeMinutes) * time.Minute,
+		ConnMaxIdleTime: connMaxIdleTime,
+		ConnMaxLifetime: connMaxLifetime,
 	}
 }
 

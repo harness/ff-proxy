@@ -3,7 +3,6 @@ package redis
 import (
 	"fmt"
 	"strings"
-	"time"
 
 	"github.com/harness/ff-proxy/v2/log"
 	"github.com/redis/go-redis/v9"
@@ -52,8 +51,6 @@ func buildOptionsWithPasswordAuth(config *Config, logger log.Logger) (*redis.Uni
 		return nil, fmt.Errorf("failed to parse redis address: %w", err)
 	}
 
-	adjustedPoolTimeout := adjustPoolTimeoutIfNeeded(config, logger)
-
 	return &redis.UniversalOptions{
 		Addrs:           addrs,
 		DB:              config.DB,
@@ -67,7 +64,7 @@ func buildOptionsWithPasswordAuth(config *Config, logger log.Logger) (*redis.Uni
 		DialTimeout:     config.DialTimeout,
 		ReadTimeout:     config.ReadTimeout,
 		WriteTimeout:    config.WriteTimeout,
-		PoolTimeout:     adjustedPoolTimeout,
+		PoolTimeout:     config.PoolTimeout,
 		MinIdleConns:    config.MinIdleConns,
 		MaxIdleConns:    config.MaxIdleConns,
 		MaxActiveConns:  config.MaxActiveConns,
@@ -84,8 +81,6 @@ func buildOptionsWithMTLSAuth(config *Config, logger log.Logger) (*redis.Univers
 		return nil, fmt.Errorf("failed to build mTLS config: %w", err)
 	}
 
-	adjustedPoolTimeout := adjustPoolTimeoutIfNeeded(config, logger)
-
 	return &redis.UniversalOptions{
 		Addrs:           addrs,
 		DB:              config.DB,
@@ -99,7 +94,7 @@ func buildOptionsWithMTLSAuth(config *Config, logger log.Logger) (*redis.Univers
 		DialTimeout:     config.DialTimeout,
 		ReadTimeout:     config.ReadTimeout,
 		WriteTimeout:    config.WriteTimeout,
-		PoolTimeout:     adjustedPoolTimeout,
+		PoolTimeout:     config.PoolTimeout,
 		MinIdleConns:    config.MinIdleConns,
 		MaxIdleConns:    config.MaxIdleConns,
 		MaxActiveConns:  config.MaxActiveConns,
@@ -128,15 +123,6 @@ func parseRedisURL(address string) (*redis.Options, error) {
 	}
 
 	return parsed, nil
-}
-
-func adjustPoolTimeoutIfNeeded(config *Config, logger log.Logger) time.Duration {
-	if config.PoolTimeout < config.ReadTimeout {
-		adjustedTimeout := config.ReadTimeout + time.Second
-		logger.Warn("redis pool timeout adjusted", "readTimeout", config.ReadTimeout, "poolTimeout", adjustedTimeout)
-		return adjustedTimeout
-	}
-	return config.PoolTimeout
 }
 
 func removeRedisScheme(addr string) string {
