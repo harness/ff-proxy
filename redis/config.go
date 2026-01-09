@@ -9,7 +9,6 @@ import (
 	"github.com/harness/ff-proxy/v2/files"
 )
 
-// Auth mode constants
 const (
 	AuthModePassword = "password"
 	AuthModeMTLS     = "mtls"
@@ -37,7 +36,7 @@ type Config struct {
 	DialTimeout     time.Duration
 	ReadTimeout     time.Duration
 	WriteTimeout    time.Duration
-	PoolSize        int // Final calculated pool size, ready to use
+	PoolSize        int
 	PoolTimeout     time.Duration
 	MinIdleConns    int
 	MaxIdleConns    int
@@ -60,15 +59,8 @@ func NewConfig(
 	minIdleConns, maxIdleConns, maxActiveConns int,
 	connMaxIdleTimeMinutes, connMaxLifetimeMinutes int,
 ) *Config {
-	// Calculate the final pool size immediately
-	// For backwards compatibility, by default we use poolSize multiplied by the number of CPUs.
-	// However, if poolSizeLiteral is set, we use it instead.
-	finalPoolSize := poolSize * numCPU()
-	if poolSizeLiteral > 0 {
-		finalPoolSize = poolSizeLiteral
-	}
+	finalPoolSize := calculateFinalPoolSize(poolSize, poolSizeLiteral)
 
-	// Convert timeout values to time.Duration
 	minRetryBackoff := time.Duration(minRetryBackoffMilliseconds) * time.Millisecond
 	maxRetryBackoff := time.Duration(maxRetryBackoffMilliseconds) * time.Millisecond
 	dialTimeout := time.Duration(dialTimeoutSeconds) * time.Second
@@ -78,8 +70,6 @@ func NewConfig(
 	connMaxIdleTime := time.Duration(connMaxIdleTimeMinutes) * time.Minute
 	connMaxLifetime := time.Duration(connMaxLifetimeMinutes) * time.Minute
 
-	// Adjust pool timeout if needed to prevent timeout issues
-	// Pool timeout should be at least readTimeout + 1 second
 	if poolTimeout < readTimeout {
 		poolTimeout = readTimeout + time.Second
 	}
@@ -114,9 +104,11 @@ func NewConfig(
 	}
 }
 
-// numCPU returns the number of CPUs, extracted to a function for testability
-func numCPU() int {
-	return runtime.NumCPU()
+func calculateFinalPoolSize(poolSize, poolSizeLiteral int) int {
+	if poolSizeLiteral > 0 {
+		return poolSizeLiteral
+	}
+	return poolSize * runtime.NumCPU()
 }
 
 func (c *Config) AuthMode() string {
