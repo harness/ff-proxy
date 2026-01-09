@@ -894,35 +894,33 @@ func newMetricStore(ctx context.Context, logger log.Logger, readReplica bool, re
 }
 
 func buildRedisConfig() *redisclient.Config {
-	return &redisclient.Config{
-		Address:  redisAddress,
-		Username: redisUsername,
-		Password: redisPassword,
-		DB:       redisDB,
-
-		TLSEnabled:            redisTLSEnabled,
-		TLSMode:               redisTLSMode,
-		TLSCACertPath:         redisTLSCACertPath,
-		TLSClientCertPath:     redisTLSClientCertPath,
-		TLSClientKeyPath:      redisTLSClientKeyPath,
-		TLSInsecureSkipVerify: redisTLSInsecureSkipVerify,
-		TLSServerName:         redisTLSServerName,
-
-		MaxRetries:                  redisMaxRetries,
-		MinRetryBackoffMilliseconds: redisMinRetryBackoffMilliseconds,
-		MaxRetryBackoffMilliseconds: redisMaxRetryBackoffMilliseconds,
-		DialTimeoutSeconds:          redisDialTimeoutSeconds,
-		ReadTimeoutSeconds:          redisReadTimeoutSeconds,
-		WriteTimeoutSeconds:         redisWriteTimeoutSeconds,
-		PoolSize:                    redisPoolSize,
-		PoolSizeLiteral:             redisPoolSizeLiteral,
-		PoolTimeoutSeconds:          redisPoolTimeoutSeconds,
-		MinIdleConns:                redisMinIdleConns,
-		MaxIdleConns:                redisMaxIdleConns,
-		MaxActiveConns:              redisMaxActiveConns,
-		ConnMaxIdleTimeMinutes:      redisConnMaxIdleTimeMinutes,
-		ConnMaxLifetimeMinutes:      redisConnMaxLifetimeMinutes,
-	}
+	return redisclient.NewConfig(
+		redisAddress,
+		redisUsername,
+		redisPassword,
+		redisDB,
+		redisTLSEnabled,
+		redisTLSMode,
+		redisTLSCACertPath,
+		redisTLSClientCertPath,
+		redisTLSClientKeyPath,
+		redisTLSInsecureSkipVerify,
+		redisTLSServerName,
+		redisMaxRetries,
+		redisMinRetryBackoffMilliseconds,
+		redisMaxRetryBackoffMilliseconds,
+		redisDialTimeoutSeconds,
+		redisReadTimeoutSeconds,
+		redisWriteTimeoutSeconds,
+		redisPoolSize,
+		redisPoolSizeLiteral,
+		redisPoolTimeoutSeconds,
+		redisMinIdleConns,
+		redisMaxIdleConns,
+		redisMaxActiveConns,
+		redisConnMaxIdleTimeMinutes,
+		redisConnMaxLifetimeMinutes,
+	)
 }
 
 func runPrometheusServer(ctx context.Context, port int, promReg *prometheus.Registry, logger log.Logger) {
