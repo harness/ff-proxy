@@ -27,7 +27,7 @@ func BuildTLSConfig(config *Config, logger log.Logger) (*tls.Config, error) {
 		tlsConfig.RootCAs = caCertPool
 	}
 
-	if config.TLSMode == "mtls" {
+	if config.TLSMode == TLSModeMTLS {
 		if config.TLSClientCertPath == "" || config.TLSClientKeyPath == "" {
 			return nil, fmt.Errorf("client certificate and key required for mTLS")
 		}

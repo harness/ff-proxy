@@ -2,9 +2,19 @@ package redis
 
 import (
 	"fmt"
+	"runtime"
 	"strings"
+	"time"
 
 	"github.com/harness/ff-proxy/v2/files"
+)
+
+// Auth mode constants
+const (
+	AuthModePassword = "password"
+	AuthModeMTLS     = "mtls"
+	TLSModeTLS       = "tls"
+	TLSModeMTLS      = "mtls"
 )
 
 type Config struct {
@@ -21,27 +31,83 @@ type Config struct {
 	TLSInsecureSkipVerify bool
 	TLSServerName         string
 
-	MaxRetries                  int
-	MinRetryBackoffMilliseconds int
-	MaxRetryBackoffMilliseconds int
-	DialTimeoutSeconds          int
-	ReadTimeoutSeconds          int
-	WriteTimeoutSeconds         int
-	PoolSize                    int
-	PoolSizeLiteral             int
-	PoolTimeoutSeconds          int
-	MinIdleConns                int
-	MaxIdleConns                int
-	MaxActiveConns              int
-	ConnMaxIdleTimeMinutes      int
-	ConnMaxLifetimeMinutes      int
+	MaxRetries      int
+	MinRetryBackoff time.Duration
+	MaxRetryBackoff time.Duration
+	DialTimeout     time.Duration
+	ReadTimeout     time.Duration
+	WriteTimeout    time.Duration
+	PoolSize        int // Final calculated pool size, ready to use
+	PoolTimeout     time.Duration
+	MinIdleConns    int
+	MaxIdleConns    int
+	MaxActiveConns  int
+	ConnMaxIdleTime time.Duration
+	ConnMaxLifetime time.Duration
+}
+
+// NewConfig creates a new Redis configuration with time.Duration fields properly converted
+func NewConfig(
+	address, username, password string,
+	db int,
+	tlsEnabled bool,
+	tlsMode, tlsCACertPath, tlsClientCertPath, tlsClientKeyPath string,
+	tlsInsecureSkipVerify bool,
+	tlsServerName string,
+	maxRetries, minRetryBackoffMilliseconds, maxRetryBackoffMilliseconds int,
+	dialTimeoutSeconds, readTimeoutSeconds, writeTimeoutSeconds int,
+	poolSize, poolSizeLiteral, poolTimeoutSeconds int,
+	minIdleConns, maxIdleConns, maxActiveConns int,
+	connMaxIdleTimeMinutes, connMaxLifetimeMinutes int,
+) *Config {
+	// Calculate the final pool size immediately
+	// For backwards compatibility, by default we use poolSize multiplied by the number of CPUs.
+	// However, if poolSizeLiteral is set, we use it instead.
+	finalPoolSize := poolSize * numCPU()
+	if poolSizeLiteral > 0 {
+		finalPoolSize = poolSizeLiteral
+	}
+
+	return &Config{
+		Address:  address,
+		Username: username,
+		Password: password,
+		DB:       db,
+
+		TLSEnabled:            tlsEnabled,
+		TLSMode:               tlsMode,
+		TLSCACertPath:         tlsCACertPath,
+		TLSClientCertPath:     tlsClientCertPath,
+		TLSClientKeyPath:      tlsClientKeyPath,
+		TLSInsecureSkipVerify: tlsInsecureSkipVerify,
+		TLSServerName:         tlsServerName,
+
+		MaxRetries:      maxRetries,
+		MinRetryBackoff: time.Duration(minRetryBackoffMilliseconds) * time.Millisecond,
+		MaxRetryBackoff: time.Duration(maxRetryBackoffMilliseconds) * time.Millisecond,
+		DialTimeout:     time.Duration(dialTimeoutSeconds) * time.Second,
+		ReadTimeout:     time.Duration(readTimeoutSeconds) * time.Second,
+		WriteTimeout:    time.Duration(writeTimeoutSeconds) * time.Second,
+		PoolSize:        finalPoolSize,
+		PoolTimeout:     time.Duration(poolTimeoutSeconds) * time.Second,
+		MinIdleConns:    minIdleConns,
+		MaxIdleConns:    maxIdleConns,
+		MaxActiveConns:  maxActiveConns,
+		ConnMaxIdleTime: time.Duration(connMaxIdleTimeMinutes) * time.Minute,
+		ConnMaxLifetime: time.Duration(connMaxLifetimeMinutes) * time.Minute,
+	}
+}
+
+// numCPU returns the number of CPUs, extracted to a function for testability
+func numCPU() int {
+	return runtime.NumCPU()
 }
 
 func (c *Config) AuthMode() string {
-	if c.TLSEnabled && c.TLSMode == "mtls" {
-		return "mtls"
+	if c.TLSEnabled && c.TLSMode == TLSModeMTLS {
+		return AuthModeMTLS
 	}
-	return "password"
+	return AuthModePassword
 }
 
 func (c *Config) Validate() error {
@@ -50,9 +116,9 @@ func (c *Config) Validate() error {
 	var validators []validator
 
 	switch authMode {
-	case "password":
+	case AuthModePassword:
 		return nil
-	case "mtls":
+	case AuthModeMTLS:
 		validators = append(validators, newTLSModeValidator(c))
 		validators = append(validators, newMTLSCertificateValidator(c))
 	default:
@@ -63,15 +129,12 @@ func (c *Config) Validate() error {
 }
 
 func (c *Config) AutoDetectTLS() {
-	if strings.HasPrefix(c.Address, "rediss://") && !c.TLSEnabled {
+	if strings.HasPrefix(c.Address, "rediss://") {
 		c.TLSEnabled = true
-		if c.TLSMode == "" {
-			c.TLSMode = "tls"
-		}
 	}
 
 	if c.TLSEnabled && c.TLSMode == "" {
-		c.TLSMode = "tls"
+		c.TLSMode = TLSModeTLS
 	}
 }
 
@@ -112,8 +175,8 @@ func newTLSModeValidator(config *Config) validator {
 }
 
 func (v *tlsModeValidator) validate() error {
-	if v.tlsMode != "" && v.tlsMode != "mtls" {
-		return fmt.Errorf("invalid TLS mode: %s (only 'mtls' is supported)", v.tlsMode)
+	if v.tlsMode != "" && v.tlsMode != TLSModeTLS && v.tlsMode != TLSModeMTLS {
+		return fmt.Errorf("invalid TLS mode: %s (only 'tls' and 'mtls' are supported)", v.tlsMode)
 	}
 	return nil
 }
@@ -137,7 +200,7 @@ func newMTLSCertificateValidator(config *Config) validator {
 }
 
 func (v *mtlsCertificateValidator) validate() error {
-	if !v.tlsEnabled || v.tlsMode != "mtls" {
+	if !v.tlsEnabled || v.tlsMode != TLSModeMTLS {
 		return nil
 	}
 

@@ -2,7 +2,6 @@ package redis
 
 import (
 	"fmt"
-	"runtime"
 	"strings"
 	"time"
 
@@ -23,9 +22,9 @@ func NewClient(config *Config, logger log.Logger) (redis.UniversalClient, error)
 	var err error
 
 	switch authMode {
-	case "password":
+	case AuthModePassword:
 		opts, err = buildOptionsWithPasswordAuth(config, logger)
-	case "mtls":
+	case AuthModeMTLS:
 		opts, err = buildOptionsWithMTLSAuth(config, logger)
 	default:
 		return nil, fmt.Errorf("unsupported auth mode: %s", authMode)
@@ -53,29 +52,27 @@ func buildOptionsWithPasswordAuth(config *Config, logger log.Logger) (*redis.Uni
 		return nil, fmt.Errorf("failed to parse redis address: %w", err)
 	}
 
-	timeouts := calculateTimeouts(config)
-	poolSize := calculatePoolSize(config)
-	adjustPoolTimeoutIfNeeded(&timeouts, logger)
+	adjustedPoolTimeout := adjustPoolTimeoutIfNeeded(config, logger)
 
 	return &redis.UniversalOptions{
 		Addrs:           addrs,
 		DB:              config.DB,
 		Username:        config.Username,
 		Password:        config.Password,
-		PoolSize:        poolSize,
+		PoolSize:        config.PoolSize,
 		TLSConfig:       parsed.TLSConfig,
 		MaxRetries:      config.MaxRetries,
-		MinRetryBackoff: timeouts.minRetryBackoff,
-		MaxRetryBackoff: timeouts.maxRetryBackoff,
-		DialTimeout:     timeouts.dialTimeout,
-		ReadTimeout:     timeouts.readTimeout,
-		WriteTimeout:    timeouts.writeTimeout,
-		PoolTimeout:     timeouts.poolTimeout,
+		MinRetryBackoff: config.MinRetryBackoff,
+		MaxRetryBackoff: config.MaxRetryBackoff,
+		DialTimeout:     config.DialTimeout,
+		ReadTimeout:     config.ReadTimeout,
+		WriteTimeout:    config.WriteTimeout,
+		PoolTimeout:     adjustedPoolTimeout,
 		MinIdleConns:    config.MinIdleConns,
 		MaxIdleConns:    config.MaxIdleConns,
 		MaxActiveConns:  config.MaxActiveConns,
-		ConnMaxIdleTime: timeouts.maxIdleTime,
-		ConnMaxLifetime: timeouts.connMaxLifetime,
+		ConnMaxIdleTime: config.ConnMaxIdleTime,
+		ConnMaxLifetime: config.ConnMaxLifetime,
 	}, nil
 }
 
@@ -87,29 +84,27 @@ func buildOptionsWithMTLSAuth(config *Config, logger log.Logger) (*redis.Univers
 		return nil, fmt.Errorf("failed to build mTLS config: %w", err)
 	}
 
-	timeouts := calculateTimeouts(config)
-	poolSize := calculatePoolSize(config)
-	adjustPoolTimeoutIfNeeded(&timeouts, logger)
+	adjustedPoolTimeout := adjustPoolTimeoutIfNeeded(config, logger)
 
 	return &redis.UniversalOptions{
 		Addrs:           addrs,
 		DB:              config.DB,
 		Username:        config.Username,
 		Password:        config.Password,
-		PoolSize:        poolSize,
+		PoolSize:        config.PoolSize,
 		TLSConfig:       tlsConfig,
 		MaxRetries:      config.MaxRetries,
-		MinRetryBackoff: timeouts.minRetryBackoff,
-		MaxRetryBackoff: timeouts.maxRetryBackoff,
-		DialTimeout:     timeouts.dialTimeout,
-		ReadTimeout:     timeouts.readTimeout,
-		WriteTimeout:    timeouts.writeTimeout,
-		PoolTimeout:     timeouts.poolTimeout,
+		MinRetryBackoff: config.MinRetryBackoff,
+		MaxRetryBackoff: config.MaxRetryBackoff,
+		DialTimeout:     config.DialTimeout,
+		ReadTimeout:     config.ReadTimeout,
+		WriteTimeout:    config.WriteTimeout,
+		PoolTimeout:     adjustedPoolTimeout,
 		MinIdleConns:    config.MinIdleConns,
 		MaxIdleConns:    config.MaxIdleConns,
 		MaxActiveConns:  config.MaxActiveConns,
-		ConnMaxIdleTime: timeouts.maxIdleTime,
-		ConnMaxLifetime: timeouts.connMaxLifetime,
+		ConnMaxIdleTime: config.ConnMaxIdleTime,
+		ConnMaxLifetime: config.ConnMaxLifetime,
 	}, nil
 }
 
@@ -135,43 +130,13 @@ func parseRedisURL(address string) (*redis.Options, error) {
 	return parsed, nil
 }
 
-type timeoutConfig struct {
-	minRetryBackoff time.Duration
-	maxRetryBackoff time.Duration
-	dialTimeout     time.Duration
-	readTimeout     time.Duration
-	writeTimeout    time.Duration
-	poolTimeout     time.Duration
-	maxIdleTime     time.Duration
-	connMaxLifetime time.Duration
-}
-
-func calculateTimeouts(config *Config) timeoutConfig {
-	return timeoutConfig{
-		minRetryBackoff: time.Duration(config.MinRetryBackoffMilliseconds) * time.Millisecond,
-		maxRetryBackoff: time.Duration(config.MaxRetryBackoffMilliseconds) * time.Millisecond,
-		dialTimeout:     time.Duration(config.DialTimeoutSeconds) * time.Second,
-		readTimeout:     time.Duration(config.ReadTimeoutSeconds) * time.Second,
-		writeTimeout:    time.Duration(config.WriteTimeoutSeconds) * time.Second,
-		poolTimeout:     time.Duration(config.PoolTimeoutSeconds) * time.Second,
-		maxIdleTime:     time.Duration(config.ConnMaxIdleTimeMinutes) * time.Minute,
-		connMaxLifetime: time.Duration(config.ConnMaxLifetimeMinutes) * time.Minute,
+func adjustPoolTimeoutIfNeeded(config *Config, logger log.Logger) time.Duration {
+	if config.PoolTimeout < config.ReadTimeout {
+		adjustedTimeout := config.ReadTimeout + time.Second
+		logger.Warn("redis pool timeout adjusted", "readTimeout", config.ReadTimeout, "poolTimeout", adjustedTimeout)
+		return adjustedTimeout
 	}
-}
-
-func adjustPoolTimeoutIfNeeded(timeouts *timeoutConfig, logger log.Logger) {
-	if timeouts.poolTimeout < timeouts.readTimeout {
-		timeouts.poolTimeout = timeouts.readTimeout + time.Second
-		logger.Warn("redis pool timeout adjusted", "readTimeout", timeouts.readTimeout, "poolTimeout", timeouts.poolTimeout)
-	}
-}
-
-func calculatePoolSize(config *Config) int {
-	poolSize := config.PoolSize * runtime.NumCPU()
-	if config.PoolSizeLiteral > 0 {
-		poolSize = config.PoolSizeLiteral
-	}
-	return poolSize
+	return config.PoolTimeout
 }
 
 func removeRedisScheme(addr string) string {
