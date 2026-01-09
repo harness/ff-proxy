@@ -944,6 +944,9 @@ func runPrometheusServer(ctx context.Context, port int, promReg *prometheus.Regi
 	}()
 }
 
+// getStreamStatusForReplica gets the StreamStatus from the cache. This is needed at startup for replicas to load
+// the correct stream status into memory but after startup the replicas in memory stream status will be
+// kept up to date by the CONNECT & DISCONNECT messages sent from the primary
 func getStreamStatusForReplica(ctx context.Context, c cache.Cache, log log.Logger, h stream.Health, key string) {
 	ticker := time.NewTicker(5 * time.Second)
 	defer ticker.Stop()
