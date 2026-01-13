@@ -655,6 +655,14 @@ func main() {
 		ctx = context.WithValue(ctx, domain.ContextKeyAccountID, conf.AccountID())
 	}
 
+	// If we're running as a read replica then we want to subscribe to two streams
+	//
+	// 1. The Redis Stream that the primary forwards SSE events on to
+	//   - The replica subscribes to this stream and forwards these events on to SDKs
+	//
+	// 2. The Redis stream that the primary sends control messages on e.g. stream disconnects
+	//   - The replica subscribes to this stream and when it gets a stream disconnect message
+	//     it closes any open streams with SDKs to force them to poll for change
 	if readReplica {
 		configStatus = domain.NewConfigStatus(domain.ConfigStateReadReplica)
 		primaryToReplicaControlStream.Subscribe(ctx)
