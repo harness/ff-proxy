@@ -80,17 +80,48 @@ curl -X GET "http://localhost:7001/client/auth" \
 
 ### Redis mTLS Configuration
 
-The Redis server is configured with:
+The example includes a `redis.conf` file with the following mTLS configuration:
 
 ```conf
-port 0                              # Disable non-TLS port
-tls-port 6380                       # Enable TLS on port 6380
-tls-cert-file /certs/server.crt     # Server certificate
-tls-key-file /certs/server.key      # Server private key
-tls-ca-cert-file /certs/ca.crt      # CA certificate
-tls-auth-clients yes                # Require client certificates (mTLS)
-tls-protocols "TLSv1.2 TLSv1.3"    # Supported TLS versions
+# Disable non-TLS connections
+port 0
+
+# Enable TLS on port 6380
+tls-port 6380
+
+# Server certificate and key
+tls-cert-file /certs/server.crt
+tls-key-file /certs/server.key
+
+# CA certificate for client verification
+tls-ca-cert-file /certs/ca.crt
+
+# Require client certificates (mTLS)
+tls-auth-clients yes
+
+# TLS protocol versions
+tls-protocols "TLSv1.2 TLSv1.3"
+
+# Additional security settings
+tls-prefer-server-ciphers yes
+
+# Logging
+loglevel notice
 ```
+
+**Key Configuration Explained:**
+
+| Setting | Value | Purpose |
+|---------|-------|---------|
+| `port` | `0` | Disables non-TLS connections entirely |
+| `tls-port` | `6380` | Enables TLS on a dedicated port |
+| `tls-cert-file` | `/certs/server.crt` | Redis server's certificate for proving identity |
+| `tls-key-file` | `/certs/server.key` | Redis server's private key |
+| `tls-ca-cert-file` | `/certs/ca.crt` | CA certificate to verify client certificates |
+| `tls-auth-clients` | `yes` | **Enforces mTLS** - requires client certificates |
+| `tls-protocols` | `"TLSv1.2 TLSv1.3"` | Only allows secure TLS versions |
+| `tls-prefer-server-ciphers` | `yes` | Server chooses cipher suite (better security) |
+| `loglevel` | `notice` | Appropriate logging level for production |
 
 ### ff-proxy mTLS Environment Variables
 
@@ -126,7 +157,8 @@ examples/redis_mtls/
 ├── README.md                 # This file
 ├── docker-compose.yml        # Docker Compose configuration
 ├── generate-certs.sh         # Certificate generation script
-├── redis.conf                # Redis configuration (optional)
+├── redis.conf                # Redis mTLS configuration
+├── Makefile                  # Convenience commands
 └── certs/                    # Generated certificates (gitignored)
     ├── ca.crt               # Certificate Authority certificate
     ├── ca.key               # Certificate Authority private key
@@ -199,9 +231,71 @@ docker-compose restart
 
 To switch from mTLS to regular TLS:
 
-1. In `docker-compose.yml`, change `REDIS_TLS_MODE=mtls` to `REDIS_TLS_MODE=tls`
-2. In Redis command, change `tls-auth-clients yes` to `tls-auth-clients no`
-3. Restart: `docker-compose restart`
+### Option 1: Modify redis.conf
+
+Edit `redis.conf` and change:
+```conf
+# FROM (mTLS - requires client certificates):
+tls-auth-clients yes
+
+# TO (TLS only - server authentication only):
+tls-auth-clients no
+```
+
+### Option 2: Modify docker-compose.yml
+
+Change the ff-proxy environment variable:
+```yaml
+# FROM:
+- REDIS_TLS_MODE=mtls
+
+# TO:
+- REDIS_TLS_MODE=tls
+```
+
+Then restart:
+```bash
+docker-compose restart
+```
+
+### Creating a Custom redis.conf
+
+If you need to customize the Redis configuration, create your own `redis.conf`:
+
+```bash
+cat > redis.conf <<'EOF'
+# Disable non-TLS connections
+port 0
+
+# Enable TLS on port 6380
+tls-port 6380
+
+# Server certificate and key
+tls-cert-file /certs/server.crt
+tls-key-file /certs/server.key
+
+# CA certificate for client verification
+tls-ca-cert-file /certs/ca.crt
+
+# Require client certificates (mTLS)
+tls-auth-clients yes
+
+# TLS protocol versions
+tls-protocols "TLSv1.2 TLSv1.3"
+
+# Additional security settings
+tls-prefer-server-ciphers yes
+
+# Logging
+loglevel notice
+
+# Optional: Add your custom settings below
+# maxmemory 256mb
+# maxmemory-policy allkeys-lru
+# save 900 1
+# save 300 10
+EOF
+```
 
 ## 📖 Additional Resources
 

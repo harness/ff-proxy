@@ -1,5 +1,3 @@
-version: "3.9"
-
 services:
   # Redis with mTLS enabled
   redis-mtls:
@@ -9,42 +7,8 @@ services:
       - "6380:6380"
     volumes:
       - ./certs:/certs:ro
-    command: >
-      sh -c "
-      echo 'Starting Redis with mTLS configuration...' &&
-      cat > /tmp/redis.conf <<EOF
-      # Disable non-TLS connections
-      port 0
-      
-      # Enable TLS on port 6380
-      tls-port 6380
-      
-      # Server certificate and key
-      tls-cert-file /certs/server.crt
-      tls-key-file /certs/server.key
-      
-      # CA certificate for client verification
-      tls-ca-cert-file /certs/ca.crt
-      
-      # Require client certificates (mTLS)
-      tls-auth-clients yes
-      
-      # TLS protocol versions
-      tls-protocols \"TLSv1.2 TLSv1.3\"
-      
-      # Additional security settings
-      tls-prefer-server-ciphers yes
-      
-      # Logging
-      loglevel notice
-      EOF
-      &&
-      echo 'Redis configuration:' &&
-      cat /tmp/redis.conf &&
-      echo '' &&
-      echo 'Starting Redis server...' &&
-      redis-server /tmp/redis.conf
-      "
+      - ./redis.conf:/usr/local/etc/redis/redis.conf:ro
+    command: ["redis-server", "/usr/local/etc/redis/redis.conf"]
     healthcheck:
       test: ["CMD", "redis-cli", "--tls", "--cert", "/certs/client.crt", "--key", "/certs/client.key", "--cacert", "/certs/ca.crt", "-p", "6380", "ping"]
       interval: 5s
