@@ -21,6 +21,17 @@ To view how to securely connect sdks to the Relay Proxy with HTTPS enabled see [
 ## Redis Cache
 By default the Relay Proxy V2 runs with a [redis cache](./docs/redis_cache.md). The Redis cache supports password authentication and mTLS (mutual TLS) authentication.
 
+## Examples
+Ready-to-run examples demonstrating various deployment scenarios:
+
+- **[Redis mTLS](./examples/redis_mtls/)** - Redis with mutual TLS authentication (recommended for production)
+- **[Redis Auth](./examples/redis_auth/)** - Redis with password authentication
+- **[HA Mode with Monitoring](./examples/ha_mode_with_monitoring/)** - High availability setup with Prometheus & Grafana
+- **[Redis Cluster HA](./examples/redis_cluster_ha_mode_with_monitoring/)** - Redis cluster with monitoring
+- **[Load Balancing](./examples/load_balancing/)** - Nginx load balancing across multiple proxies
+- **[Reverse Proxy](./examples/reverse_proxy/)** - Nginx reverse proxy setup
+- **[TLS Reverse Proxy](./examples/tls_reverse_proxy/)** - HTTPS-enabled reverse proxy
+
 ## Load Balancing
 For info on horizontal scaling Relay Proxies and a working example see [Load Balancing](./docs/load_balancing.md).
 

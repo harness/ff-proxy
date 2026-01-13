@@ -1,0 +1,153 @@
+version: "3.9"
+
+services:
+  # Redis with mTLS enabled
+  redis-mtls:
+    image: redis:7-alpine
+    container_name: ff-proxy-redis-mtls
+    ports:
+      - "6380:6380"
+    volumes:
+      - ./certs:/certs:ro
+    command: >
+      sh -c "
+      echo 'Starting Redis with mTLS configuration...' &&
+      cat > /tmp/redis.conf <<EOF
+      # Disable non-TLS connections
+      port 0
+      
+      # Enable TLS on port 6380
+      tls-port 6380
+      
+      # Server certificate and key
+      tls-cert-file /certs/server.crt
+      tls-key-file /certs/server.key
+      
+      # CA certificate for client verification
+      tls-ca-cert-file /certs/ca.crt
+      
+      # Require client certificates (mTLS)
+      tls-auth-clients yes
+      
+      # TLS protocol versions
+      tls-protocols \"TLSv1.2 TLSv1.3\"
+      
+      # Additional security settings
+      tls-prefer-server-ciphers yes
+      
+      # Logging
+      loglevel notice
+      EOF
+      &&
+      echo 'Redis configuration:' &&
+      cat /tmp/redis.conf &&
+      echo '' &&
+      echo 'Starting Redis server...' &&
+      redis-server /tmp/redis.conf
+      "
+    healthcheck:
+      test: ["CMD", "redis-cli", "--tls", "--cert", "/certs/client.crt", "--key", "/certs/client.key", "--cacert", "/certs/ca.crt", "-p", "6380", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+      start_period: 10s
+    networks:
+      - ff-proxy-network
+
+  # Primary ff-proxy instance
+  primary:
+    image: "harness/ff-proxy:latest"
+    container_name: ff-proxy-primary-mtls
+    environment:
+      # Logging
+      - LOG_LEVEL=DEBUG
+      
+      # Harness Feature Flags configuration
+      - PROXY_KEY=<your-proxy-key-here>
+      
+      # Redis connection
+      - REDIS_ADDRESS=redis-mtls:6380
+      
+      # Redis mTLS configuration
+      - REDIS_TLS_ENABLED=true
+      - REDIS_TLS_MODE=mtls
+      - REDIS_TLS_CA_CERT=/certs/ca.crt
+      - REDIS_TLS_CLIENT_CERT=/certs/client.crt
+      - REDIS_TLS_CLIENT_KEY=/certs/client.key
+      
+      # Proxy configuration
+      - READ_REPLICA=false
+      - AUTH_SECRET=my-secret-key
+      
+      # Optional: Redis pool configuration
+      - REDIS_POOL_SIZE=10
+      - REDIS_MAX_RETRIES=3
+      - REDIS_DIAL_TIMEOUT_SECONDS=5
+      - REDIS_READ_TIMEOUT_SECONDS=3
+      - REDIS_WRITE_TIMEOUT_SECONDS=3
+    ports:
+      - "7001:7000"
+    volumes:
+      - ./certs:/certs:ro
+    depends_on:
+      redis-mtls:
+        condition: service_healthy
+    networks:
+      - ff-proxy-network
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:7000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+
+  # Replica ff-proxy instance
+  replica:
+    image: "harness/ff-proxy:latest"
+    container_name: ff-proxy-replica-mtls
+    environment:
+      # Logging
+      - LOG_LEVEL=INFO
+      
+      # Redis connection
+      - REDIS_ADDRESS=redis-mtls:6380
+      
+      # Redis mTLS configuration
+      - REDIS_TLS_ENABLED=true
+      - REDIS_TLS_MODE=mtls
+      - REDIS_TLS_CA_CERT=/certs/ca.crt
+      - REDIS_TLS_CLIENT_CERT=/certs/client.crt
+      - REDIS_TLS_CLIENT_KEY=/certs/client.key
+      
+      # Proxy configuration
+      - READ_REPLICA=true
+      - AUTH_SECRET=my-secret-key
+      
+      # Optional: Redis pool configuration
+      - REDIS_POOL_SIZE=10
+      - REDIS_MAX_RETRIES=3
+      - REDIS_DIAL_TIMEOUT_SECONDS=5
+      - REDIS_READ_TIMEOUT_SECONDS=3
+      - REDIS_WRITE_TIMEOUT_SECONDS=3
+    ports:
+      - "7002:7000"
+    volumes:
+      - ./certs:/certs:ro
+    depends_on:
+      redis-mtls:
+        condition: service_healthy
+      primary:
+        condition: service_healthy
+    networks:
+      - ff-proxy-network
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:7000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+
+networks:
+  ff-proxy-network:
+    driver: bridge
+
