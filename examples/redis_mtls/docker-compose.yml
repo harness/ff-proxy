@@ -7,8 +7,8 @@ services:
       - "6380:6380"
     volumes:
       - ./certs:/certs:ro
-      - ./redis.conf:/usr/local/etc/redis/redis.conf:ro
-    command: ["redis-server", "/usr/local/etc/redis/redis.conf"]
+      - ./redis.conf:/tmp/redis.conf:ro
+    command: ["sh", "-c", "if [ ! -f /tmp/redis.conf ]; then echo 'ERROR: redis.conf file not found at /tmp/redis.conf'; echo 'Please ensure redis.conf exists in the examples/redis_mtls/ directory'; exit 1; fi; echo 'Starting Redis with TLS configuration...'; redis-server /tmp/redis.conf"]
     healthcheck:
       test: ["CMD", "redis-cli", "--tls", "--cert", "/certs/client.crt", "--key", "/certs/client.key", "--cacert", "/certs/ca.crt", "-p", "6380", "ping"]
       interval: 5s

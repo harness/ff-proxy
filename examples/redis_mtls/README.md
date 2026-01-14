@@ -53,7 +53,21 @@ This will start:
 
 ### 4. Verify the Setup
 
-Check that ff-proxy can connect to Redis:
+**First, verify Redis is running with TLS enabled:**
+
+```bash
+# Check Redis logs - should show TLS port 6380
+docker-compose logs redis-mtls | grep -E "(port|tls|Ready)"
+
+# Expected output:
+# Running mode=standalone, port=6380.
+# Ready to accept connections tls
+```
+
+**If you see `port=6379` or `connections tcp` instead, Redis is not loading the config file.**
+See the [Troubleshooting](#-redis-starting-on-wrong-port-6379-instead-of-6380) section.
+
+**Then check that ff-proxy can connect to Redis:**
 
 ```bash
 # Check primary logs
@@ -210,6 +224,56 @@ docker-compose down
 docker-compose up
 ```
 
+### Redis Starting on Wrong Port (6379 instead of 6380)
+
+**Symptoms:**
+- Redis logs show: `Running mode=standalone, port=6379.`
+- Redis logs show: `Ready to accept connections tcp` (instead of `tls`)
+- Health check fails: `dependency failed to start: container ff-proxy-redis-mtls is unhealthy`
+
+**Cause:**
+Redis is not loading the `redis.conf` file, so it's using default configuration (port 6379, no TLS).
+
+**Solution:**
+
+1. **Verify redis.conf exists:**
+   ```bash
+   ls -la redis.conf
+   # Should show the file exists
+   ```
+
+2. **Check if redis.conf is mounted correctly:**
+   ```bash
+   docker-compose exec redis-mtls ls -la /tmp/redis.conf
+   # Should show the file exists in the container
+   ```
+
+3. **Verify redis.conf contents in container:**
+   ```bash
+   docker-compose exec redis-mtls cat /tmp/redis.conf
+   # Should show your TLS configuration (port 0, tls-port 6380, etc.)
+   ```
+
+4. **If the file is missing or wrong, restart with clean state:**
+   ```bash
+   docker-compose down -v
+   docker-compose up -d redis-mtls
+   docker-compose logs redis-mtls
+   # Should now show: "Running mode=standalone, port=6380." and "Ready to accept connections tls"
+   ```
+
+5. **If still not working, check file permissions:**
+   ```bash
+   chmod 644 redis.conf
+   docker-compose restart redis-mtls
+   ```
+
+**Expected Output (when working correctly):**
+```
+ff-proxy-redis-mtls  | Running mode=standalone, port=6380.
+ff-proxy-redis-mtls  | Ready to accept connections tls
+```
+
 ### Connection Refused
 
 If ff-proxy can't connect to Redis:
@@ -217,6 +281,7 @@ If ff-proxy can't connect to Redis:
 1. Check Redis is running: `docker-compose logs redis-mtls`
 2. Verify certificates are mounted: `docker-compose exec primary ls -la /certs`
 3. Check Redis TLS configuration: `docker-compose exec redis-mtls cat /tmp/redis.conf`
+4. Verify Redis is listening on TLS port: Look for `Ready to accept connections tls` in logs
 
 ### Certificate Expiry
 
