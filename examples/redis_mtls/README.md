@@ -17,20 +17,23 @@ Mutual TLS (mTLS) is an authentication method where both the client and server v
 
 ## 🚀 Quick Start
 
-### 1. Generate TLS Certificates
+### 1. Run Setup Script
 
-Run the provided script to generate all required certificates:
+Run the setup script to automatically generate `redis.conf` and TLS certificates:
 
 ```bash
-./generate-certs.sh
+./setup-local.sh
 ```
 
-This creates:
-- `certs/ca.crt` & `certs/ca.key` - Certificate Authority
-- `certs/server.crt` & `certs/server.key` - Redis server certificates
-- `certs/client.crt` & `certs/client.key` - ff-proxy client certificates
+This script will:
+- **Create `redis.conf`** with TLS-only configuration (port 0, TLS on 6380, mTLS enabled)
+- **Generate all required certificates** (CA, server, and client certificates)
+- **Validate** that all files are present
 
-**Note**: These are self-signed certificates for development/testing only. For production, use certificates from a trusted CA.
+**Note**: 
+- The script is idempotent - it won't overwrite existing files unless you use `--force`
+- `redis.conf` is automatically created - you don't need to create it manually
+- Certificates are self-signed and suitable for development/testing only. For production, use certificates from a trusted CA.
 
 ### 2. Configure Your Proxy Key
 
@@ -43,7 +46,7 @@ Edit `docker-compose.yml` and replace `<your-proxy-key-here>` with your actual H
 ### 3. Start the Services
 
 ```bash
-docker-compose up
+docker compose up --build
 ```
 
 This will start:
@@ -212,14 +215,52 @@ docker run --rm --network redis_mtls_default \
 
 ## 🛠️ Troubleshooting
 
+### Redis Connection Failures
+
+If ff-proxy cannot connect to Redis, verify the following:
+
+1. **Check that `redis.conf` exists:**
+   ```bash
+   ls -la redis.conf
+   # Should show the file exists
+   ```
+
+2. **Verify `redis.conf` has TLS-only settings:**
+   ```bash
+   grep -E "port 0|tls-port 6380" redis.conf
+   # Should show:
+   # port 0
+   # tls-port 6380
+   ```
+
+3. **Check that certificates exist:**
+   ```bash
+   ls -la certs/
+   # Should show: ca.crt, ca.key, server.crt, server.key, client.crt, client.key
+   ```
+
+4. **Verify Redis is using TLS port:**
+   ```bash
+   docker-compose logs redis-mtls | grep -E "port|tls"
+   # Should show: "port=6380" and "Ready to accept connections tls"
+   ```
+
+5. **Confirm clients connect to `redis:6380` (not 6379):**
+   - Check `docker-compose.yml` - `REDIS_ADDRESS` should be `redis-mtls:6380`
+   - Redis plaintext is disabled (port 0) and TLS is on 6380
+
+If files are missing, run:
+```bash
+./setup-local.sh
+```
+
 ### Certificate Errors
 
 If you see certificate verification errors:
 
 ```bash
 # Regenerate all certificates
-rm -rf certs/
-./generate-certs.sh
+./setup-local.sh --force
 docker-compose down
 docker-compose up
 ```
