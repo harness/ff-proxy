@@ -12,8 +12,6 @@ import (
 const (
 	AuthModePassword = "password"
 	AuthModeMTLS     = "mtls"
-	TLSModeTLS       = "tls"
-	TLSModeMTLS      = "mtls"
 )
 
 type Config struct {
@@ -22,11 +20,10 @@ type Config struct {
 	Password string
 	DB       int
 
-	TLSEnabled            bool
-	TLSMode               string
-	TLSCACertPath         string
-	TLSClientCertPath     string
-	TLSClientKeyPath      string
+	// mTLS configuration - all three required for mTLS
+	MTLSCACertPath        string
+	MTLSClientCertPath    string
+	MTLSClientKeyPath     string
 	TLSInsecureSkipVerify bool
 	TLSServerName         string
 
@@ -49,8 +46,7 @@ type Config struct {
 func NewConfig(
 	address, username, password string,
 	db int,
-	tlsEnabled bool,
-	tlsMode, tlsCACertPath, tlsClientCertPath, tlsClientKeyPath string,
+	mtlsCACertPath, mtlsClientCertPath, mtlsClientKeyPath string,
 	tlsInsecureSkipVerify bool,
 	tlsServerName string,
 	maxRetries, minRetryBackoffMilliseconds, maxRetryBackoffMilliseconds int,
@@ -80,11 +76,9 @@ func NewConfig(
 		Password: password,
 		DB:       db,
 
-		TLSEnabled:            tlsEnabled,
-		TLSMode:               tlsMode,
-		TLSCACertPath:         tlsCACertPath,
-		TLSClientCertPath:     tlsClientCertPath,
-		TLSClientKeyPath:      tlsClientKeyPath,
+		MTLSCACertPath:        mtlsCACertPath,
+		MTLSClientCertPath:    mtlsClientCertPath,
+		MTLSClientKeyPath:     mtlsClientKeyPath,
 		TLSInsecureSkipVerify: tlsInsecureSkipVerify,
 		TLSServerName:         tlsServerName,
 
@@ -112,38 +106,42 @@ func calculateFinalPoolSize(poolSize, poolSizeLiteral int) int {
 }
 
 func (c *Config) AuthMode() string {
-	if c.TLSEnabled && c.TLSMode == TLSModeMTLS {
+	// mTLS is enabled if all three certificate paths are provided
+	// Validation ensures all three are set if any are set
+	if c.MTLSCACertPath != "" && c.MTLSClientCertPath != "" && c.MTLSClientKeyPath != "" {
 		return AuthModeMTLS
 	}
 	return AuthModePassword
 }
 
 func (c *Config) Validate() error {
-	authMode := c.AuthMode()
+	// Check if any mTLS certificate path is set
+	hasAnyMTLSCert := c.MTLSCACertPath != "" || c.MTLSClientCertPath != "" || c.MTLSClientKeyPath != ""
 
-	var validators []validator
+	if hasAnyMTLSCert {
+		// If any is set, all three must be set
+		var missing []string
+		if c.MTLSCACertPath == "" {
+			missing = append(missing, "REDIS_MTLS_CA_CERT")
+		}
+		if c.MTLSClientCertPath == "" {
+			missing = append(missing, "REDIS_MTLS_CLIENT_CERT")
+		}
+		if c.MTLSClientKeyPath == "" {
+			missing = append(missing, "REDIS_MTLS_CLIENT_KEY")
+		}
 
-	switch authMode {
-	case AuthModePassword:
-		return nil
-	case AuthModeMTLS:
-		validators = append(validators, newTLSModeValidator(c))
-		validators = append(validators, newMTLSCertificateValidator(c))
-	default:
-		validators = append(validators, newTLSModeValidator(c))
+		if len(missing) > 0 {
+			return fmt.Errorf("incomplete mTLS configuration: all three certificate paths are required when any are set. Missing: %s", strings.Join(missing, ", "))
+		}
+
+		// All three are set, validate they exist and are readable
+		validators := []validator{newMTLSCertificateValidator(c)}
+		return validateAll(validators)
 	}
 
-	return validateAll(validators)
-}
-
-func (c *Config) AutoDetectTLS() {
-	if strings.HasPrefix(c.Address, "rediss://") {
-		c.TLSEnabled = true
-	}
-
-	if c.TLSEnabled && c.TLSMode == "" {
-		c.TLSMode = TLSModeTLS
-	}
+	// No mTLS certificates set, password auth is fine
+	return nil
 }
 
 type validator interface {
@@ -174,24 +172,7 @@ func validateAll(validators []validator) error {
 	return nil
 }
 
-type tlsModeValidator struct {
-	tlsMode string
-}
-
-func newTLSModeValidator(config *Config) validator {
-	return &tlsModeValidator{tlsMode: config.TLSMode}
-}
-
-func (v *tlsModeValidator) validate() error {
-	if v.tlsMode != "" && v.tlsMode != TLSModeTLS && v.tlsMode != TLSModeMTLS {
-		return fmt.Errorf("invalid TLS mode: %s (only 'tls' and 'mtls' are supported)", v.tlsMode)
-	}
-	return nil
-}
-
 type mtlsCertificateValidator struct {
-	tlsEnabled     bool
-	tlsMode        string
 	caCertPath     string
 	clientCertPath string
 	clientKeyPath  string
@@ -199,19 +180,13 @@ type mtlsCertificateValidator struct {
 
 func newMTLSCertificateValidator(config *Config) validator {
 	return &mtlsCertificateValidator{
-		tlsEnabled:     config.TLSEnabled,
-		tlsMode:        config.TLSMode,
-		caCertPath:     config.TLSCACertPath,
-		clientCertPath: config.TLSClientCertPath,
-		clientKeyPath:  config.TLSClientKeyPath,
+		caCertPath:     config.MTLSCACertPath,
+		clientCertPath: config.MTLSClientCertPath,
+		clientKeyPath:  config.MTLSClientKeyPath,
 	}
 }
 
 func (v *mtlsCertificateValidator) validate() error {
-	if !v.tlsEnabled || v.tlsMode != TLSModeMTLS {
-		return nil
-	}
-
 	if v.caCertPath == "" {
 		return fmt.Errorf("CA certificate path required for mTLS")
 	}

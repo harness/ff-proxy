@@ -23,6 +23,22 @@ services:
     ports:
       - "6379:6379"
 
+  redis-mtls:
+    image: "redis:latest"
+    container_name: ff-proxy-redis-mtls
+    ports:
+      - "6380:6380"
+    volumes:
+      - ./tests/e2e/certs:/certs:ro
+      - ./tests/e2e/redis-mtls.conf:/usr/local/etc/redis/redis.conf:ro
+    command: ["redis-server", "/usr/local/etc/redis/redis.conf"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "--tls", "--cert", "/certs/redis-client.crt", "--key", "/certs/redis-client.key", "--cacert", "/certs/redis-ca.crt", "-p", "6380", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+      start_period: 10s
+
   pushpin:
     image: "fanout/pushpin:1.41.0"
     ports:

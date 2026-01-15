@@ -68,11 +68,9 @@ mTLS (Mutual TLS) requires client certificates for authentication. This provides
 
 ```bash
 export REDIS_ADDRESS=rediss://localhost:6380
-export REDIS_TLS_ENABLED=true
-export REDIS_TLS_MODE=mtls
-export REDIS_TLS_CA_CERT=/path/to/ca.crt
-export REDIS_TLS_CLIENT_CERT=/path/to/client.crt
-export REDIS_TLS_CLIENT_KEY=/path/to/client.key
+export REDIS_MTLS_CA_CERT=/path/to/ca.crt
+export REDIS_MTLS_CLIENT_CERT=/path/to/client.crt
+export REDIS_MTLS_CLIENT_KEY=/path/to/client.key
 
 # Optional: Additional TLS settings
 export REDIS_TLS_INSECURE_SKIP_VERIFY=false  # Skip server verification (testing only)
@@ -87,11 +85,9 @@ You can use both password and mTLS together if your Redis requires both:
 export REDIS_ADDRESS=rediss://localhost:6380
 export REDIS_USERNAME=myuser
 export REDIS_PASSWORD=mypassword
-export REDIS_TLS_ENABLED=true
-export REDIS_TLS_MODE=mtls
-export REDIS_TLS_CA_CERT=/path/to/ca.crt
-export REDIS_TLS_CLIENT_CERT=/path/to/client.crt
-export REDIS_TLS_CLIENT_KEY=/path/to/client.key
+export REDIS_MTLS_CA_CERT=/path/to/ca.crt
+export REDIS_MTLS_CLIENT_CERT=/path/to/client.crt
+export REDIS_MTLS_CLIENT_KEY=/path/to/client.key
 ```
 
 ---
@@ -225,11 +221,9 @@ Expected: `PONG`
 | `REDIS_USERNAME` | `redis-username` | Redis username (ACL) | - | No |
 | `REDIS_PASSWORD` | `redis-password` | Redis password | - | No |
 | `REDIS_DB` | `redis-db` | Database number | 0 | No |
-| `REDIS_TLS_ENABLED` | `redis-tls-enabled` | Enable TLS/mTLS | false | No |
-| `REDIS_TLS_MODE` | `redis-tls-mode` | TLS mode: `mtls` | "" | No |
-| `REDIS_TLS_CA_CERT` | `redis-tls-ca-cert` | Path to CA certificate | "" | Yes (if TLS enabled) |
-| `REDIS_TLS_CLIENT_CERT` | `redis-tls-client-cert` | Path to client certificate | "" | Yes (if mTLS) |
-| `REDIS_TLS_CLIENT_KEY` | `redis-tls-client-key` | Path to client private key | "" | Yes (if mTLS) |
+| `REDIS_MTLS_CA_CERT` | `redis-mtls-ca-cert` | Path to CA certificate | "" | Yes (if mTLS) |
+| `REDIS_MTLS_CLIENT_CERT` | `redis-mtls-client-cert` | Path to client certificate | "" | Yes (if mTLS) |
+| `REDIS_MTLS_CLIENT_KEY` | `redis-mtls-client-key` | Path to client private key | "" | Yes (if mTLS) |
 | `REDIS_TLS_INSECURE_SKIP_VERIFY` | `redis-tls-insecure-skip-verify` | Skip server verification | false | No |
 | `REDIS_TLS_SERVER_NAME` | `redis-tls-server-name` | SNI server name | "" | No |
 
@@ -269,15 +263,10 @@ graph TB
     BuildConfig --> ConfigStruct[redis/config.go: Config Struct]
     
     ConfigStruct --> AutoDetect[redis/config.go: AutoDetectTLS]
-    AutoDetect --> CheckRediss{rediss:// prefix?}
-    CheckRediss -->|Yes| EnableTLS[Set TLSEnabled=true]
-    CheckRediss -->|No| KeepDefault[Keep TLSEnabled=false]
-    
-    EnableTLS --> Validate[redis/config.go: Validate]
-    KeepDefault --> Validate
+    AutoDetect --> Validate[redis/config.go: Validate]
     
     Validate --> GetAuthMode[redis/config.go: AuthMode]
-    GetAuthMode --> AuthDecision{TLSEnabled && TLSMode==mtls?}
+    GetAuthMode --> AuthDecision{All mTLS certs provided?}
     AuthDecision -->|Yes| ReturnMTLS[Return 'mtls']
     AuthDecision -->|No| ReturnPassword[Return 'password']
     
@@ -331,8 +320,8 @@ graph TB
 The `AuthMode()` function determines authentication type:
 
 - **Default**: Always returns `"password"` (backward compatible)
-- **mTLS**: Requires `TLSEnabled=true` AND `TLSMode="mtls"`
-- **TLS via URL**: `rediss://` protocol auto-enables TLS but uses password auth
+- **mTLS**: Automatically enabled when all three certificate paths are provided (CA cert, client cert, client key)
+- **TLS via URL**: `rediss://` protocol auto-enables TLS encryption but uses password auth (not mTLS)
 
 ### File Structure
 
@@ -464,11 +453,9 @@ redis:
    - Constructs paths as `mountPath + "/" + secretKey`
 
 2. **Environment Variables**: The chart sets:
-   - `REDIS_TLS_ENABLED=true`
-   - `REDIS_TLS_MODE=mtls`
-   - `REDIS_TLS_CA_CERT=/etc/redis/tls/ca.crt` (or custom path)
-   - `REDIS_TLS_CLIENT_CERT=/etc/redis/tls/client.crt`
-   - `REDIS_TLS_CLIENT_KEY=/etc/redis/tls/client.key`
+   - `REDIS_MTLS_CA_CERT=/etc/redis/tls/ca.crt` (or custom path)
+   - `REDIS_MTLS_CLIENT_CERT=/etc/redis/tls/client.crt`
+   - `REDIS_MTLS_CLIENT_KEY=/etc/redis/tls/client.key`
 
 3. **Application**: The application reads certificates from the mounted paths and establishes mTLS connection.
 
@@ -582,11 +569,9 @@ docker-compose -f docker-compose.redis-tls.yml up -d redis-tls
 
 # 3. Configure and run proxy
 export REDIS_ADDRESS=rediss://localhost:6380
-export REDIS_TLS_ENABLED=true
-export REDIS_TLS_MODE=mtls
-export REDIS_TLS_CA_CERT=./certs/redis/ca.crt
-export REDIS_TLS_CLIENT_CERT=./certs/redis/client.crt
-export REDIS_TLS_CLIENT_KEY=./certs/redis/client.key
+export REDIS_MTLS_CA_CERT=./certs/redis/ca.crt
+export REDIS_MTLS_CLIENT_CERT=./certs/redis/client.crt
+export REDIS_MTLS_CLIENT_KEY=./certs/redis/client.key
 export AUTH_SECRET="dummy-secret"
 export PROXY_KEY="dummy-key"
 export BYPASS_AUTH=true
@@ -597,7 +582,7 @@ export OFFLINE=true
 
 **Expected Logs:**
 ```
-INFO connecting to redis address=rediss://localhost:6380 db=0 authMode=mtls tlsEnabled=true poolSize=20
+INFO connecting to redis address=rediss://localhost:6380 db=0 authMode=mtls poolSize=20
 ```
 
 ### Verify Connection
@@ -676,9 +661,9 @@ invalid TLS mode: tls (only 'mtls' is supported)
 ```
 
 **Solution:**
-- Only `mtls` mode is supported for explicit TLS configuration
-- Use `rediss://` protocol for basic TLS with password auth
-- Set `REDIS_TLS_MODE=mtls` for mTLS authentication
+- mTLS is automatically enabled when all three certificate paths are provided
+- Use `rediss://` protocol for basic TLS with password auth (not mTLS)
+- Provide all three certificate paths for mTLS: `REDIS_MTLS_CA_CERT`, `REDIS_MTLS_CLIENT_CERT`, `REDIS_MTLS_CLIENT_KEY`
 
 ---
 
@@ -704,8 +689,7 @@ If the Relay Proxy has previously stored flag data in Redis, it will startup suc
 
 Yes. If your Redis requires both password authentication and mTLS, you can configure both:
 - Set `REDIS_PASSWORD` and `REDIS_USERNAME`
-- Set `REDIS_TLS_ENABLED=true` and `REDIS_TLS_MODE=mtls`
-- Provide all required certificates
+- Provide all three mTLS certificate paths: `REDIS_MTLS_CA_CERT`, `REDIS_MTLS_CLIENT_CERT`, `REDIS_MTLS_CLIENT_KEY`
 
 ---
 

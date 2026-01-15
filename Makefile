@@ -99,13 +99,79 @@ e2e-offline-in-mem: ## brings up offline proxy in in-memory mode and runs e2e sd
 
 e2e-online-in-mem: ## brings up proxy in online in memory mode and runs e2e sdk tests against it
 	docker-compose --env-file .env.online_in_mem -f ./docker-compose.yml up -d --remove-orphans proxy
-	sleep 5 ## TODO replace with a check for the proxy and all envs being healthy
+	@echo "Waiting for services to be healthy..."
+	@timeout=60; \
+	while [ $$timeout -gt 0 ]; do \
+		if curl -f -s http://localhost:7000/health > /dev/null 2>&1; then \
+			echo "Proxy is healthy"; \
+			break; \
+		fi; \
+		echo "Waiting for proxy to be healthy... ($$timeout seconds remaining)"; \
+		sleep 2; \
+		timeout=$$((timeout - 2)); \
+	done; \
+	if [ $$timeout -le 0 ]; then \
+		echo "Error: Proxy did not become healthy within timeout period"; \
+		docker-compose -f ./docker-compose.yml logs proxy; \
+		exit 1; \
+	fi
 	RUN_METRICS_TESTS=true STREAM_URL=https://localhost:7000 go test -p 1 -v ./tests/... -env=".env.online" | tee /dev/stderr | go-junit-report -set-exit-code > online-in-memory.xml
 
 e2e-online-redis: ## brings up proxy in online in redis mode and runs e2e sdk tests against it
 	docker-compose --env-file .env.online_redis -f ./docker-compose.yml up -d --remove-orphans proxy redis
-	sleep 5  ## TODO replace with a check for the proxy and all envs being healthy
+	@echo "Waiting for services to be healthy..."
+	@timeout=60; \
+	while [ $$timeout -gt 0 ]; do \
+		if curl -f -s http://localhost:7000/health > /dev/null 2>&1; then \
+			echo "Proxy is healthy"; \
+			break; \
+		fi; \
+		echo "Waiting for proxy to be healthy... ($$timeout seconds remaining)"; \
+		sleep 2; \
+		timeout=$$((timeout - 2)); \
+	done; \
+	if [ $$timeout -le 0 ]; then \
+		echo "Error: Proxy did not become healthy within timeout period"; \
+		docker-compose -f ./docker-compose.yml logs proxy; \
+		exit 1; \
+	fi
 	go test -p 1 -v ./tests/... -env=".env.online" | tee /dev/stderr | go-junit-report -set-exit-code > online-redis.xml
+
+e2e-online-redis-mtls: ## brings up proxy in online redis mTLS mode
+	@echo "Generating certificates for mTLS..."
+	@bash tests/e2e/generate-certs.sh
+	
+	@echo "Starting services with mTLS..."
+	docker-compose --env-file .env.online_redis_mtls -f ./docker-compose.yml up -d redis-mtls
+	@echo "Waiting 10s for Redis MTLS..."
+	@sleep 10
+	docker-compose --env-file .env.online_redis_mtls -f ./docker-compose.yml up -d proxy
+	
+	@echo "Waiting for services to be healthy..."
+	@timeout=60; \
+	while [ $$timeout -gt 0 ]; do \
+		if curl -f -s http://localhost:7000/health > /dev/null 2>&1; then \
+			echo "Proxy is healthy"; \
+			break; \
+		fi; \
+		echo "Waiting for proxy to be healthy... ($$timeout seconds remaining)"; \
+		sleep 2; \
+		timeout=$$((timeout - 2)); \
+	done; \
+	if [ $$timeout -le 0 ]; then \
+		echo "Error: Proxy did not become healthy within timeout period"; \
+		docker-compose -f ./docker-compose.yml logs proxy; \
+		exit 1; \
+	fi
+
+	@mkdir -p env tests/e2e/env
+	@cp .env.online_redis_mtls env/ || true
+	@cp .env.online_redis_mtls tests/e2e/env/ || true
+	
+	@echo "Waiting for Proxy event stream to stabilize..."
+	@sleep 60
+	@echo "Running E2E tests..."
+	STREAM_URL=http://localhost:7000 go test -p 1 -v ./tests/... -env=".env.online_redis_mtls" | tee /dev/stderr | go-junit-report -set-exit-code > online-redis-mtls.xml
 
 e2e-generate-offline-config: ## brings up proxy to generate offline config then runs in offline mode
 	CONFIG_VOLUME=./testconfig:/config docker-compose --env-file .env.generate_offline -f ./docker-compose.yml up -d --remove-orphans proxy
@@ -120,6 +186,13 @@ run: ## Runs the proxy and redis
 PHONY+= stop
 stop: ## Stops all services brought up by make run
 	docker-compose -f ./docker-compose.yml down --remove-orphans
+
+PHONY+= clean-e2e-certs
+clean-e2e-certs: ## Removes E2E test certificates
+	@echo "Cleaning up E2E test certificates..."
+	@rm -f tests/e2e/certs/redis-*.crt tests/e2e/certs/redis-*.key 2>/dev/null || true
+	@rm -f tests/e2e/certs/cert.crt 2>/dev/null || true
+	@echo "E2E certificates cleaned up"
 
 PHONY+= clean-redis
 clean-redis: ## Removes all data from redis

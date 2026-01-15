@@ -5,7 +5,7 @@ help:
 	@echo "Redis mTLS Example - Available Commands"
 	@echo "========================================"
 	@echo ""
-	@echo "  make certs      - Generate TLS certificates"
+	@echo "  make certs      - Generate mTLS certificates"
 	@echo "  make up         - Start all services"
 	@echo "  make down       - Stop all services"
 	@echo "  make logs       - View service logs"

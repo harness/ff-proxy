@@ -8,7 +8,7 @@ services:
     volumes:
       - ./certs:/certs:ro
       - ./redis.conf:/tmp/redis.conf:ro
-    command: ["sh", "-c", "if [ ! -f /tmp/redis.conf ]; then echo 'ERROR: redis.conf file not found at /tmp/redis.conf'; echo 'Please ensure redis.conf exists in the examples/redis_mtls/ directory'; exit 1; fi; echo 'Starting Redis with TLS configuration...'; redis-server /tmp/redis.conf"]
+    command: ["sh", "-c", "if [ ! -f /tmp/redis.conf ]; then echo 'ERROR: redis.conf file not found at /tmp/redis.conf'; echo 'Please ensure redis.conf exists in the examples/redis_mtls/ directory'; exit 1; fi; echo 'Starting Redis with mTLS configuration...'; redis-server /tmp/redis.conf"]
     healthcheck:
       test: ["CMD", "redis-cli", "--tls", "--cert", "/certs/client.crt", "--key", "/certs/client.key", "--cacert", "/certs/ca.crt", "-p", "6380", "ping"]
       interval: 5s
@@ -33,11 +33,9 @@ services:
       - REDIS_ADDRESS=redis-mtls:6380
       
       # Redis mTLS configuration
-      - REDIS_TLS_ENABLED=true
-      - REDIS_TLS_MODE=mtls
-      - REDIS_TLS_CA_CERT=/certs/ca.crt
-      - REDIS_TLS_CLIENT_CERT=/certs/client.crt
-      - REDIS_TLS_CLIENT_KEY=/certs/client.key
+      - REDIS_MTLS_CA_CERT=/certs/ca.crt
+      - REDIS_MTLS_CLIENT_CERT=/certs/client.crt
+      - REDIS_MTLS_CLIENT_KEY=/certs/client.key
       
       # Proxy configuration
       - READ_REPLICA=false
@@ -77,11 +75,9 @@ services:
       - REDIS_ADDRESS=redis-mtls:6380
       
       # Redis mTLS configuration
-      - REDIS_TLS_ENABLED=true
-      - REDIS_TLS_MODE=mtls
-      - REDIS_TLS_CA_CERT=/certs/ca.crt
-      - REDIS_TLS_CLIENT_CERT=/certs/client.crt
-      - REDIS_TLS_CLIENT_KEY=/certs/client.key
+      - REDIS_MTLS_CA_CERT=/certs/ca.crt
+      - REDIS_MTLS_CLIENT_CERT=/certs/client.crt
+      - REDIS_MTLS_CLIENT_KEY=/certs/client.key
       
       # Proxy configuration
       - READ_REPLICA=true

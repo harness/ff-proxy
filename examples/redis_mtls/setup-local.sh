@@ -29,7 +29,7 @@ REDIS_CONF="redis.conf"
 if [[ -f "$REDIS_CONF" && "$FORCE" != "true" ]]; then
     echo -e "${YELLOW}✓ redis.conf already exists (use --force to overwrite)${NC}"
 else
-    echo -e "${GREEN}Creating redis.conf with TLS-only configuration...${NC}"
+    echo -e "${GREEN}Creating redis.conf with mTLS configuration...${NC}"
     cat > "$REDIS_CONF" <<'EOF'
 # Disable non-TLS connections
 port 0

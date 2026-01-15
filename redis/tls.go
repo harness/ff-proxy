@@ -14,30 +14,32 @@ func BuildTLSConfig(config *Config, logger log.Logger) (*tls.Config, error) {
 		MinVersion: tls.VersionTLS12,
 	}
 
-	if config.TLSCACertPath != "" {
-		caCert, err := os.ReadFile(config.TLSCACertPath)
-		if err != nil {
-			return nil, fmt.Errorf("failed to read CA certificate: %w", err)
-		}
-
-		caCertPool := x509.NewCertPool()
-		if !caCertPool.AppendCertsFromPEM(caCert) {
-			return nil, fmt.Errorf("failed to parse CA certificate")
-		}
-		tlsConfig.RootCAs = caCertPool
+	// CA certificate is required for mTLS
+	if config.MTLSCACertPath == "" {
+		return nil, fmt.Errorf("CA certificate path required for mTLS")
 	}
 
-	if config.TLSMode == TLSModeMTLS {
-		if config.TLSClientCertPath == "" || config.TLSClientKeyPath == "" {
-			return nil, fmt.Errorf("client certificate and key required for mTLS")
-		}
-
-		cert, err := tls.LoadX509KeyPair(config.TLSClientCertPath, config.TLSClientKeyPath)
-		if err != nil {
-			return nil, fmt.Errorf("failed to load client certificate: %w", err)
-		}
-		tlsConfig.Certificates = []tls.Certificate{cert}
+	caCert, err := os.ReadFile(config.MTLSCACertPath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read CA certificate: %w", err)
 	}
+
+	caCertPool := x509.NewCertPool()
+	if !caCertPool.AppendCertsFromPEM(caCert) {
+		return nil, fmt.Errorf("failed to parse CA certificate")
+	}
+	tlsConfig.RootCAs = caCertPool
+
+	// Client certificate and key are required for mTLS
+	if config.MTLSClientCertPath == "" || config.MTLSClientKeyPath == "" {
+		return nil, fmt.Errorf("client certificate and key required for mTLS")
+	}
+
+	cert, err := tls.LoadX509KeyPair(config.MTLSClientCertPath, config.MTLSClientKeyPath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load client certificate: %w", err)
+	}
+	tlsConfig.Certificates = []tls.Certificate{cert}
 
 	tlsConfig.InsecureSkipVerify = config.TLSInsecureSkipVerify
 	if config.TLSServerName != "" {

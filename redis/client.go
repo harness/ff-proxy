@@ -9,8 +9,6 @@ import (
 )
 
 func NewClient(config *Config, logger log.Logger) (redis.UniversalClient, error) {
-	config.AutoDetectTLS()
-
 	if err := config.Validate(); err != nil {
 		return nil, fmt.Errorf("invalid redis config: %w", err)
 	}
@@ -37,7 +35,6 @@ func NewClient(config *Config, logger log.Logger) (redis.UniversalClient, error)
 		"address", config.Address,
 		"db", config.DB,
 		"authMode", authMode,
-		"tlsEnabled", config.TLSEnabled,
 		"poolSize", opts.PoolSize,
 	)
 

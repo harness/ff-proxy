@@ -97,16 +97,14 @@ Adjust how often certain actions are performed.
 | TLS_CERT             | tls-cert    | Path to tls cert file. Required if tls enabled is true.                     | string |         |
 | TLS_KEY              | tls-key     | Path to tls key file. Required if tls enabled is true.                      | string |         |
 
-### Redis TLS/mTLS Configuration
-Configuration for Redis TLS and mutual TLS (mTLS) authentication.
+### Redis mTLS Configuration
+Configuration for Redis mutual TLS (mTLS) authentication. mTLS requires both client and server certificates for mutual authentication.
 
 | Environment Variable | Flag                        | Description                                                                 | Type   | Default |
 |----------------------|-----------------------------|-----------------------------------------------------------------------------|--------|---------|
-| REDIS_TLS_ENABLED            | redis-tls-enabled            | Enable TLS/mTLS for Redis connections                                      | bool   | false   |
-| REDIS_TLS_MODE               | redis-tls-mode               | TLS mode: 'mtls' for mutual TLS (only supported mode)                       | string | ""      |
-| REDIS_TLS_CA_CERT            | redis-tls-ca-cert            | Path to CA certificate file. Required if TLS is enabled                     | string | ""      |
-| REDIS_TLS_CLIENT_CERT        | redis-tls-client-cert        | Path to client certificate file. Required if TLS mode is 'mtls'             | string | ""      |
-| REDIS_TLS_CLIENT_KEY         | redis-tls-client-key         | Path to client private key file. Required if TLS mode is 'mtls'              | string | ""      |
+| REDIS_MTLS_CA_CERT            | redis-mtls-ca-cert            | Path to CA certificate file. Required for mTLS                              | string | ""      |
+| REDIS_MTLS_CLIENT_CERT        | redis-mtls-client-cert        | Path to client certificate file. Required for mTLS                           | string | ""      |
+| REDIS_MTLS_CLIENT_KEY         | redis-mtls-client-key         | Path to client private key file. Required for mTLS                           | string | ""      |
 | REDIS_TLS_INSECURE_SKIP_VERIFY | redis-tls-insecure-skip-verify | Skip server certificate verification (not recommended for production)     | bool   | false   |
 | REDIS_TLS_SERVER_NAME        | redis-tls-server-name        | Server name for TLS SNI. Use if Redis is behind a load balancer            | string | ""      |
 
@@ -126,11 +124,9 @@ REDIS_PASSWORD=your_password
 **mTLS (Mutual Authentication):**
 ```bash
 REDIS_ADDRESS=rediss://redis.example.com:6380
-REDIS_TLS_ENABLED=true
-REDIS_TLS_MODE=mtls
-REDIS_TLS_CA_CERT=/etc/redis/ca.crt
-REDIS_TLS_CLIENT_CERT=/etc/redis/client.crt
-REDIS_TLS_CLIENT_KEY=/etc/redis/client.key
+REDIS_MTLS_CA_CERT=/etc/redis/ca.crt
+REDIS_MTLS_CLIENT_CERT=/etc/redis/client.crt
+REDIS_MTLS_CLIENT_KEY=/etc/redis/client.key
 ```
 
 **Password + mTLS (Both Required):**
@@ -138,21 +134,19 @@ REDIS_TLS_CLIENT_KEY=/etc/redis/client.key
 REDIS_ADDRESS=rediss://redis.example.com:6380
 REDIS_USERNAME=myuser
 REDIS_PASSWORD=mypassword
-REDIS_TLS_ENABLED=true
-REDIS_TLS_MODE=mtls
-REDIS_TLS_CA_CERT=/etc/redis/ca.crt
-REDIS_TLS_CLIENT_CERT=/etc/redis/client.crt
-REDIS_TLS_CLIENT_KEY=/etc/redis/client.key
+REDIS_MTLS_CA_CERT=/etc/redis/ca.crt
+REDIS_MTLS_CLIENT_CERT=/etc/redis/client.crt
+REDIS_MTLS_CLIENT_KEY=/etc/redis/client.key
 ```
 
 **Important Notes:**
-- **TLS is Disabled by Default**: `REDIS_TLS_ENABLED` defaults to `false` for backward compatibility
-- **Opt-in**: TLS must be explicitly enabled - existing deployments continue working without changes
+- **mTLS is Opt-in**: When all three certificate paths are provided, ff-proxy automatically uses mTLS authentication
+- **All Certificates Required**: All three certificate paths (CA, client cert, client key) must be provided for mTLS
 - **Certificate Paths**: Certificate paths are configurable (default: `/etc/redis/tls` in Helm deployments)
 - **Mount Path**: In Helm deployments, the mount path can be customized via `redis.tls.mountPath`
 - **Path Construction**: Certificate paths are automatically constructed as `mountPath + "/" + secretKey`
 
-**Note:** By default, the Relay Proxy uses password-based authentication. TLS/mTLS is opt-in and does not affect existing deployments.
+**Note:** By default, the Relay Proxy uses password-based authentication. mTLS is opt-in and does not affect existing deployments.
 
 ### Harness URLs
 You may need to adjust these if you pass all your traffic through a filter or proxy rather than sending the requests directly. 

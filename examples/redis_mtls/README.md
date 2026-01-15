@@ -1,13 +1,13 @@
-# Redis mTLS Authentication Example
+ # Redis mTLS Authentication Example
 
 This example demonstrates how to run ff-proxy with Redis using mutual TLS (mTLS) authentication. This setup provides secure, encrypted communication between ff-proxy and Redis with certificate-based client authentication.
 
 ## 🔒 What is mTLS?
 
-Mutual TLS (mTLS) is an authentication method where both the client and server verify each other's identity using certificates. This provides:
+Mutual TLS (mTLS) is an authentication method where both the client and server verify each other's identity using certificates. Unlike regular TLS (which only verifies the server), mTLS requires both parties to present valid certificates. This provides:
 - **Encryption**: All data between ff-proxy and Redis is encrypted
-- **Authentication**: Redis verifies the client's identity via certificates
-- **Authorization**: Only clients with valid certificates can connect
+- **Mutual Authentication**: Both Redis and ff-proxy verify each other's identity via certificates
+- **Strong Authorization**: Only clients with valid certificates signed by the trusted CA can connect
 
 ## 📋 Prerequisites
 
@@ -17,16 +17,24 @@ Mutual TLS (mTLS) is an authentication method where both the client and server v
 
 ## 🚀 Quick Start
 
-### 1. Run Setup Script
+Follow these steps to run the mTLS example:
 
-Run the setup script to automatically generate `redis.conf` and TLS certificates:
+### 1. Navigate to the Example Directory
+
+```bash
+cd examples/redis_mtls
+```
+
+### 2. Run Setup Script
+
+Run the setup script to automatically generate `redis.conf` and mTLS certificates:
 
 ```bash
 ./setup-local.sh
 ```
 
 This script will:
-- **Create `redis.conf`** with TLS-only configuration (port 0, TLS on 6380, mTLS enabled)
+- **Create `redis.conf`** with mTLS configuration (port 0, TLS on 6380, client certificate authentication required)
 - **Generate all required certificates** (CA, server, and client certificates)
 - **Validate** that all files are present
 
@@ -35,7 +43,7 @@ This script will:
 - `redis.conf` is automatically created - you don't need to create it manually
 - Certificates are self-signed and suitable for development/testing only. For production, use certificates from a trusted CA.
 
-### 2. Configure Your Proxy Key
+### 3. Configure Your Proxy Key
 
 Edit `docker-compose.yml` and replace `<your-proxy-key-here>` with your actual Harness Feature Flags API key:
 
@@ -43,20 +51,20 @@ Edit `docker-compose.yml` and replace `<your-proxy-key-here>` with your actual H
 - PROXY_KEY=<your-proxy-key-here>
 ```
 
-### 3. Start the Services
+### 4. Start the Services
 
 ```bash
 docker compose up --build
 ```
 
 This will start:
-- **Redis with mTLS**: Running on port `6380` (TLS-enabled)
+- **Redis with mTLS**: Running on port `6380` (TLS-enabled, client certificates required)
 - **Primary ff-proxy**: Running on port `7001`
 - **Replica ff-proxy**: Running on port `7002`
 
-### 4. Verify the Setup
+### 5. Verify mTLS is Working
 
-**First, verify Redis is running with TLS enabled:**
+**Step 5a: Verify Redis is running with mTLS enabled:**
 
 ```bash
 # Check Redis logs - should show TLS port 6380
@@ -70,19 +78,41 @@ docker-compose logs redis-mtls | grep -E "(port|tls|Ready)"
 **If you see `port=6379` or `connections tcp` instead, Redis is not loading the config file.**
 See the [Troubleshooting](#-redis-starting-on-wrong-port-6379-instead-of-6380) section.
 
-**Then check that ff-proxy can connect to Redis:**
+**Step 5b: Verify mTLS enforcement (connection without certs must fail):**
+
+```bash
+docker run --rm --network redis_mtls_ff-proxy-network redis:7-alpine \
+  redis-cli -h redis-mtls -p 6380 ping
+# Expected: Connection fails (proves mTLS is enforced)
+```
+
+**Step 5c: Verify mTLS connection (connection with certs must succeed):**
+
+```bash
+docker run --rm --network redis_mtls_ff-proxy-network \
+  -v $(pwd)/certs:/certs:ro \
+  redis:7-alpine \
+  redis-cli --tls \
+    --cert /certs/client.crt \
+    --key /certs/client.key \
+    --cacert /certs/ca.crt \
+    -h redis-mtls -p 6380 ping
+# Expected: "PONG" (proves mTLS works)
+```
+
+**Step 5d: Verify ff-proxy can connect to Redis:**
 
 ```bash
 # Check primary logs
-docker-compose logs primary
+docker-compose logs primary | grep -i redis
 
 # Check replica logs
-docker-compose logs replica
+docker-compose logs replica | grep -i redis
 
 # You should see successful connection messages
 ```
 
-Test the API:
+**Step 5e: Test the API:**
 
 ```bash
 # Health check
@@ -91,6 +121,13 @@ curl http://localhost:7001/health
 # Client authentication (replace with your SDK key)
 curl -X GET "http://localhost:7001/client/auth" \
   -H "Authorization: Bearer <your-sdk-key>"
+```
+
+### 6. Cleanup (when done)
+
+```bash
+docker-compose down -v
+rm -rf certs/
 ```
 
 ## 🔧 Configuration Details
@@ -145,27 +182,11 @@ loglevel notice
 | Variable | Value | Description |
 |----------|-------|-------------|
 | `REDIS_ADDRESS` | `redis-mtls:6380` | Redis server address with TLS port |
-| `REDIS_TLS_ENABLED` | `true` | Enable TLS for Redis connection |
-| `REDIS_TLS_MODE` | `mtls` | Use mutual TLS authentication |
-| `REDIS_TLS_CA_CERT` | `/certs/ca.crt` | Path to CA certificate |
-| `REDIS_TLS_CLIENT_CERT` | `/certs/client.crt` | Path to client certificate |
-| `REDIS_TLS_CLIENT_KEY` | `/certs/client.key` | Path to client private key |
+| `REDIS_MTLS_CA_CERT` | `/certs/ca.crt` | Path to CA certificate (required for mTLS) |
+| `REDIS_MTLS_CLIENT_CERT` | `/certs/client.crt` | Path to client certificate (required for mTLS) |
+| `REDIS_MTLS_CLIENT_KEY` | `/certs/client.key` | Path to client private key (required for mTLS) |
 
-## 🔐 TLS Modes
-
-ff-proxy supports two TLS modes:
-
-### 1. **TLS Mode** (`REDIS_TLS_MODE=tls`)
-- Server authentication only
-- Redis verifies its identity to the client
-- Client certificate not required
-- Use when Redis has TLS but doesn't require client certificates
-
-### 2. **mTLS Mode** (`REDIS_TLS_MODE=mtls`)
-- Mutual authentication (this example)
-- Both Redis and client verify each other's identity
-- Client certificate required
-- Highest security level
+**Note:** When all three mTLS certificate paths are provided, ff-proxy automatically uses mTLS authentication. No additional flags or mode settings are required.
 
 ## 📂 Directory Structure
 
@@ -185,24 +206,47 @@ examples/redis_mtls/
     └── client.key           # ff-proxy client private key
 ```
 
-## 🧪 Testing Different Scenarios
+## 🧪 Verifying mTLS is Enforced
 
-### Test Connection Without Certificates
+### How to Know It's mTLS (Not Just TLS)
 
-Try connecting without certificates to verify mTLS is enforced:
+**Mutual TLS (mTLS) requires BOTH server and client certificates.** Regular TLS only requires a server certificate. To prove this example uses mTLS, you must verify:
+
+1. **Connection WITHOUT client certificates MUST fail** - This proves Redis requires client certificates
+2. **Connection WITH client certificates MUST succeed** - This proves the certificates work
+
+If both conditions are true, you have true mTLS. If connections without client certificates succeed, you only have TLS (not mTLS).
+
+### Test 1: Negative Test (Must Fail)
+
+**Purpose:** Prove that Redis rejects connections without client certificates.
 
 ```bash
-docker run --rm --network redis_mtls_default redis:7-alpine \
+docker run --rm --network redis_mtls_ff-proxy-network redis:7-alpine \
   redis-cli -h redis-mtls -p 6380 ping
-# Should fail: "Error: Connection reset by peer"
 ```
 
-### Test Connection With Certificates
+**Expected Result:**
+```
+Error: Connection reset by peer
+```
 
-Connect with valid certificates:
+**What this proves:**
+- Redis is enforcing client certificate authentication
+- Clients without valid certificates cannot connect
+- This is the key difference between TLS and mTLS
+
+**If this test succeeds (connects without certs):**
+- Redis is NOT enforcing mTLS
+- Check that `tls-auth-clients yes` is in `redis.conf`
+- Verify Redis loaded the config file correctly
+
+### Test 2: Positive Test (Must Succeed)
+
+**Purpose:** Prove that valid client certificates allow connection.
 
 ```bash
-docker run --rm --network redis_mtls_default \
+docker run --rm --network redis_mtls_ff-proxy-network \
   -v $(pwd)/certs:/certs:ro \
   redis:7-alpine \
   redis-cli --tls \
@@ -210,8 +254,44 @@ docker run --rm --network redis_mtls_default \
     --key /certs/client.key \
     --cacert /certs/ca.crt \
     -h redis-mtls -p 6380 ping
-# Should succeed: "PONG"
 ```
+
+**Expected Result:**
+```
+PONG
+```
+
+**What this proves:**
+- Client certificates are valid and properly signed
+- Redis accepts the client certificate
+- mTLS connection is working correctly
+
+### Test 3: Additional Operations (Optional)
+
+Verify that you can perform Redis operations over mTLS:
+
+```bash
+docker run --rm --network redis_mtls_ff-proxy-network \
+  -v $(pwd)/certs:/certs:ro \
+  redis:7-alpine \
+  sh -c "
+    redis-cli --tls --cert /certs/client.crt --key /certs/client.key --cacert /certs/ca.crt -h redis-mtls -p 6380 SET testkey testvalue &&
+    redis-cli --tls --cert /certs/client.crt --key /certs/client.key --cacert /certs/ca.crt -h redis-mtls -p 6380 GET testkey
+  "
+```
+
+**Expected Result:**
+```
+OK
+testvalue
+```
+
+### Summary: Both Tests Must Pass
+
+- ✅ **Test 1 fails** = mTLS is enforced (good!)
+- ✅ **Test 2 succeeds** = mTLS is working (good!)
+- ❌ **Test 1 succeeds** = mTLS is NOT enforced (configuration error)
+- ❌ **Test 2 fails** = Certificate or configuration issue
 
 ## 🛠️ Troubleshooting
 
@@ -225,12 +305,13 @@ If ff-proxy cannot connect to Redis, verify the following:
    # Should show the file exists
    ```
 
-2. **Verify `redis.conf` has TLS-only settings:**
+2. **Verify `redis.conf` has mTLS settings:**
    ```bash
-   grep -E "port 0|tls-port 6380" redis.conf
+   grep -E "port 0|tls-port 6380|tls-auth-clients yes" redis.conf
    # Should show:
    # port 0
    # tls-port 6380
+   # tls-auth-clients yes
    ```
 
 3. **Check that certificates exist:**
@@ -248,11 +329,43 @@ If ff-proxy cannot connect to Redis, verify the following:
 5. **Confirm clients connect to `redis:6380` (not 6379):**
    - Check `docker-compose.yml` - `REDIS_ADDRESS` should be `redis-mtls:6380`
    - Redis plaintext is disabled (port 0) and TLS is on 6380
+   - Verify mTLS environment variables are set: `REDIS_MTLS_CA_CERT`, `REDIS_MTLS_CLIENT_CERT`, `REDIS_MTLS_CLIENT_KEY`
 
 If files are missing, run:
 ```bash
 ./setup-local.sh
 ```
+
+### Incomplete mTLS Configuration
+
+**Error:**
+```
+invalid redis config: incomplete mTLS configuration: all three certificate paths are required when any are set. Missing: REDIS_MTLS_CLIENT_CERT, REDIS_MTLS_CLIENT_KEY
+```
+
+**Cause:**
+ff-proxy requires all three mTLS certificate paths to be set when any are provided. This prevents silent downgrades to password authentication.
+
+**Solution:**
+Ensure all three environment variables are set in your `docker-compose.yml`:
+```yaml
+- REDIS_MTLS_CA_CERT=/certs/ca.crt
+- REDIS_MTLS_CLIENT_CERT=/certs/client.crt
+- REDIS_MTLS_CLIENT_KEY=/certs/client.key
+```
+
+**Verification:**
+```bash
+# Check environment variables in container
+docker-compose exec primary env | grep REDIS_MTLS
+
+# Should show all three:
+# REDIS_MTLS_CA_CERT=/certs/ca.crt
+# REDIS_MTLS_CLIENT_CERT=/certs/client.crt
+# REDIS_MTLS_CLIENT_KEY=/certs/client.key
+```
+
+If you don't want to use mTLS, remove all three environment variables (or set them to empty strings).
 
 ### Certificate Errors
 
@@ -329,40 +442,54 @@ If ff-proxy can't connect to Redis:
 The generated certificates expire in 365 days. Regenerate them before expiry:
 
 ```bash
-./generate-certs.sh
+./setup-local.sh --force
 docker-compose restart
 ```
 
-## 🔄 Switching Between TLS and mTLS
+### Certificate Path or Mount Issues
 
-To switch from mTLS to regular TLS:
+**Symptoms:**
+- ff-proxy fails to connect: "failed to read CA certificate" or "certificate not found"
+- Redis health check fails
+- Container logs show certificate errors
 
-### Option 1: Modify redis.conf
+**Verification Steps:**
 
-Edit `redis.conf` and change:
-```conf
-# FROM (mTLS - requires client certificates):
-tls-auth-clients yes
+1. **Check certificates exist locally:**
+   ```bash
+   ls -la certs/
+   # Should show: ca.crt, ca.key, server.crt, server.key, client.crt, client.key
+   ```
 
-# TO (TLS only - server authentication only):
-tls-auth-clients no
-```
+2. **Verify certificates are mounted in containers:**
+   ```bash
+   # Check Redis container
+   docker-compose exec redis-mtls ls -la /certs/
+   
+   # Check ff-proxy container
+   docker-compose exec primary ls -la /certs/
+   ```
 
-### Option 2: Modify docker-compose.yml
+3. **Verify environment variables point to correct paths:**
+   ```bash
+   docker-compose exec primary env | grep REDIS_MTLS
+   # Should show:
+   # REDIS_MTLS_CA_CERT=/certs/ca.crt
+   # REDIS_MTLS_CLIENT_CERT=/certs/client.crt
+   # REDIS_MTLS_CLIENT_KEY=/certs/client.key
+   ```
 
-Change the ff-proxy environment variable:
-```yaml
-# FROM:
-- REDIS_TLS_MODE=mtls
+4. **Check volume mounts in docker-compose.yml:**
+   ```bash
+   grep -A 2 "volumes:" docker-compose.yml
+   # Should show: - ./certs:/certs:ro
+   ```
 
-# TO:
-- REDIS_TLS_MODE=tls
-```
+**Common Fixes:**
+- If certs are missing: Run `./setup-local.sh`
+- If paths don't match: Ensure `docker-compose.yml` uses `/certs/` (container path) and `./certs` (host path)
+- If permissions are wrong: Run `chmod 644 certs/*.crt && chmod 600 certs/*.key`
 
-Then restart:
-```bash
-docker-compose restart
-```
 
 ### Creating a Custom redis.conf
 
@@ -424,16 +551,36 @@ For production deployments:
 
 ## 🧹 Cleanup
 
-To stop and remove all containers and volumes:
+### Stop Services
+
+To stop all services but keep data:
 
 ```bash
-docker-compose down -v
+docker-compose down
 ```
 
-To remove generated certificates:
+### Complete Cleanup
+
+To stop services, remove volumes, and delete certificates:
 
 ```bash
-rm -rf certs/
+# Stop and remove containers and volumes
+docker-compose down -v
+
+# Remove generated certificates and config
+rm -rf certs/ redis.conf
+```
+
+### Start Fresh
+
+To start completely from scratch after cleanup:
+
+```bash
+# Regenerate everything
+./setup-local.sh
+
+# Start services
+docker-compose up -d
 ```
 
 ## 📝 Notes
@@ -443,4 +590,5 @@ rm -rf certs/
 - Redis runs on port `6380` (not the default `6379`) to indicate TLS usage
 - Both primary and replica proxies use the same client certificates
 - The CA certificate must be present for both server and client verification
+- ff-proxy supports **mTLS only** for Redis authentication - all three certificate paths must be provided
 

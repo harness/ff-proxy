@@ -86,12 +86,10 @@ var (
 	redisConnMaxIdleTimeMinutes int
 	redisConnMaxLifetimeMinutes int
 
-	// Redis TLS/mTLS Config
-	redisTLSEnabled            bool
-	redisTLSMode               string
-	redisTLSCACertPath         string
-	redisTLSClientCertPath     string
-	redisTLSClientKeyPath      string
+	// Redis mTLS Config
+	redisMTLSCACertPath        string
+	redisMTLSClientCertPath    string
+	redisMTLSClientKeyPath     string
 	redisTLSInsecureSkipVerify bool
 	redisTLSServerName         string
 
@@ -173,12 +171,10 @@ const (
 	redisConnMaxIdleTimeMinutesEnv = "REDIS_CON_MAX_IDLE_TIME_MINUTES"
 	redisConnMaxLifetimeMinutesEnv = "REDIS_CON_MAX_LIFETIME_MINUTES"
 
-	// Redis TLS/mTLS Config
-	redisTLSEnabledEnv            = "REDIS_TLS_ENABLED"
-	redisTLSModeEnv               = "REDIS_TLS_MODE"
-	redisTLSCACertEnv             = "REDIS_TLS_CA_CERT"
-	redisTLSClientCertEnv         = "REDIS_TLS_CLIENT_CERT"
-	redisTLSClientKeyEnv          = "REDIS_TLS_CLIENT_KEY"
+	// Redis mTLS Config
+	redisMTLSCACertEnv            = "REDIS_MTLS_CA_CERT"
+	redisMTLSClientCertEnv        = "REDIS_MTLS_CLIENT_CERT"
+	redisMTLSClientKeyEnv         = "REDIS_MTLS_CLIENT_KEY"
 	redisTLSInsecureSkipVerifyEnv = "REDIS_TLS_INSECURE_SKIP_VERIFY"
 	redisTLSServerNameEnv         = "REDIS_TLS_SERVER_NAME"
 
@@ -244,12 +240,10 @@ const (
 	redisConnMaxIdleTimeMinutesFlag = "redis-conn-max-idle-time-minutes"
 	redisConnMaxLifetimeMinutesFlag = "redis-conn-max-lifetime-minutes"
 
-	// Redis TLS/mTLS Config Flags
-	redisTLSEnabledFlag            = "redis-tls-enabled"
-	redisTLSModeFlag               = "redis-tls-mode"
-	redisTLSCACertFlag             = "redis-tls-ca-cert"
-	redisTLSClientCertFlag         = "redis-tls-client-cert"
-	redisTLSClientKeyFlag          = "redis-tls-client-key"
+	// Redis mTLS Config Flags
+	redisMTLSCACertFlag            = "redis-mtls-ca-cert"
+	redisMTLSClientCertFlag        = "redis-mtls-client-cert"
+	redisMTLSClientKeyFlag         = "redis-mtls-client-key"
 	redisTLSInsecureSkipVerifyFlag = "redis-tls-insecure-skip-verify"
 	redisTLSServerNameFlag         = "redis-tls-server-name"
 
@@ -315,12 +309,10 @@ func init() {
 	flag.IntVar(&redisConnMaxIdleTimeMinutes, redisConnMaxIdleTimeMinutesFlag, 30, "The maximum amount of time a connection may be idle. Should be less than server's timeout. Expired connections may be closed lazily before reuse. If d <= 0, connections are not closed due to a connection's idle time. -1 disables idle timeout check. Default: 30 minutes")
 	flag.IntVar(&redisConnMaxLifetimeMinutes, redisConnMaxLifetimeMinutesFlag, 0, "The maximum amount of time a connection may be reused. Expired connections may be closed lazily before reuse. If <= 0, connections are not closed due to a connection's age. Default: 0")
 
-	// Redis TLS/mTLS Config
-	flag.BoolVar(&redisTLSEnabled, redisTLSEnabledFlag, false, "enable TLS/mTLS for Redis")
-	flag.StringVar(&redisTLSMode, redisTLSModeFlag, "", "TLS mode: 'tls' or 'mtls'")
-	flag.StringVar(&redisTLSCACertPath, redisTLSCACertFlag, "", "path to CA certificate file")
-	flag.StringVar(&redisTLSClientCertPath, redisTLSClientCertFlag, "", "path to client certificate file (mTLS)")
-	flag.StringVar(&redisTLSClientKeyPath, redisTLSClientKeyFlag, "", "path to client private key file (mTLS)")
+	// Redis mTLS Config
+	flag.StringVar(&redisMTLSCACertPath, redisMTLSCACertFlag, "", "path to CA certificate file (required for mTLS)")
+	flag.StringVar(&redisMTLSClientCertPath, redisMTLSClientCertFlag, "", "path to client certificate file (required for mTLS)")
+	flag.StringVar(&redisMTLSClientKeyPath, redisMTLSClientKeyFlag, "", "path to client private key file (required for mTLS)")
 	flag.BoolVar(&redisTLSInsecureSkipVerify, redisTLSInsecureSkipVerifyFlag, false, "skip server certificate verification")
 	flag.StringVar(&redisTLSServerName, redisTLSServerNameFlag, "", "server name for TLS SNI")
 
@@ -392,11 +384,9 @@ func init() {
 		redisConnMaxIdleTimeMinutesEnv: redisConnMaxIdleTimeMinutesFlag,
 		redisConnMaxLifetimeMinutesEnv: redisConnMaxLifetimeMinutesFlag,
 
-		redisTLSEnabledEnv:            redisTLSEnabledFlag,
-		redisTLSModeEnv:               redisTLSModeFlag,
-		redisTLSCACertEnv:             redisTLSCACertFlag,
-		redisTLSClientCertEnv:         redisTLSClientCertFlag,
-		redisTLSClientKeyEnv:          redisTLSClientKeyFlag,
+		redisMTLSCACertEnv:            redisMTLSCACertFlag,
+		redisMTLSClientCertEnv:        redisMTLSClientCertFlag,
+		redisMTLSClientKeyEnv:         redisMTLSClientKeyFlag,
 		redisTLSInsecureSkipVerifyEnv: redisTLSInsecureSkipVerifyFlag,
 		redisTLSServerNameEnv:         redisTLSServerNameFlag,
 	})
@@ -480,8 +470,6 @@ func main() {
 		"port", port,
 		"redis-addr", redisAddress,
 		"redis-db", redisDB,
-		"redis-tls-enabled", redisTLSEnabled,
-		"redis-tls-mode", redisTLSMode,
 		"heartbeat-interval", fmt.Sprintf("%ds", heartbeatInterval),
 		"config-dir", configDir,
 		"tls-enabled", tlsEnabled,
@@ -907,11 +895,9 @@ func buildRedisConfig() *redisclient.Config {
 		redisUsername,
 		redisPassword,
 		redisDB,
-		redisTLSEnabled,
-		redisTLSMode,
-		redisTLSCACertPath,
-		redisTLSClientCertPath,
-		redisTLSClientKeyPath,
+		redisMTLSCACertPath,
+		redisMTLSClientCertPath,
+		redisMTLSClientKeyPath,
 		redisTLSInsecureSkipVerify,
 		redisTLSServerName,
 		redisMaxRetries,
