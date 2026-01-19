@@ -188,6 +188,10 @@ loglevel notice
 
 **Note:** When all three mTLS certificate paths are provided, ff-proxy automatically uses mTLS authentication. No additional flags or mode settings are required.
 
+**Local vs Production:**
+- **This Example (Local)**: Certificates are mounted via Docker volumes from `./certs` directory
+- **Production (Helm/K8s)**: Certificates come from Kubernetes Secrets mounted at `/etc/redis/tls` (configurable). See [Redis Cache Documentation](../../docs/redis_cache.md) for Helm deployment details.
+
 ## 📂 Directory Structure
 
 ```

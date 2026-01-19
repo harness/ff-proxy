@@ -235,6 +235,11 @@ Expected: `PONG`
 - **Example**: If `mountPath="/etc/redis/tls"` and `secretKey="ca.crt"`, the full path is `/etc/redis/tls/ca.crt`
 - **Override**: You can override the mount path if needed (e.g., for custom security policies)
 
+**Local Development vs Production:**
+- **Local/Docker Compose**: For local testing (e.g., `docker-compose.yml`), certificates are mounted via bind mounts (e.g., `./certs:/certs`)
+- **Production/Helm**: In Kubernetes, certificates come from Secrets mounted at `/etc/redis/tls` (configurable via `redis.tls.mountPath`)
+- **Container Paths**: The application reads certificates from the paths specified in `REDIS_MTLS_*` environment variables, regardless of how they're mounted
+
 ### Connection Pool Settings
 
 | Variable | Flag | Description | Default |
