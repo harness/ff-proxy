@@ -1,5 +1,5 @@
 ############################
-# STEP 1 build executable binary
+# STEP 1: Build executable binary
 ############################
 FROM golang:1.25.5 AS builder
 
@@ -19,12 +19,13 @@ RUN make build
 # STEP 2: Grab CA certificates
 ############################
 FROM debian:bookworm-slim AS certs
-RUN apt-get update && \
-    apt-get upgrade -y && \
-    apt-get install -y ca-certificates && \
-    apt-get clean && \
-    rm -rf /var/lib/apt/lists/*
-RUN mkdir /tmp/certs && cp -r /etc/ssl/certs/* /tmp/certs
+
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends ca-certificates \
+ && apt-get clean \
+ && rm -rf /var/lib/apt/lists/*
+
+RUN mkdir -p /tmp/certs && cp -r /etc/ssl/certs/* /tmp/certs
 
 ############################
 # STEP 3: Build pushpin from source (matching fanout/pushpin:1.41.0)
@@ -33,12 +34,16 @@ RUN mkdir /tmp/certs && cp -r /etc/ssl/certs/* /tmp/certs
 ############################
 FROM ubuntu:24.04 AS pushpin-builder
 
-# Install build dependencies and update all packages
-RUN apt-get update && \
-    apt-get upgrade -y && \
-    apt-get install -y bzip2 pkg-config make g++ rustc cargo libssl-dev qt6-base-dev libzmq3-dev libboost-dev && \
-    apt-get clean && \
-    rm -rf /var/lib/apt/lists/*
+ARG DEBIAN_FRONTEND=noninteractive
+
+# Build deps only + patch OS packages in this stage
+RUN apt-get update \
+ && apt-get -y upgrade \
+ && apt-get install -y --no-install-recommends \
+      bzip2 pkg-config make g++ rustc cargo \
+      libssl-dev qt6-base-dev libzmq3-dev libboost-dev \
+ && apt-get clean \
+ && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /build
 
@@ -51,7 +56,6 @@ RUN tar xf pushpin-${PUSHPIN_VERSION}.tar.bz2 && mv pushpin-${PUSHPIN_VERSION} p
 
 WORKDIR /build/pushpin
 
-# Build pushpin
 RUN make RELEASE=1 PREFIX=/usr CONFIGDIR=/etc
 RUN make RELEASE=1 PREFIX=/usr CONFIGDIR=/etc check
 RUN make RELEASE=1 PREFIX=/usr CONFIGDIR=/etc INSTALL_ROOT=/build/out install
@@ -61,13 +65,18 @@ RUN make RELEASE=1 PREFIX=/usr CONFIGDIR=/etc INSTALL_ROOT=/build/out install
 ############################
 FROM ubuntu:24.04
 
-# Install runtime dependencies for pushpin and update all packages to fix vulnerabilities
-RUN apt-get update && \
-    apt-get upgrade -y && \
-    apt-get install -y --no-install-recommends libqt6core6 libqt6network6 libzmq5 && \
-    apt-get -y autoremove && \
-    apt-get -y clean && \
-    rm -rf /var/lib/apt/lists/*
+ARG DEBIAN_FRONTEND=noninteractive
+
+# Patch OS packages (most reliable for passing scans)
+RUN apt-get update \
+ && apt-get -y upgrade \
+ && apt-get install -y --no-install-recommends \
+      libqt6core6 libqt6network6 libzmq5 \
+      libsodium23 libtasn1-6 \
+      ca-certificates \
+ && apt-get -y autoremove \
+ && apt-get clean \
+ && rm -rf /var/lib/apt/lists/*
 
 # Copy pushpin from builder (matching original base image)
 COPY --from=pushpin-builder /build/out/ /
@@ -97,12 +106,7 @@ USER 65534:65534
 ENV LANG=C.UTF-8
 
 # Expose ports (matching original base image)
-EXPOSE 7999
-EXPOSE 5560
-EXPOSE 5561
-EXPOSE 5562
-EXPOSE 5563
-EXPOSE 7000
+EXPOSE 7999 5560 5561 5562 5563 7000
 
 ENTRYPOINT ["docker-entrypoint.sh"]
 CMD ["./start.sh"]
