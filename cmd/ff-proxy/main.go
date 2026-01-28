@@ -487,10 +487,16 @@ func main() {
 
 	if redisAddress != "" && !generateOfflineConfig { //nolint:nestif
 		redisConfig := buildRedisConfig()
+		authMode := redisConfig.AuthMode()
+
 		var err error
 		redisClient, err = redisclient.NewClient(redisConfig, logger)
 		if err != nil {
-			logger.Error("failed to create redis client", "err", err)
+			logger.Error("failed to create redis client",
+				"err", err,
+				"authMode", authMode,
+				"address", redisAddress,
+			)
 			os.Exit(1)
 		}
 
@@ -501,9 +507,23 @@ func main() {
 
 		err = sdkCache.HealthCheck(ctx)
 		if err != nil {
-			logger.Error("failed to connect to redis", "err", err)
+			errStr := err.Error()
+			logger.Error("failed to connect to redis",
+				"err", err,
+				"address", redisAddress,
+				"authMode", authMode,
+			)
+
+			// Provide helpful hints for certificate verification errors
+			if strings.Contains(errStr, "x509") || strings.Contains(errStr, "certificate") {
+				logger.Error("Redis TLS certificate verification failed",
+					"error", errStr,
+					"hint", "Check: 1) CA cert matches server cert issuer, 2) Client cert includes CA in chain, 3) Certificate files are readable",
+				)
+			}
 			os.Exit(1)
 		}
+		logger.Info("Redis connection successful", "authMode", authMode)
 
 	} else {
 		logger.Info("initialising default memcache")

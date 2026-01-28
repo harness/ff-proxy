@@ -10,6 +10,7 @@ import (
 
 func NewClient(config *Config, logger log.Logger) (redis.UniversalClient, error) {
 	if err := config.Validate(); err != nil {
+		logger.Error("Redis config validation failed", "err", err)
 		return nil, fmt.Errorf("invalid redis config: %w", err)
 	}
 
@@ -28,6 +29,7 @@ func NewClient(config *Config, logger log.Logger) (redis.UniversalClient, error)
 	}
 
 	if err != nil {
+		logger.Error("failed to build Redis options", "err", err, "authMode", authMode)
 		return nil, err
 	}
 
@@ -36,6 +38,7 @@ func NewClient(config *Config, logger log.Logger) (redis.UniversalClient, error)
 		"db", config.DB,
 		"authMode", authMode,
 		"poolSize", opts.PoolSize,
+		"tlsConfig", opts.TLSConfig != nil,
 	)
 
 	return redis.NewUniversalClient(opts), nil
