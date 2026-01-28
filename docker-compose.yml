@@ -12,8 +12,6 @@ services:
       dockerfile: ./Dockerfile
     volumes:
       - ${CONFIG_VOLUME:-./config:/config}
-      # E2E test certificates (for platform auth, not Redis mTLS)
-      # In production, certs come from Kubernetes Secrets mounted by Helm
       - ./tests/e2e/certs:/certs
     ports:
       - "7000:7000"
@@ -24,29 +22,6 @@ services:
     image: "redis:latest"
     ports:
       - "6379:6379"
-
-  # Redis with mTLS for E2E testing
-  # NOTE: This service is for local E2E testing only.
-  # For production deployments, use Helm/Kubernetes which mounts certificates
-  # from Secrets at /etc/redis/tls (configurable via redis.tls.mountPath).
-  redis-mtls:
-    image: "redis:latest"
-    container_name: ff-proxy-redis-mtls
-    ports:
-      - "6380:6380"
-    volumes:
-      # E2E test certificates (local bind mount for testing only)
-      # In production, certs come from Kubernetes Secrets mounted by Helm
-      - ./tests/e2e/certs:/certs:ro
-      # Redis mTLS configuration file
-      - ./tests/e2e/redis-mtls.conf:/usr/local/etc/redis/redis.conf:ro
-    command: ["redis-server", "/usr/local/etc/redis/redis.conf"]
-    healthcheck:
-      test: ["CMD", "redis-cli", "--tls", "--cert", "/certs/redis-client.crt", "--key", "/certs/redis-client.key", "--cacert", "/certs/redis-ca.crt", "-p", "6380", "ping"]
-      interval: 5s
-      timeout: 3s
-      retries: 5
-      start_period: 10s
 
   pushpin:
     image: "fanout/pushpin:1.41.0"
