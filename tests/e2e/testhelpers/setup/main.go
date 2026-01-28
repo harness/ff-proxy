@@ -23,6 +23,7 @@ const (
 	cleanupTestFileName       = "tests/e2e/env/.env.cleanup"
 	onlineInMemoryProxy       = ".env.online_in_mem"
 	onlineRedisProxy          = ".env.online_redis"
+	onlineRedisMTLSProxy      = ".env.online_redis_mtls"
 	generateOfflineConfig     = ".env.generate_offline"
 	offlineConfig             = ".env.offline"
 )
@@ -73,6 +74,39 @@ PROXY_KEY=%s
 PROXY_AUTH_KEY=%s
 API_KEY=%s
 EMPTY_PROJECT_API_KEY=%s`
+
+var onlineProxyRedisMTLSTemplate = `STREAM_URL=http://localhost:7000
+ONLINE=true
+REMOTE_URL=%s
+ACCOUNT_IDENTIFIER=%s
+ORG_IDENTIFIER=%s
+SECONDARY_ORG=%s
+PROJECT_IDENTIFIER=%s
+SECONDARY_PROJECT_IDENTIFIER=%s
+THIRD_PROJECT_IDENTIFIER=%s
+FOURTH_PROJECT_IDENTIFIER=%s
+ENVIRONMENT_IDENTIFIER=%s
+CLIENT_URL=https://app.harness.io/gateway/cf
+PROXY_KEY=%s
+PROXY_AUTH_KEY=%s
+SERVER_API_KEY=%s
+EMPTY_PROJECT_API_KEY=%s
+PLATFORM_BASE_URL=https://app.harness.io/gateway/ng/api
+DEFAULT_ENVIRONMENT_ID=%s
+DEFAULT_ENVIRONMENT=%s
+SECONDARY_ENVIRONMENT=%s
+DEFAULT_ACCOUNT=%s
+USER_ACCESS_TOKEN=%s
+ADMIN_URL=https://app.harness.io/gateway/cf
+PROXY_KEY_IDENTIFIER=%s
+SECONDARY_ORG_IDENTIFIER=%s
+AUTH_SECRET=my_secret
+REDIS_ADDRESS=redis-mtls:6380
+REDIS_MTLS_CA_CERT=/certs/redis-ca.crt
+REDIS_MTLS_CLIENT_CERT=/certs/redis-client.crt
+REDIS_MTLS_CLIENT_KEY=/certs/redis-client.key
+PORT=7000
+TARGET_POLL_DURATION=0`
 
 //var generateOfflineConfigTemplate = `ACCOUNT_IDENTIFIER=%s
 //ORG_IDENTIFIER=%s
@@ -200,10 +234,46 @@ func main() {
 		onlineProxyRedisFile.Close()
 		log.Fatalf("failed to open %s: %s", onlineRedisProxy, err)
 	}
+	defer onlineProxyRedisFile.Close()
 
 	_, err = io.WriteString(onlineProxyRedisFile, fmt.Sprintf(onlineProxyRedisTemplate, testhelpers.GetDefaultAccount(), projects[0].Organization, projects[1].Organization, proxyKey, proxyAuthToken, project.DefaultEnvironment.Keys[0].ApiKey, empty.DefaultEnvironment.Keys[0].ApiKey))
 	if err != nil {
 		log.Fatalf("failed to write to %s: %s", onlineRedisProxy, err)
+	}
+
+	// write .env for proxy online redis mTLS mode
+	onlineProxyRedisMTLSFile, err := os.OpenFile(fmt.Sprintf(onlineRedisMTLSProxy), os.O_CREATE|os.O_WRONLY, createFilePermissionLevel)
+	if err != nil {
+		onlineProxyRedisMTLSFile.Close()
+		log.Fatalf("failed to open %s: %s", onlineRedisMTLSProxy, err)
+	}
+	defer onlineProxyRedisMTLSFile.Close()
+
+	_, err = io.WriteString(onlineProxyRedisMTLSFile, fmt.Sprintf(
+		onlineProxyRedisMTLSTemplate,
+		testhelpers.GetAdminURL(),
+		projects[0].Account,
+		projects[0].Organization,
+		projects[1].Organization,
+		projects[0].ProjectIdentifier,
+		projects[1].ProjectIdentifier,
+		projects[2].ProjectIdentifier,
+		projects[3].ProjectIdentifier,
+		projects[0].DefaultEnvironment.Identifier,
+		proxyKey,
+		proxyAuthToken,
+		project.DefaultEnvironment.Keys[0].ApiKey,
+		empty.DefaultEnvironment.Keys[0].ApiKey,
+		projects[0].DefaultEnvironment.ID,
+		projects[0].DefaultEnvironment.Identifier,
+		projects[0].SecondaryEnvironment.Identifier,
+		testhelpers.GetDefaultAccount(),
+		testhelpers.GetUserAccessToken(),
+		proxyKeyIdentifier,
+		projects[1].Organization,
+	))
+	if err != nil {
+		log.Fatalf("failed to write to %s: %s", onlineRedisMTLSProxy, err)
 	}
 
 	// We also don't care about supporting offline mode atm

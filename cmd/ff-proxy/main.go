@@ -8,7 +8,6 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
-	"runtime"
 	"strings"
 	"time"
 
@@ -40,6 +39,7 @@ import (
 	"github.com/harness/ff-proxy/v2/log"
 	"github.com/harness/ff-proxy/v2/middleware"
 	proxyservice "github.com/harness/ff-proxy/v2/proxy-service"
+	redisclient "github.com/harness/ff-proxy/v2/redis"
 	"github.com/harness/ff-proxy/v2/repository"
 	"github.com/harness/ff-proxy/v2/transport"
 )
@@ -85,6 +85,13 @@ var (
 	redisMaxActiveConns         int
 	redisConnMaxIdleTimeMinutes int
 	redisConnMaxLifetimeMinutes int
+
+	// Redis mTLS Config
+	redisMTLSCACertPath        string
+	redisMTLSClientCertPath    string
+	redisMTLSClientKeyPath     string
+	redisTLSInsecureSkipVerify bool
+	redisTLSServerName         string
 
 	// Server Config
 	port           int
@@ -164,6 +171,13 @@ const (
 	redisConnMaxIdleTimeMinutesEnv = "REDIS_CON_MAX_IDLE_TIME_MINUTES"
 	redisConnMaxLifetimeMinutesEnv = "REDIS_CON_MAX_LIFETIME_MINUTES"
 
+	// Redis mTLS Config
+	redisMTLSCACertEnv            = "REDIS_MTLS_CA_CERT"
+	redisMTLSClientCertEnv        = "REDIS_MTLS_CLIENT_CERT"
+	redisMTLSClientKeyEnv         = "REDIS_MTLS_CLIENT_KEY"
+	redisTLSInsecureSkipVerifyEnv = "REDIS_TLS_INSECURE_SKIP_VERIFY"
+	redisTLSServerNameEnv         = "REDIS_TLS_SERVER_NAME"
+
 	// Server Config
 	portEnv           = "PORT"
 	tlsEnabledEnv     = "TLS_ENABLED"
@@ -226,6 +240,13 @@ const (
 	redisConnMaxIdleTimeMinutesFlag = "redis-conn-max-idle-time-minutes"
 	redisConnMaxLifetimeMinutesFlag = "redis-conn-max-lifetime-minutes"
 
+	// Redis mTLS Config Flags
+	redisMTLSCACertFlag            = "redis-mtls-ca-cert"
+	redisMTLSClientCertFlag        = "redis-mtls-client-cert"
+	redisMTLSClientKeyFlag         = "redis-mtls-client-key"
+	redisTLSInsecureSkipVerifyFlag = "redis-tls-insecure-skip-verify"
+	redisTLSServerNameFlag         = "redis-tls-server-name"
+
 	// Server Config
 	portFlag           = "port"
 	tlsEnabledFlag     = "tls-enabled"
@@ -287,6 +308,13 @@ func init() {
 	flag.IntVar(&redisMaxActiveConns, redisMaxActiveConnsFlag, 0, "MaxActiveConns is the maximum number of connections allocated by the pool at a given time. When zero, there is no limit on the number of connections in the pool. If the pool is full, the next call to Get() will block until a connection is released.")
 	flag.IntVar(&redisConnMaxIdleTimeMinutes, redisConnMaxIdleTimeMinutesFlag, 30, "The maximum amount of time a connection may be idle. Should be less than server's timeout. Expired connections may be closed lazily before reuse. If d <= 0, connections are not closed due to a connection's idle time. -1 disables idle timeout check. Default: 30 minutes")
 	flag.IntVar(&redisConnMaxLifetimeMinutes, redisConnMaxLifetimeMinutesFlag, 0, "The maximum amount of time a connection may be reused. Expired connections may be closed lazily before reuse. If <= 0, connections are not closed due to a connection's age. Default: 0")
+
+	// Redis mTLS Config
+	flag.StringVar(&redisMTLSCACertPath, redisMTLSCACertFlag, "", "path to CA certificate file (required for mTLS)")
+	flag.StringVar(&redisMTLSClientCertPath, redisMTLSClientCertFlag, "", "path to client certificate file (required for mTLS)")
+	flag.StringVar(&redisMTLSClientKeyPath, redisMTLSClientKeyFlag, "", "path to client private key file (required for mTLS)")
+	flag.BoolVar(&redisTLSInsecureSkipVerify, redisTLSInsecureSkipVerifyFlag, false, "skip server certificate verification")
+	flag.StringVar(&redisTLSServerName, redisTLSServerNameFlag, "", "server name for TLS SNI")
 
 	// Server Config
 	flag.IntVar(&port, portFlag, 8000, "port the relay proxy service is exposed on, default's to 8000")
@@ -355,6 +383,12 @@ func init() {
 		redisMaxActiveConnsEnv:         redisMaxActiveConnsFlag,
 		redisConnMaxIdleTimeMinutesEnv: redisConnMaxIdleTimeMinutesFlag,
 		redisConnMaxLifetimeMinutesEnv: redisConnMaxLifetimeMinutesFlag,
+
+		redisMTLSCACertEnv:            redisMTLSCACertFlag,
+		redisMTLSClientCertEnv:        redisMTLSClientCertFlag,
+		redisMTLSClientKeyEnv:         redisMTLSClientKeyFlag,
+		redisTLSInsecureSkipVerifyEnv: redisTLSInsecureSkipVerifyFlag,
+		redisTLSServerNameEnv:         redisTLSServerNameFlag,
 	})
 
 	flag.Parse()
@@ -427,17 +461,44 @@ func main() {
 	promReg := prometheus.NewRegistry()
 	promReg.MustRegister(collectors.NewGoCollector())
 
-	logger.Info("service config", "version", build.Version, "pprof", pprofEnabled, "log-level", logLevel, "bypass-auth", bypassAuth, "offline", offline, "port", port, "redis-addr", redisAddress, "redis-db", redisDB, "heartbeat-interval", fmt.Sprintf("%ds", heartbeatInterval), "config-dir", configDir, "tls-enabled", tlsEnabled, "tls-cert", tlsCert, "tls-key", tlsKey, "read-replica", readReplica, "client-service", clientService, "metrics-service", metricService, "prometheus-port", prometheusPort, "and-rules", andRules)
-
-	// Create cache
-	// if we're just generating the offline config we should only use in memory mode for now
-	// when we move to a pattern of allowing periodic config dumps to disk we can remove this requirement
+	logger.Info("service config",
+		"version", build.Version,
+		"pprof", pprofEnabled,
+		"log-level", logLevel,
+		"bypass-auth", bypassAuth,
+		"offline", offline,
+		"port", port,
+		"redis-addr", redisAddress,
+		"redis-db", redisDB,
+		"heartbeat-interval", fmt.Sprintf("%ds", heartbeatInterval),
+		"config-dir", configDir,
+		"tls-enabled", tlsEnabled,
+		"tls-cert", tlsCert,
+		"tls-key", tlsKey,
+		"read-replica", readReplica,
+		"client-service", clientService,
+		"metrics-service", metricService,
+		"prometheus-port", prometheusPort,
+		"and-rules", andRules,
+	)
 
 	var redisClient redis.UniversalClient
 	var hashCache *cache.HashCache
 
 	if redisAddress != "" && !generateOfflineConfig { //nolint:nestif
-		redisClient = newRedisClient(redisAddress, redisUsername, redisPassword, redisDB, logger)
+		redisConfig := buildRedisConfig()
+		authMode := redisConfig.AuthMode()
+
+		var err error
+		redisClient, err = redisclient.NewClient(redisConfig, logger)
+		if err != nil {
+			logger.Error("failed to create redis client",
+				"err", err,
+				"authMode", authMode,
+				"address", redisAddress,
+			)
+			os.Exit(1)
+		}
 
 		mcMetrics := cache.NewMemoizeMetrics("proxy", promReg)
 		mcCache := cache.NewMemoizeCache(redisClient, 1*time.Minute, 2*time.Minute, mcMetrics)
@@ -446,9 +507,23 @@ func main() {
 
 		err = sdkCache.HealthCheck(ctx)
 		if err != nil {
-			logger.Error("failed to connect to redis", "err", err)
+			errStr := err.Error()
+			logger.Error("failed to connect to redis",
+				"err", err,
+				"address", redisAddress,
+				"authMode", authMode,
+			)
+
+			// Provide helpful hints for certificate verification errors
+			if strings.Contains(errStr, "x509") || strings.Contains(errStr, "certificate") {
+				logger.Error("Redis TLS certificate verification failed",
+					"error", errStr,
+					"hint", "Check: 1) CA cert matches server cert issuer, 2) Client cert includes CA in chain, 3) Certificate files are readable",
+				)
+			}
 			os.Exit(1)
 		}
+		logger.Info("Redis connection successful", "authMode", authMode)
 
 	} else {
 		logger.Info("initialising default memcache")
@@ -595,13 +670,12 @@ func main() {
 	//
 	// 2. The Redis stream that the primary sends control messages on e.g. stream disconnects
 	//   - The replica subscribes to this stream and when it gets a stream disconnect message
-	//     it closes any open streams with SDKs to force them to poll for changes
+	//     it closes any open streams with SDKs to force them to poll for change
 	if readReplica {
 		configStatus = domain.NewConfigStatus(domain.ConfigStateReadReplica)
 		primaryToReplicaControlStream.Subscribe(ctx)
 		readReplicaSSEStream.Subscribe(ctx)
 	} else {
-
 		// If we're running as a Primary Proxy then we do the following
 		//
 		// 1. Subscribe to the Saas SSE stream
@@ -835,80 +909,32 @@ func newMetricStore(ctx context.Context, logger log.Logger, readReplica bool, re
 	return metricsservice.NewQueue(ctx, logger, time.Duration(metricPostDuration)*time.Second)
 }
 
-func removeRedisScheme(addr string) string {
-	return strings.TrimPrefix(strings.TrimPrefix(addr, "redis://"), "rediss://")
-}
-
-func newRedisClient(addr string, username string, password string, db int, logger log.Logger) redis.UniversalClient {
-	splitAddr := strings.Split(addr, ",")
-
-	// if address does not start with redis:// or rediss:// then default to redis://
-	// if the connection string starts with rediss:// it means we'll connect with TLS enabled
-	redisConnectionString := addr
-	if !strings.HasPrefix(addr, "redis://") && !strings.HasPrefix(addr, "rediss://") {
-		redisConnectionString = fmt.Sprintf("redis://%s", addr)
-	}
-
-	parsed, err := redis.ParseURL(redisConnectionString)
-	if err != nil {
-		logger.Error("failed to parse redis address url", "connection string", redisConnectionString, "err", err)
-		os.Exit(1)
-	}
-
-	for i, split := range splitAddr {
-		splitAddr[i] = removeRedisScheme(split)
-	}
-
-	minRetryBackoff := time.Duration(redisMinRetryBackoffMilliseconds) * time.Millisecond
-	maxRetryBackoff := time.Duration(redisMaxRetryBackoffMilliseconds) * time.Millisecond
-	dialTimeout := time.Duration(redisDialTimeoutSeconds) * time.Second
-	readTimeout := time.Duration(redisReadTimeoutSeconds) * time.Second
-	writeTimeout := time.Duration(redisWriteTimeoutSeconds) * time.Second
-	poolTimeout := time.Duration(redisPoolTimeoutSeconds) * time.Second
-	maxIdleTime := time.Duration(redisConnMaxIdleTimeMinutes) * time.Minute
-	connMaxLifetime := time.Duration(redisConnMaxLifetimeMinutes) * time.Minute
-
-	if poolTimeout < readTimeout {
-		poolTimeout = readTimeout + time.Second
-		logger.Warn("redis pool timeout is less than readTimeout, setting redis pool timeout to read timeout +1 second", "readTimeout", readTimeout, "poolTimeout", poolTimeout)
-	}
-
-	// For backwards compatibility by default we use the old method of figuring out the pool size
-	// which is the REDIS_POOL_SIZE value multiplied by the number of CPU.
-	//
-	// However, if REDIS_POOL_SIZE_LITERAL is set then we will use it instead.
-	poolSize := redisPoolSize * runtime.NumCPU()
-	if redisPoolSizeLiteral > 0 {
-		poolSize = redisPoolSizeLiteral
-	}
-
-	opts := redis.UniversalOptions{
-		Addrs:           splitAddr,
-		DB:              db,
-		Username:        username,
-		Password:        password,
-		PoolSize:        poolSize,
-		TLSConfig:       parsed.TLSConfig,
-		MaxRetries:      redisMaxRetries,
-		MinRetryBackoff: minRetryBackoff,
-		MaxRetryBackoff: maxRetryBackoff,
-		DialTimeout:     dialTimeout,
-		ReadTimeout:     readTimeout,
-		WriteTimeout:    writeTimeout,
-		PoolTimeout:     poolTimeout,
-		MinIdleConns:    redisMinIdleConns,
-		MaxIdleConns:    redisMaxIdleConns,
-		MaxActiveConns:  redisMaxActiveConns,
-		ConnMaxIdleTime: maxIdleTime,
-		ConnMaxLifetime: connMaxLifetime,
-	}
-
-	if redisPassword != "" {
-		opts.Password = redisPassword
-	}
-
-	logger.Info("connecting to redis", "redis_config", fmt.Sprintf("%+v", opts))
-	return redis.NewUniversalClient(&opts)
+func buildRedisConfig() *redisclient.Config {
+	return redisclient.NewConfig(
+		redisAddress,
+		redisUsername,
+		redisPassword,
+		redisDB,
+		redisMTLSCACertPath,
+		redisMTLSClientCertPath,
+		redisMTLSClientKeyPath,
+		redisTLSInsecureSkipVerify,
+		redisTLSServerName,
+		redisMaxRetries,
+		redisMinRetryBackoffMilliseconds,
+		redisMaxRetryBackoffMilliseconds,
+		redisDialTimeoutSeconds,
+		redisReadTimeoutSeconds,
+		redisWriteTimeoutSeconds,
+		redisPoolSize,
+		redisPoolSizeLiteral,
+		redisPoolTimeoutSeconds,
+		redisMinIdleConns,
+		redisMaxIdleConns,
+		redisMaxActiveConns,
+		redisConnMaxIdleTimeMinutes,
+		redisConnMaxLifetimeMinutes,
+	)
 }
 
 func runPrometheusServer(ctx context.Context, port int, promReg *prometheus.Registry, logger log.Logger) {
@@ -932,7 +958,7 @@ func runPrometheusServer(ctx context.Context, port int, promReg *prometheus.Regi
 	}()
 }
 
-// getStreamStatus gets the StreamStatus from the cache. This is needed at startup for replicas to load
+// getStreamStatusForReplica gets the StreamStatus from the cache. This is needed at startup for replicas to load
 // the correct stream status into memory but after startup the replicas in memory stream status will be
 // kept up to date by the CONNECT & DISCONNECT messages sent from the primary
 func getStreamStatusForReplica(ctx context.Context, c cache.Cache, log log.Logger, h stream.Health, key string) {
