@@ -30,7 +30,7 @@ services:
       - PROXY_KEY=<your-proxy-key-here>
       
       # Redis connection
-      - REDIS_ADDRESS=redis-mtls:6380
+      - REDIS_ADDRESS=rediss://redis-mtls:6380
       
       # Redis mTLS configuration
       - REDIS_MTLS_CA_CERT=/certs/ca.crt
@@ -72,7 +72,7 @@ services:
       - LOG_LEVEL=INFO
       
       # Redis connection
-      - REDIS_ADDRESS=redis-mtls:6380
+      - REDIS_ADDRESS=rediss://redis-mtls:6380
       
       # Redis mTLS configuration
       - REDIS_MTLS_CA_CERT=/certs/ca.crt

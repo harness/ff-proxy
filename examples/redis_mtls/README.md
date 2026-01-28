@@ -181,7 +181,7 @@ loglevel notice
 
 | Variable | Value | Description |
 |----------|-------|-------------|
-| `REDIS_ADDRESS` | `redis-mtls:6380` | Redis server address with TLS port |
+| `REDIS_ADDRESS` | `rediss://redis-mtls:6380` | Redis server address with TLS port (rediss:// protocol required for TLS) |
 | `REDIS_MTLS_CA_CERT` | `/certs/ca.crt` | Path to CA certificate (required for mTLS) |
 | `REDIS_MTLS_CLIENT_CERT` | `/certs/client.crt` | Path to client certificate (required for mTLS) |
 | `REDIS_MTLS_CLIENT_KEY` | `/certs/client.key` | Path to client private key (required for mTLS) |
@@ -331,7 +331,7 @@ If ff-proxy cannot connect to Redis, verify the following:
    ```
 
 5. **Confirm clients connect to `redis:6380` (not 6379):**
-   - Check `docker-compose.yml` - `REDIS_ADDRESS` should be `redis-mtls:6380`
+   - Check `docker-compose.yml` - `REDIS_ADDRESS` should be `rediss://redis-mtls:6380` (rediss:// protocol required for TLS)
    - Redis plaintext is disabled (port 0) and TLS is on 6380
    - Verify mTLS environment variables are set: `REDIS_MTLS_CA_CERT`, `REDIS_MTLS_CLIENT_CERT`, `REDIS_MTLS_CLIENT_KEY`
 
