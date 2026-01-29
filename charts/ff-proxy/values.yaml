@@ -24,6 +24,32 @@ redis:
   # Use existing Secret which stores REDIS_PASSWORD key instead of creating a new one. The value should be set with the `REDIS_PASSWORD` key inside the secret.
   ## If set, this parameter takes precedence over "redis.password".
   existingPassword:
+  # Redis mTLS configuration
+  # IMPORTANT: mTLS is DISABLED by default. Clients must explicitly enable it.
+  # This ensures backward compatibility - existing deployments continue working without changes.
+  tls:
+    # Enable Redis mTLS (mutual TLS) authentication.
+    # When enabled, all three certificate paths must be provided.
+    # Default: false (backward compatible - clients must set to true to enable)
+    enabled: false
+    # Kubernetes Secret containing Redis mTLS certificates
+    # REQUIRED if tls.enabled is true
+    secret:
+      # Name of the Kubernetes Secret containing certificates
+      # Clients must create this secret before enabling TLS
+      name: ""
+      # Key names in the secret for certificate files (defaults shown)
+      # Clients can override these if their secret uses different key names
+      caCert: "ca.crt"
+      clientCert: "client.crt"
+      clientKey: "client.key"
+    # Mount path for certificates inside the container
+    # Default: "/etc/redis/tls" - clients can override if needed
+    mountPath: "/etc/redis/tls"
+    # Skip server certificate verification (not recommended for production)
+    insecureSkipVerify: false
+    # Server name for TLS SNI (optional, use if Redis is behind a load balancer)
+    serverName: ""
 
 image:
   repository: harness/ff-proxy

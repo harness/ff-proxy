@@ -66,11 +66,21 @@ spec:
             {{- include "harnesscommon.tplvalues.render" (dict "value" .Values.extraEnvVars "context" $) | nindent 12 }}
             {{- end }}
           volumeMounts:
+            {{- if .Values.global.database.redis.tls.enabled }}
+            - name: redis-tls-certs
+              mountPath: {{ .Values.global.database.redis.tls.mountPath }}
+              readOnly: true
+            {{- end }}
             {{- include "harnesscommon.mountRenderedSecretsAsVolumeMounts" (dict "ctx" $) | indent 8 }}
             {{- if .Values.extraVolumeMounts }}
             {{- include "harnesscommon.tplvalues.render" (dict "value" .Values.extraVolumeMounts "context" $) | nindent 8 }}
             {{- end }}
       volumes:
+      {{- if .Values.global.database.redis.tls.enabled }}
+        - name: redis-tls-certs
+          secret:
+            secretName: {{ .Values.global.database.redis.tls.secret.name }}
+      {{- end }}
       {{- include "harnesscommon.renderSecretsAsVolumes" (dict "ctx" $) | indent 8 }}
       {{- if .Values.extraVolumes }}
         {{- include "harnesscommon.tplvalues.render" (dict "value" .Values.extraVolumes "context" $) | nindent 8 }}

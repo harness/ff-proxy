@@ -38,3 +38,45 @@ Please read the [v2 Proxy documentation](https://developer.harness.io/docs/featu
 Then see `values.yaml` for an extensive list of both proxy and Kubernetes configurations available.
 
 By default the proxy will deploy with one writer and one read replica.
+
+#### Redis TLS/mTLS Authentication
+
+The chart supports Redis mTLS (mutual TLS) authentication. **TLS is disabled by default** and must be explicitly enabled by clients.
+
+**To enable Redis mTLS:**
+
+1. Create a Kubernetes Secret containing your certificates:
+   ```bash
+   kubectl create secret generic redis-tls-secret \
+     --from-file=ca.crt=/path/to/ca.crt \
+     --from-file=client.crt=/path/to/client.crt \
+     --from-file=client.key=/path/to/client.key \
+     -n <namespace>
+   ```
+
+2. Enable TLS in your values file or via `--set` flags:
+   ```bash
+   helm upgrade -i ff-proxy --namespace ff-proxy . \
+     --set proxyKey=xxxx-xxx-xxx-xxxx \
+     --set authSecret=xxxx-xxx-xxx-xxxx \
+     --set redis.address=rediss://redis.example.com:6380 \
+     --set redis.tls.enabled=true \
+     --set redis.tls.secret.name=redis-tls-secret
+   ```
+
+   Or create a custom values file (`my-values.yaml`):
+   ```yaml
+   redis:
+     address: "rediss://redis.example.com:6380"
+     tls:
+       enabled: true
+       secret:
+         name: "redis-tls-secret"
+   ```
+
+   Then deploy:
+   ```bash
+   helm upgrade -i ff-proxy --namespace ff-proxy . -f my-values.yaml
+   ```
+
+**Note:** The default `redis.tls.enabled: false` ensures backward compatibility. Clients who don't need TLS don't need to do anything - it will work as before with password authentication.

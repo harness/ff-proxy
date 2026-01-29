@@ -10,6 +10,19 @@ data:
   REDIS_ADDRESS: {{ .Values.redis.address }}
   REDIS_DB: "{{ .Values.redis.db }}"
   READ_REPLICA: "false"
+  {{- if .Values.redis.tls.enabled }}
+  # Redis mTLS configuration - all three certificate paths are required
+  # mTLS is automatically enabled when all three paths are provided
+  REDIS_MTLS_CA_CERT: {{ printf "%s/%s" .Values.redis.tls.mountPath .Values.redis.tls.secret.caCert | quote }}
+  REDIS_MTLS_CLIENT_CERT: {{ printf "%s/%s" .Values.redis.tls.mountPath .Values.redis.tls.secret.clientCert | quote }}
+  REDIS_MTLS_CLIENT_KEY: {{ printf "%s/%s" .Values.redis.tls.mountPath .Values.redis.tls.secret.clientKey | quote }}
+  {{- if .Values.redis.tls.insecureSkipVerify }}
+  REDIS_TLS_INSECURE_SKIP_VERIFY: "true"
+  {{- end }}
+  {{- if .Values.redis.tls.serverName }}
+  REDIS_TLS_SERVER_NAME: {{ .Values.redis.tls.serverName | quote }}
+  {{- end }}
+  {{- end }}
   {{- if .Values.clientService }}
   CLIENT_SERVICE: {{ .Values.clientService }}
   {{- end }}

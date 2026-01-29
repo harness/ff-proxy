@@ -17,6 +17,32 @@ global:
         caFileKey: ""
         trustStoreKey: ""
         trustStorePasswordKey: ""
+      # Redis mTLS configuration
+      # IMPORTANT: mTLS is DISABLED by default. Clients must explicitly enable it.
+      # This ensures backward compatibility - existing deployments continue working without changes.
+      tls:
+        # Enable Redis mTLS (mutual TLS) authentication.
+        # When enabled, all three certificate paths must be provided.
+        # Default: false (backward compatible - clients must set to true to enable)
+        enabled: false
+        # Kubernetes Secret containing Redis mTLS certificates
+        # REQUIRED if tls.enabled is true
+        secret:
+          # Name of the Kubernetes Secret containing certificates
+          # Clients must create this secret before enabling TLS
+          name: ""
+          # Key names in the secret for certificate files (defaults shown)
+          # Clients can override these if their secret uses different key names
+          caCert: "ca.crt"
+          clientCert: "client.crt"
+          clientKey: "client.key"
+        # Mount path for certificates inside the container
+        # Default: "/etc/redis/tls" - clients can override if needed
+        mountPath: "/etc/redis/tls"
+        # Skip server certificate verification (not recommended for production)
+        insecureSkipVerify: false
+        # Server name for TLS SNI (optional, use if Redis is behind a load balancer)
+        serverName: ""
       secretName: ""
       userKey: ""
       passwordKey: ""
@@ -152,6 +178,19 @@ primary:
     LOG_LEVEL: ERROR
     PROMETHEUS_PORT: "9091"
     REDIS_ADDRESS: '{{ include "harnesscommon.dbv3.redisConnection" (dict "ctx" $ "database" "events" "unsetProtocol" true) }}'
+    {{- if .Values.global.database.redis.tls.enabled }}
+    # Redis mTLS configuration - all three certificate paths are required
+    # mTLS is automatically enabled when all three paths are provided
+    REDIS_MTLS_CA_CERT: '{{ printf "%s/%s" .Values.global.database.redis.tls.mountPath .Values.global.database.redis.tls.secret.caCert }}'
+    REDIS_MTLS_CLIENT_CERT: '{{ printf "%s/%s" .Values.global.database.redis.tls.mountPath .Values.global.database.redis.tls.secret.clientCert }}'
+    REDIS_MTLS_CLIENT_KEY: '{{ printf "%s/%s" .Values.global.database.redis.tls.mountPath .Values.global.database.redis.tls.secret.clientKey }}'
+    {{- if .Values.global.database.redis.tls.insecureSkipVerify }}
+    REDIS_TLS_INSECURE_SKIP_VERIFY: "true"
+    {{- end }}
+    {{- if .Values.global.database.redis.tls.serverName }}
+    REDIS_TLS_SERVER_NAME: '{{ .Values.global.database.redis.tls.serverName }}'
+    {{- end }}
+    {{- end }}
     CLIENT_SERVICE: '{{ .Values.loadbalancerURL }}/sdk/api/1.0'
     METRIC_SERVICE: '{{ .Values.loadbalancerURL }}/events'
 
@@ -238,6 +277,19 @@ readReplica:
     LOG_LEVEL: ERROR
     PROMETHEUS_PORT: "9091"
     REDIS_ADDRESS: '{{ include "harnesscommon.dbv3.redisConnection" (dict "ctx" $ "database" "events" "unsetProtocol" true) }}'
+    {{- if .Values.global.database.redis.tls.enabled }}
+    # Redis mTLS configuration - all three certificate paths are required
+    # mTLS is automatically enabled when all three paths are provided
+    REDIS_MTLS_CA_CERT: '{{ printf "%s/%s" .Values.global.database.redis.tls.mountPath .Values.global.database.redis.tls.secret.caCert }}'
+    REDIS_MTLS_CLIENT_CERT: '{{ printf "%s/%s" .Values.global.database.redis.tls.mountPath .Values.global.database.redis.tls.secret.clientCert }}'
+    REDIS_MTLS_CLIENT_KEY: '{{ printf "%s/%s" .Values.global.database.redis.tls.mountPath .Values.global.database.redis.tls.secret.clientKey }}'
+    {{- if .Values.global.database.redis.tls.insecureSkipVerify }}
+    REDIS_TLS_INSECURE_SKIP_VERIFY: "true"
+    {{- end }}
+    {{- if .Values.global.database.redis.tls.serverName }}
+    REDIS_TLS_SERVER_NAME: '{{ .Values.global.database.redis.tls.serverName }}'
+    {{- end }}
+    {{- end }}
     CLIENT_SERVICE: '{{ .Values.loadbalancerURL }}/sdk/api/1.0'
     METRIC_SERVICE: '{{ .Values.loadbalancerURL }}/events'
 
