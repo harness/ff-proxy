@@ -8,4 +8,17 @@ metadata:
     {{- include "ff-proxy.readReplica.labels" . | nindent 4 }}
 data:
   {{- include "harnesscommon.tplvalues.render" ( dict "value" .Values.readReplica.config "context" $) | nindent 2}}
+  {{- if .Values.global.database.redis.tls.enabled }}
+  # Redis mTLS configuration - all three certificate paths are required
+  # mTLS is automatically enabled when all three paths are provided
+  REDIS_MTLS_CA_CERT: {{ printf "%s/%s" .Values.global.database.redis.tls.mountPath .Values.global.database.redis.tls.secret.caCert | quote }}
+  REDIS_MTLS_CLIENT_CERT: {{ printf "%s/%s" .Values.global.database.redis.tls.mountPath .Values.global.database.redis.tls.secret.clientCert | quote }}
+  REDIS_MTLS_CLIENT_KEY: {{ printf "%s/%s" .Values.global.database.redis.tls.mountPath .Values.global.database.redis.tls.secret.clientKey | quote }}
+  {{- if .Values.global.database.redis.tls.insecureSkipVerify }}
+  REDIS_TLS_INSECURE_SKIP_VERIFY: "true"
+  {{- end }}
+  {{- if .Values.global.database.redis.tls.serverName }}
+  REDIS_TLS_SERVER_NAME: {{ .Values.global.database.redis.tls.serverName | quote }}
+  {{- end }}
+  {{- end }}
 {{- end }}
