@@ -1,0 +1,78 @@
+pipeline:
+  name: ffProxyBuildAndPush
+  identifier: ffProxyBuildAndPush
+  projectIdentifier: Harness_Commons
+  orgIdentifier: PROD
+  description: to build and push the dockerHub Image
+  tags:
+    Owner: FFM
+    TicketID: FFM-12741
+  stages:
+    - stage:
+        name: test
+        identifier: test
+        description: to build and push the dockerHub Image
+        type: CI
+        spec:
+          cloneCodebase: true
+          platform:
+            os: Linux
+            arch: Amd64
+          runtime:
+            type: Cloud
+            spec: {}
+          execution:
+            steps:
+              - stepGroup:
+                  name: buildTag
+                  identifier: buildTag
+                  steps:
+                    - parallel:
+                        - step:
+                            type: BuildAndPushDockerRegistry
+                            name: BuildAndPushDockerRegistry_1
+                            identifier: BuildAndPushDockerRegistry_1
+                            spec:
+                              connectorRef: harnesscie
+                              repo: harness/ff-proxy
+                              tags:
+                                - <+codebase.tag>
+                        - step:
+                            type: BuildAndPushDockerRegistry
+                            name: BuildAndPushDockerRegistry_2
+                            identifier: BuildAndPushDockerRegistry_2
+                            spec:
+                              repo: harness/ff-proxy
+                              tags:
+                                - <+codebase.tag>
+                              registryRef: account.docker_artifacts
+                  when:
+                    stageStatus: Success
+                    condition: <+codebase.tag>!=null
+              - stepGroup:
+                  name: buildBranch
+                  identifier: buildBranch
+                  steps:
+                    - step:
+                        type: BuildAndPushDockerRegistry
+                        name: BuildAndPushDockerRegistry_1
+                        identifier: BuildAndPushDockerRegistry_1
+                        spec:
+                          connectorRef: dockerhubharnessdev
+                          repo: harnessdev/ff-proxy
+                          tags:
+                            - <+codebase.branch>
+                  when:
+                    stageStatus: Success
+                    condition: <+codebase.tag>==null
+          caching:
+            enabled: false
+            paths: []
+          buildIntelligence:
+            enabled: false
+  properties:
+    ci:
+      codebase:
+        repoName: ff-proxy
+        build: <+input>
+        sparseCheckout: []
