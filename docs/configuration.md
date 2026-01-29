@@ -36,10 +36,16 @@ Config required to connect to redis. Note only `REDIS_ADDRESS` is required to co
 | Environment Variable | Flag           | Description                                                        | Type   | Default |
 |----------------------|----------------|--------------------------------------------------------------------|--------|---------|
 | REDIS_ADDRESS        | redis-address  | Redis host:port address. See below for info on connecting via TLS  | string |         |
-| REDIS_PASSWORD       | redis-db       | (Optional) Database to be selected after connecting to the server. | string |         |
-| REDIS_DB             | redis-password | (Optional) Redis password.                                         | int    | 0       |
+| REDIS_USERNAME       | redis-username | (Optional) Redis username for ACL authentication                   | string |         |
+| REDIS_PASSWORD       | redis-password | (Optional) Redis password                                         | string |         |
+| REDIS_DB             | redis-db       | (Optional) Database to be selected after connecting to the server | int    | 0       |
 
-**Connecting to Redis via TLS:** To connect to a redis instance which has TLS enabled you should prepend `rediss://` to the beginning of your REDIS_ADDRESS url e.g. `rediss://localhost:6379` 
+**Connecting to Redis:** The Relay Proxy supports two Redis authentication modes:
+
+1. **Password Authentication** (default): Username/password with optional TLS
+2. **mTLS Authentication**: Mutual TLS with client certificates
+
+For complete Redis configuration, certificate generation, and setup instructions, see [Redis Cache Configuration](./redis_cache.md). 
 
 ### Logging
 Control log level
@@ -84,12 +90,63 @@ Adjust how often certain actions are performed.
 | METRIC_POST_DURATION | metric-post-duration | How often in seconds the proxy posts metrics to Harness. Set to 0 to disable.               | int  | 60      |
 | HEARTBEAT_INTERVAL   | heartbeat-interval   | How often in seconds the proxy polls pings it's health function. Set to 0 to disable.       | int  | 60      |
 
-### TLS
+### TLS (HTTP Server)
 | Environment Variable | Flag        | Description                                                                 | Type   | Default |
 |----------------------|-------------|-----------------------------------------------------------------------------|--------|---------|
 | TLS_ENABLED          | tls-enabled | If true the proxy will use the tlsCert and tlsKey to run with https enabled | bool   | false   |
 | TLS_CERT             | tls-cert    | Path to tls cert file. Required if tls enabled is true.                     | string |         |
 | TLS_KEY              | tls-key     | Path to tls key file. Required if tls enabled is true.                      | string |         |
+
+### Redis mTLS Configuration
+Configuration for Redis mutual TLS (mTLS) authentication. mTLS requires both client and server certificates for mutual authentication.
+
+| Environment Variable | Flag                        | Description                                                                 | Type   | Default |
+|----------------------|-----------------------------|-----------------------------------------------------------------------------|--------|---------|
+| REDIS_MTLS_CA_CERT            | redis-mtls-ca-cert            | Path to CA certificate file. Required for mTLS                              | string | ""      |
+| REDIS_MTLS_CLIENT_CERT        | redis-mtls-client-cert        | Path to client certificate file. Required for mTLS                           | string | ""      |
+| REDIS_MTLS_CLIENT_KEY         | redis-mtls-client-key         | Path to client private key file. Required for mTLS                           | string | ""      |
+| REDIS_TLS_INSECURE_SKIP_VERIFY | redis-tls-insecure-skip-verify | Skip server certificate verification (not recommended for production)     | bool   | false   |
+| REDIS_TLS_SERVER_NAME        | redis-tls-server-name        | Server name for TLS SNI. Use if Redis is behind a load balancer            | string | ""      |
+
+**Examples:**
+
+**Password Authentication (Default):**
+```bash
+# Plain connection
+REDIS_ADDRESS=redis://localhost:6379
+REDIS_PASSWORD=your_password
+
+# TLS-encrypted connection (via rediss://)
+REDIS_ADDRESS=rediss://localhost:6380
+REDIS_PASSWORD=your_password
+```
+
+**mTLS (Mutual Authentication):**
+```bash
+REDIS_ADDRESS=rediss://redis.example.com:6380
+REDIS_MTLS_CA_CERT=/etc/redis/ca.crt
+REDIS_MTLS_CLIENT_CERT=/etc/redis/client.crt
+REDIS_MTLS_CLIENT_KEY=/etc/redis/client.key
+```
+
+**Password + mTLS (Both Required):**
+```bash
+REDIS_ADDRESS=rediss://redis.example.com:6380
+REDIS_USERNAME=myuser
+REDIS_PASSWORD=mypassword
+REDIS_MTLS_CA_CERT=/etc/redis/ca.crt
+REDIS_MTLS_CLIENT_CERT=/etc/redis/client.crt
+REDIS_MTLS_CLIENT_KEY=/etc/redis/client.key
+```
+
+**Important Notes:**
+- **mTLS is Opt-in**: When all three certificate paths are provided, ff-proxy automatically uses mTLS authentication
+- **All Certificates Required**: All three certificate paths (CA, client cert, client key) must be provided for mTLS
+- **Certificate Paths**: Certificate paths are configurable (default: `/etc/redis/tls` in Helm deployments)
+- **Mount Path**: In Helm deployments, the mount path can be customized via `redis.tls.mountPath`
+- **Path Construction**: Certificate paths are automatically constructed as `mountPath + "/" + secretKey`
+
+**Note:** By default, the Relay Proxy uses password-based authentication. mTLS is opt-in and does not affect existing deployments.
 
 ### Harness URLs
 You may need to adjust these if you pass all your traffic through a filter or proxy rather than sending the requests directly. 
