@@ -108,7 +108,8 @@ primary:
       - name: net.ipv4.ip_local_port_range
         value: "10240 65000"
 
-  securityContext: {}
+  securityContext:
+    allowPrivilegeEscalation: false
     # capabilities:
     #   drop:
     #   - ALL
@@ -215,7 +216,8 @@ readReplica:
         value: "10240 65000"
     # fsGroup: 2000
 
-  securityContext: {}
+  securityContext:
+    allowPrivilegeEscalation: false
     # capabilities:
     #   drop:
     #   - ALL
