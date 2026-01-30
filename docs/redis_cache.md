@@ -100,7 +100,7 @@ For local testing, you can generate self-signed certificates using OpenSSL.
 
 ```bash
 # Generate all certificates automatically
-./setup-mtls-testing.sh
+./examples/redis_mtls/generate-certs.sh
 ```
 
 This creates:
@@ -389,30 +389,32 @@ kubectl create secret generic redis-tls-secret \
 helm upgrade -i ff-proxy --namespace ff-proxy . \
   --set proxyKey=xxxx-xxx-xxx-xxxx \
   --set authSecret=xxxx-xxx-xxx-xxxx \
-  --set redis.address=rediss://redis.example.com:6380 \
-  --set redis.tls.enabled=true \
-  --set redis.tls.mode=mtls \
-  --set redis.tls.secret.name=redis-tls-secret
+  --set global.database.redis.protocol=rediss \
+  --set global.database.redis.hosts[0]=redis.example.com:6380 \
+  --set global.database.redis.tls.enabled=true \
+  --set global.database.redis.tls.secret.name=redis-tls-secret
 ```
 
-#### Option 2: Using Custom Values File
+#### Option 2: Using Custom Values File (Recommended)
 
 Create `my-values.yaml`:
 
 ```yaml
-redis:
-  address: "rediss://redis.example.com:6380"
-  tls:
-    enabled: true
-    mode: "mtls"
-    secret:
-      name: "redis-tls-secret"
-      caCert: "ca.crt"
-      clientCert: "client.crt"
-      clientKey: "client.key"
-    mountPath: "/etc/redis/tls"  # Default, can be overridden
-    insecureSkipVerify: false
-    serverName: ""  # Optional SNI
+global:
+  database:
+    redis:
+      protocol: "rediss"
+      hosts:
+        - redis.example.com:6380
+      tls:
+        enabled: true
+        secret:
+          name: "redis-tls-secret"
+          caCert: "ca.crt"
+          clientCert: "client.crt"
+          clientKey: "client.key"
+        mountPath: "/etc/redis/tls"
+        serverName: "redis"  # Optional SNI
 ```
 
 Deploy:
@@ -425,13 +427,17 @@ helm upgrade -i ff-proxy --namespace ff-proxy . -f my-values.yaml
 If you need a custom mount path:
 
 ```yaml
-redis:
-  address: "rediss://redis.example.com:6380"
-  tls:
-    enabled: true
-    secret:
-      name: "redis-tls-secret"
-    mountPath: "/custom/certs"  # Override default /etc/redis/tls
+global:
+  database:
+    redis:
+      protocol: "rediss"
+      hosts:
+        - redis.example.com:6380
+      tls:
+        enabled: true
+        secret:
+          name: "redis-tls-secret"
+        mountPath: "/custom/certs"  # Override default /etc/redis/tls
 ```
 
 **Note**: Certificate paths are automatically constructed as `mountPath + "/" + secretKey`.
@@ -440,15 +446,16 @@ redis:
 
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
-| `redis.tls.enabled` | bool | `false` | Enable TLS/mTLS (opt-in) |
-| `redis.tls.mode` | string | `"mtls"` | TLS mode (only "mtls" supported) |
-| `redis.tls.secret.name` | string | `""` | Kubernetes secret name (required if enabled) |
-| `redis.tls.secret.caCert` | string | `"ca.crt"` | Secret key for CA certificate |
-| `redis.tls.secret.clientCert` | string | `"client.crt"` | Secret key for client certificate |
-| `redis.tls.secret.clientKey` | string | `"client.key"` | Secret key for client private key |
-| `redis.tls.mountPath` | string | `"/etc/redis/tls"` | Mount path for certificates (configurable) |
-| `redis.tls.insecureSkipVerify` | bool | `false` | Skip server verification (testing only) |
-| `redis.tls.serverName` | string | `""` | SNI server name (optional) |
+| `global.database.redis.protocol` | string | `"redis"` | Protocol (`redis` or `rediss` for TLS) |
+| `global.database.redis.hosts` | list | `[]` | Redis host:port list |
+| `global.database.redis.tls.enabled` | bool | `false` | Enable mTLS (opt-in, required for mTLS) |
+| `global.database.redis.tls.secret.name` | string | `""` | Kubernetes secret name (required if enabled) |
+| `global.database.redis.tls.secret.caCert` | string | `"ca.crt"` | Secret key for CA certificate |
+| `global.database.redis.tls.secret.clientCert` | string | `"client.crt"` | Secret key for client certificate |
+| `global.database.redis.tls.secret.clientKey` | string | `"client.key"` | Secret key for client private key |
+| `global.database.redis.tls.mountPath` | string | `"/etc/redis/tls"` | Mount path for certificates (configurable) |
+| `global.database.redis.tls.insecureSkipVerify` | bool | `false` | Skip server verification (testing only) |
+| `global.database.redis.tls.serverName` | string | `""` | SNI server name (optional) |
 
 ### How It Works
 
@@ -567,7 +574,7 @@ INFO connecting to redis address=rediss://localhost:6379 db=0 authMode=password 
 
 ```bash
 # 1. Generate certificates (if not done)
-./setup-mtls-testing.sh
+./examples/redis_mtls/generate-certs.sh
 
 # 2. Start Redis with TLS (if not running)
 docker-compose -f docker-compose.redis-tls.yml up -d redis-tls
@@ -658,17 +665,17 @@ dial tcp [::1]:6380: connect: connection refused
 - Check Redis is listening on correct port
 - Verify firewall/network settings
 
-### Invalid TLS Mode
+### Incomplete mTLS Configuration
 
 **Error:**
 ```
-invalid TLS mode: tls (only 'mtls' is supported)
+incomplete mTLS configuration: all three certificate paths are required when any are set
 ```
 
 **Solution:**
-- mTLS is automatically enabled when all three certificate paths are provided
-- Use `rediss://` protocol for basic TLS with password auth (not mTLS)
-- Provide all three certificate paths for mTLS: `REDIS_MTLS_CA_CERT`, `REDIS_MTLS_CLIENT_CERT`, `REDIS_MTLS_CLIENT_KEY`
+- mTLS requires all three certificate paths: `REDIS_MTLS_CA_CERT`, `REDIS_MTLS_CLIENT_CERT`, `REDIS_MTLS_CLIENT_KEY`
+- If any one is set, all three must be provided
+- Use `rediss://` protocol for TLS connections
 
 ---
 

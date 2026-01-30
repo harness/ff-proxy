@@ -30,7 +30,7 @@ cd examples/redis_mtls
 Run the setup script to automatically generate `redis.conf` and mTLS certificates:
 
 ```bash
-./setup-local.sh
+./setup-mtls-testing.sh
 ```
 
 This script will:
@@ -196,12 +196,14 @@ loglevel notice
 
 ```
 examples/redis_mtls/
-├── README.md                 # This file
-├── docker-compose.yml        # Docker Compose configuration
-├── generate-certs.sh         # Certificate generation script
-├── redis.conf                # Redis mTLS configuration
-├── Makefile                  # Convenience commands
-└── certs/                    # Generated certificates (gitignored)
+├── README.md                      # This file (Docker Compose setup)
+├── redis-mtls-k8s-setup-guide.md  # Kubernetes/Helm setup guide
+├── docker-compose.yml             # Docker Compose configuration
+├── generate-certs.sh              # Certificate generator script
+├── setup-mtls-testing.sh          # Full setup script (generates certs + redis.conf)
+├── redis.conf                     # Redis mTLS configuration
+├── Makefile                       # Convenience commands
+└── certs/                         # Generated certificates (gitignored)
     ├── ca.crt               # Certificate Authority certificate
     ├── ca.key               # Certificate Authority private key
     ├── server.crt           # Redis server certificate
@@ -337,7 +339,7 @@ If ff-proxy cannot connect to Redis, verify the following:
 
 If files are missing, run:
 ```bash
-./setup-local.sh
+./setup-mtls-testing.sh
 ```
 
 ### Incomplete mTLS Configuration
@@ -377,7 +379,7 @@ If you see certificate verification errors:
 
 ```bash
 # Regenerate all certificates
-./setup-local.sh --force
+./setup-mtls-testing.sh --force
 docker-compose down
 docker-compose up
 ```
@@ -446,7 +448,7 @@ If ff-proxy can't connect to Redis:
 The generated certificates expire in 365 days. Regenerate them before expiry:
 
 ```bash
-./setup-local.sh --force
+./setup-mtls-testing.sh --force
 docker-compose restart
 ```
 
@@ -490,7 +492,7 @@ docker-compose restart
    ```
 
 **Common Fixes:**
-- If certs are missing: Run `./setup-local.sh`
+- If certs are missing: Run `./setup-mtls-testing.sh`
 - If paths don't match: Ensure `docker-compose.yml` uses `/certs/` (container path) and `./certs` (host path)
 - If permissions are wrong: Run `chmod 644 certs/*.crt && chmod 600 certs/*.key`
 
@@ -581,7 +583,7 @@ To start completely from scratch after cleanup:
 
 ```bash
 # Regenerate everything
-./setup-local.sh
+./setup-mtls-testing.sh
 
 # Start services
 docker-compose up -d
