@@ -977,7 +977,7 @@ func getStreamStatusForReplica(ctx context.Context, c cache.Cache, log log.Logge
 			log.Info("getting cached stream status as a part of the startup flow")
 
 			if err := c.Get(ctx, key, &status); err != nil {
-				log.Error("failed to get stream status from cache, backing off and retrying in 5 seconds")
+				log.Error("failed to get stream status from cache, backing off and retrying in 5 seconds", "err", err)
 				continue
 			}
 
@@ -988,7 +988,7 @@ func getStreamStatusForReplica(ctx context.Context, c cache.Cache, log log.Logge
 
 			if status.State == domain.StreamStateConnected {
 				if err := h.SetHealthy(ctx); err != nil {
-					log.Error("failed to set healthy stream status in read replica")
+					log.Error("failed to set healthy stream status in read replica", "err", err)
 				}
 				log.Info("successfully retrieved cached status and set it in memory", "state", status.State, "since", status.Since)
 				return
@@ -996,7 +996,7 @@ func getStreamStatusForReplica(ctx context.Context, c cache.Cache, log log.Logge
 
 			if status.State == domain.StreamStateDisconnected {
 				if err := h.SetUnhealthy(ctx); err != nil {
-					log.Error("failed to set unhealthy status in read replica")
+					log.Error("failed to set unhealthy status in read replica", "err", err)
 				}
 				log.Info("successfully retrieved cached status and set it in memory", "state", status.State, "since", status.Since)
 				return

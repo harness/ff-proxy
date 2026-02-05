@@ -72,7 +72,7 @@ func (r ReadReplicaMessageHandler) handleStreamAction(ctx context.Context, msg S
 		r.log.Info("received stream disconnected event from primary proxy")
 
 		if err := r.streamStatus.SetUnhealthy(ctx); err != nil {
-			r.log.Error("failed to set unhealthy stream status", "event", msg.Event, "domain", msg.Domain)
+			r.log.Error("failed to set unhealthy stream status", "event", msg.Event, "domain", msg.Domain, "err", err)
 		}
 
 		// Close any open stream between this Proxy and SDKs. This is to force SDKs to poll the Proxy for
@@ -90,7 +90,7 @@ func (r ReadReplicaMessageHandler) handleStreamAction(ctx context.Context, msg S
 		r.log.Info("received stream connected event from primary proxy")
 
 		if err := r.streamStatus.SetHealthy(ctx); err != nil {
-			r.log.Error("failed to set healthy stream status", "event", msg.Event, "domain", msg.Domain)
+			r.log.Error("failed to set healthy stream status", "event", msg.Event, "domain", msg.Domain, "err", err)
 		}
 	}
 
