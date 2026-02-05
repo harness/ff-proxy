@@ -224,7 +224,7 @@ func (s Service) FeatureConfig(ctx context.Context, req domain.FeatureConfigRequ
 		}
 		// we don't return not found because we can't currently tell the difference between no features existing
 		// and the environment itself not existing
-		s.logger.Debug(ctx, "flags not found in cache", "environment", req.EnvironmentID)
+		s.logger.Debug(ctx, "flags not found in cache", "environment", req.EnvironmentID, "err", err)
 	}
 
 	configs := make([]domain.FeatureConfig, 0, len(flags))
@@ -275,7 +275,7 @@ func (s Service) TargetSegments(ctx context.Context, req domain.TargetSegmentsRe
 		}
 		// we don't return not found because we can't currently tell the difference between no segments existing
 		// and the environment itself not existing
-		s.logger.Debug(ctx, "target segments not found in cache", "environment", req.EnvironmentID)
+		s.logger.Debug(ctx, "target segments not found in cache", "environment", req.EnvironmentID, "err", err)
 	}
 
 	// return servingRules if rules query param is set to v2, otherwise return rules - have to copy the groups to avoid modifying the original slice in the cache

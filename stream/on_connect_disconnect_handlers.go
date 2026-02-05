@@ -77,7 +77,7 @@ func SaasStreamOnConnect(l log.Logger, streamHealth Health, reloadConfig func() 
 
 		status, err := streamHealth.Status(ctx)
 		if err != nil {
-			l.Error("SaasOnConnectHandler failed to get stream state from cache")
+			l.Error("SaasOnConnectHandler failed to get stream state from cache", "err", err)
 		}
 
 		// If the previous streamStatus was "DISCONNECT" and we've successfully reconnected we should
@@ -98,7 +98,7 @@ func SaasStreamOnConnect(l log.Logger, streamHealth Health, reloadConfig func() 
 		l.Info("connected to Harness SaaS SSE Stream")
 		pollingStatus.NotPolling()
 		if err := streamHealth.SetHealthy(ctx); err != nil {
-			l.Error("failed to update SaaS stream status in cache")
+			l.Error("failed to update SaaS stream status in cache", "err", err)
 		}
 
 		// Reset context timeout for the publishing to the stream

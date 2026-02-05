@@ -75,7 +75,7 @@ func (s Service) GenerateQueryStore(ctx context.Context, environmentID string, s
 				if !errors.Is(err, domain.ErrCacheNotFound) {
 					return rest.Segment{}, fmt.Errorf("%w: %s", ErrInternal, err)
 				}
-				s.logger.Debug(ctx, "segment not found in cache", "environment", environmentID, "identifier", identifier)
+				s.logger.Debug(ctx, "segment not found in cache", "environment", environmentID, "identifier", identifier, "err", err)
 			}
 			sdkSegment := segment.ToSDKSegment()
 			if !s.andRulesEnabled {
@@ -90,7 +90,7 @@ func (s Service) GenerateQueryStore(ctx context.Context, environmentID string, s
 				if !errors.Is(err, domain.ErrCacheNotFound) {
 					return nil, fmt.Errorf("%w: %s", ErrInternal, err)
 				}
-				s.logger.Debug(ctx, "flags not found in cache", "environment", environmentID)
+				s.logger.Debug(ctx, "flags not found in cache", "environment", environmentID, "err", err)
 			}
 			// TODO can/should we do this conversion in the repo layer instead?
 			restFlags := make([]rest.FeatureConfig, 0, len(flags))
@@ -106,7 +106,7 @@ func (s Service) GenerateQueryStore(ctx context.Context, environmentID string, s
 				if !errors.Is(err, domain.ErrCacheNotFound) {
 					return nil, fmt.Errorf("%w: %s", ErrInternal, err)
 				}
-				s.logger.Debug(ctx, "flags not found in cache", "environment", environmentID)
+				s.logger.Debug(ctx, "flags not found in cache", "environment", environmentID, "err", err)
 			}
 			// TODO can/should we do this conversion in the repo layer instead?
 			var flagMap = make(map[string]*rest.FeatureConfig, len(flags))
