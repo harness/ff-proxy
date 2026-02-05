@@ -150,7 +150,7 @@ func (h PrimaryHealth) VerifyStreamStatus(ctx context.Context, interval time.Dur
 			inMemStatus := h.inMemStatus.Get()
 
 			if err := h.c.Get(ctx, h.key, &cachedStatus); err != nil {
-				h.log.Error("failed to get stream status from cache", "cacheKey", h.key, "err", err)
+				h.log.Error("failed to get stream status from cache", "err", err)
 			}
 
 			h.log.Info("verifying stream status", "in_mem_status_state", inMemStatus.State, "in_mem_status_since", inMemStatus.Since, "cached_status_state", cachedStatus.State, "cached_status_since", cachedStatus.Since)
@@ -161,7 +161,7 @@ func (h PrimaryHealth) VerifyStreamStatus(ctx context.Context, interval time.Dur
 			if cachedStatus.State != inMemStatus.State {
 				h.log.Info("setting stream status in cache", "state", inMemStatus.State, "since", inMemStatus.Since)
 				if err := h.c.Set(ctx, h.key, inMemStatus); err != nil {
-					h.log.Error("failed to update cached stream state to match in memory stream state", "cacheKey", h.key, "inMemState", inMemStatus.State, "cachedState", cachedStatus.State, "err", err)
+					h.log.Error("failed to update cached stream state to match in memory stream state", "inMemState", inMemStatus.State, "cachedState", cachedStatus.State, "err", err)
 				}
 			}
 		}

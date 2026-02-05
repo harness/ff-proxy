@@ -224,7 +224,7 @@ func (s Service) FeatureConfig(ctx context.Context, req domain.FeatureConfigRequ
 		}
 		// we don't return not found because we can't currently tell the difference between no features existing
 		// and the environment itself not existing
-		s.logger.Debug(ctx, "flags not found in cache", "environment", req.EnvironmentID, "err", err.Error())
+		s.logger.Debug(ctx, "flags not found in cache", "environment", req.EnvironmentID)
 	}
 
 	configs := make([]domain.FeatureConfig, 0, len(flags))
@@ -275,7 +275,7 @@ func (s Service) TargetSegments(ctx context.Context, req domain.TargetSegmentsRe
 		}
 		// we don't return not found because we can't currently tell the difference between no segments existing
 		// and the environment itself not existing
-		s.logger.Debug(ctx, "target segments not found in cache", "environment", req.EnvironmentID, "err", err.Error())
+		s.logger.Debug(ctx, "target segments not found in cache", "environment", req.EnvironmentID)
 	}
 
 	// return servingRules if rules query param is set to v2, otherwise return rules - have to copy the groups to avoid modifying the original slice in the cache
@@ -327,7 +327,7 @@ func (s Service) Evaluations(ctx context.Context, req domain.EvaluationsRequest)
 			return []clientgen.Evaluation{}, fmt.Errorf("%w: %s", ErrInternal, err)
 		}
 
-		s.logger.Warn(ctx, "target not found in cache, serving request using only identifier attribute", "environment", req.EnvironmentID, "target_identifier", req.TargetIdentifier, "err", err.Error())
+		s.logger.Warn(ctx, "target not found in cache, serving request using only identifier attribute", "environment", req.EnvironmentID, "target_identifier", req.TargetIdentifier)
 		target = domain.ConvertTarget(domain.Target{Target: clientgen.Target{Identifier: req.TargetIdentifier}})
 	}
 
@@ -386,7 +386,7 @@ func (s Service) EvaluationsByFeature(ctx context.Context, req domain.Evaluation
 			return clientgen.Evaluation{}, fmt.Errorf("%w: %s", ErrInternal, err)
 		}
 
-		s.logger.Warn(ctx, "target not found in cache, serving request using only identifier attribute", "environment", req.EnvironmentID, "target_identifier", req.TargetIdentifier, "feature", req.FeatureIdentifier, "err", err.Error())
+		s.logger.Warn(ctx, "target not found in cache, serving request using only identifier attribute", "environment", req.EnvironmentID, "target_identifier", req.TargetIdentifier, "feature", req.FeatureIdentifier)
 		target = domain.ConvertTarget(domain.Target{Target: clientgen.Target{Identifier: req.TargetIdentifier}})
 	}
 
@@ -425,7 +425,7 @@ func (s Service) Stream(ctx context.Context, req domain.StreamRequest) (domain.S
 	if err != nil {
 		// Don't log context cancellations as an error
 		if !errors.Is(err, context.Canceled) {
-			s.logger.Error(ctx, "stream handler failed to check if key exists in cache", "hashedAPIKey", hashedAPIKey, "err", err)
+			s.logger.Error(ctx, "stream handler failed to check if key exists in cache", "err", err)
 		}
 	}
 	if !ok {
