@@ -43,7 +43,7 @@ func (a Source) GenerateToken(key string) (domain.Token, error) {
 	env, ok, err := a.repo.Get(context.Background(), k)
 	if err != nil {
 		if !errors.Is(err, domain.ErrCacheNotFound) {
-			a.log.Error("failed to get auth key from cache to generate token", "err", err)
+			a.log.Error("failed to get auth key from cache to generate token")
 		}
 	}
 	if !ok {

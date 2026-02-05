@@ -96,11 +96,11 @@ func (t TargetRepo) DeltaAdd(ctx context.Context, envID string, targets ...domai
 
 				// We don't want to log context cancelled as an error in here
 				if !errors.Is(err2, context.Canceled) {
-					t.log.Info("context was cancelled during DeltaAdd", "environment", envID, "identifier", identifier, "err", err)
+					t.log.Info("context was cancelled during DeltaAdd", "environment", envID, "identifier", identifier)
 					continue
 				}
 
-				t.log.Error("failed to flush stale target from cache during DeltaAdd", "environment", envID, "identifier", identifier, "err", err)
+				t.log.Error("failed to flush stale target from cache during DeltaAdd", "environment", envID, "identifier", identifier)
 			}
 		}
 	}

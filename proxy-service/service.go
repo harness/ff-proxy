@@ -322,7 +322,7 @@ func (s Service) Evaluations(ctx context.Context, req domain.EvaluationsRequest)
 	if err != nil {
 		if !errors.Is(err, domain.ErrCacheNotFound) {
 			if !errors.Is(err, context.Canceled) {
-				s.logger.Error(ctx, "error fetching target", "environment", req.EnvironmentID, "target_identifier", req.TargetIdentifier, "err", err.Error())
+				s.logger.Error(ctx, "error fetching target", "environment", req.EnvironmentID, "target_identifier", req.TargetIdentifier)
 			}
 			return []clientgen.Evaluation{}, fmt.Errorf("%w: %s", ErrInternal, err)
 		}
@@ -381,7 +381,7 @@ func (s Service) EvaluationsByFeature(ctx context.Context, req domain.Evaluation
 	if err != nil {
 		if !errors.Is(err, domain.ErrCacheNotFound) {
 			if !errors.Is(err, context.Canceled) {
-				s.logger.Error(ctx, "error fetching target", "environment", req.EnvironmentID, "target_identifier", req.TargetIdentifier, "feature", req.FeatureIdentifier, "err", err.Error())
+				s.logger.Error(ctx, "error fetching target", "environment", req.EnvironmentID, "target_identifier", req.TargetIdentifier, "feature", req.FeatureIdentifier)
 			}
 			return clientgen.Evaluation{}, fmt.Errorf("%w: %s", ErrInternal, err)
 		}
@@ -425,7 +425,7 @@ func (s Service) Stream(ctx context.Context, req domain.StreamRequest) (domain.S
 	if err != nil {
 		// Don't log context cancellations as an error
 		if !errors.Is(err, context.Canceled) {
-			s.logger.Error(ctx, "stream handler failed to check if key exists in cache", "err", err)
+			s.logger.Error(ctx, "stream handler failed to check if key exists in cache")
 		}
 	}
 	if !ok {
@@ -480,7 +480,7 @@ func (s Service) makeSegmentMap(ctx context.Context, envID string) map[string]*d
 
 		// Not much else we can really do here other than log the error
 		if !errors.Is(err, domain.ErrCacheNotFound) {
-			s.logger.Error(ctx, "makeSegmentMap failed to get segments from cache", "environment", envID, "err", err)
+			s.logger.Error(ctx, "makeSegmentMap failed to get segments from cache", "environment", envID)
 		}
 		return segmentMap
 	}

@@ -171,19 +171,19 @@ func (i InventoryRepo) removeOldKeyData(ctx context.Context, key string) error {
 		var oldAssets map[string]int64
 		err := i.cache.Get(ctx, k, &oldAssets)
 		if err != nil && !errors.Is(err, domain.ErrCacheNotFound) {
-			i.log.Error("failed to get stale assets for inventory key", "key", k, "err", err)
+			i.log.Error("failed to get stale assets for inventory key")
 			continue
 		}
 
 		if err := i.removeAssets(ctx, oldAssets); err != nil {
-			i.log.Error("failed to remove stale assets for inventory key", "key", k, "err", err)
+			i.log.Error("failed to remove stale assets for inventory key")
 			continue
 		}
 
 		// Once we've removed all the assets associated with this key we should remove
 		// the key itself so that we don't fetch it the next time we start up
 		if err := i.cache.Delete(ctx, k); err != nil {
-			i.log.Error("failed to stale inventory key", "key", k, "err", err)
+			i.log.Error("failed to delete stale inventory key")
 			continue
 		}
 	}
@@ -371,7 +371,7 @@ func (i InventoryRepo) getPatchEvents(m map[string]int64) []domain.SSEMessage {
 func (i InventoryRepo) parseFlagEntry(flagString, variant string, version int64) domain.SSEMessage {
 	env, id, err := parseFlagString(flagString)
 	if err != nil {
-		i.log.Error("failed to parse flag entry", "flagString", flagString, "variant", variant, "err", err)
+		i.log.Error("failed to parse flag entry", "variant", variant)
 		return domain.SSEMessage{}
 	}
 	return domain.SSEMessage{
@@ -385,7 +385,7 @@ func (i InventoryRepo) parseFlagEntry(flagString, variant string, version int64)
 func (i InventoryRepo) parseSegmentEntry(segmentString, variant string, version int64) domain.SSEMessage {
 	env, id, err := parseSegmentString(segmentString)
 	if err != nil {
-		i.log.Error("failed to parse segment entry", "segmentString", segmentString, "variant", variant, "err", err)
+		i.log.Error("failed to parse segment entry", "variant", variant)
 		return domain.SSEMessage{}
 	}
 	return domain.SSEMessage{

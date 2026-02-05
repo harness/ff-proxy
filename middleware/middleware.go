@@ -126,7 +126,7 @@ func isKeyInCache(ctx context.Context, logger log.Logger, repo keyLookUp, claims
 			logger.Info("cannot authenticate SDK key because it does not exist")
 			return exists
 		}
-		logger.Error("auth middleware failed to lookup sdk key in cache", "environment", claims.Environment, "err", err)
+		logger.Error("auth middleware failed to lookup sdk key in cache", "environment", claims.Environment)
 	}
 	return exists
 }
