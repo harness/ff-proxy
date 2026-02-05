@@ -175,7 +175,7 @@ func (s Service) Authenticate(ctx context.Context, req domain.AuthRequest) (doma
 			s.logger.Info(ctx, "unable to generate auth token because the provided sdk key doesn't exist")
 			return domain.AuthResponse{}, ErrUnauthorised
 		}
-		s.logger.Error(ctx, "failed to generate auth token", "err", err)
+		s.logger.Error(ctx, "failed to generate auth token", "target_identifier", req.Target.Identifier, "err", err)
 		return domain.AuthResponse{}, ErrUnauthorised
 	}
 
@@ -203,7 +203,7 @@ func (s Service) Authenticate(ctx context.Context, req domain.AuthRequest) (doma
 			defer cancel()
 
 			if _, err := s.clientService.Authenticate(newCtx, req.APIKey, req.Target); err != nil {
-				s.logger.Error(ctx, "failed to forward Target registration via auth request to client service", "err", err)
+				s.logger.Error(ctx, "failed to forward Target registration via auth request to client service", "target_identifier", req.Target.Identifier, "err", err)
 			}
 			s.logger.Debug(ctx, "successfully registered target with feature flags", "target_identifier", req.Target.Target.Identifier)
 		}()
@@ -224,7 +224,7 @@ func (s Service) FeatureConfig(ctx context.Context, req domain.FeatureConfigRequ
 		}
 		// we don't return not found because we can't currently tell the difference between no features existing
 		// and the environment itself not existing
-		s.logger.Debug(ctx, "flags not found in cache: ", "err", err.Error())
+		s.logger.Debug(ctx, "flags not found in cache", "environment", req.EnvironmentID, "err", err.Error())
 	}
 
 	configs := make([]domain.FeatureConfig, 0, len(flags))
@@ -275,7 +275,7 @@ func (s Service) TargetSegments(ctx context.Context, req domain.TargetSegmentsRe
 		}
 		// we don't return not found because we can't currently tell the difference between no segments existing
 		// and the environment itself not existing
-		s.logger.Debug(ctx, "target segments not found in cache: ", "err", err.Error())
+		s.logger.Debug(ctx, "target segments not found in cache", "environment", req.EnvironmentID, "err", err.Error())
 	}
 
 	// return servingRules if rules query param is set to v2, otherwise return rules - have to copy the groups to avoid modifying the original slice in the cache
@@ -322,12 +322,12 @@ func (s Service) Evaluations(ctx context.Context, req domain.EvaluationsRequest)
 	if err != nil {
 		if !errors.Is(err, domain.ErrCacheNotFound) {
 			if !errors.Is(err, context.Canceled) {
-				s.logger.Error(ctx, "error fetching target: ", "err", err.Error())
+				s.logger.Error(ctx, "error fetching target", "environment", req.EnvironmentID, "target_identifier", req.TargetIdentifier, "err", err.Error())
 			}
 			return []clientgen.Evaluation{}, fmt.Errorf("%w: %s", ErrInternal, err)
 		}
 
-		s.logger.Warn(ctx, "target not found in cache, serving request using only identifier attribute: ", "err", err.Error())
+		s.logger.Warn(ctx, "target not found in cache, serving request using only identifier attribute", "environment", req.EnvironmentID, "target_identifier", req.TargetIdentifier, "err", err.Error())
 		target = domain.ConvertTarget(domain.Target{Target: clientgen.Target{Identifier: req.TargetIdentifier}})
 	}
 
@@ -381,12 +381,12 @@ func (s Service) EvaluationsByFeature(ctx context.Context, req domain.Evaluation
 	if err != nil {
 		if !errors.Is(err, domain.ErrCacheNotFound) {
 			if !errors.Is(err, context.Canceled) {
-				s.logger.Error(ctx, "error fetching target: ", "err", err.Error())
+				s.logger.Error(ctx, "error fetching target", "environment", req.EnvironmentID, "target_identifier", req.TargetIdentifier, "feature", req.FeatureIdentifier, "err", err.Error())
 			}
 			return clientgen.Evaluation{}, fmt.Errorf("%w: %s", ErrInternal, err)
 		}
 
-		s.logger.Warn(ctx, "target not found in cache, serving request using only identifier attribute: ", "err", err.Error())
+		s.logger.Warn(ctx, "target not found in cache, serving request using only identifier attribute", "environment", req.EnvironmentID, "target_identifier", req.TargetIdentifier, "feature", req.FeatureIdentifier, "err", err.Error())
 		target = domain.ConvertTarget(domain.Target{Target: clientgen.Target{Identifier: req.TargetIdentifier}})
 	}
 
@@ -425,7 +425,7 @@ func (s Service) Stream(ctx context.Context, req domain.StreamRequest) (domain.S
 	if err != nil {
 		// Don't log context cancellations as an error
 		if !errors.Is(err, context.Canceled) {
-			s.logger.Error(ctx, "stream handler failed to check if key exists in cache", "err", err)
+			s.logger.Error(ctx, "stream handler failed to check if key exists in cache", "hashedAPIKey", hashedAPIKey, "err", err)
 		}
 	}
 	if !ok {
@@ -480,7 +480,7 @@ func (s Service) makeSegmentMap(ctx context.Context, envID string) map[string]*d
 
 		// Not much else we can really do here other than log the error
 		if !errors.Is(err, domain.ErrCacheNotFound) {
-			s.logger.Error(ctx, "makeSegmentMap failed to get segments from cache: ", "err", err)
+			s.logger.Error(ctx, "makeSegmentMap failed to get segments from cache", "environment", envID, "err", err)
 		}
 		return segmentMap
 	}

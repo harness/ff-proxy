@@ -81,12 +81,12 @@ func (s Refresher) handleFeatureMessage(ctx context.Context, msg domain.SSEMessa
 	switch msg.Event {
 	case domain.EventDelete:
 		if err := s.handleDeleteFeatureEvent(ctx, msg.Environment, msg.Identifier); err != nil {
-			s.log.Error("failed to handle feature delete event", "err", err)
+			s.log.Error("failed to handle feature delete event", "environment", msg.Environment, "identifier", msg.Identifier, "err", err)
 			return err
 		}
 	case domain.EventPatch, domain.EventCreate:
 		if err := s.handleFetchFeatureEvent(ctx, msg.Environment, msg.Identifier); err != nil {
-			s.log.Error("failed to handle feature update event", "err", err)
+			s.log.Error("failed to handle feature update event", "environment", msg.Environment, "identifier", msg.Identifier, "event", msg.Event, "err", err)
 			return err
 		}
 	default:
@@ -99,12 +99,12 @@ func (s Refresher) handleSegmentMessage(ctx context.Context, msg domain.SSEMessa
 	switch msg.Event {
 	case domain.EventDelete:
 		if err := s.handleDeleteSegmentEvent(ctx, msg.Environment, msg.Identifier); err != nil {
-			s.log.Error("failed to handle segment delete event", "err", err)
+			s.log.Error("failed to handle segment delete event", "environment", msg.Environment, "identifier", msg.Identifier, "err", err)
 			return err
 		}
 	case domain.EventPatch, domain.EventCreate:
 		if err := s.handleFetchSegmentEvent(ctx, msg.Environment, msg.Identifier); err != nil {
-			s.log.Error("failed to handle segment update event", "err", err)
+			s.log.Error("failed to handle segment update event", "environment", msg.Environment, "identifier", msg.Identifier, "event", msg.Event, "err", err)
 			return err
 		}
 	default:
@@ -123,22 +123,22 @@ func (s Refresher) handleProxyMessage(ctx context.Context, msg domain.SSEMessage
 		}
 	case domain.EventEnvironmentAdded:
 		if err := s.handleAddEnvironmentEvent(ctx, msg.Environments); err != nil {
-			s.log.Error("failed to handle addEnvironmentEvent", "err", err)
+			s.log.Error("failed to handle addEnvironmentEvent", "environments", msg.Environments, "err", err)
 			return err
 		}
 	case domain.EventEnvironmentRemoved:
 		if err := s.handleRemoveEnvironmentEvent(ctx, msg.Environments); err != nil {
-			s.log.Error("failed to handle removeEnvironmentEvent", "err", err)
+			s.log.Error("failed to handle removeEnvironmentEvent", "environments", msg.Environments, "err", err)
 			return err
 		}
 	case domain.EventAPIKeyAdded:
 		if err := s.handleAddAPIKeyEvent(ctx, msg.Environments[0], msg.APIKey); err != nil {
-			s.log.Error("failed to handle addApiKeyEvent", "err", err)
+			s.log.Error("failed to handle addApiKeyEvent", "environment", msg.Environments[0], "err", err)
 			return err
 		}
 	case domain.EventAPIKeyRemoved:
 		if err := s.handleRemoveAPIKeyEvent(ctx, msg.Environments[0], msg.APIKey); err != nil {
-			s.log.Error("failed to handle removeApiKeyEvent", "err", err)
+			s.log.Error("failed to handle removeApiKeyEvent", "environment", msg.Environments[0], "err", err)
 			return err
 		}
 	default:
@@ -180,7 +180,7 @@ func (s Refresher) handleAddEnvironmentEvent(ctx context.Context, environments [
 
 		proxyConfig, err := s.clientService.PageProxyConfig(ctx, input)
 		if err != nil {
-			s.log.Error("unable to fetch config for the environment", "environment", env)
+			s.log.Error("unable to fetch config for the environment", "environment", env, "err", err)
 			return err
 		}
 

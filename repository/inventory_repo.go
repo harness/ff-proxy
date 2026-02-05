@@ -371,7 +371,7 @@ func (i InventoryRepo) getPatchEvents(m map[string]int64) []domain.SSEMessage {
 func (i InventoryRepo) parseFlagEntry(flagString, variant string, version int64) domain.SSEMessage {
 	env, id, err := parseFlagString(flagString)
 	if err != nil {
-		i.log.Error("err", err)
+		i.log.Error("failed to parse flag entry", "flagString", flagString, "variant", variant, "err", err)
 		return domain.SSEMessage{}
 	}
 	return domain.SSEMessage{
@@ -385,7 +385,7 @@ func (i InventoryRepo) parseFlagEntry(flagString, variant string, version int64)
 func (i InventoryRepo) parseSegmentEntry(segmentString, variant string, version int64) domain.SSEMessage {
 	env, id, err := parseSegmentString(segmentString)
 	if err != nil {
-		i.log.Error("err", err)
+		i.log.Error("failed to parse segment entry", "segmentString", segmentString, "variant", variant, "err", err)
 		return domain.SSEMessage{}
 	}
 	return domain.SSEMessage{

@@ -61,7 +61,7 @@ func SaasStreamOnDisconnect(l log.Logger, streamHealth Health, pp Pushpin, redis
 		// know we've disconnected from SaaS.
 		l.Info("publishing disconnected message for replicas")
 		if err := redisSSEStream.Publish(ctx, domain.SSEMessage{Event: "stream_action", Domain: domain.StreamStateDisconnected.String()}); err != nil {
-			l.Error("failed to publish stream disconnected message to redis", "err", err)
+			l.Error("failed to publish stream disconnected message to redis", "state", domain.StreamStateDisconnected.String(), "err", err)
 			return
 		}
 
@@ -109,7 +109,7 @@ func SaasStreamOnConnect(l log.Logger, streamHealth Health, reloadConfig func() 
 		// know we've connected to SaaS.
 		l.Info("publishing stream connected message for replicas")
 		if err := redisSSEStream.Publish(ctx, domain.SSEMessage{Event: "stream_action", Domain: domain.StreamStateConnected.String()}); err != nil {
-			l.Error("failed to publish stream connect message to redis", "err", err)
+			l.Error("failed to publish stream connect message to redis", "state", domain.StreamStateConnected.String(), "err", err)
 			return
 		}
 
