@@ -695,8 +695,8 @@ func main() {
 			proxyKey,
 			conf.Token(),
 			conf.AccountID(),
-			stream.SaasStreamOnConnect(logger, streamHealth, reloadConfig, primaryToReplicaControlStream, pollingStatus),
-			stream.SaasStreamOnDisconnect(logger, streamHealth, pushpin, primaryToReplicaControlStream, getConnectedStreams, reloadConfig, pollingStatus),
+			func() {}, // no-op: handlers are on Stream wrapper, not SSE client
+			func() {},
 		)
 
 		saasStream := stream.NewStream(
@@ -704,6 +704,8 @@ func main() {
 			"*",
 			stream.NewPrometheusStream("ff_proxy_saas_to_primary_sse_consumer", sseClient, promReg),
 			messageHandler,
+			stream.WithOnConnect(stream.SaasStreamOnConnect(logger, streamHealth, reloadConfig, primaryToReplicaControlStream, pollingStatus)),
+			stream.WithOnDisconnect(stream.SaasStreamOnDisconnect(logger, streamHealth, pushpin, primaryToReplicaControlStream, getConnectedStreams, reloadConfig, pollingStatus)),
 		)
 		saasStream.Subscribe(ctx)
 	}
