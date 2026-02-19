@@ -94,7 +94,7 @@ COPY --from=certs /tmp/certs /etc/ssl/certs
 # Use existing nobody user (UID 65534)
 RUN chmod +x /usr/local/bin/docker-entrypoint.sh \
  && mkdir -p /var/run/pushpin /log /pushpin/run /pushpin/log \
- && chmod 0500 /app/ff-proxy \
+ && chmod 0555 /app/ff-proxy \
  && chown -R 65534:65534 /etc/pushpin /var/run/pushpin /log /pushpin \
  && chown 65534:65534 /app/ff-proxy
 

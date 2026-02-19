@@ -69,6 +69,10 @@ spec:
             {{- toYaml . | nindent 12 }}
           {{- end }}
           volumeMounts:
+            - name: pushpin-run
+              mountPath: /pushpin/run
+            - name: pushpin-log
+              mountPath: /pushpin/log
           {{- if .Values.redis.tls.enabled }}
             - name: redis-tls-certs
               mountPath: {{ .Values.redis.tls.mountPath }}
@@ -78,6 +82,10 @@ spec:
             {{- toYaml . | nindent 12 }}
           {{- end }}
       volumes:
+        - name: pushpin-run
+          emptyDir: {}
+        - name: pushpin-log
+          emptyDir: {}
       {{- if .Values.redis.tls.enabled }}
         - name: redis-tls-certs
           secret:
