@@ -15,6 +15,9 @@ cf.session.sql
 ff-proxy
 .*
 !.*.env
+!.cursor/
+!.claude/
+.claude/settings.local.json
 ff-example-sdk
 
 **/bench-test/env*
