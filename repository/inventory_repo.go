@@ -282,7 +282,7 @@ func (i InventoryRepo) BuildAssetListFromConfig(config []domain.ProxyConfig) (ma
 			if len(env.Segments) > 0 {
 				inventory[string(domain.NewSegmentsKey(environment))] = 0
 				for _, s := range env.Segments {
-					inventory[string(domain.NewSegmentKey(environment, s.Name))] = domain.SafePtrDereference(s.Version)
+					inventory[string(domain.NewSegmentKey(environment, s.Identifier))] = domain.SafePtrDereference(s.Version)
 				}
 			}
 		}
