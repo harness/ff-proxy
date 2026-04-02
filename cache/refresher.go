@@ -357,7 +357,21 @@ func (s Refresher) handleFetchFeatureEvent(ctx context.Context, env, identifier 
 		Identifier: identifier,
 	})
 	if err != nil {
-		return err
+		s.log.Warn("failed to fetch feature config, refreshing auth token and retrying", "environment", env, "identifier", identifier, "err", err)
+		authToken, refreshErr := s.config.RefreshToken()
+		if refreshErr != nil {
+			return fmt.Errorf("failed to refresh auth token: %s", refreshErr)
+		}
+
+		fc, err = s.clientService.GetFeatureConfigByIdentifier(ctx, domain.GetFeatureConfigsByIdentifierInput{
+			AuthToken:  authToken,
+			Cluster:    s.config.ClusterIdentifier(),
+			EnvID:      env,
+			Identifier: identifier,
+		})
+		if err != nil {
+			return err
+		}
 	}
 	updatedFlagConfig := domain.FeatureFlag(fc)
 
@@ -471,7 +485,7 @@ func (s Refresher) updateFeatureConfigsEntry(ctx context.Context, env string, id
 // 3. Update the segments record in the cache.
 // 4. Update the inventory record for the segment.
 func (s Refresher) handleFetchSegmentEvent(ctx context.Context, env, identifier string) error {
-	s.log.Debug("updating featureConfig entry", "environment", env, "identifier", identifier)
+	s.log.Debug("updating segment entry", "environment", env, "identifier", identifier)
 
 	sc, err := s.clientService.GetSegmentByIdentifier(ctx, domain.GetSegmentByIdentifierInput{
 		AuthToken:  s.config.Token(),
@@ -480,7 +494,21 @@ func (s Refresher) handleFetchSegmentEvent(ctx context.Context, env, identifier 
 		Identifier: identifier,
 	})
 	if err != nil {
-		return fmt.Errorf("failed to get segment by identifier: %w", err)
+		s.log.Warn("failed to fetch segment config, refreshing auth token and retrying", "environment", env, "identifier", identifier, "err", err)
+		authToken, refreshErr := s.config.RefreshToken()
+		if refreshErr != nil {
+			return fmt.Errorf("failed to refresh auth token: %s", refreshErr)
+		}
+
+		sc, err = s.clientService.GetSegmentByIdentifier(ctx, domain.GetSegmentByIdentifierInput{
+			AuthToken:  authToken,
+			Cluster:    s.config.ClusterIdentifier(),
+			EnvID:      env,
+			Identifier: identifier,
+		})
+		if err != nil {
+			return fmt.Errorf("failed to get segment by identifier: %w", err)
+		}
 	}
 	updatedSegment := domain.Segment(sc)
 
