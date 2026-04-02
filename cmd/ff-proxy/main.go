@@ -620,7 +620,7 @@ func main() {
 		logger,
 		controlEventsTopic,
 		redisStream,
-		domain.NewReadReplicaMessageHandler(logger, streamHealth, getConnectedStreams, pushpin),
+		domain.NewReadReplicaMessageHandler(logger, streamHealth, getConnectedStreams, pushpin, hashCache),
 		stream.WithOnDisconnect(stream.ReadReplicaSSEStreamOnDisconnect(logger, controlEventsTopic)),
 		stream.WithBackoff(backoff.NewConstantBackOff(1*time.Minute)),
 	)

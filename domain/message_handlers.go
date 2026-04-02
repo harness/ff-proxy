@@ -12,6 +12,11 @@ type MessageHandler interface {
 	HandleMessage(ctx context.Context, m SSEMessage) error
 }
 
+// LocalCacheClearer defines the interface for clearing local in-memory cache
+type LocalCacheClearer interface {
+	ClearLocalCache()
+}
+
 // NoOpMessageHandler is a message handler that does nothing
 type NoOpMessageHandler struct {
 }
@@ -39,16 +44,18 @@ type ReadReplicaMessageHandler struct {
 	streamStatus     healther
 	connectedStreams func() map[string]interface{}
 	pushpin          Closer
+	cacheClearer     LocalCacheClearer
 }
 
 // NewReadReplicaMessageHandler creates a ReadReplicaMessageHandler
-func NewReadReplicaMessageHandler(l log.Logger, s healther, cs func() map[string]interface{}, pp Closer) ReadReplicaMessageHandler {
+func NewReadReplicaMessageHandler(l log.Logger, s healther, cs func() map[string]interface{}, pp Closer, cc LocalCacheClearer) ReadReplicaMessageHandler {
 	l = l.With("component", "ReadReplicaMessageHandler")
 	return ReadReplicaMessageHandler{
 		log:              l,
 		streamStatus:     s,
 		connectedStreams: cs,
 		pushpin:          pp,
+		cacheClearer:     cc,
 	}
 }
 
@@ -88,6 +95,13 @@ func (r ReadReplicaMessageHandler) handleStreamAction(ctx context.Context, msg S
 
 	if msg.Domain == StreamStateConnected.String() {
 		r.log.Info("received stream connected event from primary proxy")
+
+		// Clear local cache to ensure fresh data is fetched from Redis
+		// after primary reconnection and config reload
+		if r.cacheClearer != nil {
+			r.cacheClearer.ClearLocalCache()
+			r.log.Info("cleared replica HashCache after primary reconnection")
+		}
 
 		if err := r.streamStatus.SetHealthy(ctx); err != nil {
 			r.log.Error("failed to set healthy stream status", "err", err)

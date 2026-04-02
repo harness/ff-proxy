@@ -138,7 +138,7 @@ func TestReadReplicaMessageHandler_HandleMessage(t *testing.T) {
 		t.Run(desc, func(t *testing.T) {
 			ctx := context.Background()
 
-			r := NewReadReplicaMessageHandler(log.NoOpLogger{}, tc.mocks.health, tc.mocks.connectedStreams, tc.mocks.pp)
+			r := NewReadReplicaMessageHandler(log.NoOpLogger{}, tc.mocks.health, tc.mocks.connectedStreams, tc.mocks.pp, nil)
 
 			err := r.HandleMessage(ctx, tc.args.msg)
 			if tc.shouldErr {

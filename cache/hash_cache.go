@@ -113,3 +113,12 @@ func (hc HashCache) Delete(ctx context.Context, key string) error {
 	}
 	return hc.Cache.Delete(ctx, key)
 }
+
+// ClearLocalCache flushes all entries from the in-memory local cache.
+// This forces subsequent reads to fetch from Redis, ensuring fresh data
+// is served after primary proxy reconnection events.
+func (hc *HashCache) ClearLocalCache() {
+	if c, ok := hc.localCache.(*gocache.Cache); ok {
+		c.Flush()
+	}
+}
