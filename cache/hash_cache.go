@@ -97,6 +97,11 @@ func (hc HashCache) get(ctx context.Context, key string, value interface{}) (int
 	return value, err
 }
 
+// Flush clears all entries from the local in-memory cache
+func (hc HashCache) Flush() {
+	hc.localCache.Flush()
+}
+
 // Delete key from local cache as well as hash entry in the redis
 func (hc HashCache) Delete(ctx context.Context, key string) error {
 

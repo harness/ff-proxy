@@ -31,6 +31,7 @@ type internalCache interface {
 	Get(key string) (interface{}, bool)
 	Set(key string, v interface{}, d time.Duration)
 	Delete(key string)
+	Flush()
 }
 
 // The Memoize Cache embeds the KeyValCache and adds an in-memory caching layer for serialised data.

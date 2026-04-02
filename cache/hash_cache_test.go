@@ -70,6 +70,8 @@ func (m *mockLocalCache) Get(key string) (interface{}, bool) {
 	return b, ok
 }
 
+func (m *mockLocalCache) Flush() {}
+
 func TestHashCache_Set(t *testing.T) {
 	fooSegment := domain.Segment{Identifier: "foo"}
 	fooFeature := domain.FeatureFlag{Feature: "foo"}

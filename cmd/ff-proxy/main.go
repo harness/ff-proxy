@@ -645,6 +645,9 @@ func main() {
 	}
 
 	reloadConfig := func() error {
+		if hashCache != nil {
+			hashCache.Flush()
+		}
 		return conf.FetchAndPopulate(ctx, inventoryRepo, authRepo, flagRepo, segmentRepo)
 	}
 

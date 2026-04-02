@@ -26,6 +26,8 @@ func (m *mockInternalCache) Set(key string, v interface{}, d time.Duration) {
 	m.data[key] = v
 }
 
+func (m *mockInternalCache) Flush() {}
+
 type mockMetrics struct {
 	cacheMarshal        int
 	cacheUnmarshal      int
