@@ -349,9 +349,14 @@ func (s Refresher) handleRemoveAPIKeyEvent(ctx context.Context, env, apiKey stri
 func (s Refresher) handleFetchFeatureEvent(ctx context.Context, env, identifier string) error {
 	s.log.Debug("updating featureConfig entry", "environment", env, "identifier", identifier)
 
+	authToken, err := s.config.RefreshToken()
+	if err != nil {
+		return fmt.Errorf("failed to refresh auth token to fetch feature config: %s", err)
+	}
+
 	// Make a request to Harness Saas to fetch the updated featureConfig
 	fc, err := s.clientService.GetFeatureConfigByIdentifier(ctx, domain.GetFeatureConfigsByIdentifierInput{
-		AuthToken:  s.config.Token(),
+		AuthToken:  authToken,
 		Cluster:    s.config.ClusterIdentifier(),
 		EnvID:      env,
 		Identifier: identifier,
@@ -473,8 +478,13 @@ func (s Refresher) updateFeatureConfigsEntry(ctx context.Context, env string, id
 func (s Refresher) handleFetchSegmentEvent(ctx context.Context, env, identifier string) error {
 	s.log.Debug("updating featureConfig entry", "environment", env, "identifier", identifier)
 
+	authToken, err := s.config.RefreshToken()
+	if err != nil {
+		return fmt.Errorf("failed to refresh auth token to fetch segment config: %s", err)
+	}
+
 	sc, err := s.clientService.GetSegmentByIdentifier(ctx, domain.GetSegmentByIdentifierInput{
-		AuthToken:  s.config.Token(),
+		AuthToken:  authToken,
 		Cluster:    s.config.ClusterIdentifier(),
 		EnvID:      env,
 		Identifier: identifier,
