@@ -62,6 +62,25 @@ func NewRefresher(l log.Logger, config config, client domain.ClientService, inve
 	return Refresher{log: l, config: config, clientService: client, inventory: inventory, authRepo: authRepo, flagRepo: flagRepo, segmentRepo: segmentRepo}
 }
 
+// isEnvironmentInScope checks if the environment is within the proxy key's scope by checking if we have data for it in cache
+func (s Refresher) isEnvironmentInScope(ctx context.Context, env string) bool {
+	// Check if we have feature configs for this environment
+	_, hasFeatures := s.flagRepo.GetFeatureConfigForEnvironment(ctx, env)
+	if hasFeatures {
+		return true
+	}
+
+	// Check if we have segments for this environment
+	_, hasSegments := s.segmentRepo.GetSegmentsForEnvironment(ctx, env)
+	if hasSegments {
+		return true
+	}
+
+	// Check if we have API keys for this environment (for environments with no flags/segments yet)
+	_, err := s.authRepo.GetKeysForEnvironment(ctx, env)
+	return err == nil
+}
+
 // HandleMessage makes Refresher implement the MessageHandler interface
 func (s Refresher) HandleMessage(ctx context.Context, msg domain.SSEMessage) error {
 	switch msg.Domain {
@@ -349,6 +368,12 @@ func (s Refresher) handleRemoveAPIKeyEvent(ctx context.Context, env, apiKey stri
 func (s Refresher) handleFetchFeatureEvent(ctx context.Context, env, identifier string) error {
 	s.log.Debug("updating featureConfig entry", "environment", env, "identifier", identifier)
 
+	// Check if environment is in scope for this proxy key before attempting fetch
+	if !s.isEnvironmentInScope(ctx, env) {
+		s.log.Debug("ignoring feature event for out-of-scope environment", "environment", env, "identifier", identifier)
+		return nil
+	}
+
 	// Make a request to Harness Saas to fetch the updated featureConfig
 	fc, err := s.clientService.GetFeatureConfigByIdentifier(ctx, domain.GetFeatureConfigsByIdentifierInput{
 		AuthToken:  s.config.Token(),
@@ -420,6 +445,13 @@ func replaceFeatureConfig(newConfig domain.FeatureFlag, featureConfigs *[]domain
 
 func (s Refresher) handleDeleteFeatureEvent(ctx context.Context, env, identifier string) error {
 	s.log.Debug("removing featureConfig entry", "environment", env, "identifier", identifier)
+
+	// Check if environment is in scope for this proxy key
+	if !s.isEnvironmentInScope(ctx, env) {
+		s.log.Debug("ignoring feature delete event for out-of-scope environment", "environment", env, "identifier", identifier)
+		return nil
+	}
+
 	featureConfigEntry := string(domain.NewFeatureConfigKey(env, identifier))
 	featureConfigsEntry := string(domain.NewFeatureConfigsKey(env))
 	// fetch and reset config map and delete the entry.
@@ -487,6 +519,12 @@ func (s Refresher) updateFeatureConfigsEntry(ctx context.Context, env string, id
 func (s Refresher) handleFetchSegmentEvent(ctx context.Context, env, identifier string) error {
 	s.log.Debug("updating segment entry", "environment", env, "identifier", identifier)
 
+	// Check if environment is in scope for this proxy key before attempting fetch
+	if !s.isEnvironmentInScope(ctx, env) {
+		s.log.Debug("ignoring segment event for out-of-scope environment", "environment", env, "identifier", identifier)
+		return nil
+	}
+
 	sc, err := s.clientService.GetSegmentByIdentifier(ctx, domain.GetSegmentByIdentifierInput{
 		AuthToken:  s.config.Token(),
 		Cluster:    s.config.ClusterIdentifier(),
@@ -532,6 +570,13 @@ func (s Refresher) handleFetchSegmentEvent(ctx context.Context, env, identifier 
 
 func (s Refresher) handleDeleteSegmentEvent(ctx context.Context, env, identifier string) error {
 	s.log.Debug("removing featureConfig entry", "environment", env, "identifier", identifier)
+
+	// Check if environment is in scope for this proxy key
+	if !s.isEnvironmentInScope(ctx, env) {
+		s.log.Debug("ignoring segment delete event for out-of-scope environment", "environment", env, "identifier", identifier)
+		return nil
+	}
+
 	segmentConfig := string(domain.NewSegmentKey(env, identifier))
 	segmentConfigs := string(domain.NewSegmentsKey(env))
 	// get the segment entry for the environment and update it.
