@@ -90,8 +90,11 @@ func (h PrimaryHealth) SetHealthy(ctx context.Context) error {
 		}
 	}
 
-	// If current status is healthy then don't do anything
+	// If current status is healthy then don't need to write to cache,
+	// but still update in-memory status so it doesn't get stuck at INITIALIZING
+	// when a new container reads a stale CONNECTED state from Redis.
 	if cachedStatus.State == domain.StreamStateConnected {
+		h.inMemStatus.Set(streamStatus)
 		return nil
 	}
 

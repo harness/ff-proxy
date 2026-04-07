@@ -345,6 +345,40 @@ func TestHealth_SetHealthy(t *testing.T) {
 			},
 			shouldErr: false,
 		},
+		"Given the cachedState=CONNECTED and inMemoryState=INITIALIZING, I call SetHealthy and the Cache returns no error": {
+			then: "Then the inMemoryState should be CONNECTED and the cachedState should be CONNECTED",
+			args: args{
+				startingInMemStatus: domain.StreamStatus{
+					State: domain.StreamStateInitializing,
+					Since: 123,
+				},
+				startingCachedStatus: domain.StreamStatus{
+					State: domain.StreamStateConnected,
+					Since: 123,
+				},
+			},
+			mocks: mocks{
+				cache: &mockCache{
+					getFn: func(value interface{}) error {
+						if v, ok := value.(*domain.StreamStatus); ok {
+							*v = domain.StreamStatus{State: domain.StreamStateConnected, Since: 123}
+						}
+						return nil
+					},
+				},
+			},
+			expected: expected{
+				inMemStatus: domain.StreamStatus{
+					State: domain.StreamStateConnected,
+					Since: 123,
+				},
+				cachedStatus: domain.StreamStatus{
+					State: domain.StreamStateConnected,
+					Since: 123,
+				},
+			},
+			shouldErr: false,
+		},
 	}
 
 	for desc, tc := range testCases {
