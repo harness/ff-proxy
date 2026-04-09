@@ -1,5 +1,9 @@
 #!/bin/bash
 { ./app/ff-proxy; } &
-{ pushpin; } &
+
+if [ "$OFFLINE" != "true" ]; then
+    { pushpin; } &
+fi
+
 wait -n
 pkill -P $$
