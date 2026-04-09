@@ -3,8 +3,10 @@ package cache
 import (
 	"context"
 	"errors"
+	"fmt"
 	"reflect"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 
@@ -314,7 +316,7 @@ func TestRefresher_HandleMessage(t *testing.T) {
 
 		t.Run(desc, func(t *testing.T) {
 
-			r := NewRefresher(log.NewNoOpLogger(), config, tc.mocks.clientService, inventoryRepo, authRepo, flagRepo, segmentRepo)
+			r := NewRefresher(log.NewNoOpLogger(), config, tc.mocks.clientService, inventoryRepo, authRepo, flagRepo, segmentRepo, nil)
 			err := r.HandleMessage(context.Background(), tc.args.message)
 			if tc.shouldErr {
 				assert.NotNil(t, err)
@@ -409,7 +411,7 @@ func TestRefresher_handleAddEnvironmentEvent(t *testing.T) {
 		tc := tc
 
 		t.Run(desc, func(t *testing.T) {
-			r := NewRefresher(log.NewNoOpLogger(), config, tc.args.clientService, inventoryRepo, authRepo, flagRepo, segmentRepo)
+			r := NewRefresher(log.NewNoOpLogger(), config, tc.args.clientService, inventoryRepo, authRepo, flagRepo, segmentRepo, nil)
 			err := r.HandleMessage(context.Background(), tc.args.message)
 			if tc.shouldErr {
 				assert.NotNil(t, err)
@@ -575,7 +577,7 @@ func TestRefresher_handleRemoveEnvironmentEvent(t *testing.T) {
 		tc := tc
 
 		t.Run(desc, func(t *testing.T) {
-			r := NewRefresher(log.NewNoOpLogger(), config, tc.args.clientService, tc.mocks.inventoryRepo, tc.mocks.authRepo, tc.mocks.flagRepo, tc.mocks.segmentRepo)
+			r := NewRefresher(log.NewNoOpLogger(), config, tc.args.clientService, tc.mocks.inventoryRepo, tc.mocks.authRepo, tc.mocks.flagRepo, tc.mocks.segmentRepo, nil)
 			err := r.HandleMessage(context.Background(), tc.args.message)
 			if tc.shouldErr {
 				assert.NotNil(t, err)
@@ -1033,4 +1035,129 @@ func TestReplaceSegmentConfig(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestIsRetryableError(t *testing.T) {
+	tests := []struct {
+		name     string
+		err      error
+		expected bool
+	}{
+		{name: "nil error", err: nil, expected: false},
+		{name: "bad request", err: errors.New("bad request"), expected: true},
+		{name: "not found", err: errors.New("ErrNotFound"), expected: true},
+		{name: "wrapped bad request", err: fmt.Errorf("failed to get segment by identifier: %w", errors.New("bad request")), expected: true},
+		{name: "wrapped not found", err: fmt.Errorf("some context: %w", errors.New("ErrNotFound")), expected: true},
+		{name: "other error", err: errors.New("connection refused"), expected: false},
+		{name: "internal error", err: errors.New("ErrInternal"), expected: false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := isRetryableError(tt.err)
+			assert.Equal(t, tt.expected, result)
+		})
+	}
+}
+
+func TestRefresher_RetryQueueOnRetryableError(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	retryQueue := NewRetryQueue(log.NewNoOpLogger(), ctx,
+		WithInitialDelay(10*time.Millisecond),
+		WithTickerInterval(5*time.Millisecond),
+	)
+	defer retryQueue.Close()
+
+	flagRepo := mockFlagRepo{
+		addFn: func(ctx context.Context, values ...domain.FlagConfig) error { return nil },
+		removeFn: func(ctx context.Context, id string) error { return nil },
+		getFeatureConfigForEnvironmentFn: func(ctx context.Context, envID string) ([]domain.FeatureFlag, bool) {
+			return []domain.FeatureFlag{}, true
+		},
+	}
+	segmentRepo := mockSegmentRepo{
+		addFn: func(ctx context.Context, values ...domain.SegmentConfig) error { return nil },
+		removeFn: func(ctx context.Context, id string) error { return nil },
+		getSegmentsForEnvironmentFn: func(ctx context.Context, envID string) ([]domain.Segment, bool) {
+			return []domain.Segment{}, true
+		},
+	}
+	config := mockConfig{
+		populate: func(ctx context.Context, authRepo domain.AuthRepo, flagRepo domain.FlagRepo, segmentRepo domain.SegmentRepo) error {
+			return nil
+		},
+		setProxyConfigFn: func(proxyConfig []domain.ProxyConfig) {},
+	}
+	inventoryRepo := mockInventoryRepo{
+		patchFn: func(ctx context.Context, key string, patch func(assets map[string]int64) (map[string]int64, error)) error {
+			return nil
+		},
+	}
+	authRepo := mockAuthRepo{}
+
+	t.Run("feature patch with bad request enqueues and returns nil", func(t *testing.T) {
+		clientSvc := mockClientService{
+			getFeatureConfigByIdentifier: func(ctx context.Context, input domain.GetFeatureConfigsByIdentifierInput) (clientgen.FeatureConfig, error) {
+				return clientgen.FeatureConfig{}, errors.New("bad request")
+			},
+		}
+
+		r := NewRefresher(log.NewNoOpLogger(), config, clientSvc, inventoryRepo, authRepo, flagRepo, segmentRepo, retryQueue)
+		err := r.HandleMessage(ctx, domain.SSEMessage{
+			Domain:      domain.MsgDomainFeature,
+			Event:       domain.EventPatch,
+			Environment: "env1",
+			Identifier:  "flag1",
+		})
+
+		assert.Nil(t, err, "should return nil for retryable error")
+
+		retryQueue.mu.Lock()
+		_, enqueued := retryQueue.inQueue["flag:env1:flag1"]
+		retryQueue.mu.Unlock()
+		assert.True(t, enqueued, "item should be enqueued for retry")
+	})
+
+	t.Run("segment patch with not found enqueues and returns nil", func(t *testing.T) {
+		clientSvc := mockClientService{
+			getSegmentByIdentifier: func(ctx context.Context, input domain.GetSegmentByIdentifierInput) (clientgen.Segment, error) {
+				return clientgen.Segment{}, errors.New("ErrNotFound")
+			},
+		}
+
+		r := NewRefresher(log.NewNoOpLogger(), config, clientSvc, inventoryRepo, authRepo, flagRepo, segmentRepo, retryQueue)
+		err := r.HandleMessage(ctx, domain.SSEMessage{
+			Domain:      domain.MsgDomainSegment,
+			Event:       domain.EventPatch,
+			Environment: "env2",
+			Identifier:  "seg1",
+		})
+
+		assert.Nil(t, err, "should return nil for retryable error")
+
+		retryQueue.mu.Lock()
+		_, enqueued := retryQueue.inQueue["target-segment:env2:seg1"]
+		retryQueue.mu.Unlock()
+		assert.True(t, enqueued, "item should be enqueued for retry")
+	})
+
+	t.Run("feature patch with non-retryable error returns error", func(t *testing.T) {
+		clientSvc := mockClientService{
+			getFeatureConfigByIdentifier: func(ctx context.Context, input domain.GetFeatureConfigsByIdentifierInput) (clientgen.FeatureConfig, error) {
+				return clientgen.FeatureConfig{}, errors.New("ErrInternal")
+			},
+		}
+
+		r := NewRefresher(log.NewNoOpLogger(), config, clientSvc, inventoryRepo, authRepo, flagRepo, segmentRepo, retryQueue)
+		err := r.HandleMessage(ctx, domain.SSEMessage{
+			Domain:      domain.MsgDomainFeature,
+			Event:       domain.EventPatch,
+			Environment: "env3",
+			Identifier:  "flag2",
+		})
+
+		assert.NotNil(t, err, "non-retryable error should be returned")
+	})
 }
