@@ -432,20 +432,37 @@ func main() {
 		}
 
 		logger.Info("retrieving config from ff-server...")
-		remoteConfig, err = config.NewRemoteConfig(
-			ctx,
-			accountIdentifier,
-			orgIdentifier,
-			apiKeys,
-			adminService,
-			clientService,
-			config.WithLogger(logger),
-			config.WithFetchTargets(targetPollDuration != 0), // don't fetch targets if poll duration is 0
-		)
+		const maxConfigRetries = 5
+		for attempt := 1; attempt <= maxConfigRetries; attempt++ {
+			remoteConfig, err = config.NewRemoteConfig(
+				ctx,
+				accountIdentifier,
+				orgIdentifier,
+				apiKeys,
+				adminService,
+				clientService,
+				config.WithLogger(logger),
+				config.WithFetchTargets(targetPollDuration != 0), // don't fetch targets if poll duration is 0
+			)
+			if err == nil {
+				logger.Info("successfully retrieved config from FeatureFlags")
+				break
+			}
+			logger.Error("error(s) encountered fetching config from FeatureFlags", "attempt", attempt, "max_attempts", maxConfigRetries, "errors", err)
+			if attempt < maxConfigRetries {
+				backoff := time.Duration(attempt) * 10 * time.Second
+				logger.Info("retrying config fetch", "backoff", backoff)
+				select {
+				case <-ctx.Done():
+					logger.Error("context cancelled while waiting to retry config fetch")
+					os.Exit(1)
+				case <-time.After(backoff):
+				}
+			}
+		}
 		if err != nil {
-			logger.Error("error(s) encountered fetching config from FeatureFlags, startup will continue but the Proxy may be missing required config", "errors", err)
-		} else {
-			logger.Info("successfully retrieved config from FeatureFlags")
+			logger.Error("failed to retrieve config from FeatureFlags after all retries", "errors", err)
+			os.Exit(1)
 		}
 
 		authConfig = remoteConfig.AuthConfig()

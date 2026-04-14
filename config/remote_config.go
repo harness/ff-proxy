@@ -130,6 +130,10 @@ func NewRemoteConfig(ctx context.Context, accountIdentifier string, orgIdentifie
 
 	rc.projEnvInfo = envInfos
 
+	if len(apiKeys) > 0 && len(envInfos) == 0 {
+		return RemoteConfig{}, fmt.Errorf("failed to fetch config for any of the provided api keys")
+	}
+
 	return *rc, nil
 }
 
