@@ -612,7 +612,7 @@ func main() {
 		sseStreamTopic,
 		redisStream,
 		stream.NewForwarder(logger, pushpinStream, domain.NoOpMessageHandler{}),
-		stream.WithOnDisconnect(stream.ReadReplicaSSEStreamOnDisconnect(logger, sseStreamTopic)),
+		stream.WithOnDisconnect(stream.ReadReplicaSSEStreamOnDisconnect(logger, sseStreamTopic, streamHealth, pushpin, getConnectedStreams)),
 		stream.WithBackoff(backoff.NewConstantBackOff(1*time.Minute)),
 	)
 
@@ -621,7 +621,7 @@ func main() {
 		controlEventsTopic,
 		redisStream,
 		domain.NewReadReplicaMessageHandler(logger, streamHealth, getConnectedStreams, pushpin),
-		stream.WithOnDisconnect(stream.ReadReplicaSSEStreamOnDisconnect(logger, controlEventsTopic)),
+		stream.WithOnDisconnect(stream.ReadReplicaSSEStreamOnDisconnect(logger, controlEventsTopic, streamHealth, pushpin, getConnectedStreams)),
 		stream.WithBackoff(backoff.NewConstantBackOff(1*time.Minute)),
 	)
 

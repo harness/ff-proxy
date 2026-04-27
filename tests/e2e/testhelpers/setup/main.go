@@ -143,7 +143,7 @@ func main() {
 	for _, org := range orgs {
 		project, err := testhelpers.SetupTestProject(org)
 		if err != nil {
-			log.Errorf(err.Error())
+			log.Errorf("%v", err)
 			os.Exit(1)
 		}
 		projects = append(projects, project)
@@ -152,7 +152,7 @@ func main() {
 	// setup empty project
 	empty, err := testhelpers.SetupTestEmptyProject(orgs[0])
 	if err != nil {
-		log.Errorf(err.Error())
+		log.Errorf("%v", err)
 		os.Exit(1)
 	}
 	//append empty project

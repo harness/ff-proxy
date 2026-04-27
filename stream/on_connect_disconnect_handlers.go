@@ -117,9 +117,23 @@ func SaasStreamOnConnect(l log.Logger, streamHealth Health, reloadConfig func() 
 	}
 }
 
-// ReadReplicaSSEStreamOnDisconnect is called whenever the read replica disconnects from a redis stream
-func ReadReplicaSSEStreamOnDisconnect(l log.Logger, topic string) func() {
+// ReadReplicaSSEStreamOnDisconnect is called whenever the read replica disconnects from a redis stream.
+// It sets the stream health to unhealthy and closes any open SDK streams so that SDKs fall back to polling.
+func ReadReplicaSSEStreamOnDisconnect(l log.Logger, topic string, streamHealth Health, pp Pushpin, streams getConnectedStreamsFn) func() {
 	return func() {
 		l.Error("read replica disconnected from stream", "stream_name", topic)
+
+		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+		defer cancel()
+
+		if err := streamHealth.SetUnhealthy(ctx); err != nil {
+			l.Error("failed to set unhealthy stream status on replica disconnect", "err", err)
+		}
+
+		for streamID := range streams() {
+			if err := pp.Close(streamID); err != nil {
+				l.Error("failed to close Proxy->SDK stream", "streamID", streamID, "err", err)
+			}
+		}
 	}
 }
