@@ -74,6 +74,7 @@ RUN apt-get update \
       libqt6core6 libqt6network6 libzmq5 \
       libsodium23 libtasn1-6 \
       ca-certificates \
+      libcurl4t64 \
  && apt-get -y autoremove \
  && apt-get clean \
  && rm -rf /var/lib/apt/lists/*
