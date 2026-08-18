@@ -1,6 +1,6 @@
 module github.com/harness/ff-proxy
 
-go 1.25.12
+go 1.26.6
 
 require (
 	cloud.google.com/go/profiler v0.3.1
