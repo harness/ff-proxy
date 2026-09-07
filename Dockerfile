@@ -75,6 +75,7 @@ RUN apt-get update \
       libsodium23 libtasn1-6 \
       ca-certificates \
       libcurl4t64 \
+      libssl3t64 openssl \
  && apt-get -y autoremove \
  && apt-get clean \
  && rm -rf /var/lib/apt/lists/*
