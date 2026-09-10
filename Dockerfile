@@ -30,7 +30,7 @@ RUN mkdir /tmp/certs && cp -r /etc/ssl/certs/* /tmp/certs
 # Adapted from https://github.com/fanout/docker-pushpin
 # Using ubuntu:24.04 LTS for better security patches and support until 2029
 ############################
-FROM ubuntu:24.04 AS pushpin-builder
+FROM harness0.harness.io/oci/docker_artifacts/rf-curated/ubuntu:24.04-curated AS pushpin-builder
 
 ARG DEBIAN_FRONTEND=noninteractive
 
@@ -61,7 +61,7 @@ RUN make RELEASE=1 PREFIX=/usr CONFIGDIR=/etc INSTALL_ROOT=/build/out install
 ############################
 # STEP 4: Create final image with pushpin and ff-proxy
 ############################
-FROM ubuntu:24.04
+FROM harness0.harness.io/oci/docker_artifacts/rf-curated/ubuntu:24.04-curated
 
 ARG DEBIAN_FRONTEND=noninteractive
 
