@@ -34,6 +34,8 @@ RUN mkdir -p /tmp/certs && cp -r /etc/ssl/certs/* /tmp/certs
 ############################
 FROM ubuntu:24.04 AS pushpin-builder
 
+RUN DEBIAN_FRONTEND=noninteractive apt-get update && apt-get upgrade -y && rm -rf /var/lib/apt/lists/*
+
 ARG DEBIAN_FRONTEND=noninteractive
 
 # Build deps only + patch OS packages in this stage
@@ -64,6 +66,8 @@ RUN make RELEASE=1 PREFIX=/usr CONFIGDIR=/etc INSTALL_ROOT=/build/out install
 # STEP 4: Create final image with pushpin and ff-proxy
 ############################
 FROM ubuntu:24.04
+
+RUN DEBIAN_FRONTEND=noninteractive apt-get update && apt-get upgrade -y && rm -rf /var/lib/apt/lists/*
 
 ARG DEBIAN_FRONTEND=noninteractive
 
