@@ -95,6 +95,7 @@ func (s Stream) Subscribe(ctx context.Context) {
 }
 
 func (s Stream) subscribe(ctx context.Context) {
+	// TODO(FFM-13187): onConnect fires before Sub(); consider Last-Event-ID or a second reloadConfig after first event
 	if s.onConnect != nil {
 		s.onConnect()
 	}

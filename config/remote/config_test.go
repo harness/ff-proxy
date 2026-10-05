@@ -8,6 +8,7 @@ import (
 	"io/ioutil"
 	"os"
 	"runtime"
+	"sync"
 	"testing"
 	"time"
 
@@ -562,6 +563,137 @@ func TestConfig_Populate(t *testing.T) {
 			assert.Equal(t, tc.expected.segmentConfig, tc.mocks.segmentRepo.config)
 		})
 	}
+}
+
+type recordingStream struct {
+	mu     sync.Mutex
+	order  *[]string
+	pubs   []interface{}
+	pubErr error
+}
+
+func (r *recordingStream) Pub(ctx context.Context, channel string, msg interface{}) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	*r.order = append(*r.order, "Publish")
+	if r.pubErr != nil {
+		return r.pubErr
+	}
+	r.pubs = append(r.pubs, msg)
+	return nil
+}
+
+func (r *recordingStream) Sub(ctx context.Context, channel string, id string, fn domain.HandleMessageFn) error {
+	return nil
+}
+
+func (r *recordingStream) Close(channel string) error {
+	return nil
+}
+
+func appendOrder(order *[]string, name string) {
+	*order = append(*order, name)
+}
+
+// TestFetchAndPopulate_PopulateBeforeNotify locks FFM-13187 Bug 2:
+// Redis/cache Populate must commit before notifySDKs publishes a patch.
+func TestFetchAndPopulate_PopulateBeforeNotify(t *testing.T) {
+	proxyConfig := []domain.ProxyConfig{
+		{
+			Environments: []domain.Environments{
+				{
+					ID:      uuid.MustParse("2fd10ce3-7ed6-466f-a768-e4df08f566b0"),
+					APIKeys: []string{"123"},
+					FeatureConfigs: []domain.FeatureFlag{
+						{Feature: "FLAG_BIFAST_ENABLED"},
+					},
+				},
+			},
+		},
+	}
+
+	notifications := []domain.SSEMessage{
+		{Event: "patch", Domain: "flag", Identifier: "FLAG_BIFAST_ENABLED", Environment: "2fd10ce3-7ed6-466f-a768-e4df08f566b0"},
+	}
+
+	cs := mockClientService{
+		authProxyKey: func() (domain.AuthenticateProxyKeyResponse, error) {
+			return domain.AuthenticateProxyKeyResponse{}, nil
+		},
+		pageProxyConfig: func() ([]domain.ProxyConfig, error) {
+			return proxyConfig, nil
+		},
+	}
+
+	newInventory := func() mockInventoryRepo {
+		return mockInventoryRepo{
+			cleanupFn: func(ctx context.Context, key string, config []domain.ProxyConfig) ([]domain.SSEMessage, error) {
+				return notifications, nil
+			},
+		}
+	}
+
+	t.Run("Populate commits before stream.Publish", func(t *testing.T) {
+		var order []string
+		rs := &recordingStream{order: &order}
+
+		flagRepo := &mockFlagRepo{
+			addFn: func(ctx context.Context, config ...domain.FlagConfig) error {
+				appendOrder(&order, "Populate")
+				return nil
+			},
+		}
+		authRepo := &mockAuthRepo{
+			add: func(ctx context.Context, config ...domain.AuthConfig) error {
+				return nil
+			},
+			addAPIConfigsForEnvironmentFn: func(ctx context.Context, envID string, apiKeys []string) error {
+				return nil
+			},
+		}
+		segmentRepo := &mockSegmentRepo{
+			add: func(ctx context.Context, config ...domain.SegmentConfig) error {
+				return nil
+			},
+		}
+
+		c := NewConfig("123", cs, stream.NewStream(log.NewNoOpLogger(), "foo", rs, domain.NoOpMessageHandler{}))
+		err := c.FetchAndPopulate(context.Background(), newInventory(), authRepo, flagRepo, segmentRepo)
+		assert.NoError(t, err)
+		assert.Equal(t, []string{"Populate", "Publish"}, order)
+		assert.Len(t, rs.pubs, 1)
+	})
+
+	t.Run("Populate error skips stream.Publish", func(t *testing.T) {
+		var order []string
+		rs := &recordingStream{order: &order}
+
+		flagRepo := &mockFlagRepo{
+			addFn: func(ctx context.Context, config ...domain.FlagConfig) error {
+				appendOrder(&order, "Populate")
+				return errors.New("redis write failed")
+			},
+		}
+		authRepo := &mockAuthRepo{
+			add: func(ctx context.Context, config ...domain.AuthConfig) error {
+				return nil
+			},
+			addAPIConfigsForEnvironmentFn: func(ctx context.Context, envID string, apiKeys []string) error {
+				return nil
+			},
+		}
+		segmentRepo := &mockSegmentRepo{
+			add: func(ctx context.Context, config ...domain.SegmentConfig) error {
+				return nil
+			},
+		}
+
+		c := NewConfig("123", cs, stream.NewStream(log.NewNoOpLogger(), "foo", rs, domain.NoOpMessageHandler{}))
+		err := c.FetchAndPopulate(context.Background(), newInventory(), authRepo, flagRepo, segmentRepo)
+		assert.Error(t, err)
+		assert.Equal(t, []string{"Populate"}, order)
+		assert.Empty(t, rs.pubs)
+	})
 }
 
 func getfile(path string) []byte {

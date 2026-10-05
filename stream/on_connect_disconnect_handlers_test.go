@@ -2,6 +2,7 @@ package stream
 
 import (
 	"context"
+	"errors"
 	"sync"
 	"testing"
 
@@ -11,9 +12,31 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+type callOrder struct {
+	mu    sync.Mutex
+	calls []string
+}
+
+func (c *callOrder) record(name string) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.calls = append(c.calls, name)
+}
+
+func (c *callOrder) snapshot() []string {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	out := make([]string, len(c.calls))
+	copy(out, c.calls)
+	return out
+}
+
 type mockHealth struct {
 	*sync.Mutex
-	healthy bool
+	healthy   bool
+	status    domain.StreamStatus
+	statusErr error
+	order     *callOrder
 }
 
 func (m *mockHealth) SetUnhealthy(ctx context.Context) error {
@@ -25,6 +48,9 @@ func (m *mockHealth) SetUnhealthy(ctx context.Context) error {
 }
 
 func (m *mockHealth) SetHealthy(ctx context.Context) error {
+	if m.order != nil {
+		m.order.record("SetHealthy")
+	}
 	m.Lock()
 	defer m.Unlock()
 	m.healthy = true
@@ -33,7 +59,7 @@ func (m *mockHealth) SetHealthy(ctx context.Context) error {
 }
 
 func (m *mockHealth) Status(ctx context.Context) (domain.StreamStatus, error) {
-	return domain.StreamStatus{}, nil
+	return m.status, m.statusErr
 }
 
 func (m *mockHealth) getHealth() bool {
@@ -44,9 +70,17 @@ func (m *mockHealth) getHealth() bool {
 
 type mockStream struct {
 	events []interface{}
+	order  *callOrder
+	pubErr error
 }
 
 func (m *mockStream) Pub(ctx context.Context, channel string, msg interface{}) error {
+	if m.order != nil {
+		m.order.record("Pub")
+	}
+	if m.pubErr != nil {
+		return m.pubErr
+	}
 	m.events = append(m.events, msg)
 	return nil
 }
@@ -189,4 +223,89 @@ func TestSaasStreamOnConnect(t *testing.T) {
 			assert.Equal(t, tc.expected.events, tc.mocks.stream.events)
 		})
 	}
+}
+
+// TestSaasStreamOnConnect_ReloadAfterHealthy locks FFM-13187 Bug 1:
+// on reconnect, /stream gates (SetHealthy + replica CONNECTED) must open
+// before reloadConfig() publishes catch-up diffs into Pushpin.
+func TestSaasStreamOnConnect_ReloadAfterHealthy(t *testing.T) {
+	connectedEvent := domain.SSEMessage{Event: "stream_action", Domain: domain.StreamStateConnected.String()}
+
+	t.Run("reconnect from DISCONNECTED opens gates before reloadConfig", func(t *testing.T) {
+		order := &callOrder{}
+		health := &mockHealth{
+			Mutex:   &sync.Mutex{},
+			healthy: false,
+			status:  domain.StreamStatus{State: domain.StreamStateDisconnected},
+			order:   order,
+		}
+		ms := &mockStream{events: []interface{}{}, order: order}
+		reloadCalled := 0
+
+		redisStream := NewStream(log.NoOpLogger{}, "foo", ms, domain.NoOpMessageHandler{})
+		ps := NewPollingStatusMetric(prometheus.NewRegistry())
+
+		SaasStreamOnConnect(log.NoOpLogger{}, health, func() error {
+			order.record("reloadConfig")
+			reloadCalled++
+			return nil
+		}, redisStream, ps)()
+
+		assert.Equal(t, []string{"SetHealthy", "Pub", "reloadConfig"}, order.snapshot())
+		assert.Equal(t, 1, reloadCalled)
+		assert.True(t, health.getHealth())
+		assert.Equal(t, []interface{}{connectedEvent}, ms.events)
+	})
+
+	t.Run("startup CONNECTED does not call reloadConfig", func(t *testing.T) {
+		order := &callOrder{}
+		health := &mockHealth{
+			Mutex:   &sync.Mutex{},
+			healthy: false,
+			status:  domain.StreamStatus{State: domain.StreamStateConnected},
+			order:   order,
+		}
+		ms := &mockStream{events: []interface{}{}, order: order}
+		reloadCalled := 0
+
+		redisStream := NewStream(log.NoOpLogger{}, "foo", ms, domain.NoOpMessageHandler{})
+		ps := NewPollingStatusMetric(prometheus.NewRegistry())
+
+		SaasStreamOnConnect(log.NoOpLogger{}, health, func() error {
+			order.record("reloadConfig")
+			reloadCalled++
+			return nil
+		}, redisStream, ps)()
+
+		assert.Equal(t, []string{"SetHealthy", "Pub"}, order.snapshot())
+		assert.Equal(t, 0, reloadCalled)
+		assert.True(t, health.getHealth())
+		assert.Equal(t, []interface{}{connectedEvent}, ms.events)
+	})
+
+	t.Run("replica Pub failure still reloads config after SetHealthy", func(t *testing.T) {
+		order := &callOrder{}
+		health := &mockHealth{
+			Mutex:   &sync.Mutex{},
+			healthy: false,
+			status:  domain.StreamStatus{State: domain.StreamStateDisconnected},
+			order:   order,
+		}
+		ms := &mockStream{events: []interface{}{}, order: order, pubErr: errors.New("redis down")}
+		reloadCalled := 0
+
+		redisStream := NewStream(log.NoOpLogger{}, "foo", ms, domain.NoOpMessageHandler{})
+		ps := NewPollingStatusMetric(prometheus.NewRegistry())
+
+		SaasStreamOnConnect(log.NoOpLogger{}, health, func() error {
+			order.record("reloadConfig")
+			reloadCalled++
+			return nil
+		}, redisStream, ps)()
+
+		assert.Equal(t, []string{"SetHealthy", "Pub", "reloadConfig"}, order.snapshot())
+		assert.Equal(t, 1, reloadCalled)
+		assert.True(t, health.getHealth())
+		assert.Empty(t, ms.events)
+	})
 }

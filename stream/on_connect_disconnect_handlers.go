@@ -80,40 +80,35 @@ func SaasStreamOnConnect(l log.Logger, streamHealth Health, reloadConfig func() 
 			l.Error("SaasOnConnectHandler failed to get stream state from cache", "err", err)
 		}
 
-		// If the previous streamStatus was "DISCONNECT" and we've successfully reconnected we should
-		// do one final poll in case we missed any changes made between the last poll and reconnecting
-		if status.State == domain.StreamStateDisconnected {
-			l.Info("SaasOnConnectHandler polling for config changes")
-
-			if err := reloadConfig(); err != nil {
-				l.Error("SaasOnConnectHandler failed to poll for changes", "err", err)
-			}
-			l.Info("SaasOnConnectHandler successfully polled for config changes")
-		}
-
-		// Reset context timeout for the SetHealthy call
-		ctx, cancel = context.WithTimeout(context.Background(), 15*time.Second)
-		defer cancel()
-
+		// Open /stream gates before catch-up reload so SDK clients can re-attach
+		// before notifySDKs publishes the missed patch (FFM-13187).
 		l.Info("connected to Harness SaaS SSE Stream")
 		pollingStatus.NotPolling()
 		if err := streamHealth.SetHealthy(ctx); err != nil {
 			l.Error("failed to update SaaS stream status in cache", "err", err)
 		}
 
-		// Reset context timeout for the publishing to the stream
 		ctx, cancel = context.WithTimeout(context.Background(), 15*time.Second)
 		defer cancel()
 
-		// Publish an event to the redis stream that the read replica proxy's are listening on to let them
-		// know we've connected to SaaS.
 		l.Info("publishing stream connected message for replicas")
 		if err := redisSSEStream.Publish(ctx, domain.SSEMessage{Event: "stream_action", Domain: domain.StreamStateConnected.String()}); err != nil {
 			l.Error("failed to publish stream connect message to redis", "err", err)
-			return
+			// continue — primary /stream gate is already open
+		} else {
+			l.Info("successfully published stream connected message for replicas")
 		}
 
-		l.Info("successfully published stream connected message for replicas")
+		// If the previous streamStatus was "DISCONNECT" and we've successfully reconnected we should
+		// do one final poll in case we missed any changes made between the last poll and reconnecting
+		if status.State == domain.StreamStateDisconnected {
+			l.Info("SaasOnConnectHandler polling for config changes")
+			if err := reloadConfig(); err != nil {
+				l.Error("SaasOnConnectHandler failed to poll for changes", "err", err)
+			} else {
+				l.Info("SaasOnConnectHandler successfully polled for config changes")
+			}
+		}
 	}
 }
 

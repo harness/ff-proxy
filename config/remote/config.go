@@ -109,20 +109,20 @@ func (c *Config) FetchAndPopulate(ctx context.Context, inventory domain.Inventor
 	// get the accountID from the auth token
 	c.accountID, _ = parseAuthToken(authResp.Token)
 
-	// TODO we probably should defer that
 	// compare new and old config assets and delete difference.
 	notificationsToSend, err := inventory.Cleanup(ctx, c.key, proxyConfig)
 	if err != nil {
 		return err
 	}
 
-	err = c.notifySDKs(ctx, notificationsToSend)
-	if err != nil {
+	// Commit cache before notifying SDKs so a patch-triggered GET cannot
+	// read stale Redis/config (FFM-13187). If Populate fails, skip notify.
+	c.proxyConfig = proxyConfig
+	if err := c.Populate(ctx, authRepo, flagRepo, segmentRepo); err != nil {
 		return err
 	}
 
-	c.proxyConfig = proxyConfig
-	return c.Populate(ctx, authRepo, flagRepo, segmentRepo)
+	return c.notifySDKs(ctx, notificationsToSend)
 }
 
 func (c *Config) notifySDKs(ctx context.Context, notificationsToSend []domain.SSEMessage) error {
