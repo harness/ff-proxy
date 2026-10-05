@@ -32,13 +32,14 @@ func (s *safeString) Get() string {
 
 // Config is the type that fetches config from Harness SaaS
 type Config struct {
-	key               string
-	token             *safeString
-	clusterIdentifier string
-	proxyConfig       []domain.ProxyConfig
-	ClientService     domain.ClientService
-	stream            stream.Stream
-	accountID         string
+	key                  string
+	token                *safeString
+	clusterIdentifier    string
+	proxyConfig          []domain.ProxyConfig
+	ClientService        domain.ClientService
+	stream               stream.Stream
+	accountID            string
+	pendingNotifications []domain.SSEMessage
 }
 
 // NewConfig creates a new Config
@@ -115,14 +116,25 @@ func (c *Config) FetchAndPopulate(ctx context.Context, inventory domain.Inventor
 		return err
 	}
 
+	// Hold notifications until Populate succeeds. Cleanup already advanced
+	// inventory, so a later retry diffs clean and would otherwise drop them
+	// (FFM-13187).
+	c.pendingNotifications = append(c.pendingNotifications, notificationsToSend...)
+
 	// Commit cache before notifying SDKs so a patch-triggered GET cannot
-	// read stale Redis/config (FFM-13187). If Populate fails, skip notify.
+	// read stale Redis/config (FFM-13187). If Populate fails, skip notify
+	// but keep pendingNotifications for the next reload.
 	c.proxyConfig = proxyConfig
 	if err := c.Populate(ctx, authRepo, flagRepo, segmentRepo); err != nil {
 		return err
 	}
 
-	return c.notifySDKs(ctx, notificationsToSend)
+	toSend := c.pendingNotifications
+	if err := c.notifySDKs(ctx, toSend); err != nil {
+		return err
+	}
+	c.pendingNotifications = nil
+	return nil
 }
 
 func (c *Config) notifySDKs(ctx context.Context, notificationsToSend []domain.SSEMessage) error {

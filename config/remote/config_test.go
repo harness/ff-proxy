@@ -693,6 +693,62 @@ func TestFetchAndPopulate_PopulateBeforeNotify(t *testing.T) {
 		assert.Error(t, err)
 		assert.Equal(t, []string{"Populate"}, order)
 		assert.Empty(t, rs.pubs)
+		assert.Equal(t, notifications, c.pendingNotifications)
+	})
+
+	t.Run("Populate retry emits pending notifications after Cleanup diffs clean", func(t *testing.T) {
+		var order []string
+		rs := &recordingStream{order: &order}
+
+		populateCalls := 0
+		flagRepo := &mockFlagRepo{
+			addFn: func(ctx context.Context, config ...domain.FlagConfig) error {
+				appendOrder(&order, "Populate")
+				populateCalls++
+				if populateCalls == 1 {
+					return errors.New("redis write failed")
+				}
+				return nil
+			},
+		}
+		authRepo := &mockAuthRepo{
+			add: func(ctx context.Context, config ...domain.AuthConfig) error {
+				return nil
+			},
+			addAPIConfigsForEnvironmentFn: func(ctx context.Context, envID string, apiKeys []string) error {
+				return nil
+			},
+		}
+		segmentRepo := &mockSegmentRepo{
+			add: func(ctx context.Context, config ...domain.SegmentConfig) error {
+				return nil
+			},
+		}
+
+		cleanupCalls := 0
+		inventory := mockInventoryRepo{
+			cleanupFn: func(ctx context.Context, key string, config []domain.ProxyConfig) ([]domain.SSEMessage, error) {
+				cleanupCalls++
+				if cleanupCalls == 1 {
+					return notifications, nil
+				}
+				// Inventory already advanced on the first Cleanup; retry diffs clean.
+				return []domain.SSEMessage{}, nil
+			},
+		}
+
+		c := NewConfig("123", cs, stream.NewStream(log.NewNoOpLogger(), "foo", rs, domain.NoOpMessageHandler{}))
+
+		err := c.FetchAndPopulate(context.Background(), inventory, authRepo, flagRepo, segmentRepo)
+		assert.Error(t, err)
+		assert.Equal(t, notifications, c.pendingNotifications)
+		assert.Empty(t, rs.pubs)
+
+		err = c.FetchAndPopulate(context.Background(), inventory, authRepo, flagRepo, segmentRepo)
+		assert.NoError(t, err)
+		assert.Equal(t, []string{"Populate", "Populate", "Publish"}, order)
+		assert.Len(t, rs.pubs, 1)
+		assert.Nil(t, c.pendingNotifications)
 	})
 }
 
