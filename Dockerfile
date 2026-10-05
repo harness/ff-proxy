@@ -80,6 +80,7 @@ RUN apt-get update \
       ca-certificates \
       libcurl4t64 \
       libssl3t64 openssl \
+      libc-bin libc6 perl-base libglib2.0-0t64 libxml2 \
  && apt-get -y autoremove \
  && apt-get clean \
  && rm -rf /var/lib/apt/lists/*
