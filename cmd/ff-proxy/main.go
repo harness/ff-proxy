@@ -390,12 +390,18 @@ func init() {
 		redisTLSInsecureSkipVerifyEnv: redisTLSInsecureSkipVerifyFlag,
 		redisTLSServerNameEnv:         redisTLSServerNameFlag,
 	})
+}
 
+func parseFlags() {
 	flag.Parse()
+
+	// Normalize once before validation, authentication, and SSE consume the key.
+	proxyKey = strings.TrimSpace(proxyKey)
 }
 
 //nolint:gocognit,cyclop,maintidx,gocyclo
 func main() {
+	parseFlags()
 
 	// Setup logger
 	logger, err := log.NewStructuredLogger(logLevel)
