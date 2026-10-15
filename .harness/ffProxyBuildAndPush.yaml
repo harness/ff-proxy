@@ -58,8 +58,8 @@ pipeline:
                         name: BuildAndPushDockerRegistry_1
                         identifier: BuildAndPushDockerRegistry_1
                         spec:
-                          connectorRef: dockerhubharnessdev
-                          repo: harnessdev/ff-proxy
+                          registryRef: account.docker_artifacts
+                          repo: harness/ff-proxy
                           tags:
                             - <+codebase.branch>
                           baseImageConnectorRefs:
