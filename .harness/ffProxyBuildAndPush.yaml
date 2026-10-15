@@ -65,18 +65,26 @@ pipeline:
                           baseImageConnectorRefs:
                             - org.garSetupRO
                           envVariables:
-                            PLUGIN_NO_PUSH: "true"
                             PLUGIN_BUILDX_LOAD: "true"
                     - step:
                         type: Run
-                        name: probeLocalImage
-                        identifier: probeLocalImage
+                        name: pushToDockerHub
+                        identifier: pushToDockerHub
                         spec:
                           shell: Bash
+                          envVariables:
+                            DH_USER: harnessdev
+                            DH_PASS: <+secrets.getValue("org.dockerharnessdevpwd")>
+                            SRC_IMAGE: harness0.harness.io/oci/docker_artifacts/harness/ff-proxy:<+codebase.branch>
+                            DEST_IMAGE: harnessdev/ff-proxy:<+codebase.branch>
                           command: |-
-                            echo "=== PROBE: is the built image visible in the local docker daemon? ==="
-                            docker images
-                            echo "=== PROBE END ==="
+                            set -e
+                            echo "=== COPY: local image -> Docker Hub ==="
+                            docker images --format '{{.Repository}}:{{.Tag}} {{.ID}}' | grep ff-proxy || true
+                            echo "$DH_PASS" | docker login docker.io -u "$DH_USER" --password-stdin
+                            docker tag "$SRC_IMAGE" "$DEST_IMAGE"
+                            docker push "$DEST_IMAGE"
+                            echo "=== COPY END ==="
                   when:
                     stageStatus: Success
                     condition: <+codebase.tag>==null
