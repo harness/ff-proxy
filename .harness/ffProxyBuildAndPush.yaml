@@ -27,25 +27,38 @@ pipeline:
                   name: buildTag
                   identifier: buildTag
                   steps:
-                    - parallel:
-                        - step:
-                            type: BuildAndPushDockerRegistry
-                            name: BuildAndPushDockerRegistry_1
-                            identifier: BuildAndPushDockerRegistry_1
-                            spec:
-                              connectorRef: harnesscie
-                              repo: harness/ff-proxy
-                              tags:
-                                - <+codebase.tag>
-                        - step:
-                            type: BuildAndPushDockerRegistry
-                            name: BuildAndPushDockerRegistry_2
-                            identifier: BuildAndPushDockerRegistry_2
-                            spec:
-                              repo: harness/ff-proxy
-                              tags:
-                                - <+codebase.tag>
-                              registryRef: account.docker_artifacts
+                    - step:
+                        type: BuildAndPushDockerRegistry
+                        name: BuildAndPushDockerRegistry_2
+                        identifier: BuildAndPushDockerRegistry_2
+                        spec:
+                          registryRef: account.docker_artifacts
+                          repo: harness/ff-proxy
+                          tags:
+                            - <+codebase.tag>
+                          baseImageConnectorRefs:
+                            - org.garSetupRO
+                          envVariables:
+                            PLUGIN_BUILDX_LOAD: "true"
+                    - step:
+                        type: Run
+                        name: pushToDockerHub
+                        identifier: pushToDockerHubTag
+                        spec:
+                          shell: Bash
+                          envVariables:
+                            DH_USER: harnesscie
+                            DH_PASS: <+secrets.getValue("dockerHarnessCiePatRw")>
+                            SRC_IMAGE: harness0.harness.io/oci/docker_artifacts/harness/ff-proxy:<+codebase.tag>
+                            DEST_IMAGE: harness/ff-proxy:<+codebase.tag>
+                          command: |-
+                            set -e
+                            echo "=== COPY: local image -> Docker Hub (tag release) ==="
+                            docker images --format '{{.Repository}}:{{.Tag}} {{.ID}}' | grep ff-proxy || true
+                            echo "$DH_PASS" | docker login docker.io -u "$DH_USER" --password-stdin
+                            docker tag "$SRC_IMAGE" "$DEST_IMAGE"
+                            docker push "$DEST_IMAGE"
+                            echo "=== COPY END ==="
                   when:
                     stageStatus: Success
                     condition: <+codebase.tag>!=null
