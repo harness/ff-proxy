@@ -62,6 +62,8 @@ pipeline:
                           repo: harnessdev/ff-proxy
                           tags:
                             - <+codebase.branch>
+                          baseImageConnectorRefs:
+                            - org.garSetupRO
                   when:
                     stageStatus: Success
                     condition: <+codebase.tag>==null
