@@ -58,13 +58,25 @@ pipeline:
                         name: BuildAndPushDockerRegistry_1
                         identifier: BuildAndPushDockerRegistry_1
                         spec:
-                          connectorRef: dockerhubharnessdev
-                          repo: harnessdev/ff-proxy
+                          registryRef: account.docker_artifacts
+                          repo: harness/ff-proxy
                           tags:
                             - <+codebase.branch>
-                          registryRef: account.docker_artifacts
                           baseImageConnectorRefs:
                             - org.garSetupRO
+                          envVariables:
+                            PLUGIN_NO_PUSH: "true"
+                            PLUGIN_BUILDX_LOAD: "true"
+                    - step:
+                        type: Run
+                        name: probeLocalImage
+                        identifier: probeLocalImage
+                        spec:
+                          shell: Bash
+                          command: |-
+                            echo "=== PROBE: is the built image visible in the local docker daemon? ==="
+                            docker images
+                            echo "=== PROBE END ==="
                   when:
                     stageStatus: Success
                     condition: <+codebase.tag>==null
