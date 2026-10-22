@@ -178,4 +178,4 @@ Features that are in beta and need to be manually enabled
 
 | Environment Variable | Flag                 | Description                                                                                                                                           | Type    | Default |
 |----------------------|----------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------|---------|---------|
-| AND_RULES            | and-rules            | Enables support for AND rules feature. Note this also requires the FFM_11173_TARGET_GROUP_AND_OPERATOR to be enabled for your account on Harness SaaS | boolean | false   |
+| AND_RULES            | and-rules            | Enables support for AND rules feature. Note this also requires the FFM_11173_TARGET_GROUP_AND_OPERATOR to be enabled for your account on Harness SaaS | boolean | true    |

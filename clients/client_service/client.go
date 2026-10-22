@@ -302,11 +302,12 @@ func (c Client) GetFeatureConfigByIdentifier(ctx context.Context, input domain.G
 }
 
 func (c Client) GetSegmentByIdentifier(ctx context.Context, input domain.GetSegmentByIdentifierInput) (clientgen.Segment, error) {
+	rulesV2 := clientgen.SegmentRulesV2QueryParam("v2")
 	resp, err := c.client.GetSegmentByIdentifierWithResponse(
 		ctx,
 		input.EnvID,
 		input.Identifier,
-		&clientgen.GetSegmentByIdentifierParams{Cluster: &input.Cluster},
+		&clientgen.GetSegmentByIdentifierParams{Cluster: &input.Cluster, Rules: &rulesV2},
 		addAuthToken(input.AuthToken),
 		domain.AddHarnessXHeaders(input.EnvID),
 	)

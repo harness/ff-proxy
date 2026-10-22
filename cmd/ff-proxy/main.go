@@ -334,7 +334,7 @@ func init() {
 	flag.IntVar(&metricsStreamReadConcurrency, metricStreamReadConcurrencyFlag, 10, "Controls the number of threads running in the Primary that listen for metrics data being sent by replicas")
 
 	// Beta features - will be short-lived and then become default behaviour in future releases
-	flag.BoolVar(&andRules, andRulesFlag, false, "if true the proxy will enable the AND rule functionality for target groups")
+	flag.BoolVar(&andRules, andRulesFlag, true, "if true the proxy will enable the AND rule functionality for target groups")
 
 	loadFlagsFromEnv(map[string]string{
 		bypassAuthEnv:                   bypassAuthFlag,
