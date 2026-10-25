@@ -1,7 +1,11 @@
 ############################
 # STEP 1: Build executable binary
 ############################
-FROM golang:1.26.6 AS builder
+FROM harness0.harness.io/oci/docker_artifacts/rf-curated/golang:1.26.10-alpine3.24-curated AS builder
+
+# Curated alpine image runs as a non-root user and lacks make/git, which the Makefile needs
+USER root
+RUN apk add --no-cache make git
 
 WORKDIR /app
 
