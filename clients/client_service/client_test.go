@@ -32,9 +32,12 @@ type mockService struct {
 
 	getFeatureConfigIdentifier func() (*clientgen.GetFeatureConfigByIdentifierResponse, error)
 	getSegmentIdentifier       func() (*clientgen.GetSegmentByIdentifierResponse, error)
+
+	getSegmentIdentifierParams *clientgen.GetSegmentByIdentifierParams
 }
 
 func (m *mockService) GetSegmentByIdentifierWithResponse(ctx context.Context, envID string, identifier string, params *clientgen.GetSegmentByIdentifierParams, reqEditor ...clientgen.RequestEditorFn) (*clientgen.GetSegmentByIdentifierResponse, error) {
+	m.getSegmentIdentifierParams = params
 	return m.getSegmentIdentifier()
 }
 
@@ -882,5 +885,36 @@ func TestClient_GetSegmentsByIdentifier(t *testing.T) {
 
 			assert.Equal(t, tc.expected.segment, actual)
 		})
+	}
+}
+
+
+// TestClient_GetSegmentByIdentifier_RequestsRulesV2 makes sure that segments fetched
+// individually (e.g. after a segment patch event) include servingRules, the same as
+// segments fetched in bulk by FetchSegmentConfigForEnvironment.
+func TestClient_GetSegmentByIdentifier_RequestsRulesV2(t *testing.T) {
+	m := &mockService{
+		getSegmentIdentifier: func() (*clientgen.GetSegmentByIdentifierResponse, error) {
+			return &clientgen.GetSegmentByIdentifierResponse{
+				HTTPResponse: &http.Response{StatusCode: http.StatusOK},
+				JSON200:      &clientgen.Segment{Identifier: "Foobar"},
+			}, nil
+		},
+	}
+	c := Client{client: m}
+
+	_, err := c.GetSegmentByIdentifier(context.Background(), domain.GetSegmentByIdentifierInput{
+		AuthToken:  "foo",
+		EnvID:      "123",
+		Identifier: "Foobar",
+		Cluster:    "2",
+	})
+	assert.Nil(t, err)
+
+	if assert.NotNil(t, m.getSegmentIdentifierParams) && assert.NotNil(t, m.getSegmentIdentifierParams.Rules) {
+		assert.Equal(t, clientgen.SegmentRulesV2QueryParam("v2"), *m.getSegmentIdentifierParams.Rules)
+	}
+	if assert.NotNil(t, m.getSegmentIdentifierParams.Cluster) {
+		assert.Equal(t, "2", *m.getSegmentIdentifierParams.Cluster)
 	}
 }
