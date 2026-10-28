@@ -1,7 +1,7 @@
 ############################
 # STEP 1: Build executable binary
 ############################
-FROM harness0.harness.io/oci/docker_artifacts/rf-curated/golang:1.26.10-alpine3.24-curated AS builder
+FROM harness0.harness.io/oci/docker_artifacts/hhi/go:1.27.3-dev AS builder
 
 # The curated base runs as a non-root user and ships without make/git
 USER root
