@@ -32,20 +32,14 @@ RUN mkdir /tmp/certs && cp -r /etc/ssl/certs/* /tmp/certs
 ############################
 # STEP 3: Build pushpin from source (matching fanout/pushpin:1.41.0)
 # Adapted from https://github.com/fanout/docker-pushpin
-# Using ubuntu:24.04 LTS for better security patches and support until 2029
+# Built on HarnessOS (glibc, apk)
 ############################
-FROM harness0.harness.io/oci/docker_artifacts/rf-curated/ubuntu:24.04-curated AS pushpin-builder
+FROM harness0.harness.io/oci/docker_artifacts/hhi/harnessos-alpine:1 AS pushpin-builder
 
-ARG DEBIAN_FRONTEND=noninteractive
-
-# Build deps only + patch OS packages in this stage
-RUN apt-get update \
- && apt-get -y upgrade \
- && apt-get install -y --no-install-recommends \
-      bzip2 pkg-config make g++ rustc cargo \
-      libssl-dev qt6-base-dev libzmq3-dev libboost-dev \
- && apt-get clean \
- && rm -rf /var/lib/apt/lists/*
+# HarnessOS: apk equivalents of the ubuntu build deps (build-base for make/g++, rust-1.97 for rustc/cargo).
+RUN apk add --no-cache bzip2 pkgconf build-base rust-1.97 openssl-dev qt6-qtbase-dev zeromq-dev boost-dev
+# HarnessOS installs qmake under /usr/lib/qt6/bin, which is not on PATH; pushpin's build looks it up there.
+ENV PATH="/usr/lib/qt6/bin:${PATH}"
 
 WORKDIR /build
 
@@ -65,20 +59,11 @@ RUN make RELEASE=1 PREFIX=/usr CONFIGDIR=/etc INSTALL_ROOT=/build/out install
 ############################
 # STEP 4: Create final image with pushpin and ff-proxy
 ############################
-FROM harness0.harness.io/oci/docker_artifacts/rf-curated/ubuntu:24.04-curated
+FROM harness0.harness.io/oci/docker_artifacts/hhi/harnessos-alpine:1
 
-ARG DEBIAN_FRONTEND=noninteractive
-
-# Patch OS packages (most reliable for passing scans)
-RUN apt-get update \
- && apt-get -y upgrade \
- && apt-get install -y --no-install-recommends \
-      libqt6core6 libqt6network6 libzmq5 \
-      libsodium23 libtasn1-6 \
-      ca-certificates \
- && apt-get -y autoremove \
- && apt-get clean \
- && rm -rf /var/lib/apt/lists/*
+# HarnessOS: apk equivalents of the ubuntu runtime libraries. bash and procps (pkill -P) are used by
+# docker-entrypoint.sh and start.sh and shipped with ubuntu.
+RUN apk add --no-cache qt6-qtbase zeromq libsodium libtasn1 ca-certificates bash procps
 
 # Copy pushpin from builder (matching original base image)
 COPY --from=pushpin-builder /build/out/ /
