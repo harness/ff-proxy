@@ -5,8 +5,10 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"net/http/httptest"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/harness/ff-proxy/v2/log"
 	"github.com/prometheus/client_golang/prometheus"
@@ -917,4 +919,21 @@ func TestClient_GetSegmentByIdentifier_RequestsRulesV2(t *testing.T) {
 	if assert.NotNil(t, m.getSegmentIdentifierParams.Cluster) {
 		assert.Equal(t, "2", *m.getSegmentIdentifierParams.Cluster)
 	}
+}
+
+func TestNewClient_HTTPClientHasTimeout(t *testing.T) {
+	assert.Equal(t, 60*time.Second, httpClientTimeout)
+
+	release := make(chan struct{})
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { <-release }))
+	defer srv.Close()
+	defer close(release)
+
+	c, err := clientgen.NewClientWithResponses(srv.URL, clientgen.WithHTTPClient(&http.Client{Timeout: 50 * time.Millisecond}))
+	assert.NoError(t, err)
+
+	start := time.Now()
+	_, err = c.AuthenticateWithResponse(context.Background(), clientgen.AuthenticateJSONRequestBody{})
+	assert.Error(t, err)
+	assert.Less(t, time.Since(start), 2*time.Second)
 }

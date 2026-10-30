@@ -1161,3 +1161,41 @@ func TestRefresher_RetryQueueOnRetryableError(t *testing.T) {
 		assert.NotNil(t, err, "non-retryable error should be returned")
 	})
 }
+
+func TestRefresher_fetchTimeout(t *testing.T) {
+	old := fetchTimeout
+	fetchTimeout = 50 * time.Millisecond
+	defer func() { fetchTimeout = old }()
+
+	blockUntilDone := func(ctx context.Context) error {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-time.After(5 * time.Second):
+			return errors.New("context deadline was not applied")
+		}
+	}
+
+	cs := mockClientService{
+		getFeatureConfigByIdentifier: func(ctx context.Context, input domain.GetFeatureConfigsByIdentifierInput) (clientgen.FeatureConfig, error) {
+			return clientgen.FeatureConfig{}, blockUntilDone(ctx)
+		},
+		getSegmentByIdentifier: func(ctx context.Context, input domain.GetSegmentByIdentifierInput) (clientgen.Segment, error) {
+			return clientgen.Segment{}, blockUntilDone(ctx)
+		},
+	}
+	// RefreshToken is expected to fail on the zero mockConfig, so the retry path returns promptly.
+	r := NewRefresher(log.NewNoOpLogger(), mockConfig{refreshToken: func() (string, error) { return "", errors.New("refresh failed") }}, cs, mockInventoryRepo{}, mockAuthRepo{}, mockFlagRepo{}, mockSegmentRepo{}, nil)
+
+	for name, fn := range map[string]func() error{
+		"feature": func() error { return r.handleFetchFeatureEvent(context.Background(), "env", "flag") },
+		"segment": func() error { return r.handleFetchSegmentEvent(context.Background(), "env", "seg") },
+	} {
+		t.Run(name, func(t *testing.T) {
+			start := time.Now()
+			err := fn()
+			assert.Error(t, err)
+			assert.Less(t, time.Since(start), 2*time.Second)
+		})
+	}
+}

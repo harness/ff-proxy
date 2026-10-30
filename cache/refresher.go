@@ -5,10 +5,14 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/harness/ff-proxy/v2/domain"
 	"github.com/harness/ff-proxy/v2/log"
 )
+
+// fetchTimeout bounds each per-event fetch to Harness SaaS so a hung request can't block the SSE event loop.
+var fetchTimeout = 30 * time.Second
 
 var (
 	// ErrUnexpectedMessageDomain is the error returned when an SSE message has a message domain we aren't expecting
@@ -380,8 +384,12 @@ func (s Refresher) handleRemoveAPIKeyEvent(ctx context.Context, env, apiKey stri
 func (s Refresher) handleFetchFeatureEvent(ctx context.Context, env, identifier string) error {
 	s.log.Debug("updating featureConfig entry", "environment", env, "identifier", identifier)
 
+	fetchCtx, cancel := context.WithTimeout(ctx, fetchTimeout)
+	defer cancel()
+
 	// Make a request to Harness Saas to fetch the updated featureConfig
-	fc, err := s.clientService.GetFeatureConfigByIdentifier(ctx, domain.GetFeatureConfigsByIdentifierInput{
+	s.log.Info("fetching feature config", "environment", env, "identifier", identifier)
+	fc, err := s.clientService.GetFeatureConfigByIdentifier(fetchCtx, domain.GetFeatureConfigsByIdentifierInput{
 		AuthToken:  s.config.Token(),
 		Cluster:    s.config.ClusterIdentifier(),
 		EnvID:      env,
@@ -394,7 +402,7 @@ func (s Refresher) handleFetchFeatureEvent(ctx context.Context, env, identifier 
 			return fmt.Errorf("failed to refresh auth token: %s", refreshErr)
 		}
 
-		fc, err = s.clientService.GetFeatureConfigByIdentifier(ctx, domain.GetFeatureConfigsByIdentifierInput{
+		fc, err = s.clientService.GetFeatureConfigByIdentifier(fetchCtx, domain.GetFeatureConfigsByIdentifierInput{
 			AuthToken:  authToken,
 			Cluster:    s.config.ClusterIdentifier(),
 			EnvID:      env,
@@ -518,7 +526,11 @@ func (s Refresher) updateFeatureConfigsEntry(ctx context.Context, env string, id
 func (s Refresher) handleFetchSegmentEvent(ctx context.Context, env, identifier string) error {
 	s.log.Debug("updating segment entry", "environment", env, "identifier", identifier)
 
-	sc, err := s.clientService.GetSegmentByIdentifier(ctx, domain.GetSegmentByIdentifierInput{
+	fetchCtx, cancel := context.WithTimeout(ctx, fetchTimeout)
+	defer cancel()
+
+	s.log.Info("fetching segment", "environment", env, "identifier", identifier)
+	sc, err := s.clientService.GetSegmentByIdentifier(fetchCtx, domain.GetSegmentByIdentifierInput{
 		AuthToken:  s.config.Token(),
 		Cluster:    s.config.ClusterIdentifier(),
 		EnvID:      env,
@@ -531,7 +543,7 @@ func (s Refresher) handleFetchSegmentEvent(ctx context.Context, env, identifier 
 			return fmt.Errorf("failed to refresh auth token: %s", refreshErr)
 		}
 
-		sc, err = s.clientService.GetSegmentByIdentifier(ctx, domain.GetSegmentByIdentifierInput{
+		sc, err = s.clientService.GetSegmentByIdentifier(fetchCtx, domain.GetSegmentByIdentifierInput{
 			AuthToken:  authToken,
 			Cluster:    s.config.ClusterIdentifier(),
 			EnvID:      env,

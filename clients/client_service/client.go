@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/golang-jwt/jwt/v4"
 	jsoniter "github.com/json-iterator/go"
@@ -56,10 +57,13 @@ type Client struct {
 }
 
 // NewClient creates a Client
+// httpClientTimeout is a backstop that is longer than the per-request context deadlines used by callers.
+const httpClientTimeout = 60 * time.Second
+
 func NewClient(l log.Logger, addr string, reg *prometheus.Registry) (Client, error) {
 	l = l.With("component", "ClientServiceClient")
 
-	client, err := clientgen.NewClientWithResponses(addr)
+	client, err := clientgen.NewClientWithResponses(addr, clientgen.WithHTTPClient(&http.Client{Timeout: httpClientTimeout}))
 	if err != nil {
 		return Client{}, err
 	}
