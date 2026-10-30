@@ -80,26 +80,27 @@ func (s Stream) Publish(ctx context.Context, msg interface{}) (err error) {
 }
 
 // Subscribe connects to the stream and registers a handler to handle events coming off the stream.
-// If the stream disconnects backoff and attempt to subscribe again.
+// If the stream disconnects backoff and attempt to subscribe again, resuming from the last message received.
 func (s Stream) Subscribe(ctx context.Context) {
 	go func() {
+		msgID := ""
 		for {
 			select {
 			case <-ctx.Done():
 				return
 			default:
-				s.subscribe(ctx)
+				msgID = s.subscribe(ctx, msgID)
 			}
 		}
 	}()
 }
 
-func (s Stream) subscribe(ctx context.Context) {
+// subscribe subscribes to the stream starting after msgID and returns the ID of the last message received
+func (s Stream) subscribe(ctx context.Context, msgID string) string {
 	if s.onConnect != nil {
 		s.onConnect()
 	}
 
-	msgID := ""
 	err := s.stream.Sub(ctx, s.topic, msgID, func(id string, v interface{}) (err error) {
 		msg, err := parseMessage(v)
 		if err != nil {
@@ -112,7 +113,7 @@ func (s Stream) subscribe(ctx context.Context) {
 	})
 	if err != nil {
 		if errors.Is(err, context.Canceled) {
-			return
+			return msgID
 		}
 	}
 
@@ -123,6 +124,7 @@ func (s Stream) subscribe(ctx context.Context) {
 	backoffDuration := s.backoff.NextBackOff()
 	s.log.Warn("disconnected from stream, backing off and retrying", "backoff_duration", backoffDuration, "err", err, "msgID", msgID)
 	time.Sleep(backoffDuration)
+	return msgID
 }
 
 // This logic should maybe move to be inside the specific messageHandler implementations, that way we could

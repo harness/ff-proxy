@@ -3,6 +3,8 @@ package stream
 import (
 	"context"
 	"errors"
+	"fmt"
+	"io"
 	"testing"
 	"time"
 
@@ -32,6 +34,33 @@ func (m *mockSubscriber) Sub(ctx context.Context, channel string, id string, fn 
 }
 
 func (m *mockSubscriber) Pub(ctx context.Context, channel string, msg interface{}) error { return nil }
+
+// resumingSubscriber delivers one message per Sub call with an incrementing ID, then disconnects,
+// and records the ID that each Sub call was asked to start from
+type resumingSubscriber struct {
+	calls   int
+	fromIDs chan string
+}
+
+func (r *resumingSubscriber) Close(channel string) error { return nil }
+
+func (r *resumingSubscriber) Sub(ctx context.Context, channel string, id string, fn domain.HandleMessageFn) error {
+	r.calls++
+	select {
+	case r.fromIDs <- id:
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+
+	if err := fn(fmt.Sprintf("%d-0", r.calls), &sse.Event{Data: []byte(`{}`)}); err != nil {
+		return err
+	}
+	return io.EOF
+}
+
+func (r *resumingSubscriber) Pub(ctx context.Context, channel string, msg interface{}) error {
+	return nil
+}
 
 type mockMsgHandler struct {
 	msg chan struct{}
@@ -186,4 +215,35 @@ func TestStream_Subscribe(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestStream_Subscribe_ResumesFromLastMessageIDAfterDisconnect(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	subscriber := &resumingSubscriber{fromIDs: make(chan string)}
+	handler := &mockMsgHandler{msg: make(chan struct{}, 10)}
+
+	p := NewStream(
+		log.NewNoOpLogger(),
+		"foo",
+		subscriber,
+		handler,
+		WithBackoff(backoff.NewConstantBackOff(1*time.Millisecond)),
+	)
+	p.Subscribe(ctx)
+
+	expected := []string{"", "1-0", "2-0"}
+	actual := make([]string, 0, len(expected))
+	for len(actual) < len(expected) {
+		select {
+		case <-ctx.Done():
+			t.Fatal("timed out waiting for subscriber to resubscribe")
+		case id := <-subscriber.fromIDs:
+			actual = append(actual, id)
+		}
+	}
+	cancel()
+
+	assert.Equal(t, expected, actual)
 }
