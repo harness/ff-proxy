@@ -49,7 +49,8 @@ func (h *retryHeap) Pop() any {
 
 // RetryQueue is an in-memory priority queue that retries failed SSE event
 // handler calls with exponential backoff. It is used to handle transient
-// errors caused by database replica lag (400/404 from SaaS API).
+// errors such as database replica lag (400/404 from SaaS API) and 5xx or
+// transport errors from SaaS API.
 type RetryQueue struct {
 	log          log.Logger
 	mu           sync.Mutex
