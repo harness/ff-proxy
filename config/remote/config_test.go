@@ -127,6 +127,7 @@ func (m *mockAuthRepo) Add(ctx context.Context, config ...domain.AuthConfig) err
 
 type mockSubscriber struct {
 	sub func() (interface{}, error)
+	pub func(msg interface{})
 }
 
 func (m *mockSubscriber) Close(channel string) error {
@@ -142,7 +143,12 @@ func (m *mockSubscriber) Sub(ctx context.Context, channel string, id string, fn 
 	return fn("", v)
 }
 
-func (m *mockSubscriber) Pub(ctx context.Context, channel string, msg interface{}) error { return nil }
+func (m *mockSubscriber) Pub(ctx context.Context, channel string, msg interface{}) error {
+	if m != nil && m.pub != nil {
+		m.pub(msg)
+	}
+	return nil
+}
 
 type mockMsgHandler struct {
 	msg chan struct{}
@@ -560,6 +566,81 @@ func TestConfig_Populate(t *testing.T) {
 			assert.Equal(t, tc.expected.authConfig, tc.mocks.authRepo.config)
 			assert.Equal(t, tc.expected.flagConfig, tc.mocks.flagRepo.config)
 			assert.Equal(t, tc.expected.segmentConfig, tc.mocks.segmentRepo.config)
+		})
+	}
+}
+
+func TestConfig_FetchAndPopulate_NotifiesSDKsAfterPopulate(t *testing.T) {
+	proxyConfig := []domain.ProxyConfig{
+		{
+			Environments: []domain.Environments{
+				{
+					ID:             uuid.MustParse("2fd10ce3-7ed6-466f-a768-e4df08f566b0"),
+					FeatureConfigs: []domain.FeatureFlag{{Feature: "Foo"}},
+				},
+			},
+		},
+	}
+	notification := domain.SSEMessage{
+		Event:       domain.EventPatch,
+		Domain:      domain.MsgDomainFeature,
+		Identifier:  "Foo",
+		Environment: "2fd10ce3-7ed6-466f-a768-e4df08f566b0",
+	}
+
+	testCases := map[string]struct {
+		flagRepoErr error
+		shouldErr   bool
+	}{
+		"Given the cache is populated successfully": {},
+		"Given populating the cache fails": {
+			flagRepoErr: errors.New("an error"),
+			shouldErr:   true,
+		},
+	}
+
+	for desc, tc := range testCases {
+		tc := tc
+		t.Run(desc, func(t *testing.T) {
+			flagRepo := &mockFlagRepo{
+				addFn: func(ctx context.Context, config ...domain.FlagConfig) error {
+					return tc.flagRepoErr
+				},
+			}
+			inventoryRepo := mockInventoryRepo{
+				cleanupFn: func(ctx context.Context, key string, config []domain.ProxyConfig) ([]domain.SSEMessage, error) {
+					return []domain.SSEMessage{notification}, nil
+				},
+			}
+			clientService := mockClientService{
+				authProxyKey: func() (domain.AuthenticateProxyKeyResponse, error) {
+					return domain.AuthenticateProxyKeyResponse{}, nil
+				},
+				pageProxyConfig: func() ([]domain.ProxyConfig, error) {
+					return proxyConfig, nil
+				},
+			}
+
+			var published []interface{}
+			flagsCachedAtPublish := -1
+			subscriber := &mockSubscriber{
+				pub: func(msg interface{}) {
+					published = append(published, msg)
+					flagsCachedAtPublish = len(flagRepo.config)
+				},
+			}
+			p := stream.NewStream(log.NewNoOpLogger(), "foo", subscriber, &mockMsgHandler{})
+
+			c := NewConfig("123", clientService, p)
+			err := c.FetchAndPopulate(context.Background(), inventoryRepo, &mockAuthRepo{}, flagRepo, &mockSegmentRepo{})
+			if tc.shouldErr {
+				assert.NotNil(t, err)
+			} else {
+				assert.Nil(t, err)
+				assert.Equal(t, 1, flagsCachedAtPublish, "SDKs should be notified after the flag cache is populated")
+			}
+
+			assert.Equal(t, []interface{}{notification}, published)
 		})
 	}
 }
