@@ -3,6 +3,7 @@ package stream
 import (
 	"context"
 	"errors"
+	"sync"
 	"testing"
 	"time"
 
@@ -186,4 +187,62 @@ func TestStream_Subscribe(t *testing.T) {
 			}
 		})
 	}
+}
+
+type idRecordingSubscriber struct {
+	mu    sync.Mutex
+	ids   []string
+	calls chan struct{}
+}
+
+func (m *idRecordingSubscriber) Close(channel string) error { return nil }
+
+func (m *idRecordingSubscriber) Pub(ctx context.Context, channel string, msg interface{}) error {
+	return nil
+}
+
+func (m *idRecordingSubscriber) Sub(ctx context.Context, channel string, id string, fn domain.HandleMessageFn) error {
+	m.mu.Lock()
+	m.ids = append(m.ids, id)
+	first := len(m.ids) == 1
+	m.mu.Unlock()
+
+	defer func() {
+		select {
+		case m.calls <- struct{}{}:
+		default:
+		}
+	}()
+
+	if first {
+		if err := fn("1234-0", &sse.Event{Data: []byte(`{}`)}); err != nil {
+			return err
+		}
+	}
+	return errors.New("disconnected")
+}
+
+func TestStream_Subscribe_ReconnectPreservesMessageID(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	sub := &idRecordingSubscriber{calls: make(chan struct{}, 10)}
+	handler := &mockMsgHandler{msg: make(chan struct{}, 10)}
+
+	s := NewStream(log.NewNoOpLogger(), "foo", sub, handler, WithBackoff(backoff.NewConstantBackOff(1*time.Millisecond)))
+	s.Subscribe(ctx)
+
+	for i := 0; i < 2; i++ {
+		select {
+		case <-ctx.Done():
+			t.Fatal("timed out waiting for Sub calls")
+		case <-sub.calls:
+		}
+	}
+	cancel()
+
+	sub.mu.Lock()
+	defer sub.mu.Unlock()
+	assert.Equal(t, "", sub.ids[0])
+	assert.Equal(t, "1234-0", sub.ids[1])
 }
