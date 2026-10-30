@@ -56,12 +56,26 @@ type Refresher struct {
 	flagRepo          domain.FlagRepo
 	segmentRepo       domain.SegmentRepo
 	retryQueue        *RetryQueue
+	retryPublisher    domain.MessageHandler
+}
+
+// RefresherOption is a functional option for configuring a Refresher.
+type RefresherOption func(*Refresher)
+
+// WithRetryPublisher sets the MessageHandler used to forward an event to read replicas
+// and SDKs once a queued retry for that event has updated the cache.
+func WithRetryPublisher(p domain.MessageHandler) RefresherOption {
+	return func(r *Refresher) { r.retryPublisher = p }
 }
 
 // NewRefresher creates a Refresher
-func NewRefresher(l log.Logger, config config, client domain.ClientService, inventory domain.InventoryRepo, authRepo domain.AuthRepo, flagRepo domain.FlagRepo, segmentRepo domain.SegmentRepo, retryQueue *RetryQueue) Refresher {
+func NewRefresher(l log.Logger, config config, client domain.ClientService, inventory domain.InventoryRepo, authRepo domain.AuthRepo, flagRepo domain.FlagRepo, segmentRepo domain.SegmentRepo, retryQueue *RetryQueue, opts ...RefresherOption) Refresher {
 	l = l.With("component", "Refresher")
-	return Refresher{log: l, config: config, clientService: client, inventory: inventory, authRepo: authRepo, flagRepo: flagRepo, segmentRepo: segmentRepo, retryQueue: retryQueue}
+	r := Refresher{log: l, config: config, clientService: client, inventory: inventory, authRepo: authRepo, flagRepo: flagRepo, segmentRepo: segmentRepo, retryQueue: retryQueue}
+	for _, opt := range opts {
+		opt(&r)
+	}
+	return r
 }
 
 // HandleMessage makes Refresher implement the MessageHandler interface
@@ -92,7 +106,11 @@ func (s Refresher) handleFeatureMessage(ctx context.Context, msg domain.SSEMessa
 				s.log.Warn("feature fetch failed with retryable error, enqueuing for retry", "environment", msg.Environment, "identifier", msg.Identifier, "err", err)
 				env, identifier := msg.Environment, msg.Identifier
 				s.retryQueue.Enqueue(domain.MsgDomainFeature, env, identifier, func(ctx context.Context) error {
-					return s.handleFetchFeatureEvent(ctx, env, identifier)
+					if err := s.handleFetchFeatureEvent(ctx, env, identifier); err != nil {
+						return err
+					}
+					s.publishAfterRetry(ctx, msg)
+					return nil
 				})
 				return nil
 			}
@@ -118,7 +136,11 @@ func (s Refresher) handleSegmentMessage(ctx context.Context, msg domain.SSEMessa
 				s.log.Warn("segment fetch failed with retryable error, enqueuing for retry", "environment", msg.Environment, "identifier", msg.Identifier, "err", err)
 				env, identifier := msg.Environment, msg.Identifier
 				s.retryQueue.Enqueue(domain.MsgDomainSegment, env, identifier, func(ctx context.Context) error {
-					return s.handleFetchSegmentEvent(ctx, env, identifier)
+					if err := s.handleFetchSegmentEvent(ctx, env, identifier); err != nil {
+						return err
+					}
+					s.publishAfterRetry(ctx, msg)
+					return nil
 				})
 				return nil
 			}
@@ -129,6 +151,18 @@ func (s Refresher) handleSegmentMessage(ctx context.Context, msg domain.SSEMessa
 		return fmt.Errorf("%w %q for SegmentMessage", ErrUnexpectedEventType, msg.Event)
 	}
 	return nil
+}
+
+// publishAfterRetry forwards the event again once a queued retry has updated the cache.
+// The event was already forwarded when the first fetch failed, so SDKs that re-fetched
+// at that point got the old config and need to be told to fetch again.
+func (s Refresher) publishAfterRetry(ctx context.Context, msg domain.SSEMessage) {
+	if s.retryPublisher == nil {
+		return
+	}
+	if err := s.retryPublisher.HandleMessage(ctx, msg); err != nil {
+		s.log.Error("failed to forward event after successful retry", "domain", msg.Domain, "environment", msg.Environment, "identifier", msg.Identifier, "err", err)
+	}
 }
 
 // isRetryableError checks if an error is a transient failure worth retrying.

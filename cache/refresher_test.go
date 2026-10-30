@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -1160,4 +1161,106 @@ func TestRefresher_RetryQueueOnRetryableError(t *testing.T) {
 
 		assert.NotNil(t, err, "non-retryable error should be returned")
 	})
+}
+
+type mockRetryPublisher struct {
+	published chan domain.SSEMessage
+	onPublish func()
+}
+
+func (m mockRetryPublisher) HandleMessage(_ context.Context, msg domain.SSEMessage) error {
+	if m.onPublish != nil {
+		m.onPublish()
+	}
+	m.published <- msg
+	return nil
+}
+
+func TestRefresher_RetrySuccessRepublishesEvent(t *testing.T) {
+	testCases := map[string]struct {
+		msg domain.SSEMessage
+	}{
+		"Given a feature patch that is retried successfully": {
+			msg: domain.SSEMessage{Domain: domain.MsgDomainFeature, Event: domain.EventPatch, Environment: "env1", Identifier: "flag1"},
+		},
+		"Given a segment patch that is retried successfully": {
+			msg: domain.SSEMessage{Domain: domain.MsgDomainSegment, Event: domain.EventPatch, Environment: "env1", Identifier: "seg1"},
+		},
+	}
+
+	for desc, tc := range testCases {
+		tc := tc
+		t.Run(desc, func(t *testing.T) {
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+
+			retryQueue := NewRetryQueue(log.NewNoOpLogger(), ctx,
+				WithInitialDelay(10*time.Millisecond),
+				WithTickerInterval(5*time.Millisecond),
+			)
+			defer retryQueue.Close()
+
+			// The first fetch and the fetch after the token refresh fail, the queued retry succeeds
+			var fetches atomic.Int32
+			clientSvc := mockClientService{
+				getFeatureConfigByIdentifier: func(ctx context.Context, input domain.GetFeatureConfigsByIdentifierInput) (clientgen.FeatureConfig, error) {
+					if fetches.Add(1) <= 2 {
+						return clientgen.FeatureConfig{}, errors.New("bad request")
+					}
+					return clientgen.FeatureConfig{Feature: input.Identifier}, nil
+				},
+				getSegmentByIdentifier: func(ctx context.Context, input domain.GetSegmentByIdentifierInput) (clientgen.Segment, error) {
+					if fetches.Add(1) <= 2 {
+						return clientgen.Segment{}, errors.New("ErrNotFound")
+					}
+					return clientgen.Segment{Identifier: input.Identifier}, nil
+				},
+			}
+
+			var cacheUpdated atomic.Bool
+			flagRepo := mockFlagRepo{
+				addFn: func(ctx context.Context, values ...domain.FlagConfig) error {
+					cacheUpdated.Store(true)
+					return nil
+				},
+				getFeatureConfigForEnvironmentFn: func(ctx context.Context, envID string) ([]domain.FeatureFlag, bool) {
+					return []domain.FeatureFlag{}, true
+				},
+			}
+			segmentRepo := mockSegmentRepo{
+				addFn: func(ctx context.Context, values ...domain.SegmentConfig) error {
+					cacheUpdated.Store(true)
+					return nil
+				},
+				getSegmentsForEnvironmentFn: func(ctx context.Context, envID string) ([]domain.Segment, bool) {
+					return []domain.Segment{}, true
+				},
+			}
+			inventoryRepo := mockInventoryRepo{
+				patchFn: func(ctx context.Context, key string, patch func(assets map[string]int64) (map[string]int64, error)) error {
+					return nil
+				},
+			}
+
+			var cacheUpdatedAtPublish atomic.Bool
+			publisher := mockRetryPublisher{
+				published: make(chan domain.SSEMessage, 1),
+				onPublish: func() { cacheUpdatedAtPublish.Store(cacheUpdated.Load()) },
+			}
+
+			r := NewRefresher(log.NewNoOpLogger(), mockConfig{}, clientSvc, inventoryRepo, mockAuthRepo{}, flagRepo, segmentRepo, retryQueue, WithRetryPublisher(publisher))
+
+			err := r.HandleMessage(ctx, tc.msg)
+			assert.Nil(t, err)
+			assert.False(t, cacheUpdated.Load(), "cache shouldn't be updated before the retry")
+
+			select {
+			case msg := <-publisher.published:
+				assert.Equal(t, tc.msg, msg)
+				assert.True(t, cacheUpdatedAtPublish.Load(), "event should only be republished after the cache is updated")
+			case <-time.After(2 * time.Second):
+				t.Fatal("expected the event to be republished after the retry succeeded")
+			}
+		})
+	}
 }

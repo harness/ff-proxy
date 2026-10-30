@@ -2,6 +2,7 @@ package remote
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"sync"
@@ -116,13 +117,14 @@ func (c *Config) FetchAndPopulate(ctx context.Context, inventory domain.Inventor
 		return err
 	}
 
-	err = c.notifySDKs(ctx, notificationsToSend)
-	if err != nil {
-		return err
-	}
-
 	c.proxyConfig = proxyConfig
-	return c.Populate(ctx, authRepo, flagRepo, segmentRepo)
+	populateErr := c.Populate(ctx, authRepo, flagRepo, segmentRepo)
+
+	// Notify SDKs only after the cache is populated so they don't re-fetch the old config.
+	// Notifications are still sent if populating fails so delete events from Cleanup aren't lost.
+	notifyErr := c.notifySDKs(ctx, notificationsToSend)
+
+	return errors.Join(populateErr, notifyErr)
 }
 
 func (c *Config) notifySDKs(ctx context.Context, notificationsToSend []domain.SSEMessage) error {

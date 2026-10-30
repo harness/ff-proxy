@@ -689,7 +689,8 @@ func main() {
 		// 3. Forward events we receive on the Saas SSE Stream to read replica Proxy's
 		// 4. Forward events from the Saas SSE stream on to connected SDKs
 		retryQueue := cache.NewRetryQueue(logger, ctx)
-		cacheRefresher := cache.NewRefresher(logger, conf, clientSvc, inventoryRepo, authRepo, flagRepo, segmentRepo, retryQueue)
+		retryPublisher := stream.NewForwarder(logger, pushpinStream, stream.NewForwarder(logger, redisStream, domain.NoOpMessageHandler{}, stream.WithStreamName(sseStreamTopic)))
+		cacheRefresher := cache.NewRefresher(logger, conf, clientSvc, inventoryRepo, authRepo, flagRepo, segmentRepo, retryQueue, cache.WithRetryPublisher(retryPublisher))
 		redisForwarder := stream.NewForwarder(logger, redisStream, cacheRefresher, stream.WithStreamName(sseStreamTopic))
 		messageHandler = stream.NewForwarder(logger, pushpinStream, redisForwarder)
 
