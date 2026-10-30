@@ -1161,3 +1161,62 @@ func TestRefresher_RetryQueueOnRetryableError(t *testing.T) {
 		assert.NotNil(t, err, "non-retryable error should be returned")
 	})
 }
+
+func TestRefresher_HungFetchTimesOut(t *testing.T) {
+	flagRepo := mockFlagRepo{
+		addFn: func(ctx context.Context, values ...domain.FlagConfig) error { return nil },
+		getFeatureConfigForEnvironmentFn: func(ctx context.Context, envID string) ([]domain.FeatureFlag, bool) {
+			return []domain.FeatureFlag{}, true
+		},
+	}
+	segmentRepo := mockSegmentRepo{
+		addFn: func(ctx context.Context, values ...domain.SegmentConfig) error { return nil },
+		getSegmentsForEnvironmentFn: func(ctx context.Context, envID string) ([]domain.Segment, bool) {
+			return []domain.Segment{}, true
+		},
+	}
+	inventoryRepo := mockInventoryRepo{
+		patchFn: func(ctx context.Context, key string, patch func(assets map[string]int64) (map[string]int64, error)) error {
+			return nil
+		},
+	}
+
+	hungFlags := map[string]bool{"hung-flag": true}
+	clientSvc := mockClientService{
+		getFeatureConfigByIdentifier: func(ctx context.Context, input domain.GetFeatureConfigsByIdentifierInput) (clientgen.FeatureConfig, error) {
+			if hungFlags[input.Identifier] {
+				<-ctx.Done()
+				return clientgen.FeatureConfig{}, ctx.Err()
+			}
+			return clientgen.FeatureConfig{Feature: input.Identifier}, nil
+		},
+		getSegmentByIdentifier: func(ctx context.Context, input domain.GetSegmentByIdentifierInput) (clientgen.Segment, error) {
+			<-ctx.Done()
+			return clientgen.Segment{}, ctx.Err()
+		},
+	}
+
+	r := NewRefresher(log.NewNoOpLogger(), mockConfig{}, clientSvc, inventoryRepo, mockAuthRepo{}, flagRepo, segmentRepo, nil)
+	r.fetchTimeout = 20 * time.Millisecond
+
+	handle := func(msg domain.SSEMessage) error {
+		done := make(chan error, 1)
+		go func() { done <- r.HandleMessage(context.Background(), msg) }()
+		select {
+		case err := <-done:
+			return err
+		case <-time.After(2 * time.Second):
+			t.Fatalf("HandleMessage blocked on a hung fetch for %s %s", msg.Domain, msg.Identifier)
+			return nil
+		}
+	}
+
+	err := handle(domain.SSEMessage{Domain: domain.MsgDomainFeature, Event: domain.EventPatch, Environment: "env1", Identifier: "hung-flag"})
+	assert.ErrorIs(t, err, context.DeadlineExceeded)
+
+	err = handle(domain.SSEMessage{Domain: domain.MsgDomainFeature, Event: domain.EventPatch, Environment: "env1", Identifier: "next-flag"})
+	assert.NoError(t, err, "the next event should be processed after a hung fetch times out")
+
+	err = handle(domain.SSEMessage{Domain: domain.MsgDomainSegment, Event: domain.EventPatch, Environment: "env1", Identifier: "hung-segment"})
+	assert.ErrorIs(t, err, context.DeadlineExceeded)
+}
