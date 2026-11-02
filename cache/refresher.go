@@ -132,8 +132,9 @@ func (s Refresher) handleSegmentMessage(ctx context.Context, msg domain.SSEMessa
 }
 
 // isRetryableError checks if an error is a transient failure worth retrying.
-// It matches against clientservice.ErrBadRequest ("bad request") and
-// clientservice.ErrNotFound ("ErrNotFound").
+// It matches against clientservice.ErrBadRequest ("bad request"),
+// clientservice.ErrNotFound ("ErrNotFound") and clientservice.ErrInternal
+// ("ErrInternal"), which covers 5xx responses and transport errors.
 // We check error messages instead of using errors.Is to avoid an import cycle
 // (token_test -> cache -> client_service -> token).
 func isRetryableError(err error) bool {
@@ -141,7 +142,7 @@ func isRetryableError(err error) bool {
 		return false
 	}
 	msg := err.Error()
-	return strings.Contains(msg, "bad request") || strings.Contains(msg, "ErrNotFound")
+	return strings.Contains(msg, "bad request") || strings.Contains(msg, "ErrNotFound") || strings.Contains(msg, "ErrInternal")
 }
 
 //nolint:cyclop

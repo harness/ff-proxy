@@ -1049,7 +1049,9 @@ func TestIsRetryableError(t *testing.T) {
 		{name: "wrapped bad request", err: fmt.Errorf("failed to get segment by identifier: %w", errors.New("bad request")), expected: true},
 		{name: "wrapped not found", err: fmt.Errorf("some context: %w", errors.New("ErrNotFound")), expected: true},
 		{name: "other error", err: errors.New("connection refused"), expected: false},
-		{name: "internal error", err: errors.New("ErrInternal"), expected: false},
+		{name: "internal error", err: errors.New("ErrInternal"), expected: true},
+		{name: "wrapped transport error", err: fmt.Errorf("%w: %s", errors.New("ErrInternal"), "read: connection reset by peer"), expected: true},
+		{name: "unauthorized", err: errors.New("ErrUnauthorized"), expected: false},
 	}
 
 	for _, tt := range tests {
@@ -1143,10 +1145,36 @@ func TestRefresher_RetryQueueOnRetryableError(t *testing.T) {
 		assert.True(t, enqueued, "item should be enqueued for retry")
 	})
 
+	t.Run("feature patch with internal error enqueues and returns nil", func(t *testing.T) {
+		calls := 0
+		clientSvc := mockClientService{
+			getFeatureConfigByIdentifier: func(ctx context.Context, input domain.GetFeatureConfigsByIdentifierInput) (clientgen.FeatureConfig, error) {
+				calls++
+				return clientgen.FeatureConfig{}, errors.New("ErrInternal")
+			},
+		}
+
+		r := NewRefresher(log.NewNoOpLogger(), config, clientSvc, inventoryRepo, authRepo, flagRepo, segmentRepo, retryQueue)
+		err := r.HandleMessage(ctx, domain.SSEMessage{
+			Domain:      domain.MsgDomainFeature,
+			Event:       domain.EventPatch,
+			Environment: "env4",
+			Identifier:  "flag3",
+		})
+
+		assert.Nil(t, err, "should return nil for retryable error")
+		assert.Equal(t, 2, calls, "should fetch once and retry once after refreshing the token")
+
+		retryQueue.mu.Lock()
+		_, enqueued := retryQueue.inQueue["flag:env4:flag3"]
+		retryQueue.mu.Unlock()
+		assert.True(t, enqueued, "item should be enqueued for retry")
+	})
+
 	t.Run("feature patch with non-retryable error returns error", func(t *testing.T) {
 		clientSvc := mockClientService{
 			getFeatureConfigByIdentifier: func(ctx context.Context, input domain.GetFeatureConfigsByIdentifierInput) (clientgen.FeatureConfig, error) {
-				return clientgen.FeatureConfig{}, errors.New("ErrInternal")
+				return clientgen.FeatureConfig{}, errors.New("ErrUnauthorized")
 			},
 		}
 
