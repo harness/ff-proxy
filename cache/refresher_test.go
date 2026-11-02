@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -1171,6 +1172,34 @@ func TestRefresher_RetryQueueOnRetryableError(t *testing.T) {
 		assert.True(t, enqueued, "item should be enqueued for retry")
 	})
 
+	t.Run("feature retry success forwards the original message", func(t *testing.T) {
+		var calls atomic.Int32
+		clientSvc := mockClientService{
+			getFeatureConfigByIdentifier: func(ctx context.Context, input domain.GetFeatureConfigsByIdentifierInput) (clientgen.FeatureConfig, error) {
+				if calls.Add(1) <= 2 {
+					return clientgen.FeatureConfig{}, errors.New("ErrInternal")
+				}
+				return clientgen.FeatureConfig{Feature: "flag5"}, nil
+			},
+		}
+		forwarded := make(chan domain.SSEMessage, 1)
+		onSuccess := messageHandlerFn(func(ctx context.Context, msg domain.SSEMessage) error {
+			forwarded <- msg
+			return nil
+		})
+		msg := domain.SSEMessage{Domain: domain.MsgDomainFeature, Event: domain.EventPatch, Environment: "env5", Identifier: "flag5"}
+
+		r := NewRefresher(log.NewNoOpLogger(), config, clientSvc, inventoryRepo, authRepo, flagRepo, segmentRepo, retryQueue, WithRetrySuccessHandler(onSuccess))
+		assert.Nil(t, r.HandleMessage(ctx, msg))
+
+		select {
+		case got := <-forwarded:
+			assert.Equal(t, msg, got)
+		case <-time.After(time.Second):
+			t.Fatal("message was not forwarded after the retry succeeded")
+		}
+	})
+
 	t.Run("feature patch with non-retryable error returns error", func(t *testing.T) {
 		clientSvc := mockClientService{
 			getFeatureConfigByIdentifier: func(ctx context.Context, input domain.GetFeatureConfigsByIdentifierInput) (clientgen.FeatureConfig, error) {
@@ -1188,4 +1217,10 @@ func TestRefresher_RetryQueueOnRetryableError(t *testing.T) {
 
 		assert.NotNil(t, err, "non-retryable error should be returned")
 	})
+}
+
+type messageHandlerFn func(ctx context.Context, msg domain.SSEMessage) error
+
+func (f messageHandlerFn) HandleMessage(ctx context.Context, msg domain.SSEMessage) error {
+	return f(ctx, msg)
 }

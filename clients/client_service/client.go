@@ -102,7 +102,7 @@ func (c Client) AuthenticateProxyKey(ctx context.Context, key string) (domain.Au
 
 	resp, err := c.client.AuthenticateProxyKeyWithResponse(ctx, req)
 	if err != nil {
-		return domain.AuthenticateProxyKeyResponse{}, err
+		return domain.AuthenticateProxyKeyResponse{}, fmt.Errorf("%w: %s", ErrInternal, err)
 	}
 
 	if resp.JSON200 == nil {
