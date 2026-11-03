@@ -41,3 +41,6 @@ For help on debugging your Relay Proxy install see [Debugging](./docs/debugging.
 
 ## Contributing
 See the [contribution guide](CONTRIBUTING.md).
+
+## Testing Notes
+This line is added to test Harness MCP PR creation and comment resolution capabilities.
