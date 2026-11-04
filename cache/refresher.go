@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/harness/ff-proxy/v2/domain"
 	"github.com/harness/ff-proxy/v2/log"
@@ -17,6 +18,10 @@ var (
 	// ErrUnexpectedEventType is the error returned when an SSE message has an event type we aren't expecting
 	ErrUnexpectedEventType = errors.New("unexpected event type")
 )
+
+// defaultFetchTimeout is the maximum time we wait for Harness SaaS to respond when fetching a single
+// feature or segment in response to an SSE event
+const defaultFetchTimeout = 30 * time.Second
 
 type config interface {
 	// FetchAndPopulate authenticates, fetches and populates the config.
@@ -57,6 +62,7 @@ type Refresher struct {
 	segmentRepo       domain.SegmentRepo
 	retryQueue        *RetryQueue
 	onRetrySuccess    domain.MessageHandler
+	fetchTimeout      time.Duration
 }
 
 // WithRetrySuccessHandler sets the handler that a message is passed to once a queued retry for it has updated the cache.
@@ -71,7 +77,7 @@ func WithRetrySuccessHandler(h domain.MessageHandler) func(*Refresher) {
 // NewRefresher creates a Refresher
 func NewRefresher(l log.Logger, config config, client domain.ClientService, inventory domain.InventoryRepo, authRepo domain.AuthRepo, flagRepo domain.FlagRepo, segmentRepo domain.SegmentRepo, retryQueue *RetryQueue, options ...func(*Refresher)) Refresher {
 	l = l.With("component", "Refresher")
-	r := Refresher{log: l, config: config, clientService: client, inventory: inventory, authRepo: authRepo, flagRepo: flagRepo, segmentRepo: segmentRepo, retryQueue: retryQueue}
+	r := Refresher{log: l, config: config, clientService: client, inventory: inventory, authRepo: authRepo, flagRepo: flagRepo, segmentRepo: segmentRepo, retryQueue: retryQueue, fetchTimeout: defaultFetchTimeout}
 	for _, opt := range options {
 		opt(&r)
 	}
@@ -409,12 +415,14 @@ func (s Refresher) handleFetchFeatureEvent(ctx context.Context, env, identifier 
 	s.log.Debug("updating featureConfig entry", "environment", env, "identifier", identifier)
 
 	// Make a request to Harness Saas to fetch the updated featureConfig
-	fc, err := s.clientService.GetFeatureConfigByIdentifier(ctx, domain.GetFeatureConfigsByIdentifierInput{
+	fetchCtx, cancel := context.WithTimeout(ctx, s.fetchTimeout)
+	fc, err := s.clientService.GetFeatureConfigByIdentifier(fetchCtx, domain.GetFeatureConfigsByIdentifierInput{
 		AuthToken:  s.config.Token(),
 		Cluster:    s.config.ClusterIdentifier(),
 		EnvID:      env,
 		Identifier: identifier,
 	})
+	cancel()
 	if err != nil {
 		s.log.Warn("failed to fetch feature config, refreshing auth token and retrying", "environment", env, "identifier", identifier, "err", err)
 		authToken, refreshErr := s.config.RefreshToken()
@@ -422,12 +430,14 @@ func (s Refresher) handleFetchFeatureEvent(ctx context.Context, env, identifier 
 			return fmt.Errorf("failed to refresh auth token: %s", refreshErr)
 		}
 
-		fc, err = s.clientService.GetFeatureConfigByIdentifier(ctx, domain.GetFeatureConfigsByIdentifierInput{
+		fetchCtx, cancel := context.WithTimeout(ctx, s.fetchTimeout)
+		fc, err = s.clientService.GetFeatureConfigByIdentifier(fetchCtx, domain.GetFeatureConfigsByIdentifierInput{
 			AuthToken:  authToken,
 			Cluster:    s.config.ClusterIdentifier(),
 			EnvID:      env,
 			Identifier: identifier,
 		})
+		cancel()
 		if err != nil {
 			return err
 		}
@@ -546,12 +556,14 @@ func (s Refresher) updateFeatureConfigsEntry(ctx context.Context, env string, id
 func (s Refresher) handleFetchSegmentEvent(ctx context.Context, env, identifier string) error {
 	s.log.Debug("updating segment entry", "environment", env, "identifier", identifier)
 
-	sc, err := s.clientService.GetSegmentByIdentifier(ctx, domain.GetSegmentByIdentifierInput{
+	fetchCtx, cancel := context.WithTimeout(ctx, s.fetchTimeout)
+	sc, err := s.clientService.GetSegmentByIdentifier(fetchCtx, domain.GetSegmentByIdentifierInput{
 		AuthToken:  s.config.Token(),
 		Cluster:    s.config.ClusterIdentifier(),
 		EnvID:      env,
 		Identifier: identifier,
 	})
+	cancel()
 	if err != nil {
 		s.log.Warn("failed to fetch segment config, refreshing auth token and retrying", "environment", env, "identifier", identifier, "err", err)
 		authToken, refreshErr := s.config.RefreshToken()
@@ -559,12 +571,14 @@ func (s Refresher) handleFetchSegmentEvent(ctx context.Context, env, identifier 
 			return fmt.Errorf("failed to refresh auth token: %s", refreshErr)
 		}
 
-		sc, err = s.clientService.GetSegmentByIdentifier(ctx, domain.GetSegmentByIdentifierInput{
+		fetchCtx, cancel := context.WithTimeout(ctx, s.fetchTimeout)
+		sc, err = s.clientService.GetSegmentByIdentifier(fetchCtx, domain.GetSegmentByIdentifierInput{
 			AuthToken:  authToken,
 			Cluster:    s.config.ClusterIdentifier(),
 			EnvID:      env,
 			Identifier: identifier,
 		})
+		cancel()
 		if err != nil {
 			return fmt.Errorf("failed to get segment by identifier: %w", err)
 		}
