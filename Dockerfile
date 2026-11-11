@@ -63,7 +63,7 @@ FROM harness0.harness.io/oci/docker_artifacts/hhi/harnessos-alpine:1
 
 # HarnessOS: apk equivalents of the ubuntu runtime libraries. bash and procps (pkill -P) are used by
 # docker-entrypoint.sh and start.sh and shipped with ubuntu.
-RUN apk add --no-cache qt6-qtbase zeromq libsodium libtasn1 ca-certificates bash procps
+RUN apk add --no-cache qt6-qtbase zeromq libsodium libtasn1 ca-certificates bash procps 'zlib>=1.4-r0'
 
 # Copy pushpin from builder (matching original base image)
 COPY --from=pushpin-builder /build/out/ /
