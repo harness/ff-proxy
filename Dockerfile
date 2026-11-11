@@ -25,6 +25,7 @@ RUN make build
 FROM debian:bookworm-slim AS certs
 
 RUN apt-get update \
+ && apt-get upgrade -y \
  && apt-get install -y --no-install-recommends ca-certificates \
  && apt-get clean \
  && rm -rf /var/lib/apt/lists/*
