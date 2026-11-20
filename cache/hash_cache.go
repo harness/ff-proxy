@@ -20,15 +20,34 @@ type HashCache struct {
 	Cache
 	localCache   internalCache
 	requestGroup *singleflight.Group
+	latestOnly   bool
+}
+
+type hashCacheEntry struct {
+	hash  string
+	value interface{}
+}
+
+// HashCacheOption configures the local HashCache behavior.
+type HashCacheOption func(*HashCache)
+
+// WithLatestOnly retains one snapshot per collection key instead of one per hash.
+// It is disabled by default and applies independently to primary and replica caches.
+func WithLatestOnly(enabled bool) HashCacheOption {
+	return func(hc *HashCache) { hc.latestOnly = enabled }
 }
 
 // NewHashCache ...
-func NewHashCache(c Cache, defaultExpiration, cleanupInterval time.Duration) *HashCache {
-	return &HashCache{
+func NewHashCache(c Cache, defaultExpiration, cleanupInterval time.Duration, options ...HashCacheOption) *HashCache {
+	hc := &HashCache{
 		Cache:        c,
 		localCache:   gocache.New(defaultExpiration, cleanupInterval),
 		requestGroup: &singleflight.Group{},
 	}
+	for _, option := range options {
+		option(hc)
+	}
+	return hc
 }
 
 // Set adds hash key entry for the given key
@@ -75,6 +94,10 @@ func (hc HashCache) Get(ctx context.Context, key string, value interface{}) erro
 
 // Get checks the local cache for the key and returns it if there.
 func (hc HashCache) get(ctx context.Context, key string, value interface{}) (interface{}, error) {
+	if hc.latestOnly {
+		return hc.getLatest(ctx, key, value)
+	}
+
 	latestKey := fmt.Sprintf("%s-latest", key)
 
 	var hash string
@@ -97,17 +120,50 @@ func (hc HashCache) get(ctx context.Context, key string, value interface{}) (int
 	return value, err
 }
 
+func (hc HashCache) getLatest(ctx context.Context, key string, value interface{}) (interface{}, error) {
+	output := reflect.ValueOf(value)
+	if output.Kind() != reflect.Ptr || output.IsNil() {
+		return nil, fmt.Errorf("HashCache.Get requires a non-nil pointer for key=%s", key)
+	}
+
+	var hash string
+	if err := hc.Cache.Get(ctx, key+"-latest", &hash); err == nil && hash != "" {
+		if data, ok := hc.localCache.Get(key); ok {
+			entry := data.(hashCacheEntry)
+			if entry.hash == hash {
+				return entry.value, nil
+			}
+		}
+	}
+
+	// Drop an obsolete snapshot before fetching its replacement, including when
+	// the hash is missing. Each replica invalidates its own local copy on reads.
+	hc.localCache.Delete(key)
+	// Own the decode destination so reusing a caller's output cannot mutate the
+	// cached pointer or reuse a previous snapshot's slice backing array.
+	data := reflect.New(output.Type().Elem()).Interface()
+	if err := hc.Cache.Get(ctx, key, data); err != nil {
+		return nil, err
+	}
+	if hash != "" {
+		hc.localCache.Set(key, hashCacheEntry{hash: hash, value: data}, 0)
+	}
+	return data, nil
+}
+
 // Delete key from local cache as well as hash entry in the redis
 func (hc HashCache) Delete(ctx context.Context, key string) error {
 
 	latestKey := fmt.Sprintf("%s-latest", key)
-	var hash string
-	err := hc.Cache.Get(ctx, latestKey, &hash)
-	if err == nil {
-		//delete the latest hash entry in redis
-		hc.localCache.Delete(hash)
+	if hc.latestOnly {
+		hc.localCache.Delete(key)
+	} else {
+		var hash string
+		if err := hc.Cache.Get(ctx, latestKey, &hash); err == nil {
+			hc.localCache.Delete(hash)
+		}
 	}
-	err = hc.Cache.Delete(ctx, latestKey)
+	err := hc.Cache.Delete(ctx, latestKey)
 	if err != nil {
 		return err
 	}

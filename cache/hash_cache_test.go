@@ -3,13 +3,19 @@ package cache
 import (
 	"context"
 	"errors"
+	"fmt"
 	"reflect"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
+	"github.com/alicebob/miniredis/v2"
 	"github.com/harness/ff-proxy/v2/domain"
+	gocache "github.com/patrickmn/go-cache"
+	"github.com/redis/go-redis/v9"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"golang.org/x/sync/singleflight"
 )
 
@@ -20,6 +26,165 @@ type mCache struct {
 
 	latestKeyHits       int
 	fullDocumentKeyHits int
+}
+
+func newHashCacheTestBackend(t *testing.T) (*KeyValCache, *miniredis.Miniredis) {
+	t.Helper()
+	server := miniredis.RunT(t)
+	client := redis.NewClient(&redis.Options{Addr: server.Addr(), MaxRetries: -1})
+	t.Cleanup(func() { require.NoError(t, client.Close()) })
+	return NewKeyValCache(client), server
+}
+
+func TestHashCache_SnapshotRetention(t *testing.T) {
+	for _, mode := range []struct {
+		name    string
+		options []HashCacheOption
+		latest  bool
+	}{
+		{name: "default"},
+		{name: "explicitly disabled", options: []HashCacheOption{WithLatestOnly(false)}},
+		{name: "latest only", options: []HashCacheOption{WithLatestOnly(true)}, latest: true},
+	} {
+		t.Run(mode.name, func(t *testing.T) {
+			ctx := context.Background()
+			backend, server := newHashCacheTestBackend(t)
+			writer := NewHashCache(backend, time.Minute, 0, mode.options...)
+			// A replica has its own local cache and never receives Set calls.
+			replica := NewHashCache(backend, time.Minute, 0, mode.options...)
+			const versions = 250
+			for version := 0; version < versions; version++ {
+				for _, env := range []string{"one", "two"} {
+					flagsKey := string(domain.NewFeatureConfigsKey(env))
+					segmentsKey := string(domain.NewSegmentsKey(env))
+					flags := []domain.FeatureFlag{{Feature: fmt.Sprintf("flag-%s-%d", env, version)}}
+					segments := []domain.Segment{{Identifier: fmt.Sprintf("segment-%s-%d", env, version)}}
+					require.NoError(t, writer.Set(ctx, flagsKey, flags))
+					require.NoError(t, writer.Set(ctx, segmentsKey, segments))
+					for _, reader := range []*HashCache{writer, replica} {
+						var gotFlags []domain.FeatureFlag
+						var gotSegments []domain.Segment
+						require.NoError(t, reader.Get(ctx, flagsKey, &gotFlags))
+						require.NoError(t, reader.Get(ctx, segmentsKey, &gotSegments))
+						require.Equal(t, flags, gotFlags)
+						require.Equal(t, segments, gotSegments)
+						// Unchanged hashes still avoid fetching the full collection.
+						commands := server.CommandCount()
+						var hit []domain.FeatureFlag
+						require.NoError(t, reader.Get(ctx, flagsKey, &hit))
+						require.Equal(t, flags, hit)
+						require.Equal(t, commands+1, server.CommandCount())
+					}
+				}
+				if mode.latest {
+					require.Equal(t, 4, writer.localCache.(*gocache.Cache).ItemCount())
+					require.Equal(t, 4, replica.localCache.(*gocache.Cache).ItemCount())
+				}
+			}
+			if !mode.latest {
+				require.Equal(t, versions*4, writer.localCache.(*gocache.Cache).ItemCount())
+				require.Equal(t, versions*4, replica.localCache.(*gocache.Cache).ItemCount())
+			}
+		})
+	}
+}
+
+func TestHashCache_LatestOnlyInvalidation(t *testing.T) {
+	for _, externalDelete := range []bool{false, true} {
+		t.Run(fmt.Sprintf("external-delete=%t", externalDelete), func(t *testing.T) {
+			ctx := context.Background()
+			backend, server := newHashCacheTestBackend(t)
+			writer := NewHashCache(backend, time.Minute, 0)
+			reader := NewHashCache(backend, time.Minute, 0, WithLatestOnly(true))
+			key := string(domain.NewFeatureConfigsKey("one"))
+			var got []string
+			require.NoError(t, writer.Set(ctx, key, []string{"first"}))
+			require.NoError(t, reader.Get(ctx, key, &got))
+
+			deleter := reader
+			if externalDelete {
+				deleter = writer
+			}
+			require.NoError(t, deleter.Delete(ctx, key))
+			require.ErrorIs(t, reader.Get(ctx, key, &got), domain.ErrCacheNotFound)
+			require.Zero(t, reader.localCache.(*gocache.Cache).ItemCount())
+			require.NoError(t, writer.Set(ctx, key, []string{"recreated"}))
+			require.NoError(t, reader.Get(ctx, key, &got))
+			require.Equal(t, []string{"recreated"}, got)
+
+			// A missing hash must bypass and evict the previous local snapshot.
+			require.NoError(t, backend.Delete(ctx, key+"-latest"))
+			require.NoError(t, backend.Set(ctx, key, []string{"without hash"}))
+			require.NoError(t, reader.Get(ctx, key, &got))
+			require.Equal(t, []string{"without hash"}, got)
+			require.Zero(t, reader.localCache.(*gocache.Cache).ItemCount())
+
+			// A Redis read error must not serve the old local snapshot either.
+			require.NoError(t, writer.Set(ctx, key, []string{"before error"}))
+			require.NoError(t, reader.Get(ctx, key, &got))
+			server.SetError("unavailable")
+			require.Error(t, reader.Get(ctx, key, &got))
+			require.Zero(t, reader.localCache.(*gocache.Cache).ItemCount())
+		})
+	}
+}
+
+func TestHashCache_LatestOnlyOwnsSnapshot(t *testing.T) {
+	ctx := context.Background()
+	backend, _ := newHashCacheTestBackend(t)
+	hc := NewHashCache(backend, time.Minute, 0, WithLatestOnly(true))
+	key := string(domain.NewSegmentsKey("one"))
+	var got []string
+	require.NoError(t, hc.Set(ctx, key, []string{"first"}))
+	require.NoError(t, hc.Get(ctx, key, &got))
+	first := got
+	got = []string{"caller reassigned output"}
+	var hit []string
+	require.NoError(t, hc.Get(ctx, key, &hit))
+	require.Equal(t, []string{"first"}, hit)
+	require.NoError(t, hc.Set(ctx, key, []string{"second"}))
+	require.NoError(t, hc.Get(ctx, key, &got))
+	require.Equal(t, []string{"second"}, got)
+	require.Equal(t, []string{"first"}, first)
+	// Expiration still forces a refresh even when the hash has not changed.
+	entry, ok := hc.localCache.Get(key)
+	require.True(t, ok)
+	hc.localCache.Set(key, entry, time.Nanosecond)
+	time.Sleep(time.Millisecond)
+	_, ok = hc.localCache.Get(key)
+	require.False(t, ok)
+	require.NoError(t, hc.Get(ctx, key, &got))
+	require.Equal(t, []string{"second"}, got)
+}
+
+func TestHashCache_LatestOnlyConcurrentReads(t *testing.T) {
+	ctx := context.Background()
+	backend, _ := newHashCacheTestBackend(t)
+	writer := NewHashCache(backend, time.Minute, 0)
+	reader := NewHashCache(backend, time.Minute, 0, WithLatestOnly(true))
+	key := string(domain.NewFeatureConfigsKey("one"))
+	require.NoError(t, writer.Set(ctx, key, []int{0}))
+	var wg sync.WaitGroup
+	for i := 0; i < 8; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			var got []int
+			for j := 0; j < 50; j++ {
+				if assert.NoError(t, reader.Get(ctx, key, &got)) {
+					assert.Len(t, got, 1)
+				}
+			}
+		}()
+	}
+	for version := 1; version <= 50; version++ {
+		assert.NoError(t, writer.Set(ctx, key, []int{version}))
+	}
+	wg.Wait()
+	var got []int
+	require.NoError(t, reader.Get(ctx, key, &got))
+	require.Equal(t, []int{50}, got)
+	require.Equal(t, 1, reader.localCache.(*gocache.Cache).ItemCount())
 }
 
 func (c *mCache) Set(ctx context.Context, key string, value interface{}) error {
