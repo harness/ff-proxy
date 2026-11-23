@@ -20,15 +20,34 @@ type HashCache struct {
 	Cache
 	localCache   internalCache
 	requestGroup *singleflight.Group
+	latestOnly   bool
+}
+
+type hashCacheEntry struct {
+	hash  string
+	value interface{}
+}
+
+// HashCacheOption configures the local HashCache behavior.
+type HashCacheOption func(*HashCache)
+
+// WithLatestOnly retains one snapshot per collection key instead of one per hash.
+// It is disabled by default and applies independently to primary and replica caches.
+func WithLatestOnly(enabled bool) HashCacheOption {
+	return func(hc *HashCache) { hc.latestOnly = enabled }
 }
 
 // NewHashCache ...
-func NewHashCache(c Cache, defaultExpiration, cleanupInterval time.Duration) *HashCache {
-	return &HashCache{
+func NewHashCache(c Cache, defaultExpiration, cleanupInterval time.Duration, options ...HashCacheOption) *HashCache {
+	hc := &HashCache{
 		Cache:        c,
 		localCache:   gocache.New(defaultExpiration, cleanupInterval),
 		requestGroup: &singleflight.Group{},
 	}
+	for _, option := range options {
+		option(hc)
+	}
+	return hc
 }
 
 // Set adds hash key entry for the given key
@@ -52,7 +71,22 @@ func (hc HashCache) Set(ctx context.Context, key string, value interface{}) erro
 	latestHash := sha256.Sum256(v)
 	latestHashString := fmt.Sprintf("%x", latestHash)
 
-	return hc.Cache.Set(ctx, latestKey, latestHashString)
+	if err := hc.Cache.Set(ctx, latestKey, latestHashString); err != nil {
+		return err
+	}
+
+	// latest-only: write-through an owned local snapshot so Refresher Set does not
+	// leave a stale-hash entry, and callers cannot share the writer's backing array.
+	if hc.latestOnly {
+		owned, err := snapshotPtr(value)
+		if err != nil {
+			hc.localCache.Delete(key)
+			return fmt.Errorf("HashCache.Set failed to snapshot key=%s for local cache: %w", key, err)
+		}
+		hc.localCache.Set(key, hashCacheEntry{hash: latestHashString, value: owned}, 0)
+	}
+
+	return nil
 }
 
 func (hc HashCache) Get(ctx context.Context, key string, value interface{}) error {
@@ -75,6 +109,10 @@ func (hc HashCache) Get(ctx context.Context, key string, value interface{}) erro
 
 // Get checks the local cache for the key and returns it if there.
 func (hc HashCache) get(ctx context.Context, key string, value interface{}) (interface{}, error) {
+	if hc.latestOnly {
+		return hc.getLatest(ctx, key, value)
+	}
+
 	latestKey := fmt.Sprintf("%s-latest", key)
 
 	var hash string
@@ -97,19 +135,87 @@ func (hc HashCache) get(ctx context.Context, key string, value interface{}) (int
 	return value, err
 }
 
+func (hc HashCache) getLatest(ctx context.Context, key string, value interface{}) (interface{}, error) {
+	output := reflect.ValueOf(value)
+	if output.Kind() != reflect.Ptr || output.IsNil() {
+		return nil, fmt.Errorf("HashCache.Get requires a non-nil pointer for key=%s", key)
+	}
+
+	var hash string
+	if err := hc.Cache.Get(ctx, key+"-latest", &hash); err == nil && hash != "" {
+		if data, ok := hc.localCache.Get(key); ok {
+			entry := data.(hashCacheEntry)
+			if entry.hash == hash {
+				// Return a clone so Refresher/SDK callers cannot mutate the cached snapshot.
+				return cloneSnapshot(entry.value)
+			}
+		}
+	}
+
+	// Drop an obsolete snapshot before fetching its replacement, including when
+	// the hash is missing. Each replica invalidates its own local copy on reads.
+	hc.localCache.Delete(key)
+	// Own the decode destination so reusing a caller's output cannot mutate the
+	// cached pointer or reuse a previous snapshot's slice backing array.
+	data := reflect.New(output.Type().Elem()).Interface()
+	if err := hc.Cache.Get(ctx, key, data); err != nil {
+		return nil, err
+	}
+	if hash != "" {
+		hc.localCache.Set(key, hashCacheEntry{hash: hash, value: data}, 0)
+		return cloneSnapshot(data)
+	}
+	return data, nil
+}
+
 // Delete key from local cache as well as hash entry in the redis
 func (hc HashCache) Delete(ctx context.Context, key string) error {
 
 	latestKey := fmt.Sprintf("%s-latest", key)
-	var hash string
-	err := hc.Cache.Get(ctx, latestKey, &hash)
-	if err == nil {
-		//delete the latest hash entry in redis
-		hc.localCache.Delete(hash)
+	if hc.latestOnly {
+		hc.localCache.Delete(key)
+	} else {
+		var hash string
+		if err := hc.Cache.Get(ctx, latestKey, &hash); err == nil {
+			hc.localCache.Delete(hash)
+		}
 	}
-	err = hc.Cache.Delete(ctx, latestKey)
+	err := hc.Cache.Delete(ctx, latestKey)
 	if err != nil {
 		return err
 	}
 	return hc.Cache.Delete(ctx, key)
+}
+
+// snapshotPtr JSON-round-trips value into a fresh *T for local retention.
+func snapshotPtr(value interface{}) (interface{}, error) {
+	if value == nil {
+		return nil, fmt.Errorf("nil snapshot value")
+	}
+	b, err := jsoniter.Marshal(value)
+	if err != nil {
+		return nil, err
+	}
+	ptr := reflect.New(reflect.TypeOf(value)).Interface()
+	if err := jsoniter.Unmarshal(b, ptr); err != nil {
+		return nil, err
+	}
+	return ptr, nil
+}
+
+// cloneSnapshot returns a deep copy of a cached pointer snapshot (*T → new *T).
+func cloneSnapshot(value interface{}) (interface{}, error) {
+	v := reflect.ValueOf(value)
+	if !v.IsValid() || (v.Kind() == reflect.Ptr && v.IsNil()) {
+		return value, nil
+	}
+	b, err := jsoniter.Marshal(value)
+	if err != nil {
+		return nil, err
+	}
+	out := reflect.New(v.Type().Elem()).Interface()
+	if err := jsoniter.Unmarshal(b, out); err != nil {
+		return nil, err
+	}
+	return out, nil
 }

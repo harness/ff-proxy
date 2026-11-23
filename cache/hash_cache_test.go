@@ -3,13 +3,19 @@ package cache
 import (
 	"context"
 	"errors"
+	"fmt"
 	"reflect"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
+	"github.com/alicebob/miniredis/v2"
 	"github.com/harness/ff-proxy/v2/domain"
+	gocache "github.com/patrickmn/go-cache"
+	"github.com/redis/go-redis/v9"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"golang.org/x/sync/singleflight"
 )
 
@@ -20,6 +26,206 @@ type mCache struct {
 
 	latestKeyHits       int
 	fullDocumentKeyHits int
+}
+
+func newHashCacheTestBackend(t *testing.T) (*KeyValCache, *miniredis.Miniredis) {
+	t.Helper()
+	server := miniredis.RunT(t)
+	client := redis.NewClient(&redis.Options{Addr: server.Addr(), MaxRetries: -1})
+	t.Cleanup(func() { require.NoError(t, client.Close()) })
+	return NewKeyValCache(client), server
+}
+
+func TestHashCache_SnapshotRetention(t *testing.T) {
+	for _, mode := range []struct {
+		name    string
+		options []HashCacheOption
+		latest  bool
+	}{
+		{name: "default"},
+		{name: "explicitly disabled", options: []HashCacheOption{WithLatestOnly(false)}},
+		{name: "latest only", options: []HashCacheOption{WithLatestOnly(true)}, latest: true},
+	} {
+		t.Run(mode.name, func(t *testing.T) {
+			ctx := context.Background()
+			backend, server := newHashCacheTestBackend(t)
+			writer := NewHashCache(backend, time.Minute, 0, mode.options...)
+			// A replica has its own local cache and never receives Set calls.
+			replica := NewHashCache(backend, time.Minute, 0, mode.options...)
+			const versions = 250
+			for version := 0; version < versions; version++ {
+				for _, env := range []string{"one", "two"} {
+					flagsKey := string(domain.NewFeatureConfigsKey(env))
+					segmentsKey := string(domain.NewSegmentsKey(env))
+					flags := []domain.FeatureFlag{{Feature: fmt.Sprintf("flag-%s-%d", env, version)}}
+					segments := []domain.Segment{{Identifier: fmt.Sprintf("segment-%s-%d", env, version)}}
+					require.NoError(t, writer.Set(ctx, flagsKey, flags))
+					require.NoError(t, writer.Set(ctx, segmentsKey, segments))
+					for _, reader := range []*HashCache{writer, replica} {
+						var gotFlags []domain.FeatureFlag
+						var gotSegments []domain.Segment
+						require.NoError(t, reader.Get(ctx, flagsKey, &gotFlags))
+						require.NoError(t, reader.Get(ctx, segmentsKey, &gotSegments))
+						require.Equal(t, flags, gotFlags)
+						require.Equal(t, segments, gotSegments)
+						// Unchanged hashes still avoid fetching the full collection.
+						commands := server.CommandCount()
+						var hit []domain.FeatureFlag
+						require.NoError(t, reader.Get(ctx, flagsKey, &hit))
+						require.Equal(t, flags, hit)
+						require.Equal(t, commands+1, server.CommandCount())
+					}
+				}
+				if mode.latest {
+					require.Equal(t, 4, writer.localCache.(*gocache.Cache).ItemCount())
+					require.Equal(t, 4, replica.localCache.(*gocache.Cache).ItemCount())
+				}
+			}
+			if !mode.latest {
+				require.Equal(t, versions*4, writer.localCache.(*gocache.Cache).ItemCount())
+				require.Equal(t, versions*4, replica.localCache.(*gocache.Cache).ItemCount())
+			}
+		})
+	}
+}
+
+func TestHashCache_LatestOnlyInvalidation(t *testing.T) {
+	for _, externalDelete := range []bool{false, true} {
+		t.Run(fmt.Sprintf("external-delete=%t", externalDelete), func(t *testing.T) {
+			ctx := context.Background()
+			backend, server := newHashCacheTestBackend(t)
+			writer := NewHashCache(backend, time.Minute, 0)
+			reader := NewHashCache(backend, time.Minute, 0, WithLatestOnly(true))
+			key := string(domain.NewFeatureConfigsKey("one"))
+			var got []string
+			require.NoError(t, writer.Set(ctx, key, []string{"first"}))
+			require.NoError(t, reader.Get(ctx, key, &got))
+
+			deleter := reader
+			if externalDelete {
+				deleter = writer
+			}
+			require.NoError(t, deleter.Delete(ctx, key))
+			require.ErrorIs(t, reader.Get(ctx, key, &got), domain.ErrCacheNotFound)
+			require.Zero(t, reader.localCache.(*gocache.Cache).ItemCount())
+			require.NoError(t, writer.Set(ctx, key, []string{"recreated"}))
+			require.NoError(t, reader.Get(ctx, key, &got))
+			require.Equal(t, []string{"recreated"}, got)
+
+			// A missing hash must bypass and evict the previous local snapshot.
+			require.NoError(t, backend.Delete(ctx, key+"-latest"))
+			require.NoError(t, backend.Set(ctx, key, []string{"without hash"}))
+			require.NoError(t, reader.Get(ctx, key, &got))
+			require.Equal(t, []string{"without hash"}, got)
+			require.Zero(t, reader.localCache.(*gocache.Cache).ItemCount())
+
+			// A Redis read error must not serve the old local snapshot either.
+			require.NoError(t, writer.Set(ctx, key, []string{"before error"}))
+			require.NoError(t, reader.Get(ctx, key, &got))
+			server.SetError("unavailable")
+			require.Error(t, reader.Get(ctx, key, &got))
+			require.Zero(t, reader.localCache.(*gocache.Cache).ItemCount())
+		})
+	}
+}
+
+func TestHashCache_LatestOnlyOwnsSnapshot(t *testing.T) {
+	ctx := context.Background()
+	backend, _ := newHashCacheTestBackend(t)
+	hc := NewHashCache(backend, time.Minute, 0, WithLatestOnly(true))
+	key := string(domain.NewSegmentsKey("one"))
+	var got []string
+	require.NoError(t, hc.Set(ctx, key, []string{"first"}))
+	require.NoError(t, hc.Get(ctx, key, &got))
+	first := got
+	got = []string{"caller reassigned output"}
+	var hit []string
+	require.NoError(t, hc.Get(ctx, key, &hit))
+	require.Equal(t, []string{"first"}, hit)
+	require.NoError(t, hc.Set(ctx, key, []string{"second"}))
+	require.NoError(t, hc.Get(ctx, key, &got))
+	require.Equal(t, []string{"second"}, got)
+	require.Equal(t, []string{"first"}, first)
+	// Expiration still forces a refresh even when the hash has not changed.
+	entry, ok := hc.localCache.Get(key)
+	require.True(t, ok)
+	hc.localCache.Set(key, entry, time.Nanosecond)
+	time.Sleep(time.Millisecond)
+	_, ok = hc.localCache.Get(key)
+	require.False(t, ok)
+	require.NoError(t, hc.Get(ctx, key, &got))
+	require.Equal(t, []string{"second"}, got)
+}
+
+func TestHashCache_LatestOnlyConcurrentReads(t *testing.T) {
+	ctx := context.Background()
+	backend, _ := newHashCacheTestBackend(t)
+	writer := NewHashCache(backend, time.Minute, 0)
+	reader := NewHashCache(backend, time.Minute, 0, WithLatestOnly(true))
+	key := string(domain.NewFeatureConfigsKey("one"))
+	require.NoError(t, writer.Set(ctx, key, []int{0}))
+	var wg sync.WaitGroup
+	for i := 0; i < 8; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			var got []int
+			for j := 0; j < 50; j++ {
+				if assert.NoError(t, reader.Get(ctx, key, &got)) {
+					assert.Len(t, got, 1)
+				}
+			}
+		}()
+	}
+	for version := 1; version <= 50; version++ {
+		assert.NoError(t, writer.Set(ctx, key, []int{version}))
+	}
+	wg.Wait()
+	var got []int
+	require.NoError(t, reader.Get(ctx, key, &got))
+	require.Equal(t, []int{50}, got)
+	require.Equal(t, 1, reader.localCache.(*gocache.Cache).ItemCount())
+}
+
+func TestHashCache_LatestOnlySetWriteThrough(t *testing.T) {
+	ctx := context.Background()
+	backend, server := newHashCacheTestBackend(t)
+	hc := NewHashCache(backend, time.Minute, 0, WithLatestOnly(true))
+	key := string(domain.NewFeatureConfigsKey("one"))
+
+	require.NoError(t, hc.Set(ctx, key, []string{"written"}))
+	require.Equal(t, 1, hc.localCache.(*gocache.Cache).ItemCount())
+
+	// Local hit after Set: only the -latest Redis key is read (not the full document).
+	commands := server.CommandCount()
+	var got []string
+	require.NoError(t, hc.Get(ctx, key, &got))
+	require.Equal(t, []string{"written"}, got)
+	require.Equal(t, commands+1, server.CommandCount())
+	require.Equal(t, 1, hc.localCache.(*gocache.Cache).ItemCount())
+
+	require.NoError(t, hc.Set(ctx, key, []string{"updated"}))
+	require.Equal(t, 1, hc.localCache.(*gocache.Cache).ItemCount())
+	require.NoError(t, hc.Get(ctx, key, &got))
+	require.Equal(t, []string{"updated"}, got)
+}
+
+func TestHashCache_LatestOnlyCallerMutationIsolation(t *testing.T) {
+	ctx := context.Background()
+	backend, _ := newHashCacheTestBackend(t)
+	hc := NewHashCache(backend, time.Minute, 0, WithLatestOnly(true))
+	key := string(domain.NewSegmentsKey("one"))
+
+	require.NoError(t, hc.Set(ctx, key, []string{"first"}))
+	var got []string
+	require.NoError(t, hc.Get(ctx, key, &got))
+	require.Equal(t, []string{"first"}, got)
+
+	// Mutating the caller's slice must not poison the cached snapshot (Refresher path).
+	got[0] = "mutated-by-caller"
+	var hit []string
+	require.NoError(t, hc.Get(ctx, key, &hit))
+	require.Equal(t, []string{"first"}, hit)
 }
 
 func (c *mCache) Set(ctx context.Context, key string, value interface{}) error {
@@ -68,6 +274,10 @@ func (m *mockLocalCache) Get(key string) (interface{}, bool) {
 
 	b, ok := m.data[key]
 	return b, ok
+}
+
+func (m *mockLocalCache) Delete(key string) {
+	delete(m.data, key)
 }
 
 func TestHashCache_Set(t *testing.T) {
@@ -305,4 +515,145 @@ func TestHashCache_Get(t *testing.T) {
 			assert.Equal(t, tc.expected.value, actual)
 		})
 	}
+}
+
+func TestSnapshotPtrAndCloneSnapshot(t *testing.T) {
+	t.Parallel()
+	_, err := snapshotPtr(nil)
+	require.Error(t, err)
+
+	owned, err := snapshotPtr([]string{"a", "b"})
+	require.NoError(t, err)
+	ptr, ok := owned.(*[]string)
+	require.True(t, ok)
+	require.Equal(t, []string{"a", "b"}, *ptr)
+	(*ptr)[0] = "mutated"
+
+	cloned, err := cloneSnapshot(owned)
+	require.NoError(t, err)
+	clonedPtr := cloned.(*[]string)
+	require.Equal(t, []string{"mutated", "b"}, *clonedPtr)
+	(*clonedPtr)[0] = "again"
+	require.Equal(t, "mutated", (*ptr)[0])
+
+	// Invalid/nil pointer clone is a no-op success.
+	out, err := cloneSnapshot((*[]string)(nil))
+	require.NoError(t, err)
+	require.Nil(t, out)
+
+	_, err = snapshotPtr(make(chan int))
+	require.Error(t, err)
+	_, err = cloneSnapshot(make(chan int))
+	require.Error(t, err)
+
+	bad := struct {
+		B *badUnmarshal `json:"b"`
+	}{B: &badUnmarshal{}}
+	_, err = snapshotPtr(bad)
+	require.Error(t, err)
+	_, err = cloneSnapshot(&bad)
+	require.Error(t, err)
+}
+
+type badUnmarshal struct{}
+
+func (*badUnmarshal) UnmarshalJSON([]byte) error { return errors.New("boom") }
+func (*badUnmarshal) MarshalJSON() ([]byte, error) { return []byte(`{}`), nil }
+
+func TestHashCache_ErrorPaths(t *testing.T) {
+	ctx := context.Background()
+	key := string(domain.NewFeatureConfigsKey("err"))
+
+	t.Run("Set underlying fails", func(t *testing.T) {
+		hc := NewHashCache(&mCache{
+			set: func(d map[string]interface{}, k string, v interface{}) error {
+				return errors.New("set fail")
+			},
+		}, time.Minute, 0)
+		require.Error(t, hc.Set(ctx, key, []string{"x"}))
+	})
+
+	t.Run("Set marshal fails", func(t *testing.T) {
+		hc := NewHashCache(&mCache{
+			set: func(d map[string]interface{}, k string, v interface{}) error {
+				d[k] = v
+				return nil
+			},
+		}, time.Minute, 0)
+		require.Error(t, hc.Set(ctx, key, make(chan int)))
+	})
+
+	t.Run("Set latest key fails", func(t *testing.T) {
+		hc := NewHashCache(&mCache{
+			set: func(d map[string]interface{}, k string, v interface{}) error {
+				if strings.HasSuffix(k, "-latest") {
+					return errors.New("latest fail")
+				}
+				d[k] = v
+				return nil
+			},
+		}, time.Minute, 0)
+		require.Error(t, hc.Set(ctx, key, []string{"x"}))
+	})
+
+	t.Run("Set latestOnly snapshot fails", func(t *testing.T) {
+		local := &mockLocalCache{data: map[string]interface{}{key: "stale"}}
+		hc := NewHashCache(&mCache{
+			set: func(d map[string]interface{}, k string, v interface{}) error {
+				d[k] = v
+				return nil
+			},
+		}, time.Minute, 0, WithLatestOnly(true))
+		hc.localCache = local
+		// channel marshals for hash? actually Set marshals first — channel fails earlier.
+		// Use value that marshals then fails snapshot unmarshal.
+		require.Error(t, hc.Set(ctx, key, struct {
+			B *badUnmarshal `json:"b"`
+		}{B: &badUnmarshal{}}))
+		_, ok := local.data[key]
+		require.False(t, ok, "stale local entry must be deleted on snapshot failure")
+	})
+
+	t.Run("getLatest rejects non-pointer", func(t *testing.T) {
+		hc := NewHashCache(&mCache{data: map[string]interface{}{}}, time.Minute, 0, WithLatestOnly(true))
+		var notPtr []string
+		require.Error(t, hc.Get(ctx, key, notPtr))
+	})
+
+	t.Run("getLatest rejects nil pointer", func(t *testing.T) {
+		hc := NewHashCache(&mCache{data: map[string]interface{}{}}, time.Minute, 0, WithLatestOnly(true))
+		var nilPtr *[]string
+		require.Error(t, hc.Get(ctx, key, nilPtr))
+	})
+
+	t.Run("default get redis miss", func(t *testing.T) {
+		hc := NewHashCache(&mCache{data: map[string]interface{}{}}, time.Minute, 0)
+		var got []string
+		require.Error(t, hc.Get(ctx, key, &got))
+	})
+
+	t.Run("Delete latest key fails", func(t *testing.T) {
+		hc := NewHashCache(&failDeleteCache{failOn: key + "-latest"}, time.Minute, 0)
+		require.Error(t, hc.Delete(ctx, key))
+	})
+}
+
+type failDeleteCache struct {
+	Cache
+	failOn string
+}
+
+func (f *failDeleteCache) Delete(ctx context.Context, key string) error {
+	if key == f.failOn {
+		return errors.New("delete fail")
+	}
+	return nil
+}
+
+func (f *failDeleteCache) Get(ctx context.Context, key string, value interface{}) error {
+	return errors.New("not found")
+}
+
+func (f *failDeleteCache) Set(ctx context.Context, key string, value interface{}) error {
+	return nil
 }

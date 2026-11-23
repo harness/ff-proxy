@@ -180,6 +180,8 @@ primary:
     REDIS_ADDRESS: '{{ include "harnesscommon.dbv3.redisConnection" (dict "ctx" $ "database" "events" "unsetProtocol" true) }}'
     CLIENT_SERVICE: '{{ .Values.loadbalancerURL }}/sdk/api/1.0'
     METRIC_SERVICE: '{{ .Values.loadbalancerURL }}/events'
+    # Opt-in: bound HashCache to one snapshot per collection key (FFM-13229). Leave false in chart/SMP defaults; set "true" in hosted primary+readReplica overrides to stop SSE-driven heap growth.
+    HASH_CACHE_LATEST_ONLY: "false"
 
 # configuration specific to the read replica pods
 readReplica:
@@ -266,6 +268,8 @@ readReplica:
     REDIS_ADDRESS: '{{ include "harnesscommon.dbv3.redisConnection" (dict "ctx" $ "database" "events" "unsetProtocol" true) }}'
     CLIENT_SERVICE: '{{ .Values.loadbalancerURL }}/sdk/api/1.0'
     METRIC_SERVICE: '{{ .Values.loadbalancerURL }}/events'
+    # Opt-in: bound HashCache to one snapshot per collection key (FFM-13229). Leave false in chart/SMP defaults; set "true" in hosted primary+readReplica overrides to stop SSE-driven heap growth.
+    HASH_CACHE_LATEST_ONLY: "false"
 
 #common configs which other services use.
 config:

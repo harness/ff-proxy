@@ -39,6 +39,11 @@ Config required to connect to redis. Note only `REDIS_ADDRESS` is required to co
 | REDIS_USERNAME       | redis-username | (Optional) Redis username for ACL authentication                   | string |         |
 | REDIS_PASSWORD       | redis-password | (Optional) Redis password                                         | string |         |
 | REDIS_DB             | redis-db       | (Optional) Database to be selected after connecting to the server | int    | 0       |
+| HASH_CACHE_LATEST_ONLY | hash-cache-latest-only | Retain only the latest local snapshot per collection key, checking its Redis hash on every read. Applies independently to each primary and read replica. | bool | false |
+
+`HASH_CACHE_LATEST_ONLY` is opt-in. For a Harness-hosted rollout, first publish an image containing this option, then set `HASH_CACHE_LATEST_ONLY: "true"` under both `primary.config` and `readReplica.config` in the selected deployment's overrides (chart defaults stay `"false"` for SMP/customer). Restart the selected pods to apply the setting; set it back to `"false"` and restart to roll back. Redis data and keys are unchanged.
+
+When enabled, `Set` write-throughs one owned local snapshot per collection key (so primary Refresher does not leave a stale-hash entry), and `Get` returns a cloned snapshot so callers (e.g. Refresher mutating feature-configs in place) cannot poison the cache. This bounds retained heap to current collections; it does not cap the size of a single collection or other caches such as MemoizeCache.
 
 **Connecting to Redis:** The Relay Proxy supports two Redis authentication modes:
 

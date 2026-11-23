@@ -60,12 +60,13 @@ var (
 	forwardTargets        bool
 
 	// Cache Config
-	offline       bool
-	configDir     string
-	redisAddress  string
-	redisPassword string
-	redisUsername string
-	redisDB       int
+	offline             bool
+	configDir           string
+	redisAddress        string
+	redisPassword       string
+	redisUsername       string
+	redisDB             int
+	hashCacheLatestOnly bool
 
 	// Redis Config Options
 	redisMaxRetries                  int
@@ -145,12 +146,13 @@ const (
 	forwardTargetsEnv        = "FORWARD_TARGETS"
 
 	// Cache Config
-	offlineEnv       = "OFFLINE"
-	configDirEnv     = "CONFIG_DIR"
-	redisAddrEnv     = "REDIS_ADDRESS"
-	redisPasswordEnv = "REDIS_PASSWORD"
-	redisUsernameEnv = "REDIS_USERNAME"
-	redisDBEnv       = "REDIS_DB"
+	offlineEnv             = "OFFLINE"
+	configDirEnv           = "CONFIG_DIR"
+	redisAddrEnv           = "REDIS_ADDRESS"
+	redisPasswordEnv       = "REDIS_PASSWORD"
+	redisUsernameEnv       = "REDIS_USERNAME"
+	redisDBEnv             = "REDIS_DB"
+	hashCacheLatestOnlyEnv = "HASH_CACHE_LATEST_ONLY"
 
 	// Redis Config
 	redisMaxRetriesEnv                  = "REDIS_MAX_RETRIES"
@@ -214,12 +216,13 @@ const (
 	forwardTargetsFlag        = "forward-targets"
 
 	// Cache Config
-	configDirFlag     = "config-dir"
-	offlineFlag       = "offline"
-	redisAddressFlag  = "redis-address"
-	redisPasswordFlag = "redis-password"
-	redisUsernameFlag = "redis-username"
-	redisDBFlag       = "redis-db"
+	configDirFlag           = "config-dir"
+	offlineFlag             = "offline"
+	redisAddressFlag        = "redis-address"
+	redisPasswordFlag       = "redis-password"
+	redisUsernameFlag       = "redis-username"
+	redisDBFlag             = "redis-db"
+	hashCacheLatestOnlyFlag = "hash-cache-latest-only"
 
 	// Redis Configuration Options
 	redisMaxRetriesFlag                  = "redis-max-retries"
@@ -289,6 +292,7 @@ func init() {
 	flag.StringVar(&redisPassword, redisPasswordFlag, "", "Optional. Redis password")
 	flag.StringVar(&redisUsername, redisUsernameFlag, "", "Optional. Redis username")
 	flag.IntVar(&redisDB, redisDBFlag, 0, "Database to be selected after connecting to the server.")
+	flag.BoolVar(&hashCacheLatestOnly, hashCacheLatestOnlyFlag, false, "retain only the latest local snapshot per Redis collection key")
 
 	// Redis Configuration Options
 	flag.IntVar(&redisMaxRetries, redisMaxRetriesFlag, 3, "Maximum number of retries before giving up. Default is 3 retries.")
@@ -348,6 +352,7 @@ func init() {
 		redisPasswordEnv:                redisPasswordFlag,
 		redisUsernameEnv:                redisUsernameFlag,
 		redisDBEnv:                      redisDBFlag,
+		hashCacheLatestOnlyEnv:          hashCacheLatestOnlyFlag,
 		redisPoolSizeEnv:                redisPoolSizeFlag,
 		metricPostDurationEnv:           metricPostDurationFlag,
 		heartbeatIntervalEnv:            heartbeatIntervalFlag,
@@ -476,6 +481,7 @@ func main() {
 		"port", port,
 		"redis-addr", redisAddress,
 		"redis-db", redisDB,
+		"hash-cache-latest-only", hashCacheLatestOnly,
 		"heartbeat-interval", fmt.Sprintf("%ds", heartbeatInterval),
 		"config-dir", configDir,
 		"tls-enabled", tlsEnabled,
@@ -509,7 +515,7 @@ func main() {
 		mcMetrics := cache.NewMemoizeMetrics("proxy", promReg)
 		mcCache := cache.NewMemoizeCache(redisClient, 1*time.Minute, 2*time.Minute, mcMetrics)
 		sdkCache = cache.NewMetricsCache("redis", promReg, mcCache)
-		hashCache = cache.NewHashCache(cache.NewKeyValCache(redisClient), 10*time.Minute, 12*time.Minute)
+		hashCache = cache.NewHashCache(cache.NewKeyValCache(redisClient), 10*time.Minute, 12*time.Minute, cache.WithLatestOnly(hashCacheLatestOnly))
 
 		err = sdkCache.HealthCheck(ctx)
 		if err != nil {
