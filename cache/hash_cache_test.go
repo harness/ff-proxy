@@ -2,6 +2,7 @@ package cache
 
 import (
 	"context"
+	"crypto/sha256"
 	"errors"
 	"fmt"
 	"reflect"
@@ -226,6 +227,26 @@ func TestHashCache_LatestOnlyCallerMutationIsolation(t *testing.T) {
 	var hit []string
 	require.NoError(t, hc.Get(ctx, key, &hit))
 	require.Equal(t, []string{"first"}, hit)
+}
+
+func TestHashCache_LatestOnlyLeavesIndividualKeysAlone(t *testing.T) {
+	ctx := context.Background()
+	backend, server := newHashCacheTestBackend(t)
+	hc := NewHashCache(backend, time.Minute, 0, WithLatestOnly(true))
+
+	// Individual flag/segment keys get no hash key, so they are never snapshotted
+	// and must keep behaving exactly as they do with the flag off.
+	key := string(domain.NewFeatureConfigKey("one", "flag"))
+	require.NoError(t, hc.Set(ctx, key, domain.FeatureFlag{Feature: "flag"}))
+	require.Zero(t, hc.localCache.(*gocache.Cache).ItemCount())
+
+	commands := server.CommandCount()
+	var got domain.FeatureFlag
+	require.NoError(t, hc.Get(ctx, key, &got))
+	require.Equal(t, "flag", got.Feature)
+	require.Zero(t, hc.localCache.(*gocache.Cache).ItemCount())
+	// Only the full document is read: no hash key lookup for a non-collection key.
+	require.Equal(t, commands+1, server.CommandCount())
 }
 
 func (c *mCache) Set(ctx context.Context, key string, value interface{}) error {
@@ -517,42 +538,15 @@ func TestHashCache_Get(t *testing.T) {
 	}
 }
 
-func TestSnapshotPtrAndCloneSnapshot(t *testing.T) {
+func TestHashCache_KeyNames(t *testing.T) {
 	t.Parallel()
-	_, err := snapshotPtr(nil)
-	require.Error(t, err)
+	key := string(domain.NewFeatureConfigsKey("one"))
+	require.Equal(t, key+"-latest", hashKey(key))
 
-	owned, err := snapshotPtr([]string{"a", "b"})
-	require.NoError(t, err)
-	ptr, ok := owned.(*[]string)
-	require.True(t, ok)
-	require.Equal(t, []string{"a", "b"}, *ptr)
-	(*ptr)[0] = "mutated"
-
-	cloned, err := cloneSnapshot(owned)
-	require.NoError(t, err)
-	clonedPtr := cloned.(*[]string)
-	require.Equal(t, []string{"mutated", "b"}, *clonedPtr)
-	(*clonedPtr)[0] = "again"
-	require.Equal(t, "mutated", (*ptr)[0])
-
-	// Invalid/nil pointer clone is a no-op success.
-	out, err := cloneSnapshot((*[]string)(nil))
-	require.NoError(t, err)
-	require.Nil(t, out)
-
-	_, err = snapshotPtr(make(chan int))
-	require.Error(t, err)
-	_, err = cloneSnapshot(make(chan int))
-	require.Error(t, err)
-
-	bad := struct {
-		B *badUnmarshal `json:"b"`
-	}{B: &badUnmarshal{}}
-	_, err = snapshotPtr(bad)
-	require.Error(t, err)
-	_, err = cloneSnapshot(&bad)
-	require.Error(t, err)
+	require.True(t, isCollectionKey(key))
+	require.True(t, isCollectionKey(string(domain.NewSegmentsKey("one"))))
+	require.False(t, isCollectionKey(string(domain.NewFeatureConfigKey("one", "flag"))))
+	require.False(t, isCollectionKey(string(domain.NewSegmentKey("one", "seg"))))
 }
 
 type badUnmarshal struct{}
@@ -596,31 +590,34 @@ func TestHashCache_ErrorPaths(t *testing.T) {
 		require.Error(t, hc.Set(ctx, key, []string{"x"}))
 	})
 
-	t.Run("Set latestOnly snapshot fails", func(t *testing.T) {
-		local := &mockLocalCache{data: map[string]interface{}{key: "stale"}}
-		hc := NewHashCache(&mCache{
-			set: func(d map[string]interface{}, k string, v interface{}) error {
-				d[k] = v
-				return nil
-			},
-		}, time.Minute, 0, WithLatestOnly(true))
-		hc.localCache = local
-		// channel marshals for hash? actually Set marshals first — channel fails earlier.
-		// Use value that marshals then fails snapshot unmarshal.
-		require.Error(t, hc.Set(ctx, key, struct {
-			B *badUnmarshal `json:"b"`
-		}{B: &badUnmarshal{}}))
-		_, ok := local.data[key]
-		require.False(t, ok, "stale local entry must be deleted on snapshot failure")
+	t.Run("latestOnly Set write-through caches the bytes it hashed", func(t *testing.T) {
+		backend, _ := newHashCacheTestBackend(t)
+		hc := NewHashCache(backend, time.Minute, 0, WithLatestOnly(true))
+		require.NoError(t, hc.Set(ctx, key, []string{"x"}))
+
+		s, ok := hc.localSnapshot(key)
+		require.True(t, ok)
+		require.JSONEq(t, `["x"]`, string(s.data))
+		require.Equal(t, fmt.Sprintf("%x", sha256.Sum256([]byte(`["x"]`))), s.hash)
 	})
 
-	t.Run("getLatest rejects non-pointer", func(t *testing.T) {
+	t.Run("latestOnly Get surfaces a snapshot decode failure", func(t *testing.T) {
+		backend, _ := newHashCacheTestBackend(t)
+		hc := NewHashCache(backend, time.Minute, 0, WithLatestOnly(true))
+		require.NoError(t, hc.Set(ctx, key, []string{"x"}))
+
+		// The snapshot is current, it just cannot be decoded into this caller's type.
+		var bad badUnmarshal
+		require.Error(t, hc.Get(ctx, key, &bad))
+	})
+
+	t.Run("latestOnly rejects non-pointer", func(t *testing.T) {
 		hc := NewHashCache(&mCache{data: map[string]interface{}{}}, time.Minute, 0, WithLatestOnly(true))
 		var notPtr []string
 		require.Error(t, hc.Get(ctx, key, notPtr))
 	})
 
-	t.Run("getLatest rejects nil pointer", func(t *testing.T) {
+	t.Run("latestOnly rejects nil pointer", func(t *testing.T) {
 		hc := NewHashCache(&mCache{data: map[string]interface{}{}}, time.Minute, 0, WithLatestOnly(true))
 		var nilPtr *[]string
 		require.Error(t, hc.Get(ctx, key, nilPtr))

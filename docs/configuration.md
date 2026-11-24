@@ -43,7 +43,9 @@ Config required to connect to redis. Note only `REDIS_ADDRESS` is required to co
 
 `HASH_CACHE_LATEST_ONLY` is opt-in. For a Harness-hosted rollout, first publish an image containing this option, then set `HASH_CACHE_LATEST_ONLY: "true"` under both `primary.config` and `readReplica.config` in the selected deployment's overrides (chart defaults stay `"false"` for SMP/customer). Restart the selected pods to apply the setting; set it back to `"false"` and restart to roll back. Redis data and keys are unchanged.
 
-When enabled, `Set` write-throughs one owned local snapshot per collection key (so primary Refresher does not leave a stale-hash entry), and `Get` returns a cloned snapshot so callers (e.g. Refresher mutating feature-configs in place) cannot poison the cache. This bounds retained heap to current collections; it does not cap the size of a single collection or other caches such as MemoizeCache.
+When enabled, the local cache holds at most one snapshot per collection key, and serves it only while its hash still equals the collection's `-latest` hash in Redis. A snapshot is the collection's marshalled bytes: `Set` writes through the bytes it already hashed (so a primary Refresher does not leave a stale-hash entry behind), and every `Get` decodes a fresh value out of those bytes. Callers therefore cannot reach the cached entry at all, so a caller mutating feature-configs in place — as the Refresher does — cannot poison the cache or another reader. This bounds retained heap to the current collections; it does not cap the size of a single collection or other caches such as MemoizeCache.
+
+Individual records (`env-<id>-feature-config-<identifier>`, `env-<id>-segment-<identifier>`) have no `-latest` hash and are never cached locally in either mode, so they skip the hash lookup and read straight from Redis.
 
 **Connecting to Redis:** The Relay Proxy supports two Redis authentication modes:
 

@@ -16,6 +16,16 @@ import (
 // The HashCache wraps a Cache implementation (via the MemoizeCache) and adds an in-memory caching layer for serialised data.
 // It contains its own implementations for certain methods of the Cache interface that are specifically used for caching
 // large objects that the Proxy stores.
+//
+// Three things in this file are easy to confuse, so they each have one name:
+//
+//	collection key: env-<id>-feature-configs, the full collection stored in Redis
+//	hash key:       env-<id>-feature-configs-latest, the sha256 of that collection, written by Set
+//	snapshot:       a collection's marshalled bytes, plus the hash they were stored at
+//
+// In latest-only mode the invariant is: each collection key retains at most one
+// snapshot, and a snapshot is served only while its hash still equals the hash
+// key in Redis.
 type HashCache struct {
 	Cache
 	localCache   internalCache
@@ -23,9 +33,12 @@ type HashCache struct {
 	latestOnly   bool
 }
 
-type hashCacheEntry struct {
-	hash  string
-	value interface{}
+// snapshot is owned by the cache. The bytes are never mutated and are never
+// handed to a caller, so any number of readers can decode from them without
+// copying and without being able to corrupt the cached entry.
+type snapshot struct {
+	hash string
+	data []byte
 }
 
 // HashCacheOption configures the local HashCache behavior.
@@ -50,6 +63,17 @@ func NewHashCache(c Cache, defaultExpiration, cleanupInterval time.Duration, opt
 	return hc
 }
 
+// hashKey returns the key holding the hash of the collection stored at key.
+func hashKey(collectionKey string) string {
+	return collectionKey + "-latest"
+}
+
+// isCollectionKey reports whether key holds a whole collection, which is the
+// only kind of key that gets a hash key written alongside it.
+func isCollectionKey(key string) bool {
+	return strings.HasSuffix(key, "segments") || strings.HasSuffix(key, "feature-configs")
+}
+
 // Set adds hash key entry for the given key
 func (hc HashCache) Set(ctx context.Context, key string, value interface{}) error {
 	// First set the key, value that we've been given
@@ -59,37 +83,38 @@ func (hc HashCache) Set(ctx context.Context, key string, value interface{}) erro
 
 	// If the key isn't a segments or feature-configs key then we're done.
 	// If it is then we'll want to carry on and set a latest hash for these keys
-	if !strings.HasSuffix(key, "segments") && !strings.HasSuffix(key, "feature-configs") {
+	if !isCollectionKey(key) {
 		return nil
 	}
 
-	latestKey := fmt.Sprintf("%s-latest", key)
-	v, err := jsoniter.Marshal(value)
+	data, err := jsoniter.Marshal(value)
 	if err != nil {
-		return fmt.Errorf("unable to marshall config %s %v", latestKey, err)
+		return fmt.Errorf("unable to marshall config %s %v", hashKey(key), err)
 	}
-	latestHash := sha256.Sum256(v)
-	latestHashString := fmt.Sprintf("%x", latestHash)
+	hash := fmt.Sprintf("%x", sha256.Sum256(data))
 
-	if err := hc.Cache.Set(ctx, latestKey, latestHashString); err != nil {
+	if err := hc.Cache.Set(ctx, hashKey(key), hash); err != nil {
 		return err
 	}
 
-	// latest-only: write-through an owned local snapshot so Refresher Set does not
-	// leave a stale-hash entry, and callers cannot share the writer's backing array.
+	// latest-only: write through the bytes we just marshalled so a Refresher Set
+	// does not leave a stale-hash entry behind. They are already a private copy,
+	// so the writer's value cannot be reached through the cache.
 	if hc.latestOnly {
-		owned, err := snapshotPtr(value)
-		if err != nil {
-			hc.localCache.Delete(key)
-			return fmt.Errorf("HashCache.Set failed to snapshot key=%s for local cache: %w", key, err)
-		}
-		hc.localCache.Set(key, hashCacheEntry{hash: latestHashString, value: owned}, 0)
+		hc.localCache.Set(key, snapshot{hash: hash, data: data}, 0)
 	}
 
 	return nil
 }
 
 func (hc HashCache) Get(ctx context.Context, key string, value interface{}) error {
+	// latest-only only changes how collection keys are cached, because they are
+	// the only keys with a hash key to validate a local snapshot against. Every
+	// other key keeps the default path.
+	if hc.latestOnly && isCollectionKey(key) {
+		return hc.getSnapshot(ctx, key, value)
+	}
+
 	data, err, _ := hc.requestGroup.Do(key, func() (interface{}, error) {
 		return hc.get(ctx, key, value)
 	})
@@ -109,14 +134,16 @@ func (hc HashCache) Get(ctx context.Context, key string, value interface{}) erro
 
 // Get checks the local cache for the key and returns it if there.
 func (hc HashCache) get(ctx context.Context, key string, value interface{}) (interface{}, error) {
-	if hc.latestOnly {
-		return hc.getLatest(ctx, key, value)
+	// Only collection keys have a hash key written alongside them, so only they
+	// can ever be served locally. Anything else goes straight to Redis instead of
+	// paying for a hash key lookup that always misses.
+	if !isCollectionKey(key) {
+		err := hc.Cache.Get(ctx, key, value)
+		return value, err
 	}
 
-	latestKey := fmt.Sprintf("%s-latest", key)
-
 	var hash string
-	err := hc.Cache.Get(ctx, latestKey, &hash)
+	err := hc.Cache.Get(ctx, hashKey(key), &hash)
 	if err == nil {
 		if data, ok := hc.localCache.Get(hash); ok {
 			return data, nil
@@ -135,87 +162,90 @@ func (hc HashCache) get(ctx context.Context, key string, value interface{}) (int
 	return value, err
 }
 
-func (hc HashCache) getLatest(ctx context.Context, key string, value interface{}) (interface{}, error) {
-	output := reflect.ValueOf(value)
-	if output.Kind() != reflect.Ptr || output.IsNil() {
-		return nil, fmt.Errorf("HashCache.Get requires a non-nil pointer for key=%s", key)
+// getSnapshot serves a collection from its local snapshot while the snapshot's
+// hash still matches Redis. One fetch is shared between concurrent callers and
+// each caller decodes its own value out of the shared bytes.
+func (hc HashCache) getSnapshot(ctx context.Context, key string, value interface{}) error {
+	data, err, _ := hc.requestGroup.Do(key, func() (interface{}, error) {
+		return hc.snapshotBytes(ctx, key, value)
+	})
+	if err != nil {
+		return err
 	}
 
-	var hash string
-	if err := hc.Cache.Get(ctx, key+"-latest", &hash); err == nil && hash != "" {
-		if data, ok := hc.localCache.Get(key); ok {
-			entry := data.(hashCacheEntry)
-			if entry.hash == hash {
-				// Return a clone so Refresher/SDK callers cannot mutate the cached snapshot.
-				return cloneSnapshot(entry.value)
-			}
+	return jsoniter.Unmarshal(data.([]byte), value)
+}
+
+// snapshotBytes returns the marshalled collection stored at key. dst is the
+// destination of whichever caller won the singleflight race, and is only used
+// to decode into when the snapshot has to be refetched.
+func (hc HashCache) snapshotBytes(ctx context.Context, key string, dst interface{}) ([]byte, error) {
+	hash := hc.currentHash(ctx, key)
+
+	if hash != "" {
+		if s, ok := hc.localSnapshot(key); ok && s.hash == hash {
+			return s.data, nil
 		}
 	}
 
-	// Drop an obsolete snapshot before fetching its replacement, including when
-	// the hash is missing. Each replica invalidates its own local copy on reads.
+	// The snapshot is obsolete, or the key has no hash to validate against at
+	// all. Drop it before fetching its replacement: each replica invalidates its
+	// own local copy on reads.
 	hc.localCache.Delete(key)
-	// Own the decode destination so reusing a caller's output cannot mutate the
-	// cached pointer or reuse a previous snapshot's slice backing array.
-	data := reflect.New(output.Type().Elem()).Interface()
-	if err := hc.Cache.Get(ctx, key, data); err != nil {
+
+	if err := hc.Cache.Get(ctx, key, dst); err != nil {
 		return nil, err
 	}
+	// Re-marshal rather than cache dst itself: the bytes are ours, dst belongs to
+	// the caller and may be mutated or reused as soon as we return.
+	data, err := jsoniter.Marshal(dst)
+	if err != nil {
+		return nil, fmt.Errorf("HashCache.Get failed to snapshot key=%s for local cache: %w", key, err)
+	}
 	if hash != "" {
-		hc.localCache.Set(key, hashCacheEntry{hash: hash, value: data}, 0)
-		return cloneSnapshot(data)
+		hc.localCache.Set(key, snapshot{hash: hash, data: data}, 0)
 	}
 	return data, nil
 }
 
+// currentHash returns the hash Redis holds for key, or "" if it is missing or
+// unreadable, in which case no local snapshot can be trusted.
+func (hc HashCache) currentHash(ctx context.Context, key string) string {
+	var hash string
+	if err := hc.Cache.Get(ctx, hashKey(key), &hash); err != nil {
+		return ""
+	}
+	return hash
+}
+
+func (hc HashCache) localSnapshot(key string) (snapshot, bool) {
+	v, ok := hc.localCache.Get(key)
+	if !ok {
+		return snapshot{}, false
+	}
+	s, ok := v.(snapshot)
+	return s, ok
+}
+
 // Delete key from local cache as well as hash entry in the redis
 func (hc HashCache) Delete(ctx context.Context, key string) error {
+	// No hash key exists for an individual record, so there is nothing local to
+	// invalidate and no hash key to delete.
+	if !isCollectionKey(key) {
+		return hc.Cache.Delete(ctx, key)
+	}
 
-	latestKey := fmt.Sprintf("%s-latest", key)
 	if hc.latestOnly {
 		hc.localCache.Delete(key)
 	} else {
 		var hash string
-		if err := hc.Cache.Get(ctx, latestKey, &hash); err == nil {
+		if err := hc.Cache.Get(ctx, hashKey(key), &hash); err == nil {
 			hc.localCache.Delete(hash)
 		}
 	}
-	err := hc.Cache.Delete(ctx, latestKey)
-	if err != nil {
+
+	if err := hc.Cache.Delete(ctx, hashKey(key)); err != nil {
 		return err
 	}
 	return hc.Cache.Delete(ctx, key)
-}
-
-// snapshotPtr JSON-round-trips value into a fresh *T for local retention.
-func snapshotPtr(value interface{}) (interface{}, error) {
-	if value == nil {
-		return nil, fmt.Errorf("nil snapshot value")
-	}
-	b, err := jsoniter.Marshal(value)
-	if err != nil {
-		return nil, err
-	}
-	ptr := reflect.New(reflect.TypeOf(value)).Interface()
-	if err := jsoniter.Unmarshal(b, ptr); err != nil {
-		return nil, err
-	}
-	return ptr, nil
-}
-
-// cloneSnapshot returns a deep copy of a cached pointer snapshot (*T → new *T).
-func cloneSnapshot(value interface{}) (interface{}, error) {
-	v := reflect.ValueOf(value)
-	if !v.IsValid() || (v.Kind() == reflect.Ptr && v.IsNil()) {
-		return value, nil
-	}
-	b, err := jsoniter.Marshal(value)
-	if err != nil {
-		return nil, err
-	}
-	out := reflect.New(v.Type().Elem()).Interface()
-	if err := jsoniter.Unmarshal(b, out); err != nil {
-		return nil, err
-	}
-	return out, nil
 }
