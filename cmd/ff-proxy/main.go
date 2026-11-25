@@ -496,6 +496,7 @@ func main() {
 
 	var redisClient redis.UniversalClient
 	var hashCache *cache.HashCache
+	var ssePayloadMetrics *cache.SSEPayloadMetrics
 
 	if redisAddress != "" && !generateOfflineConfig { //nolint:nestif
 		redisConfig := buildRedisConfig()
@@ -515,7 +516,17 @@ func main() {
 		mcMetrics := cache.NewMemoizeMetrics("proxy", promReg)
 		mcCache := cache.NewMemoizeCache(redisClient, 1*time.Minute, 2*time.Minute, mcMetrics)
 		sdkCache = cache.NewMetricsCache("redis", promReg, mcCache)
-		hashCache = cache.NewHashCache(cache.NewKeyValCache(redisClient), 10*time.Minute, 12*time.Minute, cache.WithLatestOnly(hashCacheLatestOnly))
+		hashCacheMetrics := cache.NewHashCacheMetrics(promReg)
+		ssePayloadMetrics = cache.NewSSEPayloadMetrics(promReg)
+		hashCache = cache.NewHashCache(
+			cache.NewKeyValCache(redisClient),
+			10*time.Minute,
+			12*time.Minute,
+			cache.WithLatestOnly(hashCacheLatestOnly),
+			cache.WithMetrics(hashCacheMetrics),
+			cache.WithSSEMetrics(ssePayloadMetrics),
+			cache.WithLogger(logger),
+		)
 
 		err = sdkCache.HealthCheck(ctx)
 		if err != nil {
@@ -696,7 +707,11 @@ func main() {
 		// 4. Forward events from the Saas SSE stream on to connected SDKs
 		retryQueue := cache.NewRetryQueue(logger, ctx)
 		retryForwarder := stream.NewForwarder(logger, pushpinStream, stream.NewForwarder(logger, redisStream, domain.NoOpMessageHandler{}, stream.WithStreamName(sseStreamTopic)))
-		cacheRefresher := cache.NewRefresher(logger, conf, clientSvc, inventoryRepo, authRepo, flagRepo, segmentRepo, retryQueue, cache.WithRetrySuccessHandler(retryForwarder))
+		cacheRefresher := cache.NewRefresher(
+			logger, conf, clientSvc, inventoryRepo, authRepo, flagRepo, segmentRepo, retryQueue,
+			cache.WithRetrySuccessHandler(retryForwarder),
+			cache.WithSSEPayloadMetrics(ssePayloadMetrics),
+		)
 		redisForwarder := stream.NewForwarder(logger, redisStream, cacheRefresher, stream.WithStreamName(sseStreamTopic))
 		messageHandler = stream.NewForwarder(logger, pushpinStream, redisForwarder)
 

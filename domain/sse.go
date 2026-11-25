@@ -11,6 +11,9 @@ type SSEMessage struct {
 	Environment  string   `json:"environment"`
 	Environments []string `json:"environments,omitempty"`
 	APIKey       string   `json:"apiKey"`
+	// RawSize is the wire size of the SSE event payload before domain decoding.
+	// Not part of the SaaS schema; set by the stream parser for size telemetry.
+	RawSize int `json:"-"`
 }
 
 // MarshalBinary makes SSEMessage implement the BinaryMarshaler interface

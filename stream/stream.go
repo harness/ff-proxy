@@ -107,6 +107,14 @@ func (s Stream) subscribe(ctx context.Context) {
 		}
 
 		msgID = id
+		s.log.Info("sse event arrived",
+			"msg_id", id,
+			"sse_arrival_bytes", msg.RawSize,
+			"domain", msg.Domain,
+			"event", msg.Event,
+			"environment", msg.Environment,
+			"identifier", msg.Identifier,
+		)
 
 		return s.messageHandler.HandleMessage(ctx, msg)
 	})
@@ -134,6 +142,7 @@ func parseMessage(v interface{}) (domain.SSEMessage, error) {
 		if err := jsoniter.Unmarshal([]byte(s), &m); err != nil {
 			return m, fmt.Errorf("%w: %s", errParsingMessage, err)
 		}
+		m.RawSize = len(s)
 		return m, nil
 	}
 
@@ -146,6 +155,7 @@ func parseMessage(v interface{}) (domain.SSEMessage, error) {
 	if err := jsoniter.Unmarshal(event.Data, &m); err != nil {
 		return domain.SSEMessage{}, fmt.Errorf("%w: %s", errParsingMessage, err)
 	}
+	m.RawSize = len(event.Data)
 
 	return m, nil
 }

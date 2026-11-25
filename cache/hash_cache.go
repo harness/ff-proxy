@@ -11,6 +11,8 @@ import (
 	jsoniter "github.com/json-iterator/go"
 	gocache "github.com/patrickmn/go-cache"
 	"golang.org/x/sync/singleflight"
+
+	"github.com/harness/ff-proxy/v2/log"
 )
 
 // The HashCache wraps a Cache implementation (via the MemoizeCache) and adds an in-memory caching layer for serialised data.
@@ -21,6 +23,9 @@ type HashCache struct {
 	localCache   internalCache
 	requestGroup *singleflight.Group
 	latestOnly   bool
+	metrics      *HashCacheMetrics
+	sseMetrics   *SSEPayloadMetrics
+	logger       log.Logger
 }
 
 type hashCacheEntry struct {
@@ -37,17 +42,60 @@ func WithLatestOnly(enabled bool) HashCacheOption {
 	return func(hc *HashCache) { hc.latestOnly = enabled }
 }
 
+// WithMetrics enables Prometheus instrumentation for local snapshot sizes.
+func WithMetrics(m *HashCacheMetrics) HashCacheOption {
+	return func(hc *HashCache) { hc.metrics = m }
+}
+
+// WithLogger enables Info logs when a collection snapshot is retained locally.
+func WithLogger(l log.Logger) HashCacheOption {
+	return func(hc *HashCache) { hc.logger = l }
+}
+
+// WithSSEMetrics records SSE arrival→collection growth using the marshal size
+// already computed in Set (avoids a second full collection encode in Refresher).
+func WithSSEMetrics(m *SSEPayloadMetrics) HashCacheOption {
+	return func(hc *HashCache) { hc.sseMetrics = m }
+}
+
 // NewHashCache ...
 func NewHashCache(c Cache, defaultExpiration, cleanupInterval time.Duration, options ...HashCacheOption) *HashCache {
+	local := gocache.New(defaultExpiration, cleanupInterval)
 	hc := &HashCache{
 		Cache:        c,
-		localCache:   gocache.New(defaultExpiration, cleanupInterval),
+		localCache:   local,
 		requestGroup: &singleflight.Group{},
+		logger:       log.NewNoOpLogger(),
 	}
 	for _, option := range options {
 		option(hc)
 	}
+	// TTL expiry / Delete must drop gauge tracking; otherwise default multi-hash
+	// get_fill leaves keyBytes growing forever while go-cache evicts entries.
+	local.OnEvicted(func(k string, _ interface{}) {
+		hc.recordLocalDelete(k)
+	})
 	return hc
+}
+
+// recordLocalFill tracks a get_fill retain without re-encoding the collection.
+func (hc *HashCache) recordLocalFill(localKey, collectionKey string) {
+	hc.metrics.trackLocalEntry(localKey)
+	if hc.logger == nil {
+		return
+	}
+	hc.logger.Info("hash_cache local snapshot stored",
+		"key", collectionKey,
+		"local_key", localKey,
+		"kind", collectionKind(collectionKey),
+		"op", "get_fill",
+		"size_bytes", "unknown",
+		"latest_only", hc.latestOnly,
+	)
+}
+
+func (hc *HashCache) recordLocalDelete(localKey string) {
+	hc.metrics.observeDelete(localKey)
 }
 
 // Set adds hash key entry for the given key
@@ -68,11 +116,27 @@ func (hc HashCache) Set(ctx context.Context, key string, value interface{}) erro
 	if err != nil {
 		return fmt.Errorf("unable to marshall config %s %v", latestKey, err)
 	}
+	size := int64(len(v))
 	latestHash := sha256.Sum256(v)
 	latestHashString := fmt.Sprintf("%x", latestHash)
 
 	if err := hc.Cache.Set(ctx, latestKey, latestHashString); err != nil {
 		return err
+	}
+
+	// Always record marshalled collection size for SSE-driven refreshes. This is
+	// the payload that ends up (or will end up) in the in-memory HashCache layer.
+	hc.metrics.observeSnapshot(key, "set", size)
+	hc.observeSSERefresh(ctx, key, int(size))
+	if hc.logger != nil {
+		hc.logger.Info("hash_cache collection set",
+			"key", key,
+			"kind", collectionKind(key),
+			"stage", "post_json_marshal",
+			"json_size_bytes", size,
+			"hash", latestHashString[:12],
+			"latest_only", hc.latestOnly,
+		)
 	}
 
 	// latest-only: write-through an owned local snapshot so Refresher Set does not
@@ -81,12 +145,38 @@ func (hc HashCache) Set(ctx context.Context, key string, value interface{}) erro
 		owned, err := snapshotPtr(value)
 		if err != nil {
 			hc.localCache.Delete(key)
+			hc.recordLocalDelete(key)
 			return fmt.Errorf("HashCache.Set failed to snapshot key=%s for local cache: %w", key, err)
 		}
 		hc.localCache.Set(key, hashCacheEntry{hash: latestHashString, value: owned}, 0)
+		hc.metrics.trackLocalBytes(key, size)
 	}
 
 	return nil
+}
+
+// observeSSERefresh emits arrival→collection growth using Set's existing marshal size.
+func (hc *HashCache) observeSSERefresh(ctx context.Context, key string, jsonBytes int) {
+	meta, ok := sseRefreshMetaFrom(ctx)
+	if !ok {
+		return
+	}
+	kind := meta.kind
+	if kind == "" {
+		kind = collectionKind(key)
+	}
+	hc.sseMetrics.observeRefresh(kind, meta.domain, meta.event, meta.arrivalBytes, jsonBytes)
+	if hc.logger == nil {
+		return
+	}
+	hc.logger.Info("sse refresh payload growth",
+		"kind", kind,
+		"domain", meta.domain,
+		"event", meta.event,
+		"sse_arrival_bytes", meta.arrivalBytes,
+		"collection_json_bytes", jsonBytes,
+		"growth_bytes", jsonBytes-meta.arrivalBytes,
+	)
 }
 
 func (hc HashCache) Get(ctx context.Context, key string, value interface{}) error {
@@ -131,6 +221,10 @@ func (hc HashCache) get(ctx context.Context, key string, value interface{}) (int
 	// set the value in local
 	if hash != "" {
 		hc.localCache.Set(hash, value, 0)
+		// Do not re-marshal the collection for metrics — that doubles encode cost on
+		// the SSE/read hot path. Entry count still tracks multi-hash churn; exact
+		// bytes come from Set's existing marshal (see observeSnapshot / latest-only).
+		hc.recordLocalFill(hash, key)
 	}
 	return value, err
 }
@@ -155,6 +249,7 @@ func (hc HashCache) getLatest(ctx context.Context, key string, value interface{}
 	// Drop an obsolete snapshot before fetching its replacement, including when
 	// the hash is missing. Each replica invalidates its own local copy on reads.
 	hc.localCache.Delete(key)
+	hc.recordLocalDelete(key)
 	// Own the decode destination so reusing a caller's output cannot mutate the
 	// cached pointer or reuse a previous snapshot's slice backing array.
 	data := reflect.New(output.Type().Elem()).Interface()
@@ -163,6 +258,7 @@ func (hc HashCache) getLatest(ctx context.Context, key string, value interface{}
 	}
 	if hash != "" {
 		hc.localCache.Set(key, hashCacheEntry{hash: hash, value: data}, 0)
+		hc.recordLocalFill(key, key)
 		return cloneSnapshot(data)
 	}
 	return data, nil
@@ -174,10 +270,12 @@ func (hc HashCache) Delete(ctx context.Context, key string) error {
 	latestKey := fmt.Sprintf("%s-latest", key)
 	if hc.latestOnly {
 		hc.localCache.Delete(key)
+		hc.recordLocalDelete(key)
 	} else {
 		var hash string
 		if err := hc.Cache.Get(ctx, latestKey, &hash); err == nil {
 			hc.localCache.Delete(hash)
+			hc.recordLocalDelete(hash)
 		}
 	}
 	err := hc.Cache.Delete(ctx, latestKey)

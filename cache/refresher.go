@@ -63,6 +63,7 @@ type Refresher struct {
 	retryQueue        *RetryQueue
 	onRetrySuccess    domain.MessageHandler
 	fetchTimeout      time.Duration
+	sseMetrics        *SSEPayloadMetrics
 }
 
 // WithRetrySuccessHandler sets the handler that a message is passed to once a queued retry for it has updated the cache.
@@ -71,6 +72,13 @@ type Refresher struct {
 func WithRetrySuccessHandler(h domain.MessageHandler) func(*Refresher) {
 	return func(r *Refresher) {
 		r.onRetrySuccess = h
+	}
+}
+
+// WithSSEPayloadMetrics enables Prometheus metrics for SSE arrival vs collection JSON size.
+func WithSSEPayloadMetrics(m *SSEPayloadMetrics) func(*Refresher) {
+	return func(r *Refresher) {
+		r.sseMetrics = m
 	}
 }
 
@@ -86,6 +94,8 @@ func NewRefresher(l log.Logger, config config, client domain.ClientService, inve
 
 // HandleMessage makes Refresher implement the MessageHandler interface
 func (s Refresher) HandleMessage(ctx context.Context, msg domain.SSEMessage) error {
+	s.sseMetrics.observeArrival(msg.Domain, msg.Event, msg.RawSize)
+
 	switch msg.Domain {
 	case domain.MsgDomainFeature:
 		return s.handleFeatureMessage(ctx, msg)
@@ -107,12 +117,11 @@ func (s Refresher) handleFeatureMessage(ctx context.Context, msg domain.SSEMessa
 			return err
 		}
 	case domain.EventPatch, domain.EventCreate:
-		if err := s.handleFetchFeatureEvent(ctx, msg.Environment, msg.Identifier); err != nil {
+		if err := s.handleFetchFeatureEvent(ctx, msg); err != nil {
 			if s.retryQueue != nil && isRetryableError(err) {
 				s.log.Warn("feature fetch failed with retryable error, enqueuing for retry", "environment", msg.Environment, "identifier", msg.Identifier, "err", err)
-				env, identifier := msg.Environment, msg.Identifier
-				s.retryQueue.Enqueue(domain.MsgDomainFeature, env, identifier, func(ctx context.Context) error {
-					if err := s.handleFetchFeatureEvent(ctx, env, identifier); err != nil {
+				s.retryQueue.Enqueue(domain.MsgDomainFeature, msg.Environment, msg.Identifier, func(ctx context.Context) error {
+					if err := s.handleFetchFeatureEvent(ctx, msg); err != nil {
 						return err
 					}
 					return s.retrySucceeded(ctx, msg)
@@ -136,12 +145,11 @@ func (s Refresher) handleSegmentMessage(ctx context.Context, msg domain.SSEMessa
 			return err
 		}
 	case domain.EventPatch, domain.EventCreate:
-		if err := s.handleFetchSegmentEvent(ctx, msg.Environment, msg.Identifier); err != nil {
+		if err := s.handleFetchSegmentEvent(ctx, msg); err != nil {
 			if s.retryQueue != nil && isRetryableError(err) {
 				s.log.Warn("segment fetch failed with retryable error, enqueuing for retry", "environment", msg.Environment, "identifier", msg.Identifier, "err", err)
-				env, identifier := msg.Environment, msg.Identifier
-				s.retryQueue.Enqueue(domain.MsgDomainSegment, env, identifier, func(ctx context.Context) error {
-					if err := s.handleFetchSegmentEvent(ctx, env, identifier); err != nil {
+				s.retryQueue.Enqueue(domain.MsgDomainSegment, msg.Environment, msg.Identifier, func(ctx context.Context) error {
+					if err := s.handleFetchSegmentEvent(ctx, msg); err != nil {
 						return err
 					}
 					return s.retrySucceeded(ctx, msg)
@@ -411,7 +419,8 @@ func (s Refresher) handleRemoveAPIKeyEvent(ctx context.Context, env, apiKey stri
 // 2. Update the individual featureConfig record in the cache.
 // 3. Update the featureConfigs record in the cache.
 // 4. Update the inventory record for the featureConfig.
-func (s Refresher) handleFetchFeatureEvent(ctx context.Context, env, identifier string) error {
+func (s Refresher) handleFetchFeatureEvent(ctx context.Context, msg domain.SSEMessage) error {
+	env, identifier := msg.Environment, msg.Identifier
 	s.log.Debug("updating featureConfig entry", "environment", env, "identifier", identifier)
 
 	// Make a request to Harness Saas to fetch the updated featureConfig
@@ -452,6 +461,9 @@ func (s Refresher) handleFetchFeatureEvent(ctx context.Context, env, identifier 
 
 	// Iterate over the cached flag config values and update the record that has changed
 	replaceFeatureConfig(updatedFlagConfig, &featureConfigs)
+
+	// HashCache.Set reuses its existing marshal for collection/growth metrics via context.
+	ctx = ContextWithSSERefresh(ctx, msg, "feature-configs")
 
 	// Update the cached flagConfig. This will take care of updating the individual cached record stored at env-<id>-feature-config-<identifier> and the collection of featureConfigs stored at env-<id>-feature-configs.
 	if err := s.flagRepo.Add(ctx, domain.FlagConfig{EnvironmentID: env, FeatureConfigs: featureConfigs}); err != nil {
@@ -553,7 +565,8 @@ func (s Refresher) updateFeatureConfigsEntry(ctx context.Context, env string, id
 // 2. Update the individual segment record in the cache.
 // 3. Update the segments record in the cache.
 // 4. Update the inventory record for the segment.
-func (s Refresher) handleFetchSegmentEvent(ctx context.Context, env, identifier string) error {
+func (s Refresher) handleFetchSegmentEvent(ctx context.Context, msg domain.SSEMessage) error {
+	env, identifier := msg.Environment, msg.Identifier
 	s.log.Debug("updating segment entry", "environment", env, "identifier", identifier)
 
 	fetchCtx, cancel := context.WithTimeout(ctx, s.fetchTimeout)
@@ -590,6 +603,8 @@ func (s Refresher) handleFetchSegmentEvent(ctx context.Context, env, identifier 
 		return fmt.Errorf("failed to get segment for environment %s", env)
 	}
 	replaceSegmentConfig(updatedSegment, &segments)
+
+	ctx = ContextWithSSERefresh(ctx, msg, "segments")
 
 	if err := s.segmentRepo.Add(ctx, domain.SegmentConfig{
 		EnvironmentID: env,

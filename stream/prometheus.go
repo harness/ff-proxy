@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 
+	"github.com/harness-community/sse/v3"
 	"github.com/prometheus/client_golang/prometheus"
 
 	"github.com/harness/ff-proxy/v2/domain"
@@ -18,6 +19,7 @@ type PrometheusStream struct {
 	messagesPublished *prometheus.CounterVec
 	messagesReceived  *prometheus.CounterVec
 	subscriptions     *prometheus.CounterVec
+	eventBytes        *prometheus.HistogramVec
 }
 
 func (p *PrometheusStream) Close(channel string) error {
@@ -46,9 +48,16 @@ func NewPrometheusStream(name string, next domain.Stream, reg *prometheus.Regist
 		},
 			[]string{"topic"},
 		),
+		eventBytes: prometheus.NewHistogramVec(prometheus.HistogramOpts{
+			Name: fmt.Sprintf("%s_event_bytes", name),
+			Help: "Raw SSE event.Data size in bytes (wire notification; HashCache snapshot size is tracked separately)",
+			Buckets: []float64{
+				64, 128, 256, 512, 1024, 2048, 4096, 8192, 16384,
+			},
+		}, []string{"topic"}),
 	}
 
-	reg.MustRegister(p.messagesPublished, p.messagesReceived, p.subscriptions)
+	reg.MustRegister(p.messagesPublished, p.messagesReceived, p.subscriptions, p.eventBytes)
 	return p
 }
 
@@ -67,6 +76,13 @@ func (p *PrometheusStream) Sub(ctx context.Context, channel string, id string, m
 	p.subscriptions.WithLabelValues(channel).Inc()
 
 	return p.next.Sub(ctx, channel, id, func(id string, v interface{}) error {
+		switch msg := v.(type) {
+		case *sse.Event:
+			p.eventBytes.WithLabelValues(channel).Observe(float64(len(msg.Data)))
+		case string:
+			p.eventBytes.WithLabelValues(channel).Observe(float64(len(msg)))
+		}
+
 		err := msgFn(id, v)
 		errLabel := parseErrorLabel(err)
 
