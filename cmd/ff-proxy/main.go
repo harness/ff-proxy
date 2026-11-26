@@ -67,6 +67,8 @@ var (
 	redisUsername       string
 	redisDB             int
 	hashCacheLatestOnly bool
+	hashCacheMaxEntries int
+	hashCacheMaxBytes   int64
 
 	// Redis Config Options
 	redisMaxRetries                  int
@@ -153,6 +155,8 @@ const (
 	redisUsernameEnv       = "REDIS_USERNAME"
 	redisDBEnv             = "REDIS_DB"
 	hashCacheLatestOnlyEnv = "HASH_CACHE_LATEST_ONLY"
+	hashCacheMaxEntriesEnv = "HASH_CACHE_MAX_ENTRIES"
+	hashCacheMaxBytesEnv   = "HASH_CACHE_MAX_BYTES"
 
 	// Redis Config
 	redisMaxRetriesEnv                  = "REDIS_MAX_RETRIES"
@@ -223,6 +227,8 @@ const (
 	redisUsernameFlag       = "redis-username"
 	redisDBFlag             = "redis-db"
 	hashCacheLatestOnlyFlag = "hash-cache-latest-only"
+	hashCacheMaxEntriesFlag = "hash-cache-max-entries"
+	hashCacheMaxBytesFlag   = "hash-cache-max-bytes"
 
 	// Redis Configuration Options
 	redisMaxRetriesFlag                  = "redis-max-retries"
@@ -293,6 +299,8 @@ func init() {
 	flag.StringVar(&redisUsername, redisUsernameFlag, "", "Optional. Redis username")
 	flag.IntVar(&redisDB, redisDBFlag, 0, "Database to be selected after connecting to the server.")
 	flag.BoolVar(&hashCacheLatestOnly, hashCacheLatestOnlyFlag, false, "retain only the latest local snapshot per Redis collection key")
+	flag.IntVar(&hashCacheMaxEntries, hashCacheMaxEntriesFlag, 0, "max local HashCache entries (LRU eviction). 0 disables the entry cap")
+	flag.Int64Var(&hashCacheMaxBytes, hashCacheMaxBytesFlag, 0, "max approximate local HashCache payload bytes (LRU). Applied only with hash-cache-latest-only. 0 disables")
 
 	// Redis Configuration Options
 	flag.IntVar(&redisMaxRetries, redisMaxRetriesFlag, 3, "Maximum number of retries before giving up. Default is 3 retries.")
@@ -353,6 +361,8 @@ func init() {
 		redisUsernameEnv:                redisUsernameFlag,
 		redisDBEnv:                      redisDBFlag,
 		hashCacheLatestOnlyEnv:          hashCacheLatestOnlyFlag,
+		hashCacheMaxEntriesEnv:          hashCacheMaxEntriesFlag,
+		hashCacheMaxBytesEnv:            hashCacheMaxBytesFlag,
 		redisPoolSizeEnv:                redisPoolSizeFlag,
 		metricPostDurationEnv:           metricPostDurationFlag,
 		heartbeatIntervalEnv:            heartbeatIntervalFlag,
@@ -492,6 +502,8 @@ func main() {
 		"metrics-service", metricService,
 		"prometheus-port", prometheusPort,
 		"and-rules", andRules,
+		"hash-cache-max-entries", hashCacheMaxEntries,
+		"hash-cache-max-bytes", hashCacheMaxBytes,
 	)
 
 	var redisClient redis.UniversalClient
@@ -523,6 +535,8 @@ func main() {
 			10*time.Minute,
 			12*time.Minute,
 			cache.WithLatestOnly(hashCacheLatestOnly),
+			cache.WithMaxLocalEntries(hashCacheMaxEntries),
+			cache.WithMaxLocalBytes(hashCacheMaxBytes),
 			cache.WithMetrics(hashCacheMetrics),
 			cache.WithSSEMetrics(ssePayloadMetrics),
 			cache.WithLogger(logger),

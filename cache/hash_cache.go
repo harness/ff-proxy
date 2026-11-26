@@ -23,6 +23,8 @@ type HashCache struct {
 	localCache   internalCache
 	requestGroup *singleflight.Group
 	latestOnly   bool
+	maxEntries   int
+	maxBytes     int64
 	metrics      *HashCacheMetrics
 	sseMetrics   *SSEPayloadMetrics
 	logger       log.Logger
@@ -31,6 +33,7 @@ type HashCache struct {
 type hashCacheEntry struct {
 	hash  string
 	value interface{}
+	size  int64 // marshalled JSON size when known (Set path); 0 → LRU stub
 }
 
 // HashCacheOption configures the local HashCache behavior.
@@ -40,6 +43,25 @@ type HashCacheOption func(*HashCache)
 // It is disabled by default and applies independently to primary and replica caches.
 func WithLatestOnly(enabled bool) HashCacheOption {
 	return func(hc *HashCache) { hc.latestOnly = enabled }
+}
+
+// WithMaxLocalEntries caps local entries via LRU. 0 = disabled.
+func WithMaxLocalEntries(n int) HashCacheOption {
+	return func(hc *HashCache) {
+		if n > 0 {
+			hc.maxEntries = n
+		}
+	}
+}
+
+// WithMaxLocalBytes caps approx local payload bytes via LRU. Applied only with
+// latest-only (Set path records marshal size). 0 = disabled.
+func WithMaxLocalBytes(n int64) HashCacheOption {
+	return func(hc *HashCache) {
+		if n > 0 {
+			hc.maxBytes = n
+		}
+	}
 }
 
 // WithMetrics enables Prometheus instrumentation for local snapshot sizes.
@@ -60,22 +82,42 @@ func WithSSEMetrics(m *SSEPayloadMetrics) HashCacheOption {
 
 // NewHashCache ...
 func NewHashCache(c Cache, defaultExpiration, cleanupInterval time.Duration, options ...HashCacheOption) *HashCache {
-	local := gocache.New(defaultExpiration, cleanupInterval)
 	hc := &HashCache{
 		Cache:        c,
-		localCache:   local,
 		requestGroup: &singleflight.Group{},
 		logger:       log.NewNoOpLogger(),
 	}
 	for _, option := range options {
 		option(hc)
 	}
-	// TTL expiry / Delete must drop gauge tracking; otherwise default multi-hash
-	// get_fill leaves keyBytes growing forever while go-cache evicts entries.
-	local.OnEvicted(func(k string, _ interface{}) {
-		hc.recordLocalDelete(k)
-	})
+	// maxBytes needs real sizes from Set marshal; ignore without latest-only.
+	maxBytes := hc.maxBytes
+	if maxBytes > 0 && !hc.latestOnly {
+		maxBytes = 0
+	}
+	if hc.maxEntries > 0 || maxBytes > 0 {
+		hc.localCache = newLRULocalCache(hc.maxEntries, maxBytes, defaultExpiration, cleanupInterval, hc.recordLocalDelete)
+	} else {
+		local := gocache.New(defaultExpiration, cleanupInterval)
+		// TTL expiry / Delete must drop gauge tracking; otherwise default multi-hash
+		// get_fill leaves keyBytes growing forever while go-cache evicts entries.
+		local.OnEvicted(func(k string, _ interface{}) {
+			hc.recordLocalDelete(k)
+		})
+		hc.localCache = local
+	}
 	return hc
+}
+
+func (hc *HashCache) localItemCount() int {
+	switch c := hc.localCache.(type) {
+	case *gocache.Cache:
+		return c.ItemCount()
+	case *lruLocalCache:
+		return c.ItemCount()
+	default:
+		return -1
+	}
 }
 
 // recordLocalFill tracks a get_fill retain without re-encoding the collection.
@@ -158,7 +200,7 @@ func (hc HashCache) Set(ctx context.Context, key string, value interface{}) erro
 			hc.recordLocalDelete(key)
 			return fmt.Errorf("HashCache.Set failed to snapshot key=%s for local cache: %w", key, err)
 		}
-		hc.localCache.Set(key, hashCacheEntry{hash: latestHashString, value: owned}, 0)
+		hc.localCache.Set(key, hashCacheEntry{hash: latestHashString, value: owned, size: size}, 0)
 		hc.metrics.trackLocalBytes(key, size)
 	}
 
