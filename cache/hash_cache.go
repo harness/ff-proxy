@@ -209,12 +209,6 @@ func (hc HashCache) Get(ctx context.Context, key string, value interface{}) erro
 
 // Get checks the local cache for the key and returns it if there.
 func (hc HashCache) get(ctx context.Context, key string, value interface{}) (interface{}, error) {
-	// Individual records never get a -latest hash; skip the lookup and read Redis.
-	if !isCollectionKey(key) {
-		err := hc.Cache.Get(ctx, key, value)
-		return value, err
-	}
-
 	if hc.latestOnly {
 		return hc.getLatest(ctx, key, value)
 	}
@@ -285,11 +279,6 @@ func (hc HashCache) getLatest(ctx context.Context, key string, value interface{}
 
 // Delete key from local cache as well as hash entry in the redis
 func (hc HashCache) Delete(ctx context.Context, key string) error {
-	// Individual records have no -latest hash and are never cached locally here.
-	if !isCollectionKey(key) {
-		return hc.Cache.Delete(ctx, key)
-	}
-
 	latestKey := hashKey(key)
 	if hc.latestOnly {
 		hc.localCache.Delete(key)

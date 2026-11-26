@@ -569,35 +569,6 @@ type badUnmarshal struct{}
 func (*badUnmarshal) UnmarshalJSON([]byte) error { return errors.New("boom") }
 func (*badUnmarshal) MarshalJSON() ([]byte, error) { return []byte(`{}`), nil }
 
-func TestIsCollectionKey(t *testing.T) {
-	require.True(t, isCollectionKey(string(domain.NewFeatureConfigsKey("one"))))
-	require.True(t, isCollectionKey(string(domain.NewSegmentsKey("one"))))
-	require.False(t, isCollectionKey(string(domain.NewFeatureConfigKey("one", "flag"))))
-	require.False(t, isCollectionKey(string(domain.NewSegmentKey("one", "seg"))))
-}
-
-func TestHashCache_IndividualKeySkipsLatestLookup(t *testing.T) {
-	ctx := context.Background()
-	key := string(domain.NewFeatureConfigKey("env1", "flag1"))
-	flag := domain.FeatureFlag{Feature: "flag1"}
-
-	backend := &mCache{
-		set: func(d map[string]interface{}, k string, v interface{}) error {
-			d[k] = v
-			return nil
-		},
-	}
-	hc := NewHashCache(backend, time.Minute, 0, WithLatestOnly(true))
-	require.NoError(t, hc.Set(ctx, key, flag))
-
-	var got domain.FeatureFlag
-	require.NoError(t, hc.Get(ctx, key, &got))
-	require.Equal(t, flag.Feature, got.Feature)
-	// Individual keys must not probe Redis for a -latest hash.
-	require.Equal(t, 0, backend.latestKeyHits)
-	require.GreaterOrEqual(t, backend.fullDocumentKeyHits, 1)
-}
-
 func TestHashCache_getLatest_BadLocalType(t *testing.T) {
 	ctx := context.Background()
 	key := string(domain.NewFeatureConfigsKey("badtype"))
