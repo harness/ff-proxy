@@ -98,6 +98,16 @@ func (hc *HashCache) recordLocalDelete(localKey string) {
 	hc.metrics.observeDelete(localKey)
 }
 
+func hashKey(collectionKey string) string {
+	return collectionKey + "-latest"
+}
+
+// isCollectionKey reports whether key is a full feature-configs/segments document
+// (the only keys that get a companion -latest hash in Redis).
+func isCollectionKey(key string) bool {
+	return strings.HasSuffix(key, "segments") || strings.HasSuffix(key, "feature-configs")
+}
+
 // Set adds hash key entry for the given key
 func (hc HashCache) Set(ctx context.Context, key string, value interface{}) error {
 	// First set the key, value that we've been given
@@ -107,11 +117,11 @@ func (hc HashCache) Set(ctx context.Context, key string, value interface{}) erro
 
 	// If the key isn't a segments or feature-configs key then we're done.
 	// If it is then we'll want to carry on and set a latest hash for these keys
-	if !strings.HasSuffix(key, "segments") && !strings.HasSuffix(key, "feature-configs") {
+	if !isCollectionKey(key) {
 		return nil
 	}
 
-	latestKey := fmt.Sprintf("%s-latest", key)
+	latestKey := hashKey(key)
 	v, err := jsoniter.Marshal(value)
 	if err != nil {
 		return fmt.Errorf("unable to marshall config %s %v", latestKey, err)
@@ -199,11 +209,17 @@ func (hc HashCache) Get(ctx context.Context, key string, value interface{}) erro
 
 // Get checks the local cache for the key and returns it if there.
 func (hc HashCache) get(ctx context.Context, key string, value interface{}) (interface{}, error) {
+	// Individual records never get a -latest hash; skip the lookup and read Redis.
+	if !isCollectionKey(key) {
+		err := hc.Cache.Get(ctx, key, value)
+		return value, err
+	}
+
 	if hc.latestOnly {
 		return hc.getLatest(ctx, key, value)
 	}
 
-	latestKey := fmt.Sprintf("%s-latest", key)
+	latestKey := hashKey(key)
 
 	var hash string
 	err := hc.Cache.Get(ctx, latestKey, &hash)
@@ -236,10 +252,13 @@ func (hc HashCache) getLatest(ctx context.Context, key string, value interface{}
 	}
 
 	var hash string
-	if err := hc.Cache.Get(ctx, key+"-latest", &hash); err == nil && hash != "" {
+	if err := hc.Cache.Get(ctx, hashKey(key), &hash); err == nil && hash != "" {
 		if data, ok := hc.localCache.Get(key); ok {
-			entry := data.(hashCacheEntry)
-			if entry.hash == hash {
+			entry, ok := data.(hashCacheEntry)
+			if !ok {
+				hc.localCache.Delete(key)
+				hc.recordLocalDelete(key)
+			} else if entry.hash == hash {
 				// Return a clone so Refresher/SDK callers cannot mutate the cached snapshot.
 				return cloneSnapshot(entry.value)
 			}
@@ -266,8 +285,12 @@ func (hc HashCache) getLatest(ctx context.Context, key string, value interface{}
 
 // Delete key from local cache as well as hash entry in the redis
 func (hc HashCache) Delete(ctx context.Context, key string) error {
+	// Individual records have no -latest hash and are never cached locally here.
+	if !isCollectionKey(key) {
+		return hc.Cache.Delete(ctx, key)
+	}
 
-	latestKey := fmt.Sprintf("%s-latest", key)
+	latestKey := hashKey(key)
 	if hc.latestOnly {
 		hc.localCache.Delete(key)
 		hc.recordLocalDelete(key)
@@ -286,6 +309,7 @@ func (hc HashCache) Delete(ctx context.Context, key string) error {
 }
 
 // snapshotPtr JSON-round-trips value into a fresh *T for local retention.
+// If value is already *T, result is still *T (not **T).
 func snapshotPtr(value interface{}) (interface{}, error) {
 	if value == nil {
 		return nil, fmt.Errorf("nil snapshot value")
@@ -294,7 +318,11 @@ func snapshotPtr(value interface{}) (interface{}, error) {
 	if err != nil {
 		return nil, err
 	}
-	ptr := reflect.New(reflect.TypeOf(value)).Interface()
+	t := reflect.TypeOf(value)
+	if t.Kind() == reflect.Ptr {
+		t = t.Elem()
+	}
+	ptr := reflect.New(t).Interface()
 	if err := jsoniter.Unmarshal(b, ptr); err != nil {
 		return nil, err
 	}
