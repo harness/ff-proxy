@@ -31,6 +31,29 @@ func TestHashCacheMetrics_SetRecordsLocalSnapshotSize(t *testing.T) {
 	assert.Greater(t, testutil.ToFloat64(metrics.localBytes), float64(0))
 }
 
+func TestHashCacheMetrics_DeclinedLRUSetSkipsLocalGauges(t *testing.T) {
+	reg := prometheus.NewRegistry()
+	metrics := NewHashCacheMetrics(reg)
+
+	backend, _ := newHashCacheTestBackend(t)
+	// Budget smaller than any marshalled feature-configs payload → LRU declines.
+	hc := NewHashCache(backend, time.Minute, 0,
+		WithLatestOnly(true),
+		WithMaxLocalBytes(1),
+		WithMetrics(metrics),
+	)
+
+	key := string(domain.NewFeatureConfigsKey("env-1"))
+	flags := []domain.FeatureFlag{{Feature: "flag-a"}, {Feature: "flag-b"}}
+	require.NoError(t, hc.Set(context.Background(), key, flags))
+
+	assert.Equal(t, 0, hc.localItemCount())
+	assert.Equal(t, float64(0), testutil.ToFloat64(metrics.localEntries))
+	assert.Equal(t, float64(0), testutil.ToFloat64(metrics.localBytes))
+	// Store still succeeded in Redis; histogram/counters still observe the write.
+	assert.Equal(t, float64(1), testutil.ToFloat64(metrics.storeTotal.WithLabelValues("feature-configs", "set")))
+}
+
 func TestHashCacheMetrics_DeleteClearsLocalBytes(t *testing.T) {
 	reg := prometheus.NewRegistry()
 	metrics := NewHashCacheMetrics(reg)

@@ -23,6 +23,8 @@ type HashCache struct {
 	localCache   internalCache
 	requestGroup *singleflight.Group
 	latestOnly   bool
+	maxEntries   int
+	maxBytes     int64
 	metrics      *HashCacheMetrics
 	sseMetrics   *SSEPayloadMetrics
 	logger       log.Logger
@@ -31,6 +33,7 @@ type HashCache struct {
 type hashCacheEntry struct {
 	hash  string
 	value interface{}
+	size  int64 // marshalled JSON size when known (Set path); 0 → LRU stub
 }
 
 // HashCacheOption configures the local HashCache behavior.
@@ -40,6 +43,25 @@ type HashCacheOption func(*HashCache)
 // It is disabled by default and applies independently to primary and replica caches.
 func WithLatestOnly(enabled bool) HashCacheOption {
 	return func(hc *HashCache) { hc.latestOnly = enabled }
+}
+
+// WithMaxLocalEntries caps local entries via LRU. 0 = disabled.
+func WithMaxLocalEntries(n int) HashCacheOption {
+	return func(hc *HashCache) {
+		if n > 0 {
+			hc.maxEntries = n
+		}
+	}
+}
+
+// WithMaxLocalBytes caps approx local payload bytes via LRU. Applied only with
+// latest-only (Set path records marshal size). 0 = disabled.
+func WithMaxLocalBytes(n int64) HashCacheOption {
+	return func(hc *HashCache) {
+		if n > 0 {
+			hc.maxBytes = n
+		}
+	}
 }
 
 // WithMetrics enables Prometheus instrumentation for local snapshot sizes.
@@ -60,22 +82,52 @@ func WithSSEMetrics(m *SSEPayloadMetrics) HashCacheOption {
 
 // NewHashCache ...
 func NewHashCache(c Cache, defaultExpiration, cleanupInterval time.Duration, options ...HashCacheOption) *HashCache {
-	local := gocache.New(defaultExpiration, cleanupInterval)
 	hc := &HashCache{
 		Cache:        c,
-		localCache:   local,
 		requestGroup: &singleflight.Group{},
 		logger:       log.NewNoOpLogger(),
 	}
 	for _, option := range options {
 		option(hc)
 	}
-	// TTL expiry / Delete must drop gauge tracking; otherwise default multi-hash
-	// get_fill leaves keyBytes growing forever while go-cache evicts entries.
-	local.OnEvicted(func(k string, _ interface{}) {
-		hc.recordLocalDelete(k)
-	})
+	// maxBytes needs real sizes from Set marshal; ignore without latest-only.
+	maxBytes := hc.maxBytes
+	if maxBytes > 0 && !hc.latestOnly {
+		maxBytes = 0
+	}
+	if hc.maxEntries > 0 || maxBytes > 0 {
+		hc.localCache = newLRULocalCache(hc.maxEntries, maxBytes, defaultExpiration, cleanupInterval, hc.recordLocalDelete)
+	} else {
+		local := gocache.New(defaultExpiration, cleanupInterval)
+		// TTL expiry / Delete must drop gauge tracking; otherwise default multi-hash
+		// get_fill leaves keyBytes growing forever while go-cache evicts entries.
+		local.OnEvicted(func(k string, _ interface{}) {
+			hc.recordLocalDelete(k)
+		})
+		hc.localCache = local
+	}
 	return hc
+}
+
+func (hc *HashCache) localItemCount() int {
+	switch c := hc.localCache.(type) {
+	case *gocache.Cache:
+		return c.ItemCount()
+	case *lruLocalCache:
+		return c.ItemCount()
+	default:
+		return -1
+	}
+}
+
+// setLocalRetained writes to the local cache and reports whether the entry was
+// kept. LRU may decline oversized/over-budget payloads; go-cache always keeps.
+func setLocalRetained(c internalCache, key string, v interface{}, d time.Duration) bool {
+	if lru, ok := c.(*lruLocalCache); ok {
+		return lru.setRetained(key, v, d)
+	}
+	c.Set(key, v, d)
+	return true
 }
 
 // recordLocalFill tracks a get_fill retain without re-encoding the collection.
@@ -98,6 +150,16 @@ func (hc *HashCache) recordLocalDelete(localKey string) {
 	hc.metrics.observeDelete(localKey)
 }
 
+func hashKey(collectionKey string) string {
+	return collectionKey + "-latest"
+}
+
+// isCollectionKey reports whether key is a full feature-configs/segments document
+// (the only keys that get a companion -latest hash in Redis).
+func isCollectionKey(key string) bool {
+	return strings.HasSuffix(key, "segments") || strings.HasSuffix(key, "feature-configs")
+}
+
 // Set adds hash key entry for the given key
 func (hc HashCache) Set(ctx context.Context, key string, value interface{}) error {
 	// First set the key, value that we've been given
@@ -107,11 +169,11 @@ func (hc HashCache) Set(ctx context.Context, key string, value interface{}) erro
 
 	// If the key isn't a segments or feature-configs key then we're done.
 	// If it is then we'll want to carry on and set a latest hash for these keys
-	if !strings.HasSuffix(key, "segments") && !strings.HasSuffix(key, "feature-configs") {
+	if !isCollectionKey(key) {
 		return nil
 	}
 
-	latestKey := fmt.Sprintf("%s-latest", key)
+	latestKey := hashKey(key)
 	v, err := jsoniter.Marshal(value)
 	if err != nil {
 		return fmt.Errorf("unable to marshall config %s %v", latestKey, err)
@@ -148,8 +210,9 @@ func (hc HashCache) Set(ctx context.Context, key string, value interface{}) erro
 			hc.recordLocalDelete(key)
 			return fmt.Errorf("HashCache.Set failed to snapshot key=%s for local cache: %w", key, err)
 		}
-		hc.localCache.Set(key, hashCacheEntry{hash: latestHashString, value: owned}, 0)
-		hc.metrics.trackLocalBytes(key, size)
+		if setLocalRetained(hc.localCache, key, hashCacheEntry{hash: latestHashString, value: owned, size: size}, 0) {
+			hc.metrics.trackLocalBytes(key, size)
+		}
 	}
 
 	return nil
@@ -203,7 +266,7 @@ func (hc HashCache) get(ctx context.Context, key string, value interface{}) (int
 		return hc.getLatest(ctx, key, value)
 	}
 
-	latestKey := fmt.Sprintf("%s-latest", key)
+	latestKey := hashKey(key)
 
 	var hash string
 	err := hc.Cache.Get(ctx, latestKey, &hash)
@@ -220,11 +283,12 @@ func (hc HashCache) get(ctx context.Context, key string, value interface{}) (int
 	}
 	// set the value in local
 	if hash != "" {
-		hc.localCache.Set(hash, value, 0)
-		// Do not re-marshal the collection for metrics — that doubles encode cost on
-		// the SSE/read hot path. Entry count still tracks multi-hash churn; exact
-		// bytes come from Set's existing marshal (see observeSnapshot / latest-only).
-		hc.recordLocalFill(hash, key)
+		if setLocalRetained(hc.localCache, hash, value, 0) {
+			// Do not re-marshal the collection for metrics — that doubles encode cost on
+			// the SSE/read hot path. Entry count still tracks multi-hash churn; exact
+			// bytes come from Set's existing marshal (see observeSnapshot / latest-only).
+			hc.recordLocalFill(hash, key)
+		}
 	}
 	return value, err
 }
@@ -236,10 +300,13 @@ func (hc HashCache) getLatest(ctx context.Context, key string, value interface{}
 	}
 
 	var hash string
-	if err := hc.Cache.Get(ctx, key+"-latest", &hash); err == nil && hash != "" {
+	if err := hc.Cache.Get(ctx, hashKey(key), &hash); err == nil && hash != "" {
 		if data, ok := hc.localCache.Get(key); ok {
-			entry := data.(hashCacheEntry)
-			if entry.hash == hash {
+			entry, ok := data.(hashCacheEntry)
+			if !ok {
+				hc.localCache.Delete(key)
+				hc.recordLocalDelete(key)
+			} else if entry.hash == hash {
 				// Return a clone so Refresher/SDK callers cannot mutate the cached snapshot.
 				return cloneSnapshot(entry.value)
 			}
@@ -257,8 +324,9 @@ func (hc HashCache) getLatest(ctx context.Context, key string, value interface{}
 		return nil, err
 	}
 	if hash != "" {
-		hc.localCache.Set(key, hashCacheEntry{hash: hash, value: data}, 0)
-		hc.recordLocalFill(key, key)
+		if setLocalRetained(hc.localCache, key, hashCacheEntry{hash: hash, value: data}, 0) {
+			hc.recordLocalFill(key, key)
+		}
 		return cloneSnapshot(data)
 	}
 	return data, nil
@@ -266,8 +334,7 @@ func (hc HashCache) getLatest(ctx context.Context, key string, value interface{}
 
 // Delete key from local cache as well as hash entry in the redis
 func (hc HashCache) Delete(ctx context.Context, key string) error {
-
-	latestKey := fmt.Sprintf("%s-latest", key)
+	latestKey := hashKey(key)
 	if hc.latestOnly {
 		hc.localCache.Delete(key)
 		hc.recordLocalDelete(key)
@@ -286,6 +353,7 @@ func (hc HashCache) Delete(ctx context.Context, key string) error {
 }
 
 // snapshotPtr JSON-round-trips value into a fresh *T for local retention.
+// If value is already *T, result is still *T (not **T).
 func snapshotPtr(value interface{}) (interface{}, error) {
 	if value == nil {
 		return nil, fmt.Errorf("nil snapshot value")
@@ -294,7 +362,11 @@ func snapshotPtr(value interface{}) (interface{}, error) {
 	if err != nil {
 		return nil, err
 	}
-	ptr := reflect.New(reflect.TypeOf(value)).Interface()
+	t := reflect.TypeOf(value)
+	if t.Kind() == reflect.Ptr {
+		t = t.Elem()
+	}
+	ptr := reflect.New(t).Interface()
 	if err := jsoniter.Unmarshal(b, ptr); err != nil {
 		return nil, err
 	}

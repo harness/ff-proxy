@@ -180,8 +180,12 @@ primary:
     REDIS_ADDRESS: '{{ include "harnesscommon.dbv3.redisConnection" (dict "ctx" $ "database" "events" "unsetProtocol" true) }}'
     CLIENT_SERVICE: '{{ .Values.loadbalancerURL }}/sdk/api/1.0'
     METRIC_SERVICE: '{{ .Values.loadbalancerURL }}/events'
-    # Opt-in: bound HashCache to one snapshot per collection key (FFM-13229). Leave false in chart/SMP defaults; set "true" in hosted primary+readReplica overrides to stop SSE-driven heap growth.
+    # Opt-in: bound HashCache to one snapshot per collection key (FFM-13243). Leave false in chart/SMP defaults; set "true" in hosted primary+readReplica overrides to stop SSE-driven heap growth.
     HASH_CACHE_LATEST_ONLY: "false"
+    # Optional LRU caps (0 = disabled). MAX_ENTRIES = key-count ceiling (works with/without LATEST_ONLY).
+    # MAX_BYTES = approximate payload-byte ceiling from Set marshal size; only applied when LATEST_ONLY=true.
+    HASH_CACHE_MAX_ENTRIES: "0"
+    HASH_CACHE_MAX_BYTES: "0"
 
 # configuration specific to the read replica pods
 readReplica:
@@ -268,8 +272,12 @@ readReplica:
     REDIS_ADDRESS: '{{ include "harnesscommon.dbv3.redisConnection" (dict "ctx" $ "database" "events" "unsetProtocol" true) }}'
     CLIENT_SERVICE: '{{ .Values.loadbalancerURL }}/sdk/api/1.0'
     METRIC_SERVICE: '{{ .Values.loadbalancerURL }}/events'
-    # Opt-in: bound HashCache to one snapshot per collection key (FFM-13229). Leave false in chart/SMP defaults; set "true" in hosted primary+readReplica overrides to stop SSE-driven heap growth.
+    # Opt-in: bound HashCache to one snapshot per collection key (FFM-13243). Leave false in chart/SMP defaults; set "true" in hosted primary+readReplica overrides to stop SSE-driven heap growth.
     HASH_CACHE_LATEST_ONLY: "false"
+    # Optional LRU caps (0 = disabled). MAX_ENTRIES = key-count ceiling (works with/without LATEST_ONLY).
+    # MAX_BYTES = approximate payload-byte ceiling from Set marshal size; only applied when LATEST_ONLY=true.
+    HASH_CACHE_MAX_ENTRIES: "0"
+    HASH_CACHE_MAX_BYTES: "0"
 
 #common configs which other services use.
 config:

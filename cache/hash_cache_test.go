@@ -529,6 +529,15 @@ func TestSnapshotPtrAndCloneSnapshot(t *testing.T) {
 	require.Equal(t, []string{"a", "b"}, *ptr)
 	(*ptr)[0] = "mutated"
 
+	// Pointer input must still yield *T, not **T (prod panic if Set ever passed *T).
+	in := []string{"x", "y"}
+	ownedPtr, err := snapshotPtr(&in)
+	require.NoError(t, err)
+	_, ok = ownedPtr.(*[]string)
+	require.True(t, ok, "snapshotPtr(*T) must return *T")
+	_, isDouble := ownedPtr.(**[]string)
+	require.False(t, isDouble)
+
 	cloned, err := cloneSnapshot(owned)
 	require.NoError(t, err)
 	clonedPtr := cloned.(*[]string)
@@ -559,6 +568,23 @@ type badUnmarshal struct{}
 
 func (*badUnmarshal) UnmarshalJSON([]byte) error { return errors.New("boom") }
 func (*badUnmarshal) MarshalJSON() ([]byte, error) { return []byte(`{}`), nil }
+
+func TestHashCache_getLatest_BadLocalType(t *testing.T) {
+	ctx := context.Background()
+	key := string(domain.NewFeatureConfigsKey("badtype"))
+	flags := []domain.FeatureFlag{{Feature: "f1"}}
+
+	backend, _ := newHashCacheTestBackend(t)
+	hc := NewHashCache(backend, time.Minute, 0, WithLatestOnly(true))
+	require.NoError(t, hc.Set(ctx, key, flags))
+
+	// Corrupt local entry type — must not panic; should refetch.
+	hc.localCache.Set(key, "not-an-entry", 0)
+
+	var got []domain.FeatureFlag
+	require.NoError(t, hc.Get(ctx, key, &got))
+	require.Equal(t, "f1", got[0].Feature)
+}
 
 func TestHashCache_ErrorPaths(t *testing.T) {
 	ctx := context.Background()

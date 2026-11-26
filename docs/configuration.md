@@ -40,10 +40,14 @@ Config required to connect to redis. Note only `REDIS_ADDRESS` is required to co
 | REDIS_PASSWORD       | redis-password | (Optional) Redis password                                         | string |         |
 | REDIS_DB             | redis-db       | (Optional) Database to be selected after connecting to the server | int    | 0       |
 | HASH_CACHE_LATEST_ONLY | hash-cache-latest-only | Retain only the latest local snapshot per collection key, checking its Redis hash on every read. Applies independently to each primary and read replica. | bool | false |
+| HASH_CACHE_MAX_ENTRIES | hash-cache-max-entries | Soft ceiling on **how many** local HashCache keys stay in memory. Evicts least-recently-used entries when the count would exceed the limit. Use when many env/collection keys would otherwise accumulate (especially multi-hash mode without latest-only). `0` = no entry-count cap. Works with or without `HASH_CACHE_LATEST_ONLY`. Setting this (or an effective `HASH_CACHE_MAX_BYTES`) switches the local layer from TTL-only `go-cache` to LRU+TTL with a janitor. | int | 0 |
+| HASH_CACHE_MAX_BYTES | hash-cache-max-bytes | Soft ceiling on **approximate heap** of local HashCache payloads, sized from each `Set`'s JSON marshal length. Evicts LRU entries when adding would exceed the budget; single payloads larger than the budget are not cached locally (Redis refill on next Get). **Only applied when `HASH_CACHE_LATEST_ONLY=true`** (ignored otherwise — byte sizing needs the latest-only write-through path). `0` = no byte cap. | int64 | 0 |
 
 `HASH_CACHE_LATEST_ONLY` is opt-in. For a Harness-hosted rollout, first publish an image containing this option, then set `HASH_CACHE_LATEST_ONLY: "true"` under both `primary.config` and `readReplica.config` in the selected deployment's overrides (chart defaults stay `"false"` for SMP/customer). Restart the selected pods to apply the setting; set it back to `"false"` and restart to roll back. Redis data and keys are unchanged.
 
 When enabled, `Set` write-throughs one owned local snapshot per collection key (so primary Refresher does not leave a stale-hash entry), and `Get` returns a cloned snapshot so callers (e.g. Refresher mutating feature-configs in place) cannot poison the cache. This bounds retained heap to current collections; it does not cap the size of a single collection or other caches such as MemoizeCache.
+
+**Optional LRU caps (defense in depth after latest-only):** Prefer enabling latest-only first. Then set `HASH_CACHE_MAX_BYTES` with headroom under the pod memory limit so a few large collections cannot push HashCache past budget; use `HASH_CACHE_MAX_ENTRIES` to bound key cardinality (many envs / collections). Either cap enables the LRU local cache. Eviction is LRU; Redis remains source of truth — a miss reloads from Redis.
 
 **Connecting to Redis:** The Relay Proxy supports two Redis authentication modes:
 
