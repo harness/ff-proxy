@@ -186,6 +186,8 @@ primary:
     # MAX_BYTES = approximate payload-byte ceiling from Set marshal size; only applied when LATEST_ONLY=true.
     HASH_CACHE_MAX_ENTRIES: "0"
     HASH_CACHE_MAX_BYTES: "0"
+    # Local HashCache entry TTL (minutes). Cleanup interval is TTL+2. Default 10.
+    HASH_CACHE_TTL_MINUTES: "10"
 
 # configuration specific to the read replica pods
 readReplica:
@@ -278,6 +280,8 @@ readReplica:
     # MAX_BYTES = approximate payload-byte ceiling from Set marshal size; only applied when LATEST_ONLY=true.
     HASH_CACHE_MAX_ENTRIES: "0"
     HASH_CACHE_MAX_BYTES: "0"
+    # Local HashCache entry TTL (minutes). Cleanup interval is TTL+2. Default 10.
+    HASH_CACHE_TTL_MINUTES: "10"
 
 #common configs which other services use.
 config:

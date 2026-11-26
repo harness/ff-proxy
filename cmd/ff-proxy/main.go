@@ -69,6 +69,7 @@ var (
 	hashCacheLatestOnly bool
 	hashCacheMaxEntries int
 	hashCacheMaxBytes   int64
+	hashCacheTTLMinutes int
 
 	// Redis Config Options
 	redisMaxRetries                  int
@@ -157,6 +158,7 @@ const (
 	hashCacheLatestOnlyEnv = "HASH_CACHE_LATEST_ONLY"
 	hashCacheMaxEntriesEnv = "HASH_CACHE_MAX_ENTRIES"
 	hashCacheMaxBytesEnv   = "HASH_CACHE_MAX_BYTES"
+	hashCacheTTLMinutesEnv = "HASH_CACHE_TTL_MINUTES"
 
 	// Redis Config
 	redisMaxRetriesEnv                  = "REDIS_MAX_RETRIES"
@@ -229,6 +231,7 @@ const (
 	hashCacheLatestOnlyFlag = "hash-cache-latest-only"
 	hashCacheMaxEntriesFlag = "hash-cache-max-entries"
 	hashCacheMaxBytesFlag   = "hash-cache-max-bytes"
+	hashCacheTTLMinutesFlag = "hash-cache-ttl-minutes"
 
 	// Redis Configuration Options
 	redisMaxRetriesFlag                  = "redis-max-retries"
@@ -301,6 +304,7 @@ func init() {
 	flag.BoolVar(&hashCacheLatestOnly, hashCacheLatestOnlyFlag, false, "retain only the latest local snapshot per Redis collection key")
 	flag.IntVar(&hashCacheMaxEntries, hashCacheMaxEntriesFlag, 0, "soft ceiling on local HashCache key count (LRU eviction). Works with/without latest-only. 0 disables")
 	flag.Int64Var(&hashCacheMaxBytes, hashCacheMaxBytesFlag, 0, "soft ceiling on local HashCache payload bytes from Set marshal size (LRU). Only with hash-cache-latest-only. 0 disables")
+	flag.IntVar(&hashCacheTTLMinutes, hashCacheTTLMinutesFlag, 10, "local HashCache entry TTL in minutes. Cleanup interval is TTL+2 minutes. Default 10")
 
 	// Redis Configuration Options
 	flag.IntVar(&redisMaxRetries, redisMaxRetriesFlag, 3, "Maximum number of retries before giving up. Default is 3 retries.")
@@ -363,6 +367,7 @@ func init() {
 		hashCacheLatestOnlyEnv:          hashCacheLatestOnlyFlag,
 		hashCacheMaxEntriesEnv:          hashCacheMaxEntriesFlag,
 		hashCacheMaxBytesEnv:            hashCacheMaxBytesFlag,
+		hashCacheTTLMinutesEnv:          hashCacheTTLMinutesFlag,
 		redisPoolSizeEnv:                redisPoolSizeFlag,
 		metricPostDurationEnv:           metricPostDurationFlag,
 		heartbeatIntervalEnv:            heartbeatIntervalFlag,
@@ -504,6 +509,7 @@ func main() {
 		"and-rules", andRules,
 		"hash-cache-max-entries", hashCacheMaxEntries,
 		"hash-cache-max-bytes", hashCacheMaxBytes,
+		"hash-cache-ttl-minutes", hashCacheTTLMinutes,
 	)
 
 	var redisClient redis.UniversalClient
@@ -530,10 +536,15 @@ func main() {
 		sdkCache = cache.NewMetricsCache("redis", promReg, mcCache)
 		hashCacheMetrics := cache.NewHashCacheMetrics(promReg)
 		ssePayloadMetrics = cache.NewSSEPayloadMetrics(promReg)
+		hashCacheTTL := time.Duration(hashCacheTTLMinutes) * time.Minute
+		if hashCacheTTL <= 0 {
+			hashCacheTTL = 10 * time.Minute
+		}
+		hashCacheCleanup := hashCacheTTL + 2*time.Minute
 		hashCache = cache.NewHashCache(
 			cache.NewKeyValCache(redisClient),
-			10*time.Minute,
-			12*time.Minute,
+			hashCacheTTL,
+			hashCacheCleanup,
 			cache.WithLatestOnly(hashCacheLatestOnly),
 			cache.WithMaxLocalEntries(hashCacheMaxEntries),
 			cache.WithMaxLocalBytes(hashCacheMaxBytes),
